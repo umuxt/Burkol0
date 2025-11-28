@@ -666,12 +666,12 @@ LOT-M-00-001-001 (500 kg Çelik Sac)
 ### Destek
 
 **Teknik Sorunlar:**
-- GitHub Issues: [burkol/mes-system/issues]
-- E-posta: support@burkol.com
+- GitHub Issues: [BeePlan/mes-system/issues]
+- E-posta: support@BeePlan.com
 
 **Kullanım Soruları:**
-- Kullanıcı forumu: [forum.burkol.com]
-- Canlı destek: [chat.burkol.com]
+- Kullanıcı forumu: [forum.BeePlan.com]
+- Canlı destek: [chat.BeePlan.com]
 
 ---
 
@@ -735,4 +735,4 @@ LOT-M-00-001-001 (500 kg Çelik Sac)
 
 **Versiyon:** 1.0 (Faz 1+2)  
 **Son Güncelleme:** 20 Kasım 2025  
-**Destek:** support@burkol.com
+**Destek:** support@BeePlan.com

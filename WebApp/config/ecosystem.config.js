@@ -1,6 +1,6 @@
 // PM2 process manager configuration for Burkol Quote Portal
 // Usage:
-//   cd quote-portal
+//   cd WebApp
 //   pm2 start ecosystem.config.js
 //   pm2 status
 //   pm2 logs burkol

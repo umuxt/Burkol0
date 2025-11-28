@@ -1,4 +1,4 @@
-# 📋 BURKOL QUOTE PORTAL - KULLANIM KLAVUZU
+# 📋 BeePlan QUOTE PORTAL - KULLANIM KLAVUZU
 
 ## 🎯 İçindekiler
 1. [Sisteme Giriş](#sisteme-giriş)
@@ -22,7 +22,7 @@
 1. **URL:** `http://localhost:3001/admin.html`
 2. **Varsayılan Kullanıcı:**
    - **Email:** `umutyalcin8@gmail.com`
-   - **Şifre:** `burkol123`
+   - **Şifre:** `BeePlan123`
 
 ### İlk Giriş
 ```
@@ -220,7 +220,7 @@ Sabitler: PI, E
 2. **"+ Kullanıcı Ekle"** butonuna tıklayın
 3. Bilgileri doldurun:
    ```
-   Email: yeni@burkol.com
+   Email: yeni@BeePlan.com
    Şifre: güvenli123
    Rol: admin
    ```
@@ -385,11 +385,11 @@ Maksimum: [sayı]
 ### TXT Export
 1. **Tümü için:** "Export TXT" butonuna tıklayın
 2. **Seçililer için:** Checkbox ile seçin, "Seçilenleri Export Et"
-3. Dosya otomatik indirilir: `burkol-quotes.txt`
+3. Dosya otomatik indirilir: `BeePlan-quotes.txt`
 
 ### Export İçeriği
 ```
-BURKOL QUOTE EXPORT
+BeePlan QUOTE EXPORT
 ==================
 
 Quote ID: BK202509XXXXX
@@ -438,7 +438,7 @@ Description: Proje açıklaması
 ### Log İnceleme
 ```bash
 # Server logları
-cd quote-portal/logs
+cd WebApp/logs
 cat out-0.log  # Normal loglar
 cat err-0.log  # Hata logları
 ```
@@ -449,7 +449,7 @@ cat err-0.log  # Hata logları
 
 ### Yeni Üretim Akışı
 
-Burkol MES sistemi, onaylanmış tekliflerden üretim planlamasına kadar tam otomasyonlu bir akış sunar:
+BeePlan MES sistemi, onaylanmış tekliflerden üretim planlamasına kadar tam otomasyonlu bir akış sunar:
 
 #### 📋 Adım 1: Plan Tasarlama (Plan Designer)
 1. **Production Dashboard** sayfasına gidin
@@ -766,8 +766,8 @@ Bu script aşağıdaki tüm MES koleksiyonlarını **kalıcı olarak siler**:
 ### Kullanım
 ```bash
 # Terminalde şu komutu çalıştırın:
-cd /Users/umutyalcin/Documents/Burkol0/Burkol0
-RESET_MES=1 node quote-portal/scripts/reset-mes-data.js
+cd /Users/umutyalcin/Documents/BeePlan0/BeePlan0
+RESET_MES=1 node WebApp/scripts/reset-mes-data.js
 ```
 
 ### Güvenlik Önlemi
@@ -888,8 +888,8 @@ Testler sonrasında işçi durumlarını varsayılana döndürmek için:
 
 **Script ile Reset (tüm MES verisini siler):**
 ```bash
-cd /Users/umutyalcin/Documents/Burkol0/Burkol0
-RESET_MES=1 node quote-portal/scripts/reset-mes-data.js
+cd /Users/umutyalcin/Documents/BeePlan0/BeePlan0
+RESET_MES=1 node WebApp/scripts/reset-mes-data.js
 ```
 ⚠️ **Dikkat:** Bu işlem tüm üretim planlarını, atamaları ve diğer MES verilerini de siler!
 
@@ -964,13 +964,13 @@ DEBUG=* node server.js
 ## 📞 Destek ve İletişim
 
 ### Teknik Destek
-- **Email:** support@burkol.com
+- **Email:** support@BeePlan.com
 - **GitHub Issues:** Repository'de issue açın
 - **Dokümantasyon:** README.md dosyasını inceleyin
 
 ### Sistem Bilgileri
 ```
-Uygulama: Burkol Quote Portal
+Uygulama: BeePlan Quote Portal
 Versiyon: 0.1.0
 Node.js: v18+
 Database: JSON-based file system
@@ -996,5 +996,5 @@ Backend: Express.js
 
 ---
 
-*Bu kılavuz Burkol Quote Portal v0.1.0 için hazırlanmıştır.*
+*Bu kılavuz BeePlan Quote Portal v0.1.0 için hazırlanmıştır.*
 *Son güncelleme: 18 Eylül 2025*

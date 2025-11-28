@@ -85,7 +85,7 @@ Bu doküman, mevcut **FIFO (First In First Out)** tabanlı iş paketi sıralama 
 
 ## 2.1 Endpoint: POST /api/mes/launch-plan
 
-**Dosya:** `quote-portal/server/mesRoutes.js`  
+**Dosya:** `WebApp/server/mesRoutes.js`  
 **Satır:** ~5700-5850
 
 ### 2.1.1 Assignment Creation Loop
@@ -427,7 +427,7 @@ const completeAssignment = {
 
 ## 5.1 Endpoint: GET /api/mes/worker-tasks/:workerId
 
-**Dosya:** `quote-portal/server/mesRoutes.js`  
+**Dosya:** `WebApp/server/mesRoutes.js`  
 **Satır:** ~3000-3200
 
 ### 5.1.1 Query & Data Fetching
@@ -552,7 +552,7 @@ interface WorkerPortalTask {
 
 ## 6.1 Sorting Algorithm (Backend)
 
-**Dosya:** `quote-portal/server/mesRoutes.js`  
+**Dosya:** `WebApp/server/mesRoutes.js`  
 **Satır:** ~3113-3117
 
 ```javascript
@@ -628,7 +628,7 @@ allTasks.sort((a, b) => {
 
 ## 7.1 Algorithm (Backend)
 
-**Dosya:** `quote-portal/server/mesRoutes.js`  
+**Dosya:** `WebApp/server/mesRoutes.js`  
 **Satır:** ~3119-3145
 
 ```javascript
@@ -738,7 +738,7 @@ FOR EACH task IN allTasks:
 
 ## 8.1 Frontend: Task List Component
 
-**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`  
+**Dosya:** `WebApp/domains/workerPortal/workerPortal.js`  
 **Satır:** ~1397-1500
 
 ### 8.1.1 Task Card HTML Structure
@@ -1418,11 +1418,11 @@ WORKER PORTAL UI (Frontend Render)
 
 | Dosya | Satır | İşlev |
 |-------|-------|-------|
-| `quote-portal/server/mesRoutes.js` | ~5700-5850 | Launch endpoint (assignment creation) |
-| `quote-portal/server/mesRoutes.js` | ~3000-3200 | Worker tasks endpoint (FIFO sorting + canStart) |
-| `quote-portal/domains/workerPortal/workerPortal.js` | ~70-150 | Task loading (frontend) |
-| `quote-portal/domains/workerPortal/workerPortal.js` | ~1397-1500 | Task card rendering (UI) |
-| `quote-portal/shared/schemas/assignment.schema.json` | - | Assignment schema (FIFO fields) |
+| `WebApp/server/mesRoutes.js` | ~5700-5850 | Launch endpoint (assignment creation) |
+| `WebApp/server/mesRoutes.js` | ~3000-3200 | Worker tasks endpoint (FIFO sorting + canStart) |
+| `WebApp/domains/workerPortal/workerPortal.js` | ~70-150 | Task loading (frontend) |
+| `WebApp/domains/workerPortal/workerPortal.js` | ~1397-1500 | Task card rendering (UI) |
+| `WebApp/shared/schemas/assignment.schema.json` | - | Assignment schema (FIFO fields) |
 
 ---
 
@@ -2035,7 +2035,7 @@ Mevcut worker dökümanına aşağıdaki field'ı ekleyin:
 {
   id: 'worker-123',
   name: 'Ahmet Yılmaz',
-  email: 'ahmet@burkol.com',
+  email: 'ahmet@BeePlan.com',
   skills: ['kaynak', 'kesim', 'montaj'],
   efficiency: 1.2,
   status: 'active',
@@ -2150,7 +2150,7 @@ if (selectedWorker.personalSchedule?.enabled && selectedWorker.personalSchedule.
 
 **4. Migration Script (Mevcut Worker'lara Default Eklemek)**
 
-`quote-portal/scripts/migrate-worker-schedules.js` oluşturun:
+`WebApp/scripts/migrate-worker-schedules.js` oluşturun:
 
 ```javascript
 const admin = require('firebase-admin');
@@ -2290,7 +2290,7 @@ await batch.commit();
 Launch sırasında mevcut pending/in-progress assignments'ları yükleyerek worker ve substation schedule'larını doğru hesaplayın. Bu, çakışan atamaları önler.
 
 ### Hedef Dosya
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/server/mesRoutes.js`
 
 ### İşlem Adımları
 
@@ -2525,7 +2525,7 @@ Eğer sorun çıkarsa:
 Launch endpoint'e topological order validation logic ekleyerek invalid execution order'la launch edilmeyi önleyin.
 
 ### Hedef Dosya
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/server/mesRoutes.js`
 
 ### İşlem Adımları
 
@@ -2870,9 +2870,9 @@ Eğer sorun çıkarsa:
 Material shortage durumunda hybrid approach uygulayın: Plan launch edilebilir ama worker task start edemez (malzeme rezerve edilene kadar).
 
 ### Hedef Dosyalar
-- `quote-portal/server/mesRoutes.js` (launch endpoint)
-- `quote-portal/server/mesRoutes.js` (worker tasks endpoint)
-- `quote-portal/domains/workerPortal/workerPortal.js` (UI)
+- `WebApp/server/mesRoutes.js` (launch endpoint)
+- `WebApp/server/mesRoutes.js` (worker tasks endpoint)
+- `WebApp/domains/workerPortal/workerPortal.js` (UI)
 
 ### İşlem Adımları
 
@@ -2994,7 +2994,7 @@ activeTasks.forEach(task => {
 
 **4. Worker Portal UI: Block Reason Display**
 
-`quote-portal/domains/workerPortal/workerPortal.js` dosyasında task card rendering bölümünü bulun (satır ~1397-1500 civarı) ve güncelleyin:
+`WebApp/domains/workerPortal/workerPortal.js` dosyasında task card rendering bölümünü bulun (satır ~1397-1500 civarı) ve güncelleyin:
 
 ```javascript
 // TASK CARD RENDERING (mevcut kod içinde):
@@ -3029,7 +3029,7 @@ if (startButton) {
 
 **5. CSS: Block Badge Styling**
 
-`quote-portal/domains/workerPortal/workerPortal.css` dosyasına ekleyin:
+`WebApp/domains/workerPortal/workerPortal.css` dosyasına ekleyin:
 
 ```css
 /* Material Block Badge */
@@ -3183,7 +3183,7 @@ Eğer sorun çıkarsa:
 Tüm assignments'ları batch commit **öncesinde** validate ederek partial commit durumlarını önleyin.
 
 ### Hedef Dosya
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/server/mesRoutes.js`
 
 ### İşlem Adımları
 
@@ -3517,7 +3517,7 @@ Eğer sorun çıkarsa:
 Firestore'un 500 operation/batch limitini handle ederek large plan'ları destekleyin.
 
 ### Hedef Dosya
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/server/mesRoutes.js`
 
 ### İşlem Adımları
 
@@ -3811,14 +3811,14 @@ Eğer sorun çıkarsa:
 Global cache system ile production mode'u (FIFO/Optimization) app başlangıcında 1 kez yükleyip tüm component'lerde kullanın. Bu, gereksiz Firestore query'lerini önler ve UI reactive hale getirir.
 
 ### Hedef Dosyalar
-- `quote-portal/shared/state/productionMode.js` (yeni)
-- `quote-portal/src/main.js` (güncelle)
+- `WebApp/shared/state/productionMode.js` (yeni)
+- `WebApp/src/main.js` (güncelle)
 
 ### İşlem Adımları
 
 **1. ProductionModeCache Class Oluştur**
 
-`quote-portal/shared/state/productionMode.js` dosyası oluşturun:
+`WebApp/shared/state/productionMode.js` dosyası oluşturun:
 
 ```javascript
 /**
@@ -3950,7 +3950,7 @@ export default productionModeCache;
 
 **2. App Başlangıcında Initialize Et**
 
-`quote-portal/src/main.js` dosyasını güncelleyin:
+`WebApp/src/main.js` dosyasını güncelleyin:
 
 ```javascript
 import productionModeCache from '../shared/state/productionMode.js';
@@ -4138,16 +4138,16 @@ Eğer sorun çıkarsa:
 Admin panel'e Production Settings sayfası ekleyin. Bu sayfada scheduling mode toggle ve optimization ayarları olacak. Bu fazda sadece UI, backend entegrasyonu sonraki fazda yapılacak.
 
 ### Hedef Dosyalar
-- `quote-portal/domains/admin/pages/production-settings.html` (yeni)
-- `quote-portal/domains/admin/js/production-settings.js` (yeni)
-- `quote-portal/domains/admin/styles/production-settings.css` (yeni)
-- `quote-portal/pages/settings.html` (menü güncellemesi)
+- `WebApp/domains/admin/pages/production-settings.html` (yeni)
+- `WebApp/domains/admin/js/production-settings.js` (yeni)
+- `WebApp/domains/admin/styles/production-settings.css` (yeni)
+- `WebApp/pages/settings.html` (menü güncellemesi)
 
 ### İşlem Adımları
 
 **1. Settings Menüsüne Link Ekle**
 
-`quote-portal/pages/settings.html` dosyasında Master Data section'a ekleyin:
+`WebApp/pages/settings.html` dosyasında Master Data section'a ekleyin:
 
 ```html
 <div class="settings-section">
@@ -4164,7 +4164,7 @@ Admin panel'e Production Settings sayfası ekleyin. Bu sayfada scheduling mode t
 
 **2. Production Settings HTML**
 
-`quote-portal/domains/admin/pages/production-settings.html` oluşturun:
+`WebApp/domains/admin/pages/production-settings.html` oluşturun:
 
 ```html
 <!DOCTYPE html>
@@ -4172,7 +4172,7 @@ Admin panel'e Production Settings sayfası ekleyin. Bu sayfada scheduling mode t
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Production Settings - Burkol MES</title>
+  <title>Production Settings - BeePlan MES</title>
   <link rel="stylesheet" href="../../../styles/main.css">
   <link rel="stylesheet" href="../styles/production-settings.css">
 </head>
@@ -4269,7 +4269,7 @@ Admin panel'e Production Settings sayfası ekleyin. Bu sayfada scheduling mode t
 
 **3. JavaScript Logic**
 
-`quote-portal/domains/admin/js/production-settings.js`:
+`WebApp/domains/admin/js/production-settings.js`:
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -4348,7 +4348,7 @@ init();
 
 **4. CSS Styling**
 
-`quote-portal/domains/admin/styles/production-settings.css`:
+`WebApp/domains/admin/styles/production-settings.css`:
 
 ```css
 .settings-card {
@@ -4547,16 +4547,16 @@ init();
 Work order start butonuna tıklandığında, optimization mode'daysa priority selection popup gösterin. FIFO mode'daysa direkt başlatsın.
 
 ### Hedef Dosyalar
-- `quote-portal/domains/orders/components/start-wo-modal.html` (yeni)
-- `quote-portal/domains/orders/js/start-wo-modal.js` (yeni)
-- `quote-portal/domains/orders/styles/start-wo-modal.css` (yeni)
-- `quote-portal/domains/production/js/approvedQuotes.js` (güncelle)
+- `WebApp/domains/orders/components/start-wo-modal.html` (yeni)
+- `WebApp/domains/orders/js/start-wo-modal.js` (yeni)
+- `WebApp/domains/orders/styles/start-wo-modal.css` (yeni)
+- `WebApp/domains/production/js/approvedQuotes.js` (güncelle)
 
 ### İşlem Adımları
 
 **1. Popup HTML Component**
 
-`quote-portal/domains/orders/components/start-wo-modal.html`:
+`WebApp/domains/orders/components/start-wo-modal.html`:
 
 ```html
 <div id="start-wo-modal" class="modal" style="display: none;">
@@ -4616,7 +4616,7 @@ Work order start butonuna tıklandığında, optimization mode'daysa priority se
 
 **2. Popup JavaScript**
 
-`quote-portal/domains/orders/js/start-wo-modal.js`:
+`WebApp/domains/orders/js/start-wo-modal.js`:
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -4684,7 +4684,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 **3. ApprovedQuotes Integration**
 
-`quote-portal/domains/production/js/approvedQuotes.js` içinde `startProduction` fonksiyonunu güncelleyin:
+`WebApp/domains/production/js/approvedQuotes.js` içinde `startProduction` fonksiyonunu güncelleyin:
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -4720,7 +4720,7 @@ async function launchWithPriority(workOrderCode, priority, isUrgent) {
 
 **4. Modal CSS**
 
-`quote-portal/domains/orders/styles/start-wo-modal.css`:
+`WebApp/domains/orders/styles/start-wo-modal.css`:
 
 ```css
 .modal {
@@ -4930,15 +4930,15 @@ async function launchWithPriority(workOrderCode, priority, isUrgent) {
 Work Orders sayfasına "Optimize Schedule Now" butonu ekleyin. Bu buton sadece optimization mode'dayken görünsün ve reactive olsun.
 
 ### Hedef Dosyalar
-- `quote-portal/pages/quote-dashboard.html` (güncelle)
-- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
-- `quote-portal/domains/orders/styles/work-orders.css` (güncelle)
+- `WebApp/pages/quote-dashboard.html` (güncelle)
+- `WebApp/domains/orders/js/work-orders.js` (güncelle)
+- `WebApp/domains/orders/styles/work-orders.css` (güncelle)
 
 ### İşlem Adımları
 
 **1. HTML'e Buton Ekle**
 
-`quote-portal/pages/quote-dashboard.html` içinde work orders section'a ekleyin:
+`WebApp/pages/quote-dashboard.html` içinde work orders section'a ekleyin:
 
 ```html
 <div class="page-header">
@@ -4966,7 +4966,7 @@ Work Orders sayfasına "Optimize Schedule Now" butonu ekleyin. Bu buton sadece o
 
 **2. JavaScript Logic**
 
-`quote-portal/domains/orders/js/work-orders.js` içine ekleyin:
+`WebApp/domains/orders/js/work-orders.js` içine ekleyin:
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -5072,7 +5072,7 @@ document.addEventListener('DOMContentLoaded', initializeOptimizeButton);
 
 **3. CSS Styling**
 
-`quote-portal/domains/orders/styles/work-orders.css`:
+`WebApp/domains/orders/styles/work-orders.css`:
 
 ```css
 .btn-optimize {

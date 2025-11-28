@@ -5,7 +5,7 @@
 echo "📊 BURKOL Quote Portal - System Status"
 echo "========================================"
 
-cd /Users/umutyalcin/Documents/Burkol/quote-portal
+cd /Users/umutyalcin/Documents/Burkol/WebApp
 
 # Check service status
 echo ""

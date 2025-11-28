@@ -86,20 +86,20 @@
 ## Değiştirilen Dosyalar
 
 ### Backend
-- `quote-portal/db/migrations/021_create_system_settings.js` - Migration
-- `quote-portal/db/models/settings.js` - Settings model
-- `quote-portal/db/models/orderItems.js` - Lot tracking conditional
-- `quote-portal/server/settingsRoutes.js` - API routes
-- `quote-portal/server/utils/fifoScheduler.js` - completeTask lot conditional
-- `quote-portal/server/utils/lotConsumption.js` - Reservation with/without lot
-- `quote-portal/server.js` - Added settingsRoutes
+- `WebApp/db/migrations/021_create_system_settings.js` - Migration
+- `WebApp/db/models/settings.js` - Settings model
+- `WebApp/db/models/orderItems.js` - Lot tracking conditional
+- `WebApp/server/settingsRoutes.js` - API routes
+- `WebApp/server/utils/fifoScheduler.js` - completeTask lot conditional
+- `WebApp/server/utils/lotConsumption.js` - Reservation with/without lot
+- `WebApp/server.js` - Added settingsRoutes
 
 ### Frontend
-- `quote-portal/src/components/settings/SystemTab.jsx` - Toggle UI
-- `quote-portal/domains/admin/settings-app.js` - Tab navigation
-- `quote-portal/domains/orders/components/OrdersTabContent.jsx` - Delivery modal
-- `quote-portal/domains/workerPortal/workerPortal.js` - Worker portal
-- `quote-portal/domains/materials/components/MaterialDetailsPanel.jsx` - Material details lot inventory
+- `WebApp/src/components/settings/SystemTab.jsx` - Toggle UI
+- `WebApp/domains/admin/settings-app.js` - Tab navigation
+- `WebApp/domains/orders/components/OrdersTabContent.jsx` - Delivery modal
+- `WebApp/domains/workerPortal/workerPortal.js` - Worker portal
+- `WebApp/domains/materials/components/MaterialDetailsPanel.jsx` - Material details lot inventory
 
 ---
 

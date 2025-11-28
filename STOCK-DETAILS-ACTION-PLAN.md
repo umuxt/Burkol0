@@ -12,7 +12,7 @@ Mevcut durumda, bir iş emri tamamlandığında tabloda iki satır oluşmaktadı
 *   Eğer iş tamamlanmışsa (Ayarlama kaydı varsa): WIP ve Ayarlama satırları gizlenecek, bunların toplamı **Sarf** (Gerçek Tüketim) olarak tek satırda gösterilecek.
 
 ## 2. Teknik Analiz
-İlgili dosya: `quote-portal/domains/materials/hooks/useMaterialProductionHistory.js`
+İlgili dosya: `WebApp/domains/materials/hooks/useMaterialProductionHistory.js`
 
 Veriler şu anda `/api/stockMovements` üzerinden ham olarak çekilmekte ve `map` fonksiyonu ile birebir tablo satırına dönüştürülmektedir. Yapılması gereken, bu `map` işlemi yerine verileri `assignmentId` (Atama ID) bazında gruplayarak işlemektir.
 
@@ -34,7 +34,7 @@ Veriler şu anda `/api/stockMovements` üzerinden ham olarak çekilmekte ve `map
 5.  **Senaryo C (Diğer):** Scrap (Fire) veya diğer kayıtlar olduğu gibi bırakılacak.
 
 ### Adım 2: Arayüz Güncellemesi (`MaterialDetailsPanel.jsx`)
-`quote-portal/domains/materials/components/MaterialDetailsPanel.jsx` dosyasında yeni oluşturulan `realized_consumption` türü için görsel düzenleme yapılacak.
+`WebApp/domains/materials/components/MaterialDetailsPanel.jsx` dosyasında yeni oluşturulan `realized_consumption` türü için görsel düzenleme yapılacak.
 
 1.  `switch (item.type)` bloğuna `realized_consumption` case'i eklenecek.
 2.  Görünüm:

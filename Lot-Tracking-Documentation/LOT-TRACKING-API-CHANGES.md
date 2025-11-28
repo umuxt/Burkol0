@@ -23,7 +23,7 @@ This document details all API endpoint changes for the lot tracking system. Phas
 
 **Purpose:** Deliver order items with optional lot tracking information
 
-**File:** `quote-portal/server/ordersRoutes.js`
+**File:** `WebApp/server/ordersRoutes.js`
 
 **Status:** ✅ Ready for modification
 
@@ -197,7 +197,7 @@ Content-Type: application/json
 
 **Purpose:** Start production task with FIFO lot consumption
 
-**File:** `quote-portal/server/mesRoutes.js`
+**File:** `WebApp/server/mesRoutes.js`
 
 **Status:** ✅ Ready for modification
 
@@ -429,7 +429,7 @@ Content-Type: application/json
 
 **Purpose:** Get lot-level inventory for specific material
 
-**File:** `quote-portal/server/materialsRoutes.js`
+**File:** `WebApp/server/materialsRoutes.js`
 
 **Status:** ✅ Ready for implementation
 
@@ -649,7 +649,7 @@ Content-Type: application/json
 
 **Purpose:** Preview which lots will be consumed (read-only, no reservation)
 
-**File:** `quote-portal/server/mesRoutes.js` (line 8680)
+**File:** `WebApp/server/mesRoutes.js` (line 8680)
 
 **Status:** ✅ Endpoint already exists!
 
@@ -1013,11 +1013,11 @@ CREATE INDEX idx_fifo_lots ON materials.stock_movements(
 - Test Report: `LOT-TRACKING-STEP-14-TEST-REPORT.md`
 
 **Code References:**
-- Lot Generator: `quote-portal/server/utils/lotGenerator.js`
-- Lot Consumption: `quote-portal/server/utils/lotConsumption.js`
-- Orders Routes: `quote-portal/server/ordersRoutes.js`
-- MES Routes: `quote-portal/server/mesRoutes.js`
-- Materials Routes: `quote-portal/server/materialsRoutes.js`
+- Lot Generator: `WebApp/server/utils/lotGenerator.js`
+- Lot Consumption: `WebApp/server/utils/lotConsumption.js`
+- Orders Routes: `WebApp/server/ordersRoutes.js`
+- MES Routes: `WebApp/server/mesRoutes.js`
+- Materials Routes: `WebApp/server/materialsRoutes.js`
 
 ---
 

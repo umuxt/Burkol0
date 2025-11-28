@@ -1,4 +1,4 @@
-# 🏭 Burkol MES (Manufacturing Execution System)
+# 🏭 BeePlan MES (Manufacturing Execution System)
 
 ## Production Planning & Execution System
 
@@ -48,7 +48,7 @@
 ### Installation
 
 ```bash
-cd quote-portal
+cd WebApp
 npm install
 ```
 

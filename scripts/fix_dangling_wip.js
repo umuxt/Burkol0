@@ -1,5 +1,5 @@
 
-import db from '../quote-portal/db/connection.js';
+import db from '../WebApp/db/connection.js';
 
 async function fixDanglingWip() {
   try {

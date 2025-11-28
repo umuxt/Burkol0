@@ -8,7 +8,7 @@ Bu doküman, kullanıcı **🏁 Başlat** butonuna tıkladığında sistemde ger
 
 ## 📍 Başlangıç Noktası
 
-**Konum:** `quote-portal/domains/production/js/approvedQuotes.js`  
+**Konum:** `WebApp/domains/production/js/approvedQuotes.js`  
 **Fonksiyon:** `startProduction(workOrderCode)`  
 **Tetikleyici:** Onaylı Teklifler sayfasındaki "🏁 Başlat" butonu
 
@@ -88,7 +88,7 @@ POST /api/mes/production-plans/:planId/launch
 }
 ```
 
-**Konum:** `quote-portal/domains/production/js/mesApi.js`
+**Konum:** `WebApp/domains/production/js/mesApi.js`
 
 ```javascript
 export async function launchProductionPlan(planId, workOrderCode) {
@@ -122,7 +122,7 @@ export async function launchProductionPlan(planId, workOrderCode) {
 
 ### 3️⃣ **Backend İşlemleri** (Server Side)
 
-**Konum:** `quote-portal/server/mesRoutes.js`  
+**Konum:** `WebApp/server/mesRoutes.js`  
 **Route Handler:** `router.post('/production-plans/:planId/launch', ...)`
 
 ---
@@ -510,7 +510,7 @@ for (const nodeId of executionOrder.order) {
 
 ##### 3.6.1 assignNodeResources Fonksiyonu
 
-**Konum:** `quote-portal/server/mesRoutes.js`
+**Konum:** `WebApp/server/mesRoutes.js`
 
 ```javascript
 async function assignNodeResources(
@@ -1483,7 +1483,7 @@ Normal üretim akışında, işçiler **Worker Portal**'da iş paketlerini (work
 
 #### 1. Admin Panel (Approved Quotes)
 
-**Konum:** `quote-portal/domains/production/js/approvedQuotes.js`
+**Konum:** `WebApp/domains/production/js/approvedQuotes.js`
 
 **UI Değişikliği:**
 ```javascript
@@ -1577,7 +1577,7 @@ router.post('/set-urgent-priority', withAuth, async (req, res) => {
 
 #### 3. Worker Portal Render Değişikliği
 
-**Konum:** `quote-portal/domains/workerPortal/js/workerPortal.js`
+**Konum:** `WebApp/domains/workerPortal/js/workerPortal.js`
 
 **Mevcut Mantık:**
 ```javascript
@@ -1630,7 +1630,7 @@ function renderTaskCard(task, index) {
 
 #### 4. CSS Styling
 
-**Konum:** `quote-portal/domains/workerPortal/css/workerPortal.css`
+**Konum:** `WebApp/domains/workerPortal/css/workerPortal.css`
 
 **Urgent Göstergesi:**
 ```css
@@ -1852,7 +1852,7 @@ function renderTaskCard(task, index) {
 
 ### A.1 Node ID Tutarsızlığı (CRITICAL)
 
-**Hata Lokasyonu:** `quote-portal/server/mesRoutes.js:5513`
+**Hata Lokasyonu:** `WebApp/server/mesRoutes.js:5513`
 
 **Kod:**
 ```javascript
@@ -1887,7 +1887,7 @@ const node = nodesToUse.find(n => n.id === nodeId);  // ❌ id kullanıyor
 
 ### A.2 Malzeme Kontrolü Field Tutarsızlığı (CRITICAL)
 
-**Hata Lokasyonu:** `quote-portal/server/mesRoutes.js:5895`
+**Hata Lokasyonu:** `WebApp/server/mesRoutes.js:5895`
 
 **Kod:**
 ```javascript
@@ -1935,8 +1935,8 @@ const required = mat.required;  // Okuma - TUTARSIZ!
 ### A.3 Substation ID Schema İhlali (HIGH)
 
 **Hata Lokasyonu:** 
-- `quote-portal/server/models/AssignmentSchema.json:21`
-- `quote-portal/server/mesRoutes.js:6632`
+- `WebApp/server/models/AssignmentSchema.json:21`
+- `WebApp/server/mesRoutes.js:6632`
 
 **Schema:**
 ```json
@@ -1983,7 +1983,7 @@ if (!validateAssignment(completeAssignment)) {
 ### A.4 Frontend-Backend Schema Uyumsuzluğu (HIGH)
 
 **Hata Lokasyonu:** 
-- `quote-portal/domains/production/components/production-plan-designer.tsx:72`
+- `WebApp/domains/production/components/production-plan-designer.tsx:72`
 - `NODE-STRUCTURE-IMPROVEMENTS.md`
 
 **Frontend Interface:**
@@ -2050,7 +2050,7 @@ const newNode: OperationNode = {
 
 ### A.5 Malzeme Rezervasyonu Eksikliği (CRITICAL)
 
-**Hata Lokasyonu:** `quote-portal/server/mesRoutes.js:5500-5650`
+**Hata Lokasyonu:** `WebApp/server/mesRoutes.js:5500-5650`
 
 **Problem:**
 - `calculatePreProductionReservedAmount()` çağrılıyor ve hesaplama yapılıyor
@@ -2116,7 +2116,7 @@ assignment.materialReservationStatus = 'reserved';
 
 ### A.6 StationSchedule İsimlendirme Yanılgısı (MEDIUM)
 
-**Hata Lokasyonu:** `quote-portal/server/mesRoutes.js:5508, 5576`
+**Hata Lokasyonu:** `WebApp/server/mesRoutes.js:5508, 5576`
 
 **Kod:**
 ```javascript
@@ -2157,7 +2157,7 @@ load: (stationSchedule.get(s.id) || []).length  // ❌ Burada station id! BUG!
 
 ### A.7 Pause/Cancel Substation Güncellemesi Eksik (MEDIUM)
 
-**Hata Lokasyonu:** `quote-portal/server/mesRoutes.js:6778-6784`
+**Hata Lokasyonu:** `WebApp/server/mesRoutes.js:6778-6784`
 
 **Kod:**
 ```javascript
@@ -2211,7 +2211,7 @@ const assignment = assignments.get(node.nodeId);     // ❌ mesRoutes.js:398
 ```
 
 #### A.8.2 materialFlowView Component - Eski Model Kullanımı
-**Lokasyon:** `quote-portal/domains/production/components/materialFlowView.js:70`
+**Lokasyon:** `WebApp/domains/production/components/materialFlowView.js:70`
 
 ```javascript
 const outs = Array.isArray(n.connections) ? n.connections : [];  // ❌ connections kullanıyor
@@ -2220,7 +2220,7 @@ const outs = Array.isArray(n.connections) ? n.connections : [];  // ❌ connecti
 **Etki:** Material flow görselleştirmesi yeni modelle çalışmıyor
 
 #### A.8.3 Semi-Code Generator - AssignedStations Eksik Destek
-**Lokasyon:** `quote-portal/domains/production/js/semiCode.js:47`
+**Lokasyon:** `WebApp/domains/production/js/semiCode.js:47`
 
 ```javascript
 const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
@@ -2540,7 +2540,7 @@ const firstStationId = Array.isArray(node.assignedStations) && node.assignedStat
 
 #### C.1.1 Node Interface Güncellemesi
 
-**Dosya:** `quote-portal/domains/production/components/production-plan-designer.tsx`
+**Dosya:** `WebApp/domains/production/components/production-plan-designer.tsx`
 
 **Değişiklikler:**
 ```typescript
@@ -2746,7 +2746,7 @@ function StationPrioritySelector({ node, availableStations, onChange }: StationA
 
 #### C.2.1 Node ID Tutarlılığı
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Değişiklik 1: Launch endpoint (satır 5513)**
 ```javascript
@@ -2839,7 +2839,7 @@ async function assignNodeResources(
 
 ### C.3 Malzeme Validasyonu Fix (Phase 1 - CRITICAL)
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Değişiklik: satır 5895**
 ```javascript
@@ -2886,7 +2886,7 @@ return { warnings };
 
 ### C.4 Gerçek Rezervasyon Mekanizması (Phase 2 - HIGH)
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Yeni Fonksiyon:**
 ```javascript
@@ -3055,7 +3055,7 @@ for (let i = 0; i < assignments.length; i++) {
 
 ### C.5 Şema Tutarlılığı (Phase 1 - HIGH)
 
-**Dosya:** `quote-portal/server/models/AssignmentSchema.json`
+**Dosya:** `WebApp/server/models/AssignmentSchema.json`
 
 **Değişiklik:**
 ```json
@@ -3114,7 +3114,7 @@ const validateNode = (node: OperationNode): string[] => {
 
 ### C.6 Pause/Cancel Substation Fix (Phase 2 - MEDIUM)
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Değişiklik: satır 6741**
 ```javascript
@@ -3169,7 +3169,7 @@ for (const substationId of substationsToUpdate) {
 
 ### C.7 Migration Script (Phase 3)
 
-**Yeni Dosya:** `quote-portal/scripts/migrate-to-new-allocation-model.cjs`
+**Yeni Dosya:** `WebApp/scripts/migrate-to-new-allocation-model.cjs`
 
 ```javascript
 const admin = require('firebase-admin');
@@ -3278,7 +3278,7 @@ migrateNodes()
 
 ### C.8 Test & İzleme (Phase 3)
 
-**Yeni Dosya:** `quote-portal/scripts/test-launch-validation.cjs`
+**Yeni Dosya:** `WebApp/scripts/test-launch-validation.cjs`
 
 ```javascript
 const admin = require('firebase-admin');
@@ -3425,7 +3425,7 @@ verilmiştir.
 ## APPENDIX D: İmplementasyon Promtları
 
 **Düzenleme Tarihi:** 16 Kasım 2025  
-**Proje:** Burkol MES - Production System  
+**Proje:** BeePlan MES - Production System  
 **Versiyon:** v2.0 (isUrgent + priorityIndex)
 
 ---
@@ -3471,7 +3471,7 @@ Bu faz **en kritik**. Diğer tüm promtlar bu temele dayanır.
 **Öncelik:** 🔴 CRITICAL - İLK ÇALIŞTIR!  
 **Bağımlılık:** Yok  
 **Süre:** ~5 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: mesRoutes.js'te node.id vs node.nodeId tutarsızlığını çözmek için normalizasyon fonksiyonu oluşturma.
@@ -3486,7 +3486,7 @@ CONTEXT:
 
 İMPLEMENTASYON:
 
-Dosyayı aç: quote-portal/server/mesRoutes.js
+Dosyayı aç: WebApp/server/mesRoutes.js
 
 Dosyanın başına (diğer helper fonksiyonların yanına, tahmini satır 100-200 arası) ekle:
 
@@ -3539,7 +3539,7 @@ BAŞARI KRİTERLERİ:
 **📢 SONRAKİ ADIM:** Diğer promtlar bu fonksiyonu kullanacak. Lütfen sırayla devam et!
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -3551,7 +3551,7 @@ DOSYA YOLU:
 **Öncelik:** 🟡 HIGH  
 **Bağımlılık:** PROMPT 1 tamamlanmış olmalı (getNodeId kullanılacak)  
 **Süre:** ~3 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: Malzeme kontrolü sırasında mat.required yerine mat.requiredQuantity kullanılması.
@@ -3565,7 +3565,7 @@ CONTEXT:
 
 ÇÖZÜM:
 
-Dosyayı aç: quote-portal/server/mesRoutes.js
+Dosyayı aç: WebApp/server/mesRoutes.js
 
 Satır ~5895'i bul (malzeme kontrolü loop'u):
 
@@ -3635,7 +3635,7 @@ BAŞARI KRİTERLERİ:
 ✅ Launch warnings doğru değerleri gösteriyor
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -3647,7 +3647,7 @@ DOSYA YOLU:
 **Öncelik:** 🟡 HIGH  
 **Bağımlılık:** PROMPT 1 tamamlanmış olmalı (getNodeId kullanılacak)  
 **Süre:** ~5 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: Yanlış isimlendirilmiş stationSchedule değişkenini substationSchedule olarak düzeltmek.
@@ -3763,7 +3763,7 @@ BAŞARI KRİTERLERİ:
 ✅ Server başarıyla başlıyor
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -3782,8 +3782,8 @@ Bu faz schema dosyasını ve validation logic'i güncelliyor.
 **Bağımlılık:** FAZ 1 tamamlanmış olmalı  
 **Süre:** ~7 dakika  
 **Dosyalar:** 
-- `quote-portal/server/models/AssignmentSchema.json`
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/server/models/AssignmentSchema.json`
+- `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: AssignmentSchema.json'da substationId'yi opsiyonel yapmak VE isUrgent alanını eklemek, mesRoutes.js'te getNodeId() kullanımını yaygınlaştırmak.
@@ -3800,7 +3800,7 @@ CONTEXT:
 
 1. SCHEMA DÜZELTMESİ:
 
-Dosya: quote-portal/server/models/AssignmentSchema.json
+Dosya: WebApp/server/models/AssignmentSchema.json
 
 MEVCUT KOD:
 ```json
@@ -3926,8 +3926,8 @@ BAŞARI KRİTERLERİ:
 ✅ substationId null olabilir
 
 DOSYA YOLLARI:
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/server/models/AssignmentSchema.json
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/server/models/AssignmentSchema.json
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -3945,7 +3945,7 @@ Bu faz urgent sistemin core implementasyonu.
 **Öncelik:** 🔴 CRITICAL  
 **Bağımlılık:** FAZ 2 tamamlanmış olmalı (isUrgent alanı schema'da var)  
 **Süre:** ~10 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: POST /api/mes/set-urgent-priority endpoint'i eklenmesi. isUrgent flag'ini true/false yapar.
@@ -4069,7 +4069,7 @@ BAŞARI KRİTERLERİ:
 ✅ Postman'de 200 response
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -4082,8 +4082,8 @@ DOSYA YOLU:
 **Bağımlılık:** PROMPT 5 tamamlanmış olmalı (backend endpoint hazır)  
 **Süre:** ~8 dakika  
 **Dosyalar:** 
-- `quote-portal/domains/production/js/approvedQuotes.js`
-- `quote-portal/domains/production/css/approvedQuotes.css`
+- `WebApp/domains/production/js/approvedQuotes.js`
+- `WebApp/domains/production/css/approvedQuotes.css`
 
 ```markdown
 GÖREV: Approved Quotes'a "!! Acil" butonu eklenmesi. isUrgent flag'ini toggle eder.
@@ -4091,7 +4091,7 @@ GÖREV: Approved Quotes'a "!! Acil" butonu eklenmesi. isUrgent flag'ini toggle e
 **⚠️ BAĞIMLILIK:** PROMPT 5 tamamlanmış olmalı (backend endpoint hazır).
 
 CONTEXT:
-- Dosya: quote-portal/domains/production/js/approvedQuotes.js
+- Dosya: WebApp/domains/production/js/approvedQuotes.js
 - isUrgent flag kullanacağız (❌ priority: "urgent" DEĞİL!)
 - Button: Üretimde olan planlara görünür
 
@@ -4237,8 +4237,8 @@ BAŞARI KRİTERLERİ:
 ✅ Confirm dialog çalışıyor
 
 DOSYA YOLLARI:
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/production/js/approvedQuotes.js
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/production/css/approvedQuotes.css
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/production/js/approvedQuotes.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/production/css/approvedQuotes.css
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -4251,8 +4251,8 @@ DOSYA YOLLARI:
 **Bağımlılık:** FAZ 3 diğer promtları tamamlanmış olmalı  
 **Süre:** ~12 dakika  
 **Dosyalar:** 
-- `quote-portal/domains/workerPortal/js/workerPortal.js`
-- `quote-portal/domains/workerPortal/css/workerPortal.css`
+- `WebApp/domains/workerPortal/js/workerPortal.js`
+- `WebApp/domains/workerPortal/css/workerPortal.css`
 
 ```markdown
 GÖREV: Worker Portal'da canStart logic'i implement etmek. isUrgent=true ise tüm tasklar, değilse sadece ilk task başlatılabilir.
@@ -4260,7 +4260,7 @@ GÖREV: Worker Portal'da canStart logic'i implement etmek. isUrgent=true ise tü
 **⚠️ BAĞIMLILIK:** PROMPT 5, 6 tamamlanmış olmalı.
 
 CONTEXT:
-- Dosya: quote-portal/domains/workerPortal/js/workerPortal.js
+- Dosya: WebApp/domains/workerPortal/js/workerPortal.js
 - priorityIndex'e göre sırala, isUrgent flag'ine göre canStart belirle
 - Logic: `task.canStart = task.isUrgent || (index === 0)`
 
@@ -4507,8 +4507,8 @@ BAŞARI KRİTERLERİ:
 ✅ Waiting text görünüyor
 
 DOSYA YOLLARI:
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/js/workerPortal.js
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/css/workerPortal.css
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/workerPortal/js/workerPortal.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/workerPortal/css/workerPortal.css
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -4528,7 +4528,7 @@ Bu faz malzeme rezervasyon sistemini düzeltiyor.
 **Öncelik:** 🔴 CRITICAL  
 **Bağımlılık:** FAZ 1-3 tamamlanmış olmalı  
 **Süre:** ~20 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: 
@@ -5313,7 +5313,7 @@ BAŞARI KRİTERLERİ:
 ---
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -5332,8 +5332,8 @@ Bu faz kalan kritik hataları düzeltiyor.
 **Bağımlılık:** FAZ 1-2 tamamlanmış olmalı  
 **Süre:** ~10 dakika  
 **Dosyalar:**
-- `quote-portal/domains/production/production-plan-designer.tsx`
-- `quote-portal/server/mesRoutes.js`
+- `WebApp/domains/production/production-plan-designer.tsx`
+- `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: Production Plan Designer (frontend) ile mesRoutes.js (backend) arasındaki schema uyumsuzluğunu düzeltmek.
@@ -5463,8 +5463,8 @@ BAŞARI KRİTERLERİ:
 ✅ Console'da schema error yok
 
 DOSYA YOLLARI:
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/production/production-plan-designer.tsx
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/production/production-plan-designer.tsx
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -5476,7 +5476,7 @@ DOSYA YOLLARI:
 **Öncelik:** 🔴 HIGH  
 **Bağımlılık:** Yok  
 **Süre:** ~10 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ```markdown
 GÖREV: Admin pause/cancel endpoint'lerinde worker/station/substation atamalarının doğru yönetilmesini sağlamak.
@@ -5735,7 +5735,7 @@ BAŞARI KRİTERLERİ:
 ✅ Log'lar doğru
 
 DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -5748,9 +5748,9 @@ DOSYA YOLU:
 **Bağımlılık:** PROMPT 1, 4, 9 tamamlanmış olmalı  
 **Süre:** ~25 dakika  
 **Dosyalar:**
-- `quote-portal/server/mesRoutes.js` (Launch endpoint)
-- `quote-portal/domains/workerPortal/workerPortal.js` (Task sorting)
-- `quote-portal/shared/schemas/assignment.schema.json` (Schema update)
+- `WebApp/server/mesRoutes.js` (Launch endpoint)
+- `WebApp/domains/workerPortal/workerPortal.js` (Task sorting)
+- `WebApp/shared/schemas/assignment.schema.json` (Schema update)
 
 ```markdown
 GÖREV: Mevcut priorityIndex sistemini kaldırıp expectedStart bazlı FIFO'ya geçmek ve gelecekteki Optimization modülü için altyapı hazırlamak.
@@ -5815,7 +5815,7 @@ activeTasks.sort((a, b) => {
 
 ### 1. SCHEMA GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/shared/schemas/assignment.schema.json`
+**Dosya:** `WebApp/shared/schemas/assignment.schema.json`
 
 MEVCUT SCHEMA'YA EKLE:
 ```json
@@ -5864,7 +5864,7 @@ MEVCUT SCHEMA'YA EKLE:
 
 ### 2. LAUNCH ENDPOINT GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 **Lokasyon:** ~satır 5545 (assignmentsArray.push)
 
 **MEVCUT KOD:**
@@ -5921,7 +5921,7 @@ executionOrder.order.forEach((nodeId, index) => {
 
 ### 3. FIRESTORE WRITE GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 **Lokasyon:** ~satır 5697 (completeAssignment)
 
 **MEVCUT KOD:**
@@ -5982,7 +5982,7 @@ priorityIndex: assignment.priorityIndex || i + 1  // ❌ Artık yok
 
 ### 4. WORKER PORTAL SORTING GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Dosya:** `WebApp/domains/workerPortal/workerPortal.js`
 **Lokasyon:** ~satır 103
 
 **MEVCUT KOD:**
@@ -6022,7 +6022,7 @@ console.log(`🔍 Worker Portal sorting (${activeTasks[0]?.schedulingMode || 'fi
 
 ### 5. CAN START LOGIC GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Dosya:** `WebApp/domains/workerPortal/workerPortal.js`
 **Lokasyon:** ~satır 110-120
 
 **MEVCUT KOD:**
@@ -6065,7 +6065,7 @@ activeTasks.forEach((task, index) => {
 
 ### 6. WORKER PORTAL UI GÜNCELLEMESİ
 
-**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Dosya:** `WebApp/domains/workerPortal/workerPortal.js`
 **Lokasyon:** ~satır 1486 (renderTaskCard)
 
 **MEVCUT KOD:**
@@ -6176,10 +6176,10 @@ ${task.schedulingMode === 'optimized' ? '<span class="optimized-badge">🎯 Opti
 
 ## 📁 DOSYA YOLLARI
 
-1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/shared/schemas/assignment.schema.json`
-2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js`
-3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/workerPortal.js`
-4. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/styles.css` (yeni)
+1. `/Users/umutyalcin/Documents/BeePlan0/WebApp/shared/schemas/assignment.schema.json`
+2. `/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js`
+3. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/workerPortal/workerPortal.js`
+4. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/workerPortal/styles.css` (yeni)
 
 ---
 
@@ -6196,8 +6196,8 @@ ${task.schedulingMode === 'optimized' ? '<span class="optimized-badge">🎯 Opti
 **Bağımlılık:** PROMPT 9 tamamlanmış olmalı (schema güncel)  
 **Süre:** ~8 dakika  
 **Dosyalar:**
-- `quote-portal/domains/production/components/materialFlowView.js`
-- `quote-portal/domains/production/js/semiCode.js`
+- `WebApp/domains/production/components/materialFlowView.js`
+- `WebApp/domains/production/js/semiCode.js`
 
 ```markdown
 GÖREV: Eski node yapısı kullanan component'ları yeni schema'ya uyarlamak.
@@ -6314,8 +6314,8 @@ BAŞARI KRİTERLERİ:
 ✅ Console'da error yok
 
 DOSYA YOLLARI:
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/production/components/materialFlowView.js
-- /Users/umutyalcin/Documents/Burkol0/quote-portal/domains/production/js/semiCode.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/production/components/materialFlowView.js
+- /Users/umutyalcin/Documents/BeePlan0/WebApp/domains/production/js/semiCode.js
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -6740,7 +6740,7 @@ interface ProductionSettings {
 └────────────────────────────────────────────────────────┘
 ```
 
-**Component:** `quote-portal/domains/admin/components/ProductionSettings.js`
+**Component:** `WebApp/domains/admin/components/ProductionSettings.js`
 
 **State Management:**
 ```javascript
@@ -6794,7 +6794,7 @@ const [triggers, setTriggers] = useState({
 └─────────────────────────────────────┘
 ```
 
-**Component:** `quote-portal/domains/orders/components/StartWorkOrderModal.js`
+**Component:** `WebApp/domains/orders/components/StartWorkOrderModal.js`
 
 **Logic:**
 ```javascript
@@ -7025,7 +7025,7 @@ activeTasks.sort((a, b) => {
 
 ### Cron Job Implementation
 
-**Location:** `quote-portal/server/services/optimizationScheduler.js`
+**Location:** `WebApp/server/services/optimizationScheduler.js`
 
 ```javascript
 const cron = require('node-cron');
@@ -7108,7 +7108,7 @@ module.exports = new OptimizationScheduler();
 **Startup Integration:**
 
 ```javascript
-// quote-portal/server.js
+// WebApp/server.js
 const optimizationScheduler = require('./services/optimizationScheduler');
 
 async function startServer() {
@@ -7240,9 +7240,9 @@ CRITICAL PATH (Implementation Order):
 **Bağımlılık:** PROMPT 11 tamamlanmış olmalı  
 **Süre:** ~60 dakika  
 **Dosyalar:**
-- `quote-portal/domains/admin/pages/production-settings.html` (yeni)
-- `quote-portal/domains/admin/js/production-settings.js` (yeni)
-- `quote-portal/domains/admin/styles/production-settings.css` (yeni)
+- `WebApp/domains/admin/pages/production-settings.html` (yeni)
+- `WebApp/domains/admin/js/production-settings.js` (yeni)
+- `WebApp/domains/admin/styles/production-settings.css` (yeni)
 
 ```markdown
 GÖREV: Production Settings sayfasına Scheduling Mode ve Optimization ayarlarını eklemek (NON-FUNCTIONAL - sadece UI).
@@ -7347,8 +7347,8 @@ TEST CHECKLIST:
 **Bağımlılık:** PROMPT 13 tamamlanmış olmalı  
 **Süre:** ~30 dakika  
 **Dosyalar:**
-- `quote-portal/shared/state/productionMode.js` (yeni)
-- `quote-portal/src/main.js` (güncelle - init cache on app start)
+- `WebApp/shared/state/productionMode.js` (yeni)
+- `WebApp/src/main.js` (güncelle - init cache on app start)
 
 ```markdown
 GÖREV: Production mode'u uygulama başlangıcında Master Data'dan çekip global state'te cache'lemek.
@@ -7372,7 +7372,7 @@ Settings Page Updates → Invalidate Cache → Reload
 
 ## 1. GLOBAL STATE MODULE
 
-**Dosya:** `quote-portal/shared/state/productionMode.js` (YENİ)
+**Dosya:** `WebApp/shared/state/productionMode.js` (YENİ)
 
 ```javascript
 /**
@@ -7495,7 +7495,7 @@ if (typeof window !== 'undefined') {
 
 ## 2. APP INITIALIZATION
 
-**Dosya:** `quote-portal/src/main.js` (GÜNCELLE)
+**Dosya:** `WebApp/src/main.js` (GÜNCELLE)
 
 **MEVCUT KOD:**
 ```javascript
@@ -7566,7 +7566,7 @@ function handleStartWorkOrder(workOrderCode) {
 
 ## 4. PRODUCTION SETTINGS PAGE INTEGRATION
 
-**Dosya:** `quote-portal/domains/admin/js/production-settings.js` (GÜNCELLE)
+**Dosya:** `WebApp/domains/admin/js/production-settings.js` (GÜNCELLE)
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -7653,9 +7653,9 @@ window.addEventListener('beforeunload', unsubscribe);
 
 ## 📁 DOSYA YOLLARI
 
-1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/shared/state/productionMode.js` (YENİ)
-2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/src/main.js` (GÜNCELLE)
-3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/admin/js/production-settings.js` (GÜNCELLE)
+1. `/Users/umutyalcin/Documents/BeePlan0/WebApp/shared/state/productionMode.js` (YENİ)
+2. `/Users/umutyalcin/Documents/BeePlan0/WebApp/src/main.js` (GÜNCELLE)
+3. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/admin/js/production-settings.js` (GÜNCELLE)
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -7668,8 +7668,8 @@ window.addEventListener('beforeunload', unsubscribe);
 **Bağımlılık:** PROMPT 14 tamamlanmış olmalı  
 **Süre:** ~40 dakika  
 **Dosyalar:**
-- `quote-portal/domains/orders/components/start-wo-modal.html` (güncelle)
-- `quote-portal/domains/orders/js/start-wo-modal.js` (güncelle)
+- `WebApp/domains/orders/components/start-wo-modal.html` (güncelle)
+- `WebApp/domains/orders/js/start-wo-modal.js` (güncelle)
 
 ```markdown
 GÖREV: Work Order başlatma popup'ını production mode'a göre koşullu hale getirmek.
@@ -7688,7 +7688,7 @@ GEREKSINIMLER:
 
 ## MODAL CONTROL LOGIC
 
-**Dosya:** `quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+**Dosya:** `WebApp/domains/orders/js/work-orders.js` (GÜNCELLE)
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -7778,7 +7778,7 @@ async function startWorkOrder(workOrderCode, { priority, isUrgent }) {
 
 ## MODAL HTML
 
-**Dosya:** `quote-portal/domains/orders/components/start-wo-modal.html` (YENİ/GÜNCELLE)
+**Dosya:** `WebApp/domains/orders/components/start-wo-modal.html` (YENİ/GÜNCELLE)
 
 ```html
 <div id="start-wo-modal" class="modal" style="display: none;">
@@ -7844,7 +7844,7 @@ async function startWorkOrder(workOrderCode, { priority, isUrgent }) {
 
 ## CSS STYLING
 
-**Dosya:** `quote-portal/domains/orders/styles/start-wo-modal.css` (YENİ)
+**Dosya:** `WebApp/domains/orders/styles/start-wo-modal.css` (YENİ)
 
 ```css
 /* Modal Overlay */
@@ -8060,7 +8060,7 @@ async function startWorkOrder(workOrderCode, { priority, isUrgent }) {
 
 ## BACKEND UPDATE (Launch Endpoint)
 
-**Dosya:** `quote-portal/server/mesRoutes.js` (GÜNCELLE)
+**Dosya:** `WebApp/server/mesRoutes.js` (GÜNCELLE)
 
 **Launch endpoint'e priority parametresi ekle:**
 
@@ -8170,10 +8170,10 @@ router.post('/launch-plan', async (req, res) => {
 
 ## 📁 DOSYA YOLLARI
 
-1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
-2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/components/start-wo-modal.html` (YENİ)
-3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/styles/start-wo-modal.css` (YENİ)
-4. `/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js` (GÜNCELLE - launch endpoint)
+1. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/orders/js/work-orders.js` (GÜNCELLE)
+2. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/orders/components/start-wo-modal.html` (YENİ)
+3. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/orders/styles/start-wo-modal.css` (YENİ)
+4. `/Users/umutyalcin/Documents/BeePlan0/WebApp/server/mesRoutes.js` (GÜNCELLE - launch endpoint)
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -8186,8 +8186,8 @@ router.post('/launch-plan', async (req, res) => {
 **Bağımlılık:** PROMPT 14, 15 tamamlanmış olmalı  
 **Süre:** ~30 dakika  
 **Dosyalar:**
-- `quote-portal/pages/quote-dashboard.html` (güncelle)
-- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
+- `WebApp/pages/quote-dashboard.html` (güncelle)
+- `WebApp/domains/orders/js/work-orders.js` (güncelle)
 
 ```markdown
 GÖREV: Work Orders sayfasına "Optimize Schedule Now" butonu eklemek, sadece Optimization modunda görünsün.
@@ -8204,7 +8204,7 @@ GEREKSINIMLER:
 
 ## HTML STRUCTURE
 
-**Dosya:** `quote-portal/pages/quote-dashboard.html` (GÜNCELLE)
+**Dosya:** `WebApp/pages/quote-dashboard.html` (GÜNCELLE)
 
 **EKLE (work orders table'dan önce):**
 
@@ -8238,7 +8238,7 @@ GEREKSINIMLER:
 
 ## JAVASCRIPT LOGIC
 
-**Dosya:** `quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+**Dosya:** `WebApp/domains/orders/js/work-orders.js` (GÜNCELLE)
 
 ```javascript
 import productionModeCache from '../../../shared/state/productionMode.js';
@@ -8337,7 +8337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ## CSS STYLING
 
-**Dosya:** `quote-portal/domains/orders/styles/work-orders.css` (EKLE)
+**Dosya:** `WebApp/domains/orders/styles/work-orders.css` (EKLE)
 
 ```css
 /* ═══════════════════════════════════════════════════════
@@ -8531,9 +8531,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ## 📁 DOSYA YOLLARI
 
-1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/pages/quote-dashboard.html` (GÜNCELLE)
-2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
-3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/styles/work-orders.css` (EKLE/GÜNCELLE)
+1. `/Users/umutyalcin/Documents/BeePlan0/WebApp/pages/quote-dashboard.html` (GÜNCELLE)
+2. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/orders/js/work-orders.js` (GÜNCELLE)
+3. `/Users/umutyalcin/Documents/BeePlan0/WebApp/domains/orders/styles/work-orders.css` (EKLE/GÜNCELLE)
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```

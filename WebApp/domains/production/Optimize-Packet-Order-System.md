@@ -153,9 +153,9 @@ Bu bölüm, optimization modülü için gerekli tüm UI bileşenlerinin **NON-FU
 **Bağımlılık:** PROMPT 11 tamamlanmış olmalı  
 **Süre:** ~60 dakika  
 **Dosyalar:**
-- `quote-portal/domains/admin/pages/production-settings.html` (yeni)
-- `quote-portal/domains/admin/js/production-settings.js` (yeni)
-- `quote-portal/domains/admin/styles/production-settings.css` (yeni)
+- `WebApp/domains/admin/pages/production-settings.html` (yeni)
+- `WebApp/domains/admin/js/production-settings.js` (yeni)
+- `WebApp/domains/admin/styles/production-settings.css` (yeni)
 
 ### 2.1.1 UI Layout
 
@@ -339,9 +339,9 @@ document.querySelector('.save-btn').addEventListener('click', () => {
 **Bağımlılık:** PROMPT 14 (cache system) tamamlanmış olmalı  
 **Süre:** ~40 dakika  
 **Dosyalar:**
-- `quote-portal/domains/orders/components/start-wo-modal.html` (yeni)
-- `quote-portal/domains/orders/js/start-wo-modal.js` (yeni)
-- `quote-portal/domains/orders/styles/start-wo-modal.css` (yeni)
+- `WebApp/domains/orders/components/start-wo-modal.html` (yeni)
+- `WebApp/domains/orders/js/start-wo-modal.js` (yeni)
+- `WebApp/domains/orders/styles/start-wo-modal.css` (yeni)
 
 ### 2.2.1 Modal Layout
 
@@ -497,8 +497,8 @@ function handleStartWorkOrder(workOrderCode) {
 **Bağımlılık:** PROMPT 14, 15 tamamlanmış olmalı  
 **Süre:** ~30 dakika  
 **Dosyalar:**
-- `quote-portal/pages/quote-dashboard.html` (güncelle)
-- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
+- `WebApp/pages/quote-dashboard.html` (güncelle)
+- `WebApp/domains/orders/js/work-orders.js` (güncelle)
 
 ### 2.3.1 Button Layout
 
@@ -798,7 +798,7 @@ interface ProductionSettings {
 
 ## 3.3 Launch Endpoint Updates
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 ### 3.3.1 Priority Parameter Extraction
 
@@ -867,7 +867,7 @@ executionOrder.order.forEach((nodeId, index) => {
 
 ## 3.4 Worker Portal Sorting Logic
 
-**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Dosya:** `WebApp/domains/workerPortal/workerPortal.js`
 
 ### 3.4.1 Mode-Aware Sorting
 
@@ -904,7 +904,7 @@ console.log(`🔍 Worker Portal sorting (${activeTasks[0]?.schedulingMode || 'fi
 
 ## 3.5 Production Mode Cache System (PROMPT 14)
 
-**Dosya:** `quote-portal/shared/state/productionMode.js` (YENİ)
+**Dosya:** `WebApp/shared/state/productionMode.js` (YENİ)
 
 ### 3.5.1 Cache Module
 
@@ -967,7 +967,7 @@ export default productionModeCache;
 
 ### 3.5.2 App Initialization
 
-**Dosya:** `quote-portal/src/main.js`
+**Dosya:** `WebApp/src/main.js`
 
 ```javascript
 import productionModeCache from '../shared/state/productionMode.js';
@@ -1531,9 +1531,9 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 **Süre:** ~60 dakika  
 **Bağımlılık:** PROMPT 11 tamamlanmış olmalı  
 **Dosyalar:**
-- `quote-portal/domains/admin/pages/production-settings.html` (yeni)
-- `quote-portal/domains/admin/js/production-settings.js` (yeni)
-- `quote-portal/domains/admin/styles/production-settings.css` (yeni)
+- `WebApp/domains/admin/pages/production-settings.html` (yeni)
+- `WebApp/domains/admin/js/production-settings.js` (yeni)
+- `WebApp/domains/admin/styles/production-settings.css` (yeni)
 
 **Görev:**
 1. Master Data → Production Settings menüsüne yeni section ekle
@@ -1560,8 +1560,8 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 **Süre:** ~30 dakika  
 **Bağımlılık:** PROMPT 13 tamamlanmış olmalı  
 **Dosyalar:**
-- `quote-portal/shared/state/productionMode.js` (yeni)
-- `quote-portal/src/main.js` (güncelle)
+- `WebApp/shared/state/productionMode.js` (yeni)
+- `WebApp/src/main.js` (güncelle)
 
 **Görev:**
 1. Global cache module oluştur (`ProductionModeCache` class)
@@ -1585,10 +1585,10 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 **Süre:** ~40 dakika  
 **Bağımlılık:** PROMPT 14 tamamlanmış olmalı  
 **Dosyalar:**
-- `quote-portal/domains/orders/components/start-wo-modal.html` (yeni)
-- `quote-portal/domains/orders/js/start-wo-modal.js` (yeni)
-- `quote-portal/domains/orders/styles/start-wo-modal.css` (yeni)
-- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
+- `WebApp/domains/orders/components/start-wo-modal.html` (yeni)
+- `WebApp/domains/orders/js/start-wo-modal.js` (yeni)
+- `WebApp/domains/orders/styles/start-wo-modal.css` (yeni)
+- `WebApp/domains/orders/js/work-orders.js` (güncelle)
 
 **Görev:**
 1. productionModeCache'i import et
@@ -1612,8 +1612,8 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 **Süre:** ~30 dakika  
 **Bağımlılık:** PROMPT 14, 15 tamamlanmış olmalı  
 **Dosyalar:**
-- `quote-portal/pages/quote-dashboard.html` (güncelle)
-- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
+- `WebApp/pages/quote-dashboard.html` (güncelle)
+- `WebApp/domains/orders/js/work-orders.js` (güncelle)
 
 **Görev:**
 1. Work Orders sayfasına "🎯 Optimize Schedule Now" butonu ekle
@@ -1662,8 +1662,8 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 #### 3.1 Algorithm Implementation
 
 **Dosyalar:**
-- `quote-portal/server/services/optimizationEngine.js` (yeni)
-- `quote-portal/server/mesRoutes.js` (POST /optimize-schedule endpoint)
+- `WebApp/server/services/optimizationEngine.js` (yeni)
+- `WebApp/server/mesRoutes.js` (POST /optimize-schedule endpoint)
 
 **Görevler:**
 1. Dependency graph builder
@@ -1735,8 +1735,8 @@ Bu bölüm, optimization modülünün implementation roadmap'ini ve her fazın d
 #### 4.1 Cron Job Implementation
 
 **Dosyalar:**
-- `quote-portal/server/services/optimizationScheduler.js` (yeni)
-- `quote-portal/server.js` (startup integration)
+- `WebApp/server/services/optimizationScheduler.js` (yeni)
+- `WebApp/server.js` (startup integration)
 
 **Görevler:**
 1. Node-cron integration

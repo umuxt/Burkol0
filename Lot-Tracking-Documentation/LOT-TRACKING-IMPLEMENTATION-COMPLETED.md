@@ -8,7 +8,7 @@
 
 ## 📊 EXECUTIVE SUMMARY
 
-Successfully implemented **Simple Lot/Batch Tracking** system for Burkol MES platform without creating new tables. The implementation enhances 4 existing tables with lot tracking capabilities, enabling full FIFO inventory consumption and end-to-end traceability.
+Successfully implemented **Simple Lot/Batch Tracking** system for BeePlan MES platform without creating new tables. The implementation enhances 4 existing tables with lot tracking capabilities, enabling full FIFO inventory consumption and end-to-end traceability.
 
 **Key Achievement:** Lot tracking infrastructure 100% validated through comprehensive automated testing. System ready for deployment once MES tables are deployed.
 
@@ -114,7 +114,7 @@ lot_number VARCHAR(100)              -- Which lot was consumed in production
 
 ### 1. lotGenerator.js (334 lines)
 
-**Location:** `quote-portal/server/utils/lotGenerator.js`
+**Location:** `WebApp/server/utils/lotGenerator.js`
 
 **Functions:**
 - `generateLotNumber(materialCode, date)` - Auto-generates unique lot numbers
@@ -143,7 +143,7 @@ LOT-RAW-MAT-005-20251201-001
 
 ### 2. lotConsumption.js (696 lines)
 
-**Location:** `quote-portal/server/utils/lotConsumption.js`
+**Location:** `WebApp/server/utils/lotConsumption.js`
 
 **Main Function:**
 ```javascript
@@ -205,7 +205,7 @@ async function reserveMaterialsWithLotTracking(
 
 ### 1. POST /api/orders/:orderCode/items/:itemId/deliver (MODIFIED)
 
-**File:** `quote-portal/server/ordersRoutes.js`
+**File:** `WebApp/server/ordersRoutes.js`
 
 **New Request Fields:**
 ```javascript
@@ -239,7 +239,7 @@ async function reserveMaterialsWithLotTracking(
 
 ### 2. POST /api/mes/assignments/:assignmentId/start (MODIFIED)
 
-**File:** `quote-portal/server/mesRoutes.js`
+**File:** `WebApp/server/mesRoutes.js`
 
 **New Behavior:**
 - Calls `reserveMaterialsWithLotTracking()` before starting task
@@ -279,7 +279,7 @@ async function reserveMaterialsWithLotTracking(
 
 ### 3. GET /api/materials/:code/lots (NEW ENDPOINT)
 
-**File:** `quote-portal/server/materialsRoutes.js`
+**File:** `WebApp/server/materialsRoutes.js`
 
 **Purpose:** Get lot-level inventory for specific material
 
@@ -339,7 +339,7 @@ ORDER BY sm.lot_date ASC;
 
 ### 4. GET /api/mes/assignments/:assignmentId/lot-preview (NEW ENDPOINT)
 
-**File:** `quote-portal/server/mesRoutes.js` (line 8680 - already exists!)
+**File:** `WebApp/server/mesRoutes.js` (line 8680 - already exists!)
 
 **Purpose:** Preview which lots will be consumed (read-only, no reservation)
 
@@ -409,9 +409,9 @@ ORDER BY sm.lot_date ASC;
 
 ### 2. Material Detail Modal - Lot Inventory Section (STEP 12)
 
-**File:** `quote-portal/domains/materials/components/EditMaterialModal.jsx`
+**File:** `WebApp/domains/materials/components/EditMaterialModal.jsx`
 
-**New Component:** `quote-portal/domains/materials/hooks/useMaterialLots.js` (96 lines)
+**New Component:** `WebApp/domains/materials/hooks/useMaterialLots.js` (96 lines)
 
 **Changes:**
 - ✅ Added new section "📦 Lot Envanteri" between suppliers and production history
@@ -444,7 +444,7 @@ ORDER BY sm.lot_date ASC;
 
 ### 3. Worker Portal - Lot Preview Section (STEP 13)
 
-**File:** `quote-portal/domains/workerPortal/workerPortal.js` (line 2200+)
+**File:** `WebApp/domains/workerPortal/workerPortal.js` (line 2200+)
 
 **Changes:**
 - ✅ Added lot consumption preview before "Start Task" button
@@ -638,7 +638,7 @@ npm run migrate:up 029  # assignment_material_reservations
 ### Phase 2: Fix Test Code Issues (Low Priority)
 
 **Issue 1: Lot sequence increment**
-- File: `quote-portal/server/utils/lotGenerator.js`
+- File: `WebApp/server/utils/lotGenerator.js`
 - Problem: Sequence query not incrementing
 - Fix: Investigate sequence generation logic
 
@@ -795,7 +795,7 @@ npm run test:lot
 
 - [ ] Backup production database
   ```bash
-  pg_dump burkol_prod > backup_before_lot_tracking.sql
+  pg_dump BeePlan_prod > backup_before_lot_tracking.sql
   ```
 
 - [ ] Apply migration in staging first
@@ -888,7 +888,7 @@ npm run migrate:down 031
 **Restoration:**
 ```bash
 # Restore from backup
-psql burkol_prod < backup_before_lot_tracking.sql
+psql BeePlan_prod < backup_before_lot_tracking.sql
 ```
 
 ---
@@ -932,12 +932,12 @@ psql burkol_prod < backup_before_lot_tracking.sql
 ### For Backend Developers
 
 **Key Files:**
-- `quote-portal/db/migrations/031_add_lot_tracking.js` - Database schema
-- `quote-portal/server/utils/lotGenerator.js` - Lot number generation
-- `quote-portal/server/utils/lotConsumption.js` - FIFO consumption logic
-- `quote-portal/server/ordersRoutes.js` - Order delivery endpoint
-- `quote-portal/server/mesRoutes.js` - Production start endpoint
-- `quote-portal/server/materialsRoutes.js` - Lot inventory endpoint
+- `WebApp/db/migrations/031_add_lot_tracking.js` - Database schema
+- `WebApp/server/utils/lotGenerator.js` - Lot number generation
+- `WebApp/server/utils/lotConsumption.js` - FIFO consumption logic
+- `WebApp/server/ordersRoutes.js` - Order delivery endpoint
+- `WebApp/server/mesRoutes.js` - Production start endpoint
+- `WebApp/server/materialsRoutes.js` - Lot inventory endpoint
 
 **Critical Logic:**
 - FIFO sorting: `ORDER BY lot_date ASC, created_at ASC`
@@ -954,9 +954,9 @@ psql burkol_prod < backup_before_lot_tracking.sql
 
 **Key Files:**
 - Order delivery modal (materials UI) - Lot input fields
-- `quote-portal/domains/materials/components/EditMaterialModal.jsx` - Lot inventory section
-- `quote-portal/domains/materials/hooks/useMaterialLots.js` - Lot data hook
-- `quote-portal/domains/workerPortal/workerPortal.js` - Lot preview section
+- `WebApp/domains/materials/components/EditMaterialModal.jsx` - Lot inventory section
+- `WebApp/domains/materials/hooks/useMaterialLots.js` - Lot data hook
+- `WebApp/domains/workerPortal/workerPortal.js` - Lot preview section
 
 **UI Patterns:**
 - Lazy loading (matches existing procurement history pattern)

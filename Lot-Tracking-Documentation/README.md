@@ -8,7 +8,7 @@
 
 ## 📋 DOCUMENTATION OVERVIEW
 
-This folder contains all documentation for the Burkol MES Lot Tracking System implementation. The system enables full traceability of materials from supplier delivery through production to final products using FIFO (First In, First Out) inventory management.
+This folder contains all documentation for the BeePlan MES Lot Tracking System implementation. The system enables full traceability of materials from supplier delivery through production to final products using FIFO (First In, First Out) inventory management.
 
 ---
 
@@ -254,23 +254,23 @@ Lot-Tracking-Documentation/
 ### Code Location
 
 **Backend:**
-- `quote-portal/server/utils/lotGenerator.js` (334 lines)
-- `quote-portal/server/utils/lotConsumption.js` (696 lines)
-- `quote-portal/server/ordersRoutes.js` (order delivery endpoint)
-- `quote-portal/server/mesRoutes.js` (production start, lot preview endpoints)
-- `quote-portal/server/materialsRoutes.js` (material lots endpoint)
+- `WebApp/server/utils/lotGenerator.js` (334 lines)
+- `WebApp/server/utils/lotConsumption.js` (696 lines)
+- `WebApp/server/ordersRoutes.js` (order delivery endpoint)
+- `WebApp/server/mesRoutes.js` (production start, lot preview endpoints)
+- `WebApp/server/materialsRoutes.js` (material lots endpoint)
 
 **Frontend:**
 - Order delivery modal (materials UI)
-- `quote-portal/domains/materials/components/EditMaterialModal.jsx` (lot inventory section)
-- `quote-portal/domains/materials/hooks/useMaterialLots.js` (96 lines)
-- `quote-portal/pages/worker-portal.html` (lot preview section)
+- `WebApp/domains/materials/components/EditMaterialModal.jsx` (lot inventory section)
+- `WebApp/domains/materials/hooks/useMaterialLots.js` (96 lines)
+- `WebApp/pages/worker-portal.html` (lot preview section)
 
 **Database:**
-- `quote-portal/db/migrations/031_add_lot_tracking.js`
+- `WebApp/db/migrations/031_add_lot_tracking.js`
 
 **Tests:**
-- `quote-portal/tests/lot-tracking-test.js` (750 lines, 33 test cases)
+- `WebApp/tests/lot-tracking-test.js` (750 lines, 33 test cases)
 
 ### Related Documentation
 
@@ -364,6 +364,6 @@ Before deployment:
 **Version:** Phase 1+2 (v1.0)  
 **Status:** ✅ COMPLETE  
 **Date:** 20 Kasım 2025  
-**Contact:** support@burkol.com
+**Contact:** support@BeePlan.com
 
 **🎊 Lot Tracking System Documentation - Ready for Production**

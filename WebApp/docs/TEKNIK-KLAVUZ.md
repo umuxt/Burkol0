@@ -1,4 +1,4 @@
-# 🔧 BURKOL QUOTE PORTAL - TEKNİK KURULUM VE YÖNETİM KLAVUZU
+# 🔧 BeePlan QUOTE PORTAL - TEKNİK KURULUM VE YÖNETİM KLAVUZU
 
 ## 📋 İçindekiler
 1. [Sistem Gereksinimleri](#sistem-gereksinimleri)
@@ -41,7 +41,7 @@ Edge: v80+
 ```bash
 # Repository'yi klonlayın
 git clone <repository-url>
-cd burkol-quote-portal
+cd BeePlan-WebApp
 
 # Bağımlılıkları yükleyin
 npm install
@@ -58,7 +58,7 @@ mkdir -p logs
 # .env dosyası oluşturun (opsiyonel)
 NODE_ENV=development
 PORT=3001
-BURKOL_SECRET=your-secret-key-here
+BeePlan_SECRET=your-secret-key-here
 ```
 
 ### 3. Başlatma
@@ -146,7 +146,7 @@ curl http://localhost:3001/api/test
   },
   "users": [
     {
-      "email": "admin@burkol.com",
+      "email": "admin@BeePlan.com",
       "pw_salt": "base64-salt",
       "pw_hash": "base64-hash",
       "role": "admin"
@@ -155,7 +155,7 @@ curl http://localhost:3001/api/test
   "sessions": [
     {
       "token": "session-token",
-      "email": "admin@burkol.com",
+      "email": "admin@BeePlan.com",
       "expires": "2025-10-18T10:30:00.000Z"
     }
   ]
@@ -164,7 +164,7 @@ curl http://localhost:3001/api/test
 
 ### Dosya Yapısı
 ```
-quote-portal/
+WebApp/
 ├── db.json                 # Ana veritabanı
 ├── uploads/               # Yüklenen dosyalar
 │   └── BK202509XXXXX/    # Teklif ID bazlı klasörler
@@ -396,7 +396,7 @@ const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 ### CORS Configuration
 ```javascript
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://burkol.com', 'https://admin.burkol.com']
+  ? ['https://BeePlan.com', 'https://admin.BeePlan.com']
   : ['http://localhost:3000', 'http://localhost:3001']
 ```
 
@@ -495,7 +495,7 @@ pm2 start ecosystem.config.js --env production
 pm2 start ecosystem.config.js --watch
 
 # Log monitoring
-pm2 logs burkol
+pm2 logs BeePlan
 
 # Memory monitoring
 pm2 monit
@@ -519,7 +519,7 @@ CMD ["node", "server.js"]
 ```nginx
 server {
     listen 80;
-    server_name burkol.yourdomain.com;
+    server_name BeePlan.yourdomain.com;
 
     location / {
         proxy_pass http://localhost:3001;
@@ -539,8 +539,8 @@ server {
 ```bash
 NODE_ENV=production
 PORT=3001
-BURKOL_SECRET=strong-production-secret
-PM2_SERVE_PATH=/var/www/burkol
+BeePlan_SECRET=strong-production-secret
+PM2_SERVE_PATH=/var/www/BeePlan
 PM2_SERVE_PORT=3001
 ```
 
@@ -722,5 +722,5 @@ git push origin feature/new-feature
 
 ---
 
-*Bu teknik kılavuz Burkol Quote Portal v0.1.0 için hazırlanmıştır.*
+*Bu teknik kılavuz BeePlan Quote Portal v0.1.0 için hazırlanmıştır.*
 *Son güncelleme: 18 Eylül 2025*

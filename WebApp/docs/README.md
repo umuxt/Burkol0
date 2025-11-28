@@ -1,4 +1,4 @@
-# 🏭 Burkol Quote Portal
+# 🏭 BeePlan Quote Portal
 
 **Profesyonel Metal İşleme Teklif Yönetim Sistemi**
 
@@ -42,7 +42,7 @@ NPM 6+
 ```bash
 # Repository'yi klonlayın
 git clone <repository-url>
-cd burkol-quote-portal
+cd BeePlan-WebApp
 
 # Bağımlılıkları yükleyin
 npm install
@@ -58,7 +58,7 @@ npm start
 ### İlk Giriş Bilgileri
 ```
 Email: umutyalcin8@gmail.com
-Şifre: burkol123
+Şifre: BeePlan123
 ```
 
 ## 📖 Dokümantasyon
@@ -96,7 +96,7 @@ GET      /api/export/txt         # TXT export
 ## 🏗️ Proje Yapısı
 
 ```
-burkol-quote-portal/
+BeePlan-WebApp/
 ├── 📄 index.html              # Ana teklif formu
 ├── 📄 admin.html              # Admin panel
 ├── 📄 app.js                  # Ana uygulama
@@ -184,7 +184,7 @@ Strict-Transport-Security: max-age=31536000
 npm run pm2:start
 
 # Log monitoring
-pm2 logs burkol
+pm2 logs BeePlan
 
 # Restart
 npm run pm2:restart
@@ -236,7 +236,7 @@ npm run pm2:logs       # PM2 logları
 ```bash
 NODE_ENV=development
 PORT=3001
-BURKOL_SECRET=your-secret-here
+BeePlan_SECRET=your-secret-here
 ```
 
 ## 🎯 Roadmap
@@ -265,13 +265,13 @@ BURKOL_SECRET=your-secret-here
 ## 📞 Destek
 
 ### İletişim
-- **Email:** support@burkol.com
+- **Email:** support@BeePlan.com
 - **GitHub Issues:** [Repository Issues](https://github.com/your-repo/issues)
 - **Dokümantasyon:** [Wiki](https://github.com/your-repo/wiki)
 
 ### Sistem Bilgileri
 ```
-Application: Burkol Quote Portal
+Application: BeePlan Quote Portal
 Version: 0.1.0
 Node.js: v18+
 Database: JSON-based file system  
@@ -285,7 +285,7 @@ Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.
 
 ---
 
-**🏭 Burkol Metal İşleme - Profesyonel Teklif Yönetim Sistemi**
+**🏭 BeePlan Metal İşleme - Profesyonel Teklif Yönetim Sistemi**
 
 *Modern teknoloji ile metal işleme sektörüne özel çözümler*
 # Thu Sep 25 10:16:40 +03 2025

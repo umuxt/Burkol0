@@ -10,7 +10,7 @@ ssh root@136.244.86.113 << 'EOF'
 set -e  # Exit on any error
 
 PROJECT_DIR="/root/Burkol0"
-BACKEND_DIR="$PROJECT_DIR/quote-portal"
+BACKEND_DIR="$PROJECT_DIR/WebApp"
 PM2_PROCESS_NAME="burkol" # Matching ecosystem.config.js process name
 
 echo "--- Starting Backend Deployment ---"

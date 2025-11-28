@@ -3,7 +3,7 @@
 # Settings Protection Script for Burkol Quote Portal
 # This script preserves price calculation settings during deployments
 
-PROJECT_DIR="/root/Burkol0/quote-portal"
+PROJECT_DIR="/root/Burkol0/WebApp"
 SETTINGS_BACKUP="/root/burkol_settings_backup.json"
 DB_FILE="$PROJECT_DIR/db.json"
 

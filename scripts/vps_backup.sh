@@ -4,7 +4,7 @@
 # This script backs up database and important files before git operations
 
 BACKUP_DIR="/root/burkol_backups"
-PROJECT_DIR="/root/Burkol0/quote-portal"
+PROJECT_DIR="/root/Burkol0/WebApp"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Create backup directory if it doesn't exist

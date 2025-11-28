@@ -18,17 +18,17 @@ Part of the MES data model migration to use nodes[] as the single source of trut
 
 1. **Dry-run (default)** - Preview what would be migrated:
 ```bash
-node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --dry-run
+node WebApp/scripts/migrateExecutionGraphToNodes.cjs --dry-run
 ```
 
 2. **Migrate single plan** - Test on one plan first:
 ```bash
-node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --execute --planId=PLAN-001
+node WebApp/scripts/migrateExecutionGraphToNodes.cjs --execute --planId=PLAN-001
 ```
 
 3. **Migrate all plans** - Full migration:
 ```bash
-node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --execute
+node WebApp/scripts/migrateExecutionGraphToNodes.cjs --execute
 ```
 
 **Canonical Schema Mapping:**
@@ -73,7 +73,7 @@ The backend automatically converts executionGraph to nodes on-read for old plans
 
 ## Available Test & Utility Scripts
 
-Check `quote-portal/scripts/` directory for additional utility scripts including:
+Check `WebApp/scripts/` directory for additional utility scripts including:
 - Database migration helpers
 - Data validation tools
 - Integration test runners
@@ -86,14 +86,14 @@ Most scripts require:
 
 1. **PostgreSQL Connection**: Database configured in `config/` or environment variables
 2. **Node.js**: Version 18 or higher recommended
-3. **Dependencies**: Run `npm install` in quote-portal directory
+3. **Dependencies**: Run `npm install` in WebApp directory
 
 ## Running Scripts
 
 From the project root:
 ```bash
-cd /path/to/Burkol0
-node quote-portal/scripts/<script-name>.js
+cd /path/to/BeePlan0
+node WebApp/scripts/<script-name>.js
 ```
 
 ## Safety Best Practices

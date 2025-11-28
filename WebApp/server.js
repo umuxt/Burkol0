@@ -1,4 +1,4 @@
-// Modular Express backend for Burkol Quote Portal
+// Modular Express backend for BeePlan WebApp
 // - Authentication and session management
 // - File upload handling
 // - Price calculation with comprehensive formulas

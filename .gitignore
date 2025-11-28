@@ -89,18 +89,18 @@ config/serviceAccountKey.json
 .tern-port
 
 # Database files - keep these on VPS but not in git
-quote-portal/db.json
-quote-portal/db.json.tmp
-quote-portal/backup_*.json
-quote-portal/db_vps_backup.json
+WebApp/db.json
+WebApp/db.json.tmp
+WebApp/backup_*.json
+WebApp/db_vps_backup.json
 
 # Upload directories
-quote-portal/uploads/*
-!quote-portal/uploads/.gitkeep
+WebApp/uploads/*
+!WebApp/uploads/.gitkeep
 
 # Log files
-quote-portal/logs/*
-!quote-portal/logs/.gitkeep
+WebApp/logs/*
+!WebApp/logs/.gitkeep
 *.log
 logs/
 server.log
@@ -152,16 +152,16 @@ Thumbs.db
 # Vercel
 .vercel/
 
-# Quote-portal specific
-quote-portal/db.json
-quote-portal/uploads/
-quote-portal/logs/
-quote-portal/dist/
-quote-portal/build/
-quote-portal/.env
-quote-portal/.env.local
-quote-portal/.env.production
-quote-portal/server.log
+# WebApp specific
+WebApp/db.json
+WebApp/uploads/
+WebApp/logs/
+WebApp/dist/
+WebApp/build/
+WebApp/.env
+WebApp/.env.local
+WebApp/.env.production
+WebApp/server.log
 # Firebase service account key - MUTLAKA GİZLE
-quote-portal/config/serviceAccountKey.json
+WebApp/config/serviceAccountKey.json
 **/serviceAccountKey.json

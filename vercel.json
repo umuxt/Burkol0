@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd quote-portal && npm run build",
-  "outputDirectory": "quote-portal/dist",
-  "installCommand": "cd quote-portal && npm install",
+  "buildCommand": "cd WebApp && npm run build",
+  "outputDirectory": "WebApp/dist",
+  "installCommand": "cd WebApp && npm install",
   "rewrites": [
     { 
       "source": "/api/:path*", 

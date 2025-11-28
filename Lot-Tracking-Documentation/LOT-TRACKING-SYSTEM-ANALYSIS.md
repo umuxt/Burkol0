@@ -557,7 +557,7 @@ Requirements:
    - actual_end >= actual_start (if not null)
    - scheduling_mode consistency
 
-File: quote-portal/db/migrations/028_add_fifo_fields_to_assignments.js
+File: WebApp/db/migrations/028_add_fifo_fields_to_assignments.js
 
 Use Knex.js syntax. Include proper up() and down() functions. Add detailed comments.
 ```
@@ -613,7 +613,7 @@ Requirements:
 
 5. Add FK to materials.materials(code) ON DELETE RESTRICT
 
-File: quote-portal/db/migrations/029_create_assignment_material_reservations.js
+File: WebApp/db/migrations/029_create_assignment_material_reservations.js
 
 IMPORTANT: Use knex.schema.withSchema('mes').createTable('assignment_material_reservations', ...) to create table in mes schema.
 
@@ -659,7 +659,7 @@ Requirements:
 4. Add CHECK constraint:
    - IF partial_reservation = true THEN quantity < requested_quantity
 
-File: quote-portal/db/migrations/030_add_partial_reservation_to_stock_movements.js
+File: WebApp/db/migrations/030_add_partial_reservation_to_stock_movements.js
 
 Note: This prepares stock_movements for lot tracking (Migration 031 will add lot fields).
 ```
@@ -737,7 +737,7 @@ Create PostgreSQL trigger that updates materials.active_lot_count, oldest_lot_da
 Function: materials.update_material_lot_summary()
 Trigger: trg_update_lot_summary ON materials.stock_movements
 
-File: quote-portal/db/migrations/031_add_lot_tracking.js
+File: WebApp/db/migrations/031_add_lot_tracking.js
 
 Use Knex.js for schema changes and knex.raw() for trigger creation. Include comprehensive comments.
 ```
@@ -823,7 +823,7 @@ Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "Workflow 1: Order Delivery
 
 Requirements:
 
-**File: quote-portal/server/utils/lotGenerator.js**
+**File: WebApp/server/utils/lotGenerator.js**
 
 Create function generateLotNumber(materialCode, date = new Date()) that:
 1. Generates format: LOT-{materialCode}-{YYYYMMDD}-{seq}
@@ -844,7 +844,7 @@ Also create:
 ```
 
 **Expected Output:**
-- New file: `quote-portal/server/utils/lotGenerator.js`
+- New file: `WebApp/server/utils/lotGenerator.js`
 - 3 exported functions
 - Comprehensive error handling
 - Examples in comments
@@ -867,7 +867,7 @@ Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "Workflow 2: Production Sta
 
 Requirements:
 
-**File: quote-portal/server/utils/lotConsumption.js**
+**File: WebApp/server/utils/lotConsumption.js**
 
 Create async function reserveMaterialsWithLotTracking(assignmentId, materialRequirements, db):
 
@@ -913,7 +913,7 @@ Include:
 ```
 
 **Expected Output:**
-- New file: `quote-portal/server/utils/lotConsumption.js`
+- New file: `WebApp/server/utils/lotConsumption.js`
 - FIFO lot consumption logic
 - Transaction handling
 - Partial reservation warnings
@@ -936,7 +936,7 @@ Update order delivery API endpoint to support lot tracking.
 
 Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "Workflow 1: Order Delivery"
 
-File to modify: quote-portal/server/ordersRoutes.js (or similar)
+File to modify: WebApp/server/ordersRoutes.js (or similar)
 
 Find the POST /api/orders/:orderCode/items/:itemId/deliver endpoint.
 
@@ -1002,7 +1002,7 @@ Update production task start endpoint to use FIFO lot consumption.
 
 Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "Workflow 2: Production Start"
 
-File to modify: quote-portal/server/mesRoutes.js
+File to modify: WebApp/server/mesRoutes.js
 
 Find the POST /api/mes/assignments/:assignmentId/start endpoint.
 
@@ -1077,7 +1077,7 @@ Update order delivery form to include lot information input fields.
 
 Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "UI/UX Changes - Order Delivery Screen"
 
-File to modify: quote-portal/pages/materials.html (or materials UI component)
+File to modify: WebApp/pages/materials.html (or materials UI component)
 
 Add these input fields to delivery form:
 
@@ -1155,7 +1155,7 @@ Requirements:
    HAVING SUM(CASE WHEN sm.type='in' THEN sm.quantity ELSE -sm.quantity END) > 0
    ORDER BY sm.lot_date ASC;
 
-2. Create custom hook quote-portal/domains/materials/hooks/useMaterialLots.js:
+2. Create custom hook WebApp/domains/materials/hooks/useMaterialLots.js:
    - Lazy loading pattern (matches existing useMaterialProcurementHistory)
    - loadLots(materialCode) function
    - Returns { lots, loading, error, loadLots }
@@ -1185,9 +1185,9 @@ Requirements:
    - Match styling of Production History and Procurement History sections
 
 Files to modify:
-- quote-portal/server/materialsRoutes.js (add GET /:code/lots endpoint)
-- quote-portal/domains/materials/hooks/useMaterialLots.js (create new)
-- quote-portal/domains/materials/components/EditMaterialModal.jsx (add section)
+- WebApp/server/materialsRoutes.js (add GET /:code/lots endpoint)
+- WebApp/domains/materials/hooks/useMaterialLots.js (create new)
+- WebApp/domains/materials/components/EditMaterialModal.jsx (add section)
 ```
 
 **Expected Output:**
@@ -1218,7 +1218,7 @@ Add lot consumption preview to worker portal before starting task.
 
 Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "UI/UX Changes - Production Start"
 
-File to modify: quote-portal/pages/worker-portal.html
+File to modify: WebApp/pages/worker-portal.html
 
 Before "Start Task" button, show which lots will be consumed:
 
@@ -1335,7 +1335,7 @@ Commands:
 3. Worker portal shows lot preview
 4. FIFO order displayed correctly (#1, #2, #3)
 
-Create test script: quote-portal/tests/lot-tracking-test.js
+Create test script: WebApp/tests/lot-tracking-test.js
 ```
 
 **Expected Output:**
@@ -1498,7 +1498,7 @@ Before deploying to production:
 
 1. **Backup Database**
    ```bash
-   pg_dump burkol_prod > backup_before_phase1_2.sql
+   pg_dump BeePlan_prod > backup_before_phase1_2.sql
    ```
 
 2. **Test in Staging**

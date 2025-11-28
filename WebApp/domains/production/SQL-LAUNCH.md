@@ -3,7 +3,7 @@
 ## 📘 Doküman Bilgileri
 
 **Tarih:** 24 Kasım 2025  
-**Proje:** Burkol MES - PostgreSQL Implementation  
+**Proje:** BeePlan MES - PostgreSQL Implementation  
 **Kaynak:** LAUNCH-OPERATIONS.md (Logic) + mesRoutes.js (Implementation)  
 **Durum:** ✅ Production Ready
 
@@ -936,7 +936,7 @@ if (await isHoliday(trx, actualStart)) {
 
 ### Frontend Entry Point
 
-**Dosya:** `quote-portal/domains/production/js/approvedQuotes.js`  
+**Dosya:** `WebApp/domains/production/js/approvedQuotes.js`  
 **Fonksiyon:** `startProduction(workOrderCode)`  
 **Tetikleyici:** Onaylı Teklifler sayfasındaki **"🏁 Başlat"** butonu
 
@@ -1227,7 +1227,7 @@ POST /api/mes/production-plans/:planId/launch
 
 ### Backend Entry Point
 
-**Dosya:** `quote-portal/server/mesRoutes.js`  
+**Dosya:** `WebApp/server/mesRoutes.js`  
 **Route:** `POST /api/mes/production-plans/:id/launch`  
 **Authentication:** `withAuth` middleware (JWT token gerekli)
 

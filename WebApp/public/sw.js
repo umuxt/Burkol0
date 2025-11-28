@@ -1,5 +1,5 @@
 // Service Worker for Burkol Quote Portal PWA
-const CACHE_NAME = 'burkol-quote-portal-v1.4'
+const CACHE_NAME = 'beeplan-webapp-v1.4'
 const STATIC_CACHE = 'burkol-static-v1.4'
 const DYNAMIC_CACHE = 'burkol-dynamic-v1.4'
 
@@ -282,7 +282,7 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification('Burkol Quote Portal', options)
+    self.registration.showNotification('BeePlan WebApp', options)
   )
 })
 

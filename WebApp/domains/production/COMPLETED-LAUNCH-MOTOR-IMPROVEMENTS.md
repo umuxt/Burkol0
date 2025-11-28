@@ -96,7 +96,7 @@ function getDefaultWorkSchedule(dayName) {
 
 #### 1.1. Database Fonksiyonu Güncelleme
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Değişiklik:**
 ```javascript
@@ -165,7 +165,7 @@ async function getDefaultWorkSchedule(trx, dayName, shiftNo = '1') {
 
 #### 1.2. Launch Motorunda Kullanım Güncellemesi
 
-**Dosya:** `quote-portal/server/mesRoutes.js` (Launch endpoint içinde)
+**Dosya:** `WebApp/server/mesRoutes.js` (Launch endpoint içinde)
 
 **Değişiklik yapılacak yerler:**
 
@@ -282,7 +282,7 @@ Resmi tatil günlerini ve şirket özel tatillerini yönetmek, launch sırasınd
 
 #### 2.1. Database Helper Fonksiyonları
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Yeni Fonksiyonlar:**
 
@@ -464,7 +464,7 @@ router.post('/production-plans/:id/validate-launch', withAuth, async (req, res) 
 
 #### 2.3. Tatil Yönetimi UI (İsteğe Bağlı - Gelecek Faz)
 
-**Dosya:** `quote-portal/domains/admin/settings-app.js` (yeni tab)
+**Dosya:** `WebApp/domains/admin/settings-app.js` (yeni tab)
 
 ```javascript
 // Company Holidays Management UI
@@ -623,7 +623,7 @@ function isWorkerAbsent(worker, date) {
 
 #### 3.3. Launch Motor Entegrasyonu
 
-**Dosya:** `quote-portal/server/mesRoutes.js` (findWorkerWithShiftCheck içinde)
+**Dosya:** `WebApp/server/mesRoutes.js` (findWorkerWithShiftCheck içinde)
 
 ```javascript
 async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTime, duration) {
@@ -664,7 +664,7 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
 
 #### 3.4. Worker Details UI Güncellemesi
 
-**Dosya:** `quote-portal/domains/production/js/workers.js`
+**Dosya:** `WebApp/domains/production/js/workers.js`
 
 **Yeni Bölüm Ekle:**
 
@@ -935,7 +935,7 @@ function calculateStartTimeWithSetup(substation, proposedStart) {
 
 #### 4.3. Launch Motor Entegrasyonu
 
-**Dosya:** `quote-portal/server/mesRoutes.js` (findEarliestSubstation)
+**Dosya:** `WebApp/server/mesRoutes.js` (findEarliestSubstation)
 
 ```javascript
 async function findEarliestSubstation(trx, stationOptions, substationSchedule, earliestStart) {
@@ -986,7 +986,7 @@ async function findEarliestSubstation(trx, stationOptions, substationSchedule, e
 
 #### 4.4. Station Details UI
 
-**Dosya:** `quote-portal/domains/production/js/stations.js`
+**Dosya:** `WebApp/domains/production/js/stations.js`
 
 **Setup Time Input Ekleme:**
 
@@ -1076,7 +1076,7 @@ if (nextBlockIndex === -1) {
 
 #### 5.1. calculateEndTimeWithBreaks Güncellemesi
 
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Dosya:** `WebApp/server/mesRoutes.js`
 
 **Değişiklik:**
 
@@ -1235,7 +1235,7 @@ function calculateEndTimeWithBreaks(startTime, durationInMinutes, scheduleBlocks
 
 #### 5.2. Launch Motorunda Çağrı Güncellemesi
 
-**Dosya:** `quote-portal/server/mesRoutes.js` (Launch endpoint)
+**Dosya:** `WebApp/server/mesRoutes.js` (Launch endpoint)
 
 ```javascript
 // Satır ~5649 civarı:
@@ -1453,7 +1453,7 @@ Shift sayısı arttırıldığında UI'da timeline sütunlarının doğru şekil
 **Belirtilen Problem:**
 > "Vardiya sayısını arttırınca gün içindeki zaman sütunu artmadı ve 2. shift'in saatlerini giremedim"
 
-**Lokasyon:** `quote-portal/domains/production/js/main.js`
+**Lokasyon:** `WebApp/domains/production/js/main.js`
 
 ### 📊 Sorun Analizi
 
@@ -1476,7 +1476,7 @@ function setTimelineLaneCount(count) {
 
 #### 8.1. Timeline Column Regeneration
 
-**Dosya:** `quote-portal/domains/production/js/main.js`
+**Dosya:** `WebApp/domains/production/js/main.js`
 
 **Mevcut Fonksiyon (İncelenmeli):**
 ```javascript
