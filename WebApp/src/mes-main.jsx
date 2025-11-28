@@ -16,7 +16,7 @@ function MESApp() {
             Üretim Takip Sistemi (MES)
           </h1>
           <p className="text-sm text-gray-600 mt-1">
-            Manufacturing Execution System - Burkol Metal
+            Manufacturing Execution System - BeePlan
           </p>
         </div>
       </div>

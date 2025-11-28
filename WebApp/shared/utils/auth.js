@@ -2,7 +2,7 @@
 
 export const getAuthToken = () => {
   try {
-    const token = localStorage.getItem('bk_admin_token')
+    const token = localStorage.getItem('bp_admin_token')
     // Development mode: use dev token if no real token exists
     if (!token && window.location.hostname === 'localhost') {
       return 'dev-admin-token'
@@ -25,7 +25,7 @@ export const isAuthenticated = () => {
 export const redirectToLogin = () => {
   console.log('🔒 Redirecting to login - no valid token found')
   // Remove invalid token
-  localStorage.removeItem('bk_admin_token')
+  localStorage.removeItem('bp_admin_token')
   
   // Redirect to login page
   window.location.href = '/login.html'

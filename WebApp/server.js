@@ -72,7 +72,7 @@ app.use(express.json({ limit: '5mb' }))
 // CORS configuration
 app.use((req, res, next) => {
   const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://burkol.com', 'https://admin.burkol.com']
+    ? ['https://beeplan.com', 'https://admin.beeplan.com']
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:5173']
 
   const origin = req.headers.origin
@@ -260,7 +260,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Burkol Quote Portal running on port ${PORT}`)
+  console.log(`🚀 BeePlan WebApp running on port ${PORT}`)
   console.log(`📁 Uploads directory: ${uploadsDir}`)
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`)
 })

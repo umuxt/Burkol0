@@ -3,7 +3,7 @@ import { fetchWithTimeout, API_BASE } from './api.js'
 
 function withAuth(headers = {}) {
   try {
-    const t = localStorage.getItem('bk_admin_token') || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'dev-admin-token' : '')
+    const t = localStorage.getItem('bp_admin_token') || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'dev-admin-token' : '')
     return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' }
   } catch {
     return { ...headers, 'Content-Type': 'application/json' }

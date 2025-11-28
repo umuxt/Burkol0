@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { showToast } from '../../../shared/components/MESToast.js';
 import { fetchWithTimeout, API_BASE, API } from '../../../shared/lib/api.js';
-function withAuth(headers = {}) { try { const t = localStorage.getItem('bk_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
+function withAuth(headers = {}) { try { const t = localStorage.getItem('bp_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../services/orders-service.js';
 import { OrderItemService } from '../services/order-item-service.js';
 
@@ -546,7 +546,7 @@ export function useOrderItems(orderId) {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}` // Doğru token adı
+              'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` // Doğru token adı
             },
             body: JSON.stringify({
               quantity: currentItem.quantity,

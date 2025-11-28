@@ -45,12 +45,12 @@ const AccountTab = ({ t }) => {
       
       // Şimdilik demo data
       setCompanyInfo({
-        name: 'Burkol Metal',
+        name: 'BeePlan',
         taxNumber: '1234567890',
         address: 'Örnek Mahallesi, Örnek Sokak No: 1, İstanbul',
         phone: '+90 212 555 0123',
-        email: 'info@burkol.com',
-        website: 'www.burkol.com'
+        email: 'info@beeplan.com',
+        website: 'www.beeplan.com'
       });
     } catch (error) {
       console.error('Şirket bilgileri yüklenirken hata:', error);
@@ -273,7 +273,7 @@ const AccountTab = ({ t }) => {
             className: 'form-control',
             value: companyInfo.email,
             onChange: (e) => handleInputChange('email', e.target.value),
-            placeholder: 'info@burkol.com',
+            placeholder: 'info@beeplan.com',
             disabled: isCompanyInfoLocked,
             style: isCompanyInfoLocked ? { backgroundColor: 'var(--surface)', cursor: 'not-allowed' } : {}
           })
@@ -287,7 +287,7 @@ const AccountTab = ({ t }) => {
             className: 'form-control',
             value: companyInfo.website,
             onChange: (e) => handleInputChange('website', e.target.value),
-            placeholder: 'www.burkol.com',
+            placeholder: 'www.beeplan.com',
             disabled: isCompanyInfoLocked,
             style: isCompanyInfoLocked ? { backgroundColor: 'var(--surface)', cursor: 'not-allowed' } : {}
           })
@@ -424,7 +424,7 @@ const AccountTab = ({ t }) => {
             className: 'form-control',
             value: companyAccessCredentials.email,
             onChange: (e) => setCompanyAccessCredentials(prev => ({ ...prev, email: e.target.value })),
-            placeholder: 'admin@burkol.com',
+            placeholder: 'admin@beeplan.com',
             autoFocus: true
           })
         ),
@@ -531,7 +531,7 @@ const AccountTab = ({ t }) => {
             className: 'form-control',
             value: accessCredentials.email,
             onChange: (e) => setAccessCredentials(prev => ({ ...prev, email: e.target.value })),
-            placeholder: 'admin@burkol.com',
+            placeholder: 'admin@beeplan.com',
             autoFocus: true
           })
         ),

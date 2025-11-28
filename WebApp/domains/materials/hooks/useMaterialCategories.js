@@ -11,7 +11,7 @@ async function fetchJsonWith401Retry(url, options = {}) {
     const isLocal = host === 'localhost' || host === '127.0.0.1';
     if (!isLocal) return res; // Only retry on local environments
 
-    localStorage.removeItem('bk_admin_token');
+    localStorage.removeItem('bp_admin_token');
     // Retry with a fresh token from withAuth
     const retryRes = await fetch(url, { ...options, headers: withAuth(options.headers) });
     return retryRes;

@@ -67,7 +67,7 @@ async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     const isLocal = host === 'localhost' || host === '127.0.0.1'
     if (!isLocal) return res
-    localStorage.removeItem('bk_admin_token')
+    localStorage.removeItem('bp_admin_token')
     const retry = await fetchWithTimeout(url, { ...(options || {}), headers: withAuth(options?.headers || {}) }, timeoutMs)
     return retry
   } catch {
@@ -1981,7 +1981,7 @@ export default function OrdersTabContent() {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+              'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}`
             },
             body: JSON.stringify({
               quantity: updatedItem.quantity,

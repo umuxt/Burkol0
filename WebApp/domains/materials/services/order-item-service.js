@@ -97,7 +97,7 @@ export class OrderItemService {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+          'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}`
         },
         body: JSON.stringify({
           quantity: item.quantity,
@@ -149,7 +149,7 @@ export class OrderItemService {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+          'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}`
         },
         body: JSON.stringify({
           quantity: stockUpdate.quantity,

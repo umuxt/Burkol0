@@ -712,7 +712,7 @@ if (typeof window !== 'undefined') {
 
   // Auto-preload based on current app      }
 
-  const currentApp = window.BURKOL_APP || 'quote'    }
+  const currentApp = window.BEEPLAN_APP || 'quote'    }
 
   if (window.moduleLoader.preloadRoute) {
 
@@ -766,7 +766,7 @@ if (typeof window !== 'undefined') {
   
   // Preload based on current page
   document.addEventListener('DOMContentLoaded', () => {
-    const currentApp = window.BURKOL_APP || 'quote'
+    const currentApp = window.BEEPLAN_APP || 'quote'
     window.moduleLoader.preloadRoute(currentApp)
   })
 }

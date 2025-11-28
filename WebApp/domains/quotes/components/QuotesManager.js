@@ -410,7 +410,7 @@ function QuotesManager({ t, onLogout }) {
       const now = new Date()
       const timestamp = now.toISOString().split('T')[0] // YYYY-MM-DD format
       const filenameSuffix = selected.size > 0 ? '-selected' : ''
-      const filename = `burkol-quotes-${timestamp}${filenameSuffix}.csv`
+      const filename = `beeplan-quotes-${timestamp}${filenameSuffix}.csv`
 
       // Dosyayı indir
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })

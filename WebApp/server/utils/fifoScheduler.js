@@ -14,9 +14,6 @@
  * Query Performance Target: < 5ms
  * Index Used: idx_fifo_queue (partial index on worker_id, status, scheduling_mode)
  * 
- * Reference: MES-COMPLETE-MIGRATION-GUIDE.md - STEP 6 & STEP 7
- * Reference: MES-FIFO-OPTIMIZATION-DATABASE-REQUIREMENTS.md
- * 
  * Created: 2025-11-20
  * Updated: 2025-11-20 (Added lot consumption integration)
  */

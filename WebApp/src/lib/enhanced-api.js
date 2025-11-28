@@ -306,7 +306,7 @@ class EnhancedAPI {
   // Helper methods
   getToken() {
     try {
-      return localStorage.getItem('bk_admin_token') || ''
+      return localStorage.getItem('bp_admin_token') || ''
     } catch {
       return ''
     }

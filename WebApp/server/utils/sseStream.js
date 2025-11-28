@@ -18,7 +18,6 @@
  * });
  * ```
  * 
- * Reference: MES-COMPLETE-MIGRATION-GUIDE.md - STEP 8
  * Created: 2025-11-20
  */
 

@@ -2,7 +2,7 @@
 import { tFor, statusLabel } from '../i18n.js'
 import quotesPostgresAdapter from './quotesPostgresAdapter.js'
 
-const LS_KEY = 'bk_quotes_v1'
+const LS_KEY = 'bp_quotes_v1'
 let LOCAL_STORAGE_MODE = false // Global flag for localStorage fallback mode
 
 // Initialize localStorage with sample data if empty
@@ -26,7 +26,7 @@ function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(ar
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   try {
-    const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bk_lang') || localStorage.getItem('lang'))) || 'tr'
+    const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bp_lang') || localStorage.getItem('lang'))) || 'tr'
     const mergedHeaders = { 
       ...(options.headers || {}), 
       'Accept-Language': lang,
@@ -105,7 +105,7 @@ function getApiBase() {
     
     // Production domains
     if (hostname.includes('vercel.app') || 
-        hostname.includes('burkol0.vercel.app') ||
+        hostname.includes('beeplan.vercel.app') ||
         hostname.includes('burkol') ||
         protocol === 'https:') {
       console.log('🔧 API: Production detected, using empty string (Vercel rewrites handle /api)')
@@ -133,7 +133,7 @@ export const API_BASE = getApiBase()
 
 function getToken() { 
   try { 
-    const token = localStorage.getItem('bk_admin_token')
+    const token = localStorage.getItem('bp_admin_token')
     // Development fallback: use dev token if no real token exists
     // Accept several common local hostnames and Vite dev mode
     const hostname = (window && window.location && window.location.hostname) || ''
@@ -148,7 +148,7 @@ function getToken() {
     return '' 
   } 
 }
-function setToken(t) { try { if (t) localStorage.setItem('bk_admin_token', t); else localStorage.removeItem('bk_admin_token') } catch {} }
+function setToken(t) { try { if (t) localStorage.setItem('bp_admin_token', t); else localStorage.removeItem('bp_admin_token') } catch {} }
 
 export function withAuth(headers = {}) {
   const token = getToken()
@@ -519,7 +519,7 @@ export const API = {
         const a = document.createElement('a')
         const downloadUrl = URL.createObjectURL(blob)
         a.href = downloadUrl
-        a.download = `burkol_quote_${id}.txt`
+        a.download = `beeplan_quote_${id}.txt`
         document.body.appendChild(a); a.click(); a.remove()
         URL.revokeObjectURL(downloadUrl)
         // if (showToast) showToast('TXT dosyası başarıyla indirildi!', 'success')
@@ -530,13 +530,13 @@ export const API = {
       const q = data || lsLoad().find(x => x.id === id)
       if (!q) return
       const lines = []
-      lines.push('Burkol Metal — Teklif Özeti')
+      lines.push('BeePlan — Teklif Özeti')
       lines.push(`Tarih: ${new Date(q.createdAt || Date.now()).toLocaleString()}`)
       lines.push(`ID: ${q.id}`)
       lines.push('')
       lines.push('[Genel]')
       try {
-        const lang = (localStorage.getItem('bk_lang') || 'tr')
+        const lang = (localStorage.getItem('bp_lang') || 'tr')
         const t = tFor(lang)
         lines.push(`Durum: ${statusLabel(q.status, t)}`)
       } catch {
@@ -574,7 +574,7 @@ export const API = {
       lines.push('')
       const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
       const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
-      a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
+      a.href = dl; a.download = `beeplan_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
       // if (showToast) showToast('TXT dosyası başarıyla indirildi!', 'success')
     })
   },

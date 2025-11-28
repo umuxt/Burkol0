@@ -70,7 +70,7 @@ function AdminDashboard({ t, onLogout, showNotification, onNavigate }) {
 
       {/* Footer Info */}
       <div className="dashboard-footer">
-        <p>© 2025 Burkol Metal - Yönetim Sistemi v2.0</p>
+        <p>© 2025 BeePlan - Yönetim Sistemi v2.0</p>
       </div>
 
       <style jsx>{`

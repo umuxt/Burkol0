@@ -574,13 +574,13 @@ function App() {
   useEffect(() => {
     async function checkLogin() {
       try {
-        const token = localStorage.getItem('bk_admin_token');
+        const token = localStorage.getItem('bp_admin_token');
         if (token) {
           await API.me();
           setLoggedIn(true);
         }
       } catch (e) {
-        localStorage.removeItem('bk_admin_token');
+        localStorage.removeItem('bp_admin_token');
         setLoggedIn(false);
       }
     }
@@ -591,9 +591,9 @@ function App() {
 
   function handleLogin() {
     setLoggedIn(true);
-    if (window.BurkolNavigation) {
+    if (window.BeePlanNavigation) {
       setTimeout(() => {
-        const nav = new window.BurkolNavigation();
+        const nav = new window.BeePlanNavigation();
         nav.refresh();
       }, 100);
     }
@@ -723,7 +723,7 @@ function AdminGate({ onLogin, t }) {
             color: 'rgba(255, 255, 255, 0.8)',
             margin: 0,
             fontSize: '1rem'
-          }}>Burkol Yönetim Paneli</p>
+          }}>BeePlan Yönetim Paneli</p>
         </div>
 
         <form onSubmit={onSubmit} style={{ textAlign: 'left' }}>

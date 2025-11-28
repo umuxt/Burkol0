@@ -121,10 +121,9 @@ export function setupAuthRoutes(app) {
   // Me endpoint - get current user info
   app.get('/api/auth/me', (req, res) => {
     // In development mode, bypass authentication for easier testing
-    if (process.env.NODE_ENV === 'development') {
-      return res.json({ 
-        email: 'dev@burkol.com', 
-        role: 'admin',
+        if (process.env.NODE_ENV === 'development') {
+          return res.json({
+            email: 'dev@beeplan.com',        role: 'admin',
         name: 'Dev User'
       })
     }
@@ -141,7 +140,7 @@ export function setupAuthRoutes(app) {
       // For development - allow access without valid session if token starts with 'dev-'
       if (token.startsWith('dev-')) {
         return res.json({ 
-          email: 'dev@burkol.com', 
+          email: 'dev@beeplan.com', 
           role: 'admin',
           name: 'Dev User'
         })

@@ -25,7 +25,7 @@ class AuthGuard {
   }
 
   isLoggedIn() {
-    const token = localStorage.getItem('bk_admin_token');
+    const token = localStorage.getItem('bp_admin_token');
     return token && token.length > 0;
   }
 

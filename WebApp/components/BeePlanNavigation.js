@@ -1,9 +1,9 @@
 /**
- * Burkol Navigation Component
+ * BeePlan Navigation Component
  * Tüm admin sayfalarında kullanılacak standart navigation komponenti
  */
 
-class BurkolNavigation {
+class BeePlanNavigation {
   constructor() {
     this.currentPage = this.getCurrentPage();
   }
@@ -20,12 +20,12 @@ class BurkolNavigation {
 
   // Login durumunu kontrol et
   isLoggedIn() {
-    const token = localStorage.getItem('bk_admin_token');
+    const token = localStorage.getItem('bp_admin_token');
     return token && token.length > 0;
   }
 
   getNavItems() {
-    const currentLang = BurkolNavigation.getCurrentLanguage();
+    const currentLang = BeePlanNavigation.getCurrentLanguage();
     const isEnglish = currentLang === 'en';
     
     return [
@@ -68,30 +68,30 @@ class BurkolNavigation {
     // Eğer login değilse sadece brand göster
     if (!isLoggedIn) {
       return `
-        <div class="burkol-nav">
-          <div class="burkol-nav-inner">
-            <div class="burkol-brand">
-              <div class="burkol-dot"></div>
-              <span class="burkol-brand-text">Bee-Plan</span>
+        <div class="beeplan-nav">
+          <div class="beeplan-nav-inner">
+            <div class="beeplan-brand">
+              <div class="beeplan-dot"></div>
+              <span class="beeplan-brand-text">Bee-Plan</span>
             </div>
             
-            <div class="burkol-nav-center">
+            <div class="beeplan-nav-center">
               <!-- Navigation gizli -->
             </div>
             
-            <div class="burkol-nav-right">
-              <div class="burkol-lang-dropdown">
-                <button class="burkol-lang-button" onclick="BurkolNavigation.toggleLanguageMenu()">
+            <div class="beeplan-nav-right">
+              <div class="beeplan-lang-dropdown">
+                <button class="beeplan-lang-button" onclick="BeePlanNavigation.toggleLanguageMenu()">
                   <i class="fa-solid fa-globe"></i>
-                  <span class="lang-text">${BurkolNavigation.getCurrentLanguage() === 'en' ? 'EN' : 'TR'}</span>
+                  <span class="lang-text">${BeePlanNavigation.getCurrentLanguage() === 'en' ? 'EN' : 'TR'}</span>
                   <i class="fa-solid fa-chevron-down lang-arrow"></i>
                 </button>
-                <div class="burkol-lang-menu" id="burkol-lang-menu">
-                  <div class="lang-option ${BurkolNavigation.getCurrentLanguage() === 'tr' ? 'active' : ''}" onclick="BurkolNavigation.selectLanguage('tr')">
+                <div class="beeplan-lang-menu" id="beeplan-lang-menu">
+                  <div class="lang-option ${BeePlanNavigation.getCurrentLanguage() === 'tr' ? 'active' : ''}" onclick="BeePlanNavigation.selectLanguage('tr')">
                     <i class="fa-solid fa-flag"></i>
                     <span>Türkçe</span>
                   </div>
-                  <div class="lang-option ${BurkolNavigation.getCurrentLanguage() === 'en' ? 'active' : ''}" onclick="BurkolNavigation.selectLanguage('en')">
+                  <div class="lang-option ${BeePlanNavigation.getCurrentLanguage() === 'en' ? 'active' : ''}" onclick="BeePlanNavigation.selectLanguage('en')">
                     <i class="fa-solid fa-flag"></i>
                     <span>English</span>
                   </div>
@@ -119,38 +119,38 @@ class BurkolNavigation {
     }).join('');
 
     return `
-      <div class="burkol-nav">
-        <div class="burkol-nav-inner">
-          <div class="burkol-brand">
-            <div class="burkol-dot"></div>
-            <span class="burkol-brand-text">Bee-Plan</span>
+      <div class="beeplan-nav">
+        <div class="beeplan-nav-inner">
+          <div class="beeplan-brand">
+            <div class="beeplan-dot"></div>
+            <span class="beeplan-brand-text">Bee-Plan</span>
           </div>
           
-          <div class="burkol-nav-center">
+          <div class="beeplan-nav-center">
             ${navButtons}
           </div>
           
-          <div class="burkol-nav-right">
-            <div class="burkol-lang-dropdown">
-              <button class="burkol-lang-button" onclick="BurkolNavigation.toggleLanguageMenu()">
+          <div class="beeplan-nav-right">
+            <div class="beeplan-lang-dropdown">
+              <button class="beeplan-lang-button" onclick="BeePlanNavigation.toggleLanguageMenu()">
                 <i class="fa-solid fa-globe"></i>
-                <span class="lang-text">${BurkolNavigation.getCurrentLanguage() === 'en' ? 'EN' : 'TR'}</span>
+                <span class="lang-text">${BeePlanNavigation.getCurrentLanguage() === 'en' ? 'EN' : 'TR'}</span>
                 <i class="fa-solid fa-chevron-down lang-arrow"></i>
               </button>
-              <div class="burkol-lang-menu" id="burkol-lang-menu">
-                <div class="lang-option ${BurkolNavigation.getCurrentLanguage() === 'tr' ? 'active' : ''}" onclick="BurkolNavigation.selectLanguage('tr')">
+              <div class="beeplan-lang-menu" id="beeplan-lang-menu">
+                <div class="lang-option ${BeePlanNavigation.getCurrentLanguage() === 'tr' ? 'active' : ''}" onclick="BeePlanNavigation.selectLanguage('tr')">
                   <i class="fa-solid fa-flag"></i>
                   <span>Türkçe</span>
                 </div>
-                <div class="lang-option ${BurkolNavigation.getCurrentLanguage() === 'en' ? 'active' : ''}" onclick="BurkolNavigation.selectLanguage('en')">
+                <div class="lang-option ${BeePlanNavigation.getCurrentLanguage() === 'en' ? 'active' : ''}" onclick="BeePlanNavigation.selectLanguage('en')">
                   <i class="fa-solid fa-flag"></i>
                   <span>English</span>
                 </div>
               </div>
             </div>
-            <button class="burkol-logout-btn" onclick="BurkolNavigation.logout()">
+            <button class="beeplan-logout-btn" onclick="BeePlanNavigation.logout()">
               <span class="logout-icon"><i class="fa-solid fa-sign-out-alt"></i></span>
-              <span>${BurkolNavigation.getCurrentLanguage() === 'en' ? 'Logout' : 'Çıkış Yap'}</span>
+              <span>${BeePlanNavigation.getCurrentLanguage() === 'en' ? 'Logout' : 'Çıkış Yap'}</span>
             </button>
           </div>
         </div>
@@ -160,7 +160,7 @@ class BurkolNavigation {
 
   generateCSS() {
     return `
-      .burkol-nav {
+      .beeplan-nav {
         position: sticky;
         top: 0;
         z-index: 1000;
@@ -170,7 +170,7 @@ class BurkolNavigation {
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
       }
 
-      .burkol-nav-inner {
+      .beeplan-nav-inner {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -181,7 +181,7 @@ class BurkolNavigation {
         min-height: 51px;
       }
 
-      .burkol-brand {
+      .beeplan-brand {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -194,7 +194,7 @@ class BurkolNavigation {
         flex-shrink: 0;
       }
 
-      .burkol-dot {
+      .beeplan-dot {
         width: 12px;
         height: 12px;
         border-radius: 50%;
@@ -208,14 +208,14 @@ class BurkolNavigation {
         50% { transform: scale(1.1); }
       }
 
-      .burkol-brand-text {
+      .beeplan-brand-text {
         background: linear-gradient(135deg, #ffffff 0%, #d4af37 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
       }
 
-      .burkol-nav-center {
+      .beeplan-nav-center {
         display: flex;
         align-items: center;
         gap: 6px;
@@ -284,7 +284,7 @@ class BurkolNavigation {
         white-space: nowrap;
       }
 
-      .burkol-nav-right {
+      .beeplan-nav-right {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -294,12 +294,12 @@ class BurkolNavigation {
         flex-shrink: 0;
       }
 
-      .burkol-lang-dropdown {
+      .beeplan-lang-dropdown {
         position: relative;
         display: inline-block;
       }
 
-      .burkol-lang-button {
+      .beeplan-lang-button {
         display: flex;
         align-items: center;
         gap: 6px;
@@ -317,7 +317,7 @@ class BurkolNavigation {
         box-sizing: border-box;
       }
 
-      .burkol-lang-button:hover {
+      .beeplan-lang-button:hover {
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
         border-color: rgba(212, 175, 55, 0.3);
         color: #ffffff;
@@ -333,7 +333,7 @@ class BurkolNavigation {
         font-size: 0.75rem;
       }
 
-      .burkol-lang-menu {
+      .beeplan-lang-menu {
         position: absolute;
         top: calc(100% + 8px);
         right: 0;
@@ -350,7 +350,7 @@ class BurkolNavigation {
         z-index: 1000;
       }
 
-      .burkol-lang-menu.show {
+      .beeplan-lang-menu.show {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
@@ -390,7 +390,7 @@ class BurkolNavigation {
         text-align: center;
       }
 
-      .burkol-logout-btn {
+      .beeplan-logout-btn {
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -409,7 +409,7 @@ class BurkolNavigation {
         box-sizing: border-box;
       }
 
-      .burkol-logout-btn:hover {
+      .beeplan-logout-btn:hover {
         background: linear-gradient(135deg, #e9515f 0%, #dc3545 100%);
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
@@ -426,11 +426,11 @@ class BurkolNavigation {
 
       /* Responsive Design */
       @media (max-width: 1200px) {
-        .burkol-nav-inner {
+        .beeplan-nav-inner {
           gap: 0.5rem;
         }
         
-        .burkol-nav-center {
+        .beeplan-nav-center {
           gap: 4px;
           margin: 0 0.5rem;
         }
@@ -445,13 +445,13 @@ class BurkolNavigation {
           margin-right: 12px;
         }
         
-        .burkol-logout-btn {
+        .beeplan-logout-btn {
           padding: 6px 10px;
           font-size: 0.75rem;
           height: 30px;
         }
         
-        .burkol-lang-button {
+        .beeplan-lang-button {
           height: 30px;
           padding: 4px 8px;
           font-size: 0.75rem;
@@ -462,19 +462,19 @@ class BurkolNavigation {
           font-size: 0.7rem;
         }
         
-        .burkol-nav-right {
+        .beeplan-nav-right {
           min-width: 140px;
           gap: 6px;
         }
       }
 
       @media (max-width: 768px) {
-        .burkol-nav-inner {
+        .beeplan-nav-inner {
           padding: 4px 12px;
           gap: 0.25rem;
         }
         
-        .burkol-nav-center {
+        .beeplan-nav-center {
           gap: 2px;
           margin: 0 0.25rem;
         }
@@ -494,32 +494,32 @@ class BurkolNavigation {
           margin-right: 0;
         }
         
-        .burkol-brand {
+        .beeplan-brand {
           font-size: 1rem;
           height: 33px;
           min-width: 80px;
         }
         
-        .burkol-logout-btn {
+        .beeplan-logout-btn {
           padding: 8px 6px;
           font-size: 0.75rem;
           min-width: 40px;
           height: 33px;
         }
         
-        .burkol-lang-select {
+        .beeplan-lang-select {
           height: 33px;
           padding: 6px 4px;
           font-size: 0.7rem;
           min-width: 60px;
         }
         
-        .burkol-nav-right {
+        .beeplan-nav-right {
           min-width: 100px;
           gap: 4px;
         }
         
-        .burkol-logout-btn span:not(.logout-icon) {
+        .beeplan-logout-btn span:not(.logout-icon) {
           display: none;
         }
       }
@@ -528,7 +528,7 @@ class BurkolNavigation {
 
   render() {
     // CSS'i head'e ekle
-    const styleId = 'burkol-nav-styles';
+    const styleId = 'beeplan-nav-styles';
     if (!document.getElementById(styleId)) {
       const style = document.createElement('style');
       style.id = styleId;
@@ -537,7 +537,7 @@ class BurkolNavigation {
     }
 
     // Varolan navigation'ı kaldır
-    const existingNav = document.querySelector('.burkol-nav');
+    const existingNav = document.querySelector('.beeplan-nav');
     if (existingNav) {
       existingNav.remove();
     }
@@ -557,26 +557,26 @@ class BurkolNavigation {
 
   addEventListeners() {
     // Dil değişikliği
-    const langSelect = document.querySelector('.burkol-lang-select');
+    const langSelect = document.querySelector('.beeplan-lang-select');
     if (langSelect) {
       langSelect.addEventListener('change', (e) => {
         const selectedLang = e.target.value;
-        localStorage.setItem('burkol_language', selectedLang);
+        localStorage.setItem('beeplan_language', selectedLang);
       });
 
       // Mevcut dili ayarla
-      const currentLang = localStorage.getItem('burkol_language') || 'tr';
+      const currentLang = localStorage.getItem('beeplan_language') || 'tr';
       langSelect.value = currentLang;
     }
   }
 
   // Language management
   static getCurrentLanguage() {
-    return localStorage.getItem('bee_plan_language') || 'tr';
+    return localStorage.getItem('beeplan_language') || 'tr';
   }
 
   static setLanguage(lang) {
-    localStorage.setItem('bee_plan_language', lang);
+    localStorage.setItem('beeplan_language', lang);
     // Sayfayı yenile veya dil değişikliğini uygula
     this.applyLanguage(lang);
   }
@@ -609,14 +609,14 @@ class BurkolNavigation {
 
     // Navigation'ı yeniden render et
     setTimeout(() => {
-      const nav = new BurkolNavigation();
+      const nav = new BeePlanNavigation();
       nav.render();
     }, 100);
   }
 
   static toggleLanguageMenu() {
-    const menu = document.getElementById('burkol-lang-menu');
-    const button = document.querySelector('.burkol-lang-button');
+    const menu = document.getElementById('beeplan-lang-menu');
+    const button = document.querySelector('.beeplan-lang-button');
     const arrow = document.querySelector('.lang-arrow');
     
     if (menu.classList.contains('show')) {
@@ -629,9 +629,9 @@ class BurkolNavigation {
   }
 
   static selectLanguage(lang) {
-    BurkolNavigation.setLanguage(lang);
+    BeePlanNavigation.setLanguage(lang);
     // Menüyü kapat
-    const menu = document.getElementById('burkol-lang-menu');
+    const menu = document.getElementById('beeplan-lang-menu');
     const arrow = document.querySelector('.lang-arrow');
     menu.classList.remove('show');
     arrow.style.transform = 'rotate(0deg)';
@@ -639,19 +639,19 @@ class BurkolNavigation {
 
   static onLanguageChange(event) {
     const selectedLang = event.target.value;
-    BurkolNavigation.setLanguage(selectedLang);
+    BeePlanNavigation.setLanguage(selectedLang);
   }
 
   // Static method for logout
   static logout() {
-    const currentLang = BurkolNavigation.getCurrentLanguage();
+    const currentLang = BeePlanNavigation.getCurrentLanguage();
     const confirmText = currentLang === 'en' 
       ? 'Are you sure you want to logout?' 
       : 'Çıkış yapmak istediğinizden emin misiniz?';
       
     if (confirm(confirmText)) {
-      localStorage.removeItem('bk_admin_token');
-      localStorage.removeItem('burkol_user_data');
+      localStorage.removeItem('bp_admin_token');
+      localStorage.removeItem('beeplan_user_data');
       
       // Login sayfasına yönlendir
       window.location.href = './login.html';
@@ -663,25 +663,25 @@ class BurkolNavigation {
     // Hem DOMContentLoaded hem de window.onload ile dene
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        const nav = new BurkolNavigation();
+        const nav = new BeePlanNavigation();
         nav.render();
       });
     } else {
       // Sayfa zaten yüklenmişse hemen çalıştır
-      const nav = new BurkolNavigation();
+      const nav = new BeePlanNavigation();
       nav.render();
     }
   }
 }
 
 // Global olarak erişilebilir yap
-window.BurkolNavigation = BurkolNavigation;
+window.BeePlanNavigation = BeePlanNavigation;
 
 // Otomatik başlat - hem script yüklendiğinde hem de DOM ready olduğunda
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    BurkolNavigation.init();
+    BeePlanNavigation.init();
   });
 } else {
-  BurkolNavigation.init();
+  BeePlanNavigation.init();
 }

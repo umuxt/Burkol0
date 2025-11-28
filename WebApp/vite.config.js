@@ -14,7 +14,7 @@ const copyComponents = () => {
       }
       
       // Copy components
-      const componentFiles = ['BurkolNavigation.js', 'AuthGuard.js']
+      const componentFiles = ['BeePlanNavigation.js', 'AuthGuard.js']
       componentFiles.forEach(file => {
         const sourcePath = resolve(__dirname, `components/${file}`)
         if (existsSync(sourcePath)) {

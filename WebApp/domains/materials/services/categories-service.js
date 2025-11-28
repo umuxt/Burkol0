@@ -9,7 +9,7 @@ const API_BASE_PATH = '/api/material-categories';
 // Auth header helper (API.js'den alındı)
 function withAuth(headers = {}) {
   try {
-    const token = localStorage.getItem('bk_admin_token')
+    const token = localStorage.getItem('bp_admin_token')
     // Development mode: use dev token if no real token exists
     if (!token && window.location.hostname === 'localhost') {
       return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }

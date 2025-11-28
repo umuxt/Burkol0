@@ -11,7 +11,7 @@ function withAuth(req, res, next) {
   }
   try {
     if (token && token.startsWith('dev-')) {
-      req.user = { email: 'dev@burkol.com', userName: 'Dev User' };
+      req.user = { email: 'dev@beeplan.com', userName: 'Dev User' };
     } else if (token) {
       const s = getSession(token);
       if (s) req.user = s;

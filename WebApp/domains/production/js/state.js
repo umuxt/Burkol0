@@ -18,9 +18,9 @@ export const MESData = {
     { id: 'WO-004', product: 'Aluminum Sheet Cutting', quantity: 200, progress: 20, status: 'planned', dueDate: '2025-11-05', priority: 'low' }
   ],
   workers: [
-    { id: 'w-001', name: 'Ali Kaya', email: 'ali@burkol.com', skills: ['Welding', 'Cutting'], shift: 'Day', status: 'active', currentTask: 'WO-001', station: 'Station A' },
-    { id: 'w-002', name: 'Mehmet Yılmaz', email: 'mehmet@burkol.com', skills: ['Assembly', 'Quality Control'], shift: 'Day', status: 'active', currentTask: 'WO-002', station: 'Station B' },
-    { id: 'w-003', name: 'Fatma Şahin', email: 'fatma@burkol.com', skills: ['Assembly', 'Packaging'], shift: 'Day', status: 'break', currentTask: 'WO-003', station: 'Station C' }
+    { id: 'w-001', name: 'Ali Kaya', email: 'ali@beeplan.com', skills: ['Welding', 'Cutting'], shift: 'Day', status: 'active', currentTask: 'WO-001', station: 'Station A' },
+    { id: 'w-002', name: 'Mehmet Yılmaz', email: 'mehmet@beeplan.com', skills: ['Assembly', 'Quality Control'], shift: 'Day', status: 'active', currentTask: 'WO-002', station: 'Station B' },
+    { id: 'w-003', name: 'Fatma Şahin', email: 'fatma@beeplan.com', skills: ['Assembly', 'Packaging'], shift: 'Day', status: 'break', currentTask: 'WO-003', station: 'Station C' }
   ],
   stations: [
     { id: 's-001', name: 'Station A - Welding', status: 'active', worker: 'Ali Kaya', capabilities: ['Welding', 'Cutting'], currentOperation: 'WO-001 Welding' },

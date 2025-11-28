@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Burkol | Yönetim Paneli</title>
+    <title>BeePlan | Yönetim Paneli</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="manifest" href="/config/manifest.json">
-    <script type="module" src="/components/BurkolNavigation.js" defer></script>
+    <script type="module" src="/components/BeePlanNavigation.js" defer></script>
     <script type="module" src="/components/AuthGuard.js" defer></script>
     <style>
       * {
@@ -289,7 +289,7 @@
         margin-bottom: 2rem;
       }
 
-      .burkol-dot-large {
+      .beeplan-dot-large {
         width: 20px;
         height: 20px;
         border-radius: 50%;
@@ -418,8 +418,8 @@
       <div id="login-container" class="login-container" style="display: none;">
         <div class="login-card">
           <div class="login-header">
-            <div class="burkol-dot-large"></div>
-            <h2>BURKOL Admin</h2>
+            <div class="beeplan-dot-large"></div>
+            <h2>BeePlan Admin</h2>
             <p>Yönetim paneline giriş yapın</p>
           </div>
           
@@ -431,7 +431,7 @@
                 id="email" 
                 name="email" 
                 required 
-                placeholder="admin@burkol.com"
+                placeholder="admin@beeplan.com"
                 value="umutyalcin8@gmail.com"
               >
             </div>
@@ -444,7 +444,7 @@
                 name="password" 
                 required 
                 placeholder="••••••••"
-                value="burkol123"
+                value="beeplan123"
               >
             </div>
             
@@ -488,7 +488,7 @@
     <script>
       // Check authentication and show appropriate content
       function checkAuth() {
-        const token = localStorage.getItem('bk_admin_token');
+        const token = localStorage.getItem('bp_admin_token');
         const loginContainer = document.getElementById('login-container');
         const adminMenu = document.getElementById('admin-menu');
         
@@ -524,15 +524,15 @@
           
           if (response.ok && data.token) {
             // Login successful
-            localStorage.setItem('bk_admin_token', data.token);
-            localStorage.setItem('burkol_user_data', JSON.stringify(data.user));
+            localStorage.setItem('bp_admin_token', data.token);
+            localStorage.setItem('beeplan_user_data', JSON.stringify(data.user));
             
             // Hide login form and show admin menu
             checkAuth();
             
             // Refresh navigation to show menu items
-            if (window.BurkolNavigation) {
-              const nav = new BurkolNavigation();
+            if (window.BeePlanNavigation) {
+              const nav = new BeePlanNavigation();
               nav.refresh();
             }
           } else {

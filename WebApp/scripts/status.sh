@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# BURKOL Quote Portal - System Status Check
+# BEEPLAN WebAPP - System Status Check
 
-echo "📊 BURKOL Quote Portal - System Status"
+echo "📊 BEEPLAN WebAPP - System Status"
 echo "========================================"
 
-cd /Users/umutyalcin/Documents/Burkol/WebApp
+cd /Users/umutyalcin/Documents/BeePlan/WebApp
 
 # Check service status
 echo ""

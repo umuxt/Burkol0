@@ -1,7 +1,7 @@
-// Service Worker for Burkol Quote Portal PWA
+// Service Worker for BeePlan WebApp PWA
 const CACHE_NAME = 'beeplan-webapp-v1.4'
-const STATIC_CACHE = 'burkol-static-v1.4'
-const DYNAMIC_CACHE = 'burkol-dynamic-v1.4'
+const STATIC_CACHE = 'beeplan-static-v1.4'
+const DYNAMIC_CACHE = 'beeplan-dynamic-v1.4'
 
 // Files to cache immediately
 const STATIC_ASSETS = [

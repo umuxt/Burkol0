@@ -8,7 +8,7 @@ console.log('✅ Shipments Service: Backend API kullanımı aktif');
 // Auth header helper
 function withAuth(headers = {}) {
   try {
-    const token = localStorage.getItem('bk_admin_token')
+    const token = localStorage.getItem('bp_admin_token')
     if (!token && window.location.hostname === 'localhost') {
       return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }
     }
