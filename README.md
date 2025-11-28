@@ -4,7 +4,6 @@
 
 **Status:** 🔄 Active Development  
 **Database:** PostgreSQL (19-table optimized architecture)  
-**Progress:** 27/60 API Endpoints Migrated (45%)
 
 ---
 
@@ -12,24 +11,23 @@
 
 ### ✅ Completed Phases
 
-**PHASE 1: Core Master Data (19 endpoints)** ✅ COMPLETE
+**PHASE 1: Core Master Data** ✅ COMPLETE
 - Operations, Workers, Stations, Skills, Substations
 - Work Orders CRUD
 - Key-based skills reference system
 
-**PHASE 2: Production Core (13/25 endpoints)** 🔄 IN PROGRESS
+**PHASE 2: Production Core** 🔄 IN PROGRESS
 - ✅ Production Plans CRUD with Enhanced Launch Algorithm
 - ✅ Database-level concurrent launch prevention
 - ✅ Shift-aware worker scheduling
 - ✅ Queue management system
-- ⏳ Worker Assignments (Next)
+- ✅ FIFO Task Scheduling
+- ✅ Lot Tracking System
 
 ### 📚 Documentation
 
-- **[MES-API-MIGRATION-GUIDE.md](./MES-API-MIGRATION-GUIDE.md)** - Complete API migration roadmap
-- **[COMPLETED-PRODUCTION-PLANS-IMPLEMENTATION-GUIDE.md](./COMPLETED-PRODUCTION-PLANS-IMPLEMENTATION-GUIDE.md)** - Production Plans implementation details
-- **[MES-COMPLETE-MIGRATION-GUIDE.md](./MES-COMPLETE-MIGRATION-GUIDE.md)** - Comprehensive migration guide
-- **[PHASE-1-2-IMPLEMENTATION-GUIDE.md](./PHASE-1-2-IMPLEMENTATION-GUIDE.md)** - Schema & workflow guide
+- **[KULLANIM-KLAVUZU.md](./WebApp/docs/KULLANIM-KLAVUZU.md)** - User Guide (TR)
+- **[TEKNIK-KLAVUZ.md](./WebApp/docs/TEKNIK-KLAVUZ.md)** - Technical Documentation & API Reference
 
 ### 🗄️ Database Migrations
 
@@ -88,5 +86,5 @@ Original design: https://www.figma.com/design/LrmKaLaSnKWnrffkzVG6dV/Production-
 
 ---
 
-**Last Updated:** 20 Kasım 2025  
-**Version:** 2.0 - PostgreSQL Migration In Progress
+**Last Updated:** 28 Kasım 2025  
+**Version:** 2.1 - BeePlan Transformation

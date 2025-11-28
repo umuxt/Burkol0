@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# VPS Backup Script for Burkol Quote Portal
+# VPS Backup Script for BeePlan WebApp
 # This script backs up database and important files before git operations
 
-BACKUP_DIR="/root/burkol_backups"
-PROJECT_DIR="/root/Burkol0/WebApp"
+BACKUP_DIR="/root/beeplan_backups"
+PROJECT_DIR="/root/BeePlan/WebApp"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Create backup directory if it doesn't exist

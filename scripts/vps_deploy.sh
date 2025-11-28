@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# VPS Deployment Script for Burkol Quote Portal (Node.js Backend)
+# VPS Deployment Script for BeePlan WebApp (Node.js Backend)
 # Frontend is deployed on Vercel. This script only handles the backend.
 # VPS IP: 136.244.86.113
 
@@ -9,9 +9,9 @@ echo "🚀 Starting VPS deployment..."
 ssh root@136.244.86.113 << 'EOF'
 set -e  # Exit on any error
 
-PROJECT_DIR="/root/Burkol0"
+PROJECT_DIR="/root/BeePlan"
 BACKEND_DIR="$PROJECT_DIR/WebApp"
-PM2_PROCESS_NAME="burkol" # Matching ecosystem.config.js process name
+PM2_PROCESS_NAME="BeePlan" # Matching ecosystem.config.js process name
 
 echo "--- Starting Backend Deployment ---"
 
@@ -19,7 +19,7 @@ echo "--- Starting Backend Deployment ---"
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "❌ Project directory not found. Cloning repository..."
     cd /root
-    git clone https://github.com/umuxt/Burkol0.git
+    git clone https://github.com/umuxt/BeePlan.git
 fi
 
 # Navigate to project directory

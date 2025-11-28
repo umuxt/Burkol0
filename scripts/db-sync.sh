@@ -1,17 +1,17 @@
 #!/bin/bash
-# Database sync scripts for Burkol project
+# Database sync scripts for BeePlan project
 
 # Download database from VPS to local
 download_db() {
     echo "📥 Downloading database from VPS..."
-    scp root@136.244.86.113:/root/Burkol0/WebApp/db.json /Users/umutyalcin/Documents/Burkol/WebApp/db_vps_backup.json
+    scp root@136.244.86.113:/root/BeePlan/WebApp/db.json /Users/umutyalcin/Documents/BeePlan/WebApp/db_vps_backup.json
     echo "✅ Database downloaded to db_vps_backup.json"
 }
 
 # Upload local database to VPS
 upload_db() {
     echo "📤 Uploading database to VPS..."
-    scp /Users/umutyalcin/Documents/Burkol/WebApp/db.json root@136.244.86.113:/root/Burkol0/WebApp/db.json
+    scp /Users/umutyalcin/Documents/BeePlan/WebApp/db.json root@136.244.86.113:/root/BeePlan/WebApp/db.json
     ssh root@136.244.86.113 "pm2 restart WebApp"
     echo "✅ Database uploaded and server restarted"
 }
@@ -19,7 +19,7 @@ upload_db() {
 # Backup VPS database
 backup_vps_db() {
     echo "💾 Creating VPS database backup..."
-    ssh root@136.244.86.113 "cp /root/Burkol0/WebApp/db.json /root/Burkol0/WebApp/db_backup_$(date +%Y%m%d_%H%M%S).json"
+    ssh root@136.244.86.113 "cp /root/BeePlan/WebApp/db.json /root/BeePlan/WebApp/db_backup_$(date +%Y%m%d_%H%M%S).json"
     echo "✅ VPS database backed up"
 }
 
@@ -28,9 +28,9 @@ compare_db() {
     echo "🔍 Comparing local and VPS databases..."
     download_db
     echo "Local users:"
-    jq '.users | keys' /Users/umutyalcin/Documents/Burkol/WebApp/db.json
+    jq '.users | keys' /Users/umutyalcin/Documents/BeePlan/WebApp/db.json
     echo "VPS users:"
-    jq '.users | keys' /Users/umutyalcin/Documents/Burkol/WebApp/db_vps_backup.json
+    jq '.users | keys' /Users/umutyalcin/Documents/BeePlan/WebApp/db_vps_backup.json
 }
 
 # Main menu

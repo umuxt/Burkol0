@@ -3,11 +3,11 @@
 # Add this to crontab for automatic syncing
 
 # Crontab entry (run: crontab -e):
-# */5 * * * * /Users/umutyalcin/Documents/Burkol/auto-db-sync.sh >> /Users/umutyalcin/Documents/Burkol/sync.log 2>&1
+# */5 * * * * /Users/umutyalcin/Documents/BeePlan/auto-db-sync.sh >> /Users/umutyalcin/Documents/BeePlan/sync.log 2>&1
 
-VPS_DB="/root/Burkol0/WebApp/db.json"
-LOCAL_DB="/Users/umutyalcin/Documents/Burkol/WebApp/db.json"
-TEMP_DB="/Users/umutyalcin/Documents/Burkol/WebApp/temp_vps_db.json"
+VPS_DB="/root/BeePlan/WebApp/db.json"
+LOCAL_DB="/Users/umutyalcin/Documents/BeePlan/WebApp/db.json"
+TEMP_DB="/Users/umutyalcin/Documents/BeePlan/WebApp/temp_vps_db.json"
 
 echo "$(date): Starting auto-sync..."
 

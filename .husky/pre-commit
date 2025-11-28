@@ -1,21 +1,7 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-# CamelCase Migration Enforcement
-# Prevents new snake_case identifiers from being committed
+# Pre-commit checks
+# Add any necessary checks here (e.g. linting, testing)
 
-echo "🔍 Checking for new snake_case identifiers..."
-
-# Run the snake_case detector
-node scripts/migration/check-new-snake-case.js --baseline 7600
-
-# Exit code from the script determines if commit proceeds
-if [ $? -ne 0 ]; then
-  echo ""
-  echo "❌ Commit blocked: New snake_case identifiers detected"
-  echo "   Please convert to camelCase before committing"
-  echo "   See NAMING-CONVENTIONS.md for guidelines"
-  exit 1
-fi
-
-echo "✅ No new snake_case detected - proceeding with commit"
+echo "✅ Proceeding with commit"

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Settings Protection Script for Burkol Quote Portal
+# Settings Protection Script for BeePlan WebApp
 # This script preserves price calculation settings during deployments
 
-PROJECT_DIR="/root/Burkol0/WebApp"
-SETTINGS_BACKUP="/root/burkol_settings_backup.json"
+PROJECT_DIR="/root/BeePlan/WebApp"
+SETTINGS_BACKUP="/root/beeplan_settings_backup.json"
 DB_FILE="$PROJECT_DIR/db.json"
 
 # Function to backup settings

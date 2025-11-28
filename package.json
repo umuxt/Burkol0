@@ -1,4 +1,5 @@
 {
+  "name": "beeplan-root",
   "scripts": {
     "build": "vite build",
     "dev": "vite"
