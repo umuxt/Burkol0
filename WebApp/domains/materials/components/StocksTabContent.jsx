@@ -9,6 +9,7 @@ import AddMaterialModal from './AddMaterialModal.jsx'
 import MaterialDetailsPanel from './MaterialDetailsPanel.jsx'
 import ShipmentModalInStock from './ShipmentModalInStock.jsx'
 import { materialsService } from '../services/materials-service.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function StocksTabContent({ 
   materials, 
@@ -84,7 +85,7 @@ export default function StocksTabContent({
       refreshMaterials && await refreshMaterials();
     } catch (error) {
       console.error('Material update error:', error);
-      alert(`Malzeme güncellenirken hata: ${error.message}`);
+      showToast(`Malzeme güncellenirken hata: ${error.message}`, 'error');
     }
   };
 
@@ -106,7 +107,7 @@ export default function StocksTabContent({
       : materials;
     
     if (materialsToExport.length === 0) {
-      alert('Dışa aktarılacak malzeme bulunamadı.');
+      showToast('Dışa aktarılacak malzeme bulunamadı.', 'warning');
       return;
     }
 

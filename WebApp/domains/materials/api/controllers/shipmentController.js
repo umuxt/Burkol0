@@ -244,8 +244,8 @@ export async function addItemToShipment(req, res) {
 export async function removeItemFromShipment(req, res) {
   try {
     const { itemId } = req.params;
-    await shipmentService.removeItemFromShipment(itemId, req.user);
-    res.json({ success: true, message: 'Item removed' });
+    const result = await shipmentService.removeItemFromShipment(itemId, req.user);
+    res.json(result);
   } catch (error) {
     if (error.code === 'NOT_FOUND') {
       return res.status(404).json({ error: 'Shipment item not found' });

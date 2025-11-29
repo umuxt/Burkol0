@@ -9,6 +9,7 @@ import {
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function EditMaterialModal({ 
   isOpen, 
@@ -356,7 +357,7 @@ export default function EditMaterialModal({
     const finalCategory = showNewCategory ? newCategory : formData.category;
     
     if (!formData.name || !formData.type || !finalCategory || !formData.stock || !formData.reorderPoint) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
+      showToast('Lütfen tüm zorunlu alanları doldurun!', 'warning')
       return;
     }
 
@@ -375,7 +376,7 @@ export default function EditMaterialModal({
       const hasNewCategory = showNewCategory && newCategory.trim() !== '';
       
       if (!hasChanges && !hasNewCategory) {
-        alert('Herhangi bir değişiklik yapılmadı!');
+        showToast('Herhangi bir değişiklik yapılmadı!', 'info')
         setIsEditing(false); // Editing mode'dan çık
         return;
       }

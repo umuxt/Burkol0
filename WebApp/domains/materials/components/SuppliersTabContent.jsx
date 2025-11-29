@@ -5,6 +5,7 @@ import AddSupplierModal from './AddSupplierModal'
 import SuppliersFilters from './SuppliersFilters'
 import { useCategories } from '../hooks/useCategories'
 import { useSuppliers } from '../hooks/useSuppliers'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function SuppliersTabContent({ 
   categories,
@@ -196,7 +197,7 @@ export default function SuppliersTabContent({
       setIsAddSupplierModalOpen(false)
     } catch (error) {
       console.error('❌ Tedarikçi ekleme hatası:', error)
-      alert('Tedarikçi eklenirken bir hata oluştu: ' + error.message)
+      showToast('Tedarikçi eklenirken bir hata oluştu: ' + error.message, 'error')
     }
   }
 
@@ -265,7 +266,7 @@ export default function SuppliersTabContent({
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('CSV dışa aktarım hatası:', err)
-      alert('CSV dışa aktarımında hata oluştu')
+      showToast('CSV dışa aktarımında hata oluştu', 'error')
     }
   }
 

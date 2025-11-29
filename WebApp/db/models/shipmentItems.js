@@ -275,16 +275,42 @@ const ShipmentItems = {
         .where({ id: itemId })
         .delete();
       
-      // Update shipment timestamp
-      await trx('materials.shipments')
-        .where({ id: item.shipmentId })
-        .update({
-          updatedAt: new Date()
-        });
+      // Check if this was the last item - if so, delete the shipment too
+      const remainingItems = await trx('materials.shipment_items')
+        .where({ shipmentId: item.shipmentId })
+        .count('id as count')
+        .first();
+      
+      const itemCount = parseInt(remainingItems?.count || 0, 10);
+      let shipmentDeleted = false;
+      
+      if (itemCount === 0) {
+        // No items left, delete the shipment
+        await trx('materials.shipments')
+          .where({ id: item.shipmentId })
+          .delete();
+        shipmentDeleted = true;
+        console.log(`🗑️ Shipment ${item.shipmentCode} deleted (no items remaining)`);
+      } else {
+        // Update shipment timestamp
+        await trx('materials.shipments')
+          .where({ id: item.shipmentId })
+          .update({
+            updatedAt: new Date()
+          });
+      }
       
       await trx.commit();
       
-      return true;
+      // Return info for frontend event
+      return {
+        success: true,
+        materialCode: item.materialCode,
+        quantity: item.quantity,
+        newStock: material ? parseFloat(material.stock) + parseFloat(item.quantity) : null,
+        shipmentDeleted,
+        shipmentId: item.shipmentId
+      };
       
     } catch (error) {
       await trx.rollback();

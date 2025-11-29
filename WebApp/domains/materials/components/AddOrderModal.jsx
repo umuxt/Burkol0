@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
 import { useMaterials } from '../hooks/useMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null }) {
   
@@ -498,7 +499,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     try {
       
       if (selectedMaterials.length === 0) {
-        alert('En az bir malzeme eklemelisiniz')
+        showToast('En az bir malzeme eklemelisiniz', 'warning')
         return
       }
 
@@ -531,7 +532,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       
     } catch (error) {
       console.error('❌ AddOrderModal: Error creating order:', error)
-      alert('Sipariş oluşturulurken hata oluştu: ' + error.message)
+      showToast('Sipariş oluşturulurken hata oluştu: ' + error.message, 'error')
     }
   }
 

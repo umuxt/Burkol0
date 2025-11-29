@@ -5,6 +5,7 @@ import OrdersFilters from './OrdersFilters.jsx'
 import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'
 import { materialsService } from '../../materials/services/materials-service.js'
 import { API } from '../../../shared/lib/api.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 // Shared helpers for delivery status across list and modal
 function getDeliveryStatusColor(status) {
@@ -935,7 +936,7 @@ export default function OrdersTabContent() {
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('CSV export error:', err)
-      alert('CSV dışa aktarma sırasında hata oluştu: ' + (err?.message || err))
+      showToast('CSV dışa aktarma sırasında hata oluştu: ' + (err?.message || err), 'error')
     }
   }
 
@@ -1744,7 +1745,7 @@ export default function OrdersTabContent() {
     // PREVENT bulk "Teslim Edildi" - must use item-level delivery for lot tracking
     if (newStatus === 'Teslim Edildi') {
       console.log('❌ BLOCKED: Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.')
-      alert('⚠️ Sipariş seviyesinden toplu teslim edilemez!\n\nLot takibi için her ürünü ayrı ayrı teslim edin.');
+      showToast('⚠️ Sipariş seviyesinden toplu teslim edilemez! Lot takibi için her ürünü ayrı ayrı teslim edin.', 'warning')
       return;
     }
     
@@ -1862,7 +1863,7 @@ export default function OrdersTabContent() {
         return o;
       }));
       
-      alert(`Sipariş durumu güncellenemedi: ${error.message}`);
+      showToast(`Sipariş durumu güncellenemedi: ${error.message}`, 'error');
     }
   }
 
@@ -2124,7 +2125,7 @@ export default function OrdersTabContent() {
         delete updated[itemKey]
         return updated
       })
-      alert(`Item status güncellenemedi: ${error.message}`)
+      showToast(`Item status güncellenemedi: ${error.message}`, 'error')
     } finally {
       setUpdatingItemIds(prev => prev.filter(id => id !== itemId))
     }
@@ -2141,18 +2142,18 @@ export default function OrdersTabContent() {
     const today = getLocalDateString();
     
     if (deliveryFormData.manufacturingDate && deliveryFormData.manufacturingDate > today) {
-      alert('Üretim tarihi bugünden ileri olamaz');
+      showToast('Üretim tarihi bugünden ileri olamaz', 'warning')
       return;
     }
     
     if (deliveryFormData.expiryDate && deliveryFormData.expiryDate <= today) {
-      alert('Son kullanma tarihi bugünden sonra olmalıdır');
+      showToast('Son kullanma tarihi bugünden sonra olmalıdır', 'warning')
       return;
     }
     
     if (deliveryFormData.manufacturingDate && deliveryFormData.expiryDate && 
         deliveryFormData.expiryDate <= deliveryFormData.manufacturingDate) {
-      alert('Son kullanma tarihi üretim tarihinden sonra olmalıdır');
+      showToast('Son kullanma tarihi üretim tarihinden sonra olmalıdır', 'warning')
       return;
     }
     
@@ -2180,9 +2181,9 @@ export default function OrdersTabContent() {
       
       // Show success message with lot number
       if (result.lotNumber) {
-        alert(`✅ Teslimat kaydedildi\nLot Numarası: ${result.lotNumber}`);
+        showToast(`✅ Teslimat kaydedildi - Lot Numarası: ${result.lotNumber}`, 'success')
       } else {
-        alert('✅ Teslimat kaydedildi');
+        showToast('✅ Teslimat kaydedildi', 'success')
       }
       
       // Close modal
@@ -2214,7 +2215,7 @@ export default function OrdersTabContent() {
       
     } catch (error) {
       console.error('❌ Error delivering item:', error);
-      alert(`Teslimat kaydedilemedi: ${error.message}`);
+      showToast(`Teslimat kaydedilemedi: ${error.message}`, 'error')
     } finally {
       setDeliveryLoading(false);
     }

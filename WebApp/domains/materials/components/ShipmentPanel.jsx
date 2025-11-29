@@ -3,6 +3,7 @@ import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from
 import ShipmentDetailsPanel from './ShipmentDetailsPanel.jsx';
 import CreateShipmentModal from './CreateShipmentModal.jsx';
 import { Plus, Package } from 'lucide-react';
+import { showToast } from '../../../shared/components/MESToast.js';
 
 export default function ShipmentPanel() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,7 +53,7 @@ export default function ShipmentPanel() {
       }
     } catch (error) {
       console.error('Update status failed:', error);
-      alert('Durum güncellenirken bir hata oluştu.');
+      showToast('Durum güncellenirken bir hata oluştu.', 'error');
     }
   };
 
@@ -63,7 +64,7 @@ export default function ShipmentPanel() {
       setSelectedShipment(prev => prev ? { ...prev, status: 'cancelled' } : null);
     } catch (error) {
       console.error('Cancel shipment failed:', error);
-      alert('İptal işlemi sırasında bir hata oluştu.');
+      showToast('İptal işlemi sırasında bir hata oluştu.', 'error');
     }
   };
 

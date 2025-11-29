@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function AddMaterialModal({ 
   isOpen, 
@@ -153,7 +154,7 @@ export default function AddMaterialModal({
     const requiresCategory = !['processed', 'scrap'].includes(formData.type);
     
     if (!finalCode || !formData.name || !formData.type || (requiresCategory && !finalCategory) || !formData.unit || !formData.stock || !formData.reorderPoint) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
+      showToast('Lütfen tüm zorunlu alanları doldurun!', 'warning');
       return;
     }
 

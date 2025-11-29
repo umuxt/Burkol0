@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus } from '../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../services/shipments-service.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function ShipmentDetailsPanel({
   shipment,
@@ -22,6 +23,7 @@ export default function ShipmentDetailsPanel({
   const [materials, setMaterials] = useState([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
+  const [removingItemId, setRemovingItemId] = useState(null);
   
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -84,7 +86,7 @@ export default function ShipmentDetailsPanel({
   // Handle add item
   const handleAddItem = async () => {
     if (!newItem.materialCode || !newItem.quantity) {
-      alert('Malzeme ve miktar zorunludur');
+      showToast('Malzeme ve miktar zorunludur', 'warning');
       return;
     }
     
@@ -105,9 +107,40 @@ export default function ShipmentDetailsPanel({
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to add item:', error);
-      alert(error.message || 'Kalem eklenemedi');
+      showToast(error.message || 'Kalem eklenemedi', 'error');
     } finally {
       setAddingItem(false);
+    }
+  };
+
+  // Handle remove item (restore stock)
+  const handleRemoveItem = async (itemId, materialCode, quantity) => {
+    if (!confirm(`${materialCode} - ${quantity} adet kalemi silmek istediğinize emin misiniz?\nStok geri iade edilecektir.`)) {
+      return;
+    }
+    
+    setRemovingItemId(itemId);
+    try {
+      const result = await shipmentsService.removeItemFromShipment(itemId);
+      
+      // If shipment was deleted (last item removed), close panel and refresh
+      if (result.shipmentDeleted) {
+        showToast('Son kalem silindi, sevkiyat otomatik olarak kaldırıldı.', 'info');
+        if (onRefresh) onRefresh();
+        if (onClose) onClose();
+        return;
+      }
+      
+      // Refresh items from API
+      await loadShipmentItems(currentShipment.id, true);
+      
+      // Refresh parent list if available
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Failed to remove item:', error);
+      showToast(error.message || 'Kalem silinemedi', 'error');
+    } finally {
+      setRemovingItemId(null);
     }
   };
 
@@ -171,7 +204,7 @@ export default function ShipmentDetailsPanel({
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Update failed:', error);
-      alert('Güncelleme başarısız oldu.');
+      showToast('Güncelleme başarısız oldu.', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -189,7 +222,7 @@ export default function ShipmentDetailsPanel({
       await onUpdateStatus(currentShipment.id, newStatus);
     } catch (error) {
       console.error('Status update failed:', error);
-      alert('Durum güncellenirken bir hata oluştu.');
+      showToast('Durum güncellenirken bir hata oluştu.', 'error');
     } finally {
       setIsUpdating(false);
       setStatusNote('');
@@ -208,7 +241,7 @@ export default function ShipmentDetailsPanel({
       await onCancel(currentShipment.id, statusNote);
     } catch (error) {
       console.error('Cancel shipment failed:', error);
-      alert('İptal işlemi sırasında bir hata oluştu.');
+      showToast('İptal işlemi sırasında bir hata oluştu.', 'error');
     } finally {
       setIsUpdating(false);
       setStatusNote('');
@@ -649,7 +682,7 @@ export default function ShipmentDetailsPanel({
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: '500', fontSize: '13px', color: '#111827', marginBottom: '2px' }}>
                           {item.materialCode}
                         </div>
@@ -664,13 +697,40 @@ export default function ShipmentDetailsPanel({
                           </div>
                         )}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontWeight: '600', fontSize: '14px', color: '#3b82f6' }}>
-                          {item.quantity}
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
-                          {item.unit || 'adet'}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontWeight: '600', fontSize: '14px', color: '#3b82f6' }}>
+                            {item.quantity}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
+                            {item.unit || 'adet'}
+                          </span>
+                        </div>
+                        {currentShipment.status === 'pending' && (
+                          <button
+                            onClick={() => handleRemoveItem(item.id, item.materialCode, item.quantity)}
+                            disabled={removingItemId === item.id}
+                            title="Kalemi sil (stok iade edilir)"
+                            style={{
+                              padding: '4px',
+                              backgroundColor: removingItemId === item.id ? '#fecaca' : '#fee2e2',
+                              color: '#dc2626',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: removingItemId === item.id ? 'not-allowed' : 'pointer',
+                              opacity: removingItemId === item.id ? 0.7 : 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            {removingItemId === item.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

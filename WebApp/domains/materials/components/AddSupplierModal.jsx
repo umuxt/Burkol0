@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave }) {
   const { suppliers, loading: suppliersLoading } = useSuppliers()
@@ -370,7 +371,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
     const finalCategory = showNewCategory ? newCategory : newMaterial.category
     
     if (!newMaterial.name || !newMaterial.type || !finalCategory || !newMaterial.unit) {
-      alert('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!')
+      showToast('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!', 'warning')
       return
     }
 
@@ -389,7 +390,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
           categoryToUse = newCategoryData.id
         } catch (categoryError) {
           console.error('❌ Category creation failed:', categoryError)
-          alert('Kategori oluşturulamadı. Mevcut kategorilerden birini seçin.')
+          showToast('Kategori oluşturulamadı. Mevcut kategorilerden birini seçin.', 'error')
           return
         }
       }
@@ -440,10 +441,10 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
       // Switch back to existing mode to show the added material
       setMaterialMode('existing')
       
-      alert('Malzeme başarıyla eklendi!')
+      showToast('Malzeme başarıyla eklendi!', 'success')
     } catch (error) {
       console.error('Malzeme eklenirken hata:', error)
-      alert('Malzeme eklenirken bir hata oluştu!')
+      showToast('Malzeme eklenirken bir hata oluştu!', 'error')
     }
   }
 
@@ -453,7 +454,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
     const finalCode = formData.code.trim() || nextCode; // Boşsa otomatik kod kullan
     
     if (!finalCode || !formData.name || !formData.contactPerson || !formData.phone1 || !formData.email1) {
-      alert('Lütfen tüm zorunlu alanları doldurun! (Firma Adı, Yetkili Kişi, Telefon 1, E-posta 1)');
+      showToast('Lütfen tüm zorunlu alanları doldurun! (Firma Adı, Yetkili Kişi, Telefon 1, E-posta 1)', 'warning')
       return;
     }
 
@@ -477,7 +478,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
       onSave(supplierData);
     } catch (error) {
       console.error('Tedarikçi kaydedilirken hata:', error);
-      alert('Tedarikçi kaydedilirken bir hata oluştu!');
+      showToast('Tedarikçi kaydedilirken bir hata oluştu!', 'error')
     }
   };
 

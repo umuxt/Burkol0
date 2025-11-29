@@ -1,5 +1,6 @@
 
 import { useCallback } from 'react';
+import { showToast } from '../../../shared/components/MESToast.js';
 
 /**
  * Kategori ve Malzeme verilerini senkronize eden merkezi bir hook.
@@ -40,7 +41,7 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
 
     } catch (error) {
       console.error("Kategori oluşturma hatası:", error);
-      alert(`Hata: ${error.message}`);
+      showToast(`Hata: ${error.message}`, 'error');
       throw error;
     }
   }, [refreshCategories]);
@@ -66,7 +67,7 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
 
     } catch (error) {
       console.error(`Kategori ${id} güncelleme hatası:`, error);
-      alert(`Hata: ${error.message}`);
+      showToast(`Hata: ${error.message}`, 'error');
     }
   }, [refreshCategories, refreshMaterials]);
 
@@ -134,9 +135,9 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
         console.warn(`⚠️ Kategori ${id} aktif kullanımda, silinemez`);
         throw error; // CategoryManagementModal'ın handle edebilmesi için re-throw
       }
-      // Diğer hatalar için console error ve alert göster
+      // Diğer hatalar için console error ve toast göster
       console.error(`Kategori ${id} silme hatası:`, error);
-      alert(`Hata: ${error.message}`);
+      showToast(`Hata: ${error.message}`, 'error');
       throw error; // Caller'a error'ı propagate et
     }
   }, [refreshCategories, refreshMaterials]);

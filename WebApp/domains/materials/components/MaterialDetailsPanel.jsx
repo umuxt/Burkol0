@@ -4,6 +4,7 @@ import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistor
 import useMaterialProductionHistory from '../hooks/useMaterialProductionHistory.js'
 import useMaterialLots from '../hooks/useMaterialLots.js'
 import { useSuppliers } from '../hooks/useSuppliers'
+import { showToast } from '../../../shared/components/MESToast.js'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
@@ -262,7 +263,7 @@ export default function MaterialDetailsPanel({
     const finalCategory = showNewCategory ? newCategory : formData.category;
     
     if (!formData.name || !formData.type || !finalCategory || !formData.stock || !formData.reorderPoint) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
+      showToast('Lütfen tüm zorunlu alanları doldurun!', 'warning');
       return;
     }
 
@@ -280,7 +281,7 @@ export default function MaterialDetailsPanel({
       const hasNewCategory = showNewCategory && newCategory.trim() !== '';
       
       if (!hasChanges && !hasNewCategory) {
-        alert('Herhangi bir değişiklik yapılmadı!');
+        showToast('Herhangi bir değişiklik yapılmadı!', 'info');
         setIsEditing(false);
         return;
       }

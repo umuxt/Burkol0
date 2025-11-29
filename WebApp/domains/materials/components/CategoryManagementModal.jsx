@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { categoriesService } from '../services/categories-service.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 
 export default function CategoryManagementModal({ 
   isOpen, 
@@ -44,7 +45,7 @@ export default function CategoryManagementModal({
         if (onRefresh) await onRefresh();
       } catch (error) {
         console.error('Kategori ekleme hatası:', error);
-        alert('Kategori eklenirken bir hata oluştu.');
+        showToast('Kategori eklenirken bir hata oluştu.', 'error');
       }
     }
   };
@@ -65,7 +66,7 @@ export default function CategoryManagementModal({
         if (onRefresh) await onRefresh();
       } catch (error) {
         console.error('Kategori güncelleme hatası:', error);
-        alert('Kategori güncellenirken bir hata oluştu.');
+        showToast('Kategori güncellenirken bir hata oluştu.', 'error');
       }
     }
   };

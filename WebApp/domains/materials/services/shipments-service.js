@@ -411,6 +411,20 @@ export const shipmentsService = {
       
       const result = await response.json()
       console.log('✅ Item added to shipment')
+      
+      // Emit stock update event for materials list refresh
+      if (typeof window !== 'undefined' && result.materialCode) {
+        window.dispatchEvent(new CustomEvent('materialStockUpdated', {
+          detail: {
+            materialCode: result.materialCode,
+            newStock: result.newStock,
+            quantity: itemData.quantity,
+            operation: 'shipment_out',
+            context: 'shipment_item_added'
+          }
+        }));
+      }
+      
       return result
     } catch (error) {
       console.error('❌ Add item error:', error)
@@ -437,7 +451,27 @@ export const shipmentsService = {
       }
       
       const result = await response.json()
-      console.log('✅ Item removed from shipment')
+      console.log('✅ Item removed from shipment, result:', result)
+      
+      // Emit stock update event for materials list refresh
+      if (typeof window !== 'undefined' && result.materialCode) {
+        console.log('📢 Emitting materialStockUpdated event:', {
+          materialCode: result.materialCode,
+          newStock: result.newStock
+        });
+        window.dispatchEvent(new CustomEvent('materialStockUpdated', {
+          detail: {
+            materialCode: result.materialCode,
+            newStock: result.newStock,
+            quantity: result.quantity,
+            operation: 'shipment_return',
+            context: 'shipment_item_removed'
+          }
+        }));
+      } else {
+        console.warn('⚠️ No materialCode in result, event not emitted:', result);
+      }
+      
       return result
     } catch (error) {
       console.error('❌ Remove item error:', error)

@@ -350,7 +350,7 @@ export default function SuppliersTable({
     
     if (!selectedSupplier?.id) {
       console.error('❌ No supplier selected for update')
-      alert('Lütfen güncellenecek tedarikçiyi seçin')
+      showToast('Lütfen güncellenecek tedarikçiyi seçin', 'warning')
       return
     }
 
@@ -361,7 +361,7 @@ export default function SuppliersTable({
     
     if (!formData || Object.keys(formData).length === 0) {
       console.error('❌ No form data to update')
-      alert('Güncellenecek veri bulunamadı')
+      showToast('Güncellenecek veri bulunamadı', 'warning')
       return
     }
     
@@ -381,7 +381,7 @@ export default function SuppliersTable({
       }
     } catch (error) {
       console.error('❌ Error saving supplier:', error)
-      alert(`Tedarikçi kaydedilirken hata oluştu: ${error.message}`)
+      showToast(`Tedarikçi kaydedilirken hata oluştu: ${error.message}`, 'error')
     }
   }
 
@@ -486,7 +486,7 @@ export default function SuppliersTable({
     const finalCategory = showNewCategory ? newCategory : newMaterial.category
     
     if (!newMaterial.name || !newMaterial.type || !finalCategory || !newMaterial.unit) {
-      alert('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!')
+      showToast('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!', 'warning')
       return
     }
 
@@ -706,7 +706,7 @@ export default function SuppliersTable({
       console.log(`Malzeme durumu güncellendi: ${materialId} -> ${newStatus}`)
     } catch (error) {
       console.error('Malzeme durumu güncellenirken hata:', error)
-      alert('Malzeme durumu güncellenirken bir hata oluştu!')
+      showToast('Malzeme durumu güncellenirken bir hata oluştu!', 'error')
     }
   }
 
