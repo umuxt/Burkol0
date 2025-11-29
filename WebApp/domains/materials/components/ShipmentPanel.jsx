@@ -180,11 +180,11 @@ export default function ShipmentPanel() {
                 <thead>
                   <tr>
                     <th style={{ minWidth: '120px', textAlign: 'left' }}>Sevkiyat Kodu</th>
-                    <th style={{ width: '70px', textAlign: 'center' }}>Kalem</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Kalem Adedi</th>
+                    <th style={{ minWidth: '280px', textAlign: 'left' }}>Sevkiyat Kalemleri</th>
                     <th style={{ minWidth: '140px', textAlign: 'left' }}>Müşteri/İş Emri</th>
-                    <th style={{ width: '120px', textAlign: 'left' }}>Durum</th>
                     <th style={{ minWidth: '140px', textAlign: 'left' }}>Tarih</th>
-                    <th style={{ minWidth: '150px', textAlign: 'left' }}>Not</th>
+                    <th style={{ width: '120px', textAlign: 'left' }}>Durum</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,14 +223,9 @@ export default function ShipmentPanel() {
                        style={{ cursor: 'pointer' }}
                      >
                         <td>
-                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                             <span className="mes-code-text" style={{ fontWeight: '600' }}>
-                               {shipment.shipmentCode || `SHP-${shipment.id}`}
-                             </span>
-                             <span style={{ fontSize: '11px', color: '#6b7280' }}>
-                               #{shipment.id}
-                             </span>
-                           </div>
+                           <span className="mes-code-text" style={{ fontWeight: '600' }}>
+                             {shipment.shipmentCode || `SHP-${shipment.id}`}
+                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                            <span style={{ 
@@ -246,6 +241,57 @@ export default function ShipmentPanel() {
                              <Package size={12} />
                              {shipment.itemCount || shipment.items?.length || 1}
                            </span>
+                        </td>
+                        <td>
+                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                             {(shipment.items || []).slice(0, 3).map((item, idx) => {
+                               // Parse item sequence from itemCode (e.g., "SHP-001-01" -> "01")
+                               const itemSeq = item.itemCode ? item.itemCode.split('-').pop() : String(idx + 1).padStart(2, '0');
+                               return (
+                                 <div 
+                                   key={item.id || idx}
+                                   style={{
+                                     display: 'inline-flex',
+                                     alignItems: 'center',
+                                     gap: '6px',
+                                     border: '1px solid #e2e8f0',
+                                     borderRadius: '8px',
+                                     background: '#fff',
+                                     padding: '2px 4px',
+                                     fontSize: '11px',
+                                     color: '#475569',
+                                     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
+                                   }}
+                                 >
+                                   <span style={{ fontSize: '11px', fontWeight: '600', color: '#1d4ed8' }}>
+                                     {itemSeq}
+                                   </span>
+                                   <span style={{ color: '#d1d5db' }}>|</span>
+                                   <span style={{ fontWeight: '600', fontFamily: 'monospace', fontSize: '10px', color: '#6b7280' }}>
+                                     {item.materialCode || item.productCode || '-'}
+                                   </span>
+                                   <span style={{ color: '#d1d5db' }}>|</span>
+                                   <span style={{ fontWeight: '600' }}>
+                                     {item.quantity} {item.unit || 'adet'}
+                                   </span>
+                                 </div>
+                               );
+                             })}
+                             {(shipment.items || []).length > 3 && (
+                               <span style={{ 
+                                 fontSize: '10px', 
+                                 color: '#6b7280',
+                                 padding: '2px 6px',
+                                 background: '#f1f5f9',
+                                 borderRadius: '4px'
+                               }}>
+                                 +{(shipment.items || []).length - 3} daha
+                               </span>
+                             )}
+                             {(!shipment.items || shipment.items.length === 0) && (
+                               <span style={{ color: '#9ca3af', fontSize: '11px' }}>-</span>
+                             )}
+                           </div>
                         </td>
                         <td>
                            {shipment.customerName || shipment.customerCompany ? (
@@ -271,6 +317,9 @@ export default function ShipmentPanel() {
                              <span style={{ color: '#9ca3af' }}>-</span>
                            )}
                         </td>
+                        <td style={{ fontSize: '13px', color: '#4b5563' }}>
+                           {formatDate(shipment.createdAt)}
+                        </td>
                         <td>
                            <span className="mes-tag" style={{ 
                              backgroundColor: `${SHIPMENT_STATUS_COLORS[shipment.status]}20`,
@@ -279,12 +328,6 @@ export default function ShipmentPanel() {
                            }}>
                              {SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
                            </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#4b5563' }}>
-                           {formatDate(shipment.createdAt)}
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#4b5563', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={shipment.notes || shipment.description}>
-                           {shipment.notes || shipment.description || '-'}
                         </td>
                      </tr>
                    ))}
