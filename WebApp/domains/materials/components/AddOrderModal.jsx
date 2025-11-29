@@ -561,10 +561,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     }}>
       <div style={{
         background: 'white',
-        borderRadius: '8px',
+        borderRadius: '4px',
         width: '90%',
-        maxWidth: '900px',
-        maxHeight: '90vh',
+        maxWidth: '600px',
+        maxHeight: '85vh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -572,13 +572,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       }}>
         {/* Header */}
         <div style={{
-          padding: '20px 24px',
+          padding: '10px 14px',
           borderBottom: '1px solid #e5e7eb',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '600' }}>
             {deliveredRecordMode ? 'Doğrudan Sipariş Kaydı' : 'Yeni Sipariş Oluştur'}
           </h2>
           <button
@@ -586,11 +586,11 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             style={{
               background: 'none',
               border: 'none',
-              fontSize: '24px',
+              fontSize: '18px',
               cursor: 'pointer',
               padding: '0',
-              width: '32px',
-              height: '32px',
+              width: '24px',
+              height: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -602,7 +602,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
         {/* Steps Indicator */}
         <div style={{
-          padding: '16px 24px',
+          padding: '6px 14px',
           borderBottom: '1px solid #e5e7eb',
           display: 'flex',
           justifyContent: 'center'
@@ -611,25 +611,25 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             <div key={step} style={{
               display: 'flex',
               alignItems: 'center',
-              marginRight: step < 3 ? '24px' : '0'
+              marginRight: step < 3 ? '12px' : '0'
             }}>
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '20px',
+                height: '20px',
                 borderRadius: '50%',
                 background: step <= currentStep ? '#3b82f6' : '#e5e7eb',
                 color: step <= currentStep ? 'white' : '#6b7280',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '14px',
+                fontSize: '11px',
                 fontWeight: '600'
               }}>
                 {step}
               </div>
               <span style={{
-                marginLeft: '8px',
-                fontSize: '14px',
+                marginLeft: '4px',
+                fontSize: '11px',
                 color: step <= currentStep ? '#1f2937' : '#6b7280',
                 fontWeight: step === currentStep ? '600' : '400'
               }}>
@@ -637,10 +637,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
               </span>
               {step < 3 && (
                 <div style={{
-                  width: '32px',
+                  width: '20px',
                   height: '2px',
                   background: step < currentStep ? '#3b82f6' : '#e5e7eb',
-                  marginLeft: '16px'
+                  marginLeft: '6px'
                 }} />
               )}
             </div>
@@ -651,18 +651,18 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         <div style={{
           flex: 1,
           overflow: 'auto',
-          padding: '24px'
+          padding: '14px'
         }}>
           {/* Step 1: Supplier Selection */}
           {currentStep === 1 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Tedarikçi Seçimi</h3>
+              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Tedarikçi Seçimi</h3>
               
               {suppliersLoading ? (
                 <p>Tedarikçiler yükleniyor...</p>
               ) : filteredSuppliers && filteredSuppliers.length === 0 ? (
                 <div style={{
-                  padding: '16px',
+                  padding: '12px',
                   backgroundColor: '#fef3c7',
                   border: '1px solid #fbbf24',
                   borderRadius: '8px',
@@ -675,10 +675,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                 </div>
               ) : (
                 <div>
-                  <div style={{ marginBottom: '16px' }}>
+                  <div style={{ marginBottom: '12px' }}>
                     <label style={{ 
                       display: 'block', 
-                      marginBottom: '6px', 
+                      marginBottom: '4px', 
                       fontSize: '14px', 
                       fontWeight: '600' 
                     }}>
@@ -689,7 +689,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       onChange={(e) => handleSupplierChange(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '8px 12px',
+                        padding: '6px 10px',
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
                         fontSize: '14px'
@@ -710,14 +710,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                   <div style={{ 
                     display: 'grid', 
                     gridTemplateColumns: '1fr 1fr', 
-                    gap: '16px',
-                    marginTop: '20px'
+                    gap: '12px',
+                    marginTop: '16px'
                   }}>
                     {!deliveredRecordMode && (
                     <div>
                       <label style={{ 
                         display: 'block', 
-                        marginBottom: '6px', 
+                        marginBottom: '4px', 
                         fontSize: '14px', 
                         fontWeight: '600' 
                       }}>
@@ -728,7 +728,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         onChange={(e) => setFormData(prev => ({ ...prev, orderStatus: e.target.value }))}
                         style={{
                           width: '100%',
-                          padding: '8px 12px',
+                          padding: '6px 10px',
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
                           fontSize: '14px'
@@ -745,7 +745,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     <div>
                       <label style={{ 
                         display: 'block', 
-                        marginBottom: '6px', 
+                        marginBottom: '4px', 
                         fontSize: '14px', 
                         fontWeight: '600' 
                       }}>
@@ -757,7 +757,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         onChange={(e) => setFormData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
                         style={{
                           width: '100%',
-                          padding: '8px 12px',
+                          padding: '6px 10px',
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
                           fontSize: '14px'
@@ -767,10 +767,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     )}
                   </div>
 
-                  <div style={{ marginTop: '16px' }}>
+                  <div style={{ marginTop: '12px' }}>
                     <label style={{ 
                       display: 'block', 
-                      marginBottom: '6px', 
+                      marginBottom: '4px', 
                       fontSize: '14px', 
                       fontWeight: '600' 
                     }}>
@@ -782,8 +782,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       placeholder="Sipariş ile ilgili notlar..."
                       style={{
                         width: '100%',
-                        minHeight: '80px',
-                        padding: '8px 12px',
+                        minHeight: '60px',
+                        padding: '6px 10px',
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
                         fontSize: '14px',
@@ -799,11 +799,11 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {/* Step 2: Material Order Details */}
           {currentStep === 2 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Sipariş Detayları</h3>
+              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Sipariş Detayları</h3>
               
               {/* Selected Materials */}
               <div>
-                <h4 style={{ marginBottom: '12px' }}>Seçilen Malzemeler</h4>
+                <h4 style={{ marginBottom: '8px' }}>Seçilen Malzemeler</h4>
                 {selectedMaterials.length === 0 ? (
                   <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
                     Henüz malzeme eklenmemiş.
@@ -817,21 +817,21 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       <div
                         key={material.lineId}
                         style={{
-                          padding: '16px',
+                          padding: '12px',
                           borderBottom: index < selectedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none'
                         }}
                       >
                         <div style={{
                           display: 'grid',
-                          gridTemplateColumns: '2fr 1fr 1fr 50px',
-                          gap: '12px',
+                          gridTemplateColumns: '2fr 1fr 1fr 40px',
+                          gap: '8px',
                           alignItems: 'center'
                         }}>
                           <div>
-                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '500', marginBottom: '2px' }}>
                               {material.lineId}
                             </div>
-                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
+                          <div style={{ fontWeight: '500', fontSize: '14px' }}>
                             {material.materialName}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6b7280' }}>
@@ -842,7 +842,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                           </div>
                         </div>
                           <div>
-                            <label style={{ fontSize: '12px', color: '#6b7280' }}>Miktar *</label>
+                            <label style={{ fontSize: '11px', color: '#6b7280' }}>Miktar *</label>
                             <input
                             type="number"
                             min="1"
@@ -851,15 +851,15 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                             autoFocus={index === 0} // First material gets auto focus
                               style={{
                                 width: '100%',
-                                padding: '6px 8px',
+                                padding: '4px 6px',
                                 border: '1px solid #d1d5db',
                                 borderRadius: '4px',
-                                fontSize: '13px'
+                                fontSize: '12px'
                               }}
                             />
                           </div>
                           <div>
-                            <label style={{ fontSize: '12px', color: '#6b7280' }}>Birim Fiyat</label>
+                            <label style={{ fontSize: '11px', color: '#6b7280' }}>Birim Fiyat</label>
                             <input
                             type="number"
                             min="0"
@@ -868,10 +868,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                             onChange={(e) => updateMaterial(material.lineId, 'unitPrice', e.target.value)}
                               style={{
                                 width: '100%',
-                                padding: '6px 8px',
+                                padding: '4px 6px',
                                 border: '1px solid #d1d5db',
                                 borderRadius: '4px',
-                                fontSize: '13px'
+                                fontSize: '12px'
                               }}
                             />
                           </div>
@@ -882,18 +882,18 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                               color: 'white',
                               border: 'none',
                               borderRadius: '4px',
-                              padding: '6px',
+                              padding: '4px',
                               cursor: 'pointer',
-                              fontSize: '12px'
+                              fontSize: '11px'
                             }}
                           >
                             ×
                           </button>
                         </div>
                         <div style={{
-                          marginTop: '8px',
+                          marginTop: '4px',
                           textAlign: 'right',
-                          fontSize: '14px',
+                          fontSize: '13px',
                           fontWeight: '600'
                         }}>
                           Toplam: {formatCurrency(material.quantity * material.unitPrice)}
@@ -905,11 +905,11 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
               </div>
 
               {/* Available Materials Section */}
-              <div style={{ marginTop: '24px' }}>
-                <h4 style={{ marginBottom: '12px' }}>Kullanılabilir Malzemeler</h4>
+              <div style={{ marginTop: '16px' }}>
+                <h4 style={{ marginBottom: '8px' }}>Kullanılabilir Malzemeler</h4>
                 {supplierMaterialsLoading ? (
                   <div style={{ 
-                    padding: '16px', 
+                    padding: '12px', 
                     textAlign: 'center', 
                     color: '#6b7280',
                     fontStyle: 'italic'
@@ -918,18 +918,18 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                   </div>
                 ) : supplierMaterialsError ? (
                   <div style={{
-                    padding: '16px',
+                    padding: '12px',
                     backgroundColor: '#fef2f2',
                     border: '1px solid #fecaca',
                     borderRadius: '6px',
                     color: '#dc2626'
                   }}>
                     <p style={{ margin: 0, fontWeight: '600' }}>⚠️ Hata</p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '14px' }}>{supplierMaterialsError}</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>{supplierMaterialsError}</p>
                   </div>
                 ) : availableMaterials.length === 0 ? (
                   <div style={{
-                    padding: '16px',
+                    padding: '12px',
                     backgroundColor: '#fef3c7',
                     border: '1px solid #fbbf24',
                     borderRadius: '6px',
@@ -937,7 +937,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     textAlign: 'center'
                   }}>
                     <p style={{ margin: 0, fontWeight: '600' }}>📦 Malzeme Bulunamadı</p>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
                       Bu tedarikçi için tanımlanmış aktif malzeme bulunmuyor.
                     </p>
                   </div>
@@ -953,7 +953,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         <div
                           key={`${material.id || material.code}-${index}`}
                           style={{
-                            padding: '12px 16px',
+                            padding: '8px 12px',
                             borderBottom: index < availableMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
                             backgroundColor: 'white'
                           }}
@@ -965,47 +965,47 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                           }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ 
-                                fontWeight: '600', 
-                                fontSize: '14px',
-                                marginBottom: '4px'
+                                fontWeight: '500', 
+                                fontSize: '13px',
+                                marginBottom: '2px'
                               }}>
                                 {material.name}
                               </div>
                               <div style={{ 
-                                fontSize: '12px', 
+                                fontSize: '11px', 
                                 color: '#6b7280',
-                                marginBottom: '2px'
+                                marginBottom: '1px'
                               }}>
                                 Kod: {material.code}
                               </div>
                               {material.category && (
                                 <div style={{ 
-                                  fontSize: '12px', 
+                                  fontSize: '11px', 
                                   color: '#6b7280',
-                                  marginBottom: '2px'
+                                  marginBottom: '1px'
                                 }}>
                                   Kategori: {material.category}
                                 </div>
                               )}
                               {material.unit && (
                                 <div style={{ 
-                                  fontSize: '12px', 
+                                  fontSize: '11px', 
                                   color: '#6b7280'
                                 }}>
                                   Birim: {material.unit}
                                 </div>
                               )}
                             </div>
-                            <div style={{ marginLeft: '16px', textAlign: 'right' }}>
+                            <div style={{ marginLeft: '12px', textAlign: 'right' }}>
                               <button
                                 onClick={() => addMaterial(material)}
                                 style={{
-                                  padding: '6px 12px',
+                                  padding: '4px 8px',
                                   backgroundColor: '#3b82f6',
                                   color: 'white',
                                   border: 'none',
                                   borderRadius: '4px',
-                                  fontSize: '12px',
+                                  fontSize: '11px',
                                   cursor: 'pointer',
                                   fontWeight: '600'
                                 }}
@@ -1026,16 +1026,16 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {/* Step 3: Summary */}
           {currentStep === 3 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Sipariş Özeti</h3>
+              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Sipariş Özeti</h3>
               
               <div style={{
                 border: '1px solid #e5e7eb',
                 borderRadius: '6px',
-                padding: '20px'
+                padding: '16px'
               }}>
-                <div style={{ marginBottom: '20px' }}>
-                  <h4 style={{ marginBottom: '12px' }}>Sipariş Bilgileri</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Sipariş Bilgileri</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <div>
                       <strong>Tedarikçi:</strong> {formData.supplierName}
                     </div>
@@ -1050,38 +1050,38 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     </div>
                   </div>
                   {formData.notes && (
-                    <div style={{ marginTop: '12px' }}>
+                    <div style={{ marginTop: '8px' }}>
                       <strong>Notlar:</strong> {formData.notes}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <h4 style={{ marginBottom: '12px' }}>Sipariş Satırları ({selectedMaterials.length})</h4>
+                  <h4 style={{ marginBottom: '8px' }}>Sipariş Satırları ({selectedMaterials.length})</h4>
                   {selectedMaterials.map((material, index) => (
                     <div
                       key={material.lineId}
                       style={{
-                        padding: '12px',
+                        padding: '8px',
                         background: '#f8f9fa',
                         borderRadius: '4px',
-                        marginBottom: index < selectedMaterials.length - 1 ? '8px' : '0',
+                        marginBottom: index < selectedMaterials.length - 1 ? '6px' : '0',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>{material.lineId}</div>
-                        <div style={{ fontWeight: '600' }}>{material.materialName}</div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '500' }}>{material.lineId}</div>
+                        <div style={{ fontWeight: '500', fontSize: '13px' }}>{material.materialName}</div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
                           {material.materialCode} • {(() => { const qty = parseFloat(material.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {material.unit || 'adet'} × {formatCurrency(material.unitPrice)}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
                           Durum: {material.itemStatus}
                         </div>
                       </div>
-                      <div style={{ fontWeight: '600' }}>
+                      <div style={{ fontWeight: '500', fontSize: '13px' }}>
                         {formatCurrency(material.quantity * material.unitPrice)}
                       </div>
                     </div>
@@ -1105,7 +1105,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
               <button
                 onClick={() => setCurrentStep(prev => prev - 1)}
                 style={{
-                  padding: '8px 16px',
+                  padding: '6px 16px',
                   border: '1px solid #d1d5db',
                   background: 'white',
                   borderRadius: '6px',
@@ -1122,7 +1122,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             <button
               onClick={onClose}
               style={{
-                padding: '8px 16px',
+                padding: '6px 16px',
                 border: '1px solid #d1d5db',
                 background: 'white',
                 borderRadius: '6px',
@@ -1141,7 +1141,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                   (currentStep === 2 && selectedMaterials.length === 0)
                 }
                 style={{
-                  padding: '8px 16px',
+                  padding: '6px 16px',
                   background: (currentStep === 1 && !formData.supplierId) || 
                              (currentStep === 2 && selectedMaterials.length === 0)
                     ? '#e5e7eb' : '#3b82f6',
@@ -1163,7 +1163,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                 onClick={handleSubmit}
                 disabled={orderLoading || selectedMaterials.length === 0}
                 style={{
-                  padding: '8px 16px',
+                  padding: '6px 16px',
                   background: orderLoading || selectedMaterials.length === 0 ? '#e5e7eb' : '#059669',
                   color: orderLoading || selectedMaterials.length === 0 ? '#6b7280' : 'white',
                   border: 'none',
