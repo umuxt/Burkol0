@@ -20,47 +20,109 @@ const VALID_TRANSITIONS = {
 };
 
 /**
- * Create a new shipment
+ * Create a new shipment with stock deduction
  */
-export async function createShipment(data, createdBy) {
+export async function createShipment(data, user) {
+  const { productCode, shipmentQuantity, planId, workOrderCode, quoteId, description } = data;
+  
   const trx = await db.transaction();
 
   try {
-    // Create shipment header
-    const [shipment] = await trx('materials.shipments')
+    // Validate required fields
+    if (!productCode || !shipmentQuantity) {
+      await trx.rollback();
+      const error = new Error('productCode ve shipmentQuantity zorunludur');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
+    if (shipmentQuantity <= 0) {
+      await trx.rollback();
+      const error = new Error('Miktar pozitif olmalıdır');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
+    // Get material details
+    const material = await trx('materials.materials')
+      .where({ code: productCode })
+      .first();
+
+    if (!material) {
+      await trx.rollback();
+      const error = new Error('Ürün bulunamadı');
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    // Check stock availability
+    const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
+    if (shipmentQuantity > availableStock) {
+      await trx.rollback();
+      const error = new Error(`Yetersiz stok. Mevcut: ${availableStock}, İstenen: ${shipmentQuantity}`);
+      error.code = 'INSUFFICIENT_STOCK';
+      throw error;
+    }
+
+    const previousStock = material.stock;
+    const newStock = previousStock - shipmentQuantity;
+
+    // 1. Create stock movement (out - shipment)
+    const [stockMovement] = await trx('materials.stock_movements')
       .insert({
-        work_order_code: data.workOrderCode,
-        quote_id: data.quoteId,
-        customer_name: data.customerName,
-        customer_company: data.customerCompany,
-        delivery_address: data.deliveryAddress,
-        shipping_method: data.shippingMethod,
-        tracking_number: data.trackingNumber,
-        notes: data.notes,
-        status: SHIPMENT_STATUSES.PENDING,
-        created_by: createdBy,
-        created_at: new Date()
+        materialId: material.id,
+        materialCode: material.code,
+        materialName: material.name,
+        type: 'out',
+        subType: 'shipment',
+        status: 'completed',
+        quantity: shipmentQuantity,
+        unit: material.unit || 'adet',
+        stockBefore: previousStock,
+        stockAfter: newStock,
+        warehouse: 'Warehouse',
+        location: material.storage || 'Main',
+        notes: description || `Sevkiyat: ${shipmentQuantity} ${material.unit}`,
+        reason: workOrderCode ? `Work Order: ${workOrderCode}` : 'Shipment',
+        movementDate: new Date(),
+        approved: true,
+        userId: user?.uid || 'system',
+        userName: user?.email || 'system'
       })
       .returning('*');
 
-    // Create shipment items
-    if (data.items && data.items.length > 0) {
-      const items = data.items.map(item => ({
-        shipment_id: shipment.id,
-        material_code: item.materialCode,
-        material_name: item.materialName,
-        quantity: item.quantity,
-        unit: item.unit,
-        lot_number: item.lotNumber,
-        created_at: new Date()
-      }));
+    // 2. Update material stock
+    await trx('materials.materials')
+      .where({ id: material.id })
+      .update({ stock: newStock });
 
-      await trx('materials.shipment_items').insert(items);
-    }
+    // 3. Create shipment record
+    const [shipment] = await trx('materials.shipments')
+      .insert({
+        productCode: productCode,
+        productName: material.name,
+        shipmentQuantity: shipmentQuantity,
+        unit: material.unit || 'adet',
+        status: 'pending',
+        planId: planId || null,
+        workOrderCode: workOrderCode || null,
+        quoteId: quoteId || null,
+        stockMovementId: stockMovement.id,
+        description: description || null,
+        createdBy: user?.email || 'system',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning('*');
 
     await trx.commit();
 
-    return getShipmentById(shipment.id);
+    return {
+      shipment,
+      stockMovement,
+      previousStock,
+      newStock
+    };
   } catch (error) {
     await trx.rollback();
     throw error;
@@ -71,34 +133,41 @@ export async function createShipment(data, createdBy) {
  * Get all shipments with optional filters
  */
 export async function getShipments(filters = {}) {
-  const { status, workOrderCode, startDate, endDate, limit = 100 } = filters;
+  const { productCode, status, planId, workOrderCode, quoteId, startDate, endDate, limit, offset } = filters;
 
-  let query = db('materials.shipments as s')
-    .select(
-      's.*',
-      db.raw('COALESCE(json_agg(si.*) FILTER (WHERE si.id IS NOT NULL), \'[]\') as items')
-    )
-    .leftJoin('materials.shipment_items as si', 's.id', 'si.shipment_id')
-    .groupBy('s.id')
-    .orderBy('s.created_at', 'desc');
+  let query = db('materials.shipments')
+    .select('*')
+    .orderBy('createdAt', 'desc');
 
+  if (productCode) {
+    query = query.where('productCode', productCode);
+  }
   if (status) {
-    query = query.where('s.status', status);
+    query = query.where('status', status);
   }
-
+  if (planId) {
+    query = query.where('planId', planId);
+  }
   if (workOrderCode) {
-    query = query.where('s.work_order_code', workOrderCode);
+    query = query.where('workOrderCode', workOrderCode);
   }
-
+  if (quoteId) {
+    query = query.where('quoteId', quoteId);
+  }
   if (startDate) {
-    query = query.where('s.created_at', '>=', startDate);
+    query = query.where('createdAt', '>=', startDate);
   }
-
   if (endDate) {
-    query = query.where('s.created_at', '<=', endDate);
+    query = query.where('createdAt', '<=', endDate);
+  }
+  if (limit) {
+    query = query.limit(parseInt(limit, 10));
+  }
+  if (offset) {
+    query = query.offset(parseInt(offset, 10));
   }
 
-  return query.limit(limit);
+  return query;
 }
 
 /**
@@ -115,13 +184,7 @@ export async function getShipmentById(id) {
     throw error;
   }
 
-  const items = await db('materials.shipment_items')
-    .where('shipment_id', id);
-
-  return {
-    ...shipment,
-    items
-  };
+  return shipment;
 }
 
 /**
@@ -147,19 +210,9 @@ export async function updateShipment(id, updates) {
   }
 
   const updateData = {
-    customer_name: updates.customerName,
-    customer_company: updates.customerCompany,
-    delivery_address: updates.deliveryAddress,
-    shipping_method: updates.shippingMethod,
-    tracking_number: updates.trackingNumber,
-    notes: updates.notes,
-    updated_at: new Date()
+    ...updates,
+    updatedAt: new Date()
   };
-
-  // Remove undefined
-  Object.keys(updateData).forEach(key => {
-    if (updateData[key] === undefined) delete updateData[key];
-  });
 
   await db('materials.shipments')
     .where('id', id)
@@ -193,16 +246,16 @@ export async function updateShipmentStatus(id, newStatus, updatedBy) {
 
   const updateData = {
     status: newStatus,
-    updated_at: new Date(),
-    updated_by: updatedBy
+    updatedAt: new Date(),
+    updatedBy: updatedBy
   };
 
   if (newStatus === SHIPMENT_STATUSES.SHIPPED) {
-    updateData.shipped_at = new Date();
+    updateData.shippedAt = new Date();
   } else if (newStatus === SHIPMENT_STATUSES.DELIVERED) {
-    updateData.delivered_at = new Date();
+    updateData.deliveredAt = new Date();
   } else if (newStatus === SHIPMENT_STATUSES.CANCELLED) {
-    updateData.cancelled_at = new Date();
+    updateData.cancelledAt = new Date();
   }
 
   await db('materials.shipments')
@@ -242,57 +295,57 @@ export async function cancelShipment(id, reason, cancelledBy) {
     .where('id', id)
     .update({
       status: SHIPMENT_STATUSES.CANCELLED,
-      cancellation_reason: reason,
-      cancelled_at: new Date(),
-      cancelled_by: cancelledBy,
-      updated_at: new Date()
+      cancellationReason: reason,
+      cancelledAt: new Date(),
+      cancelledBy: cancelledBy,
+      updatedAt: new Date()
     });
 
   return getShipmentById(id);
 }
 
 /**
- * Get approved quotes for shipment (work orders ready to ship)
+ * Get approved quotes for shipment
  */
 export async function getApprovedQuotesForShipment() {
-  const quotes = await db('quotes.quotes as q')
-    .leftJoin('mes.work_orders as wo', 'q.id', 'wo.quote_id')
-    .select(
-      'q.id',
-      'q.customer_name as customerName',
-      'q.customer_company as customerCompany',
-      'q.customer_email as customerEmail',
-      'q.customer_phone as customerPhone',
-      'q.delivery_date as deliveryDate',
-      'q.delivery_address as deliveryAddress',
-      'wo.code as workOrderCode',
-      'wo.status as workOrderStatus',
-      'wo.production_state as productionState'
-    )
-    .where('q.status', 'approved')
-    .whereNotNull('wo.code')
-    .orderBy('q.created_at', 'desc');
+  const quotes = await db('quotes.quotes')
+    .select('id', 'customerName', 'customerCompany', 'workOrderCode', 'approvedAt')
+    .where('status', 'approved')
+    .orderBy('approvedAt', 'desc');
 
-  return quotes;
+  return quotes.map(q => ({
+    id: q.id,
+    label: `${q.id} - ${q.customerName || q.customerCompany || 'Müşteri'}`,
+    customerName: q.customerName,
+    customerCompany: q.customerCompany,
+    workOrderCode: q.workOrderCode,
+    approvedAt: q.approvedAt
+  }));
 }
 
 /**
  * Get completed work orders for shipment
  */
 export async function getCompletedWorkOrdersForShipment() {
-  const workOrders = await db('mes.work_orders as wo')
-    .leftJoin('quotes.quotes as q', 'wo.quote_id', 'q.id')
-    .select(
-      'wo.id',
-      'wo.code as workOrderCode',
-      'wo.status',
-      'wo.production_state as productionState',
-      'q.customer_name as customerName',
-      'q.customer_company as customerCompany',
-      'q.delivery_address as deliveryAddress'
-    )
-    .where('wo.production_state', 'Üretim Tamamlandı')
-    .orderBy('wo.created_at', 'desc');
+  const workOrders = await db.raw(`
+    SELECT DISTINCT 
+      wo.code,
+      wo."quoteId",
+      wo.status,
+      wo."productionState",
+      wo."createdAt"
+    FROM mes.work_orders wo
+    WHERE wo."productionState" = 'completed'
+      OR wo.status = 'completed'
+    ORDER BY wo."createdAt" DESC
+  `);
 
-  return workOrders;
+  return workOrders.rows.map(wo => ({
+    code: wo.code,
+    label: wo.code,
+    quoteId: wo.quoteId,
+    status: wo.status,
+    productionState: wo.productionState,
+    createdAt: wo.createdAt
+  }));
 }

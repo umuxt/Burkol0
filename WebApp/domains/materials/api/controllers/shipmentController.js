@@ -7,23 +7,37 @@ import * as shipmentService from '../services/shipmentService.js';
 
 export async function createShipment(req, res) {
   try {
-    const createdBy = req.user?.email || 'system';
-    const shipment = await shipmentService.createShipment(req.body, createdBy);
-    res.status(201).json(shipment);
+    const result = await shipmentService.createShipment(req.body, req.user);
+    res.status(201).json(result);
   } catch (error) {
+    if (error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.code === 'INSUFFICIENT_STOCK') {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error creating shipment:', error);
-    res.status(500).json({ error: 'Failed to create shipment', details: error.message });
+    res.status(500).json({ error: 'Sevkiyat oluşturulamadı: ' + error.message });
   }
 }
 
 export async function getShipments(req, res) {
   try {
+    const { productCode, status, planId, workOrderCode, quoteId, startDate, endDate, limit, offset } = req.query;
+    
     const filters = {
-      status: req.query.status,
-      workOrderCode: req.query.workOrderCode,
-      startDate: req.query.startDate,
-      endDate: req.query.endDate,
-      limit: req.query.limit ? parseInt(req.query.limit) : 100
+      productCode,
+      status,
+      planId,
+      workOrderCode,
+      quoteId,
+      startDate,
+      endDate,
+      limit,
+      offset
     };
 
     const shipments = await shipmentService.getShipments(filters);
