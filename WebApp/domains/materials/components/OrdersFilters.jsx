@@ -602,26 +602,34 @@ export default function OrdersFilters({
             <div className="mes-filter-panel-content" style={{ padding: '12px', minWidth: '240px' }}>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                 <input
-                  type="number"
+                  type="text" inputMode="decimal"
                   placeholder="Min"
                   value={filters.priceRange.min}
                   onChange={(e) => {
-                    const newPriceRange = { ...filters.priceRange, min: e.target.value }
+                    let cleanValue = e.target.value.replace(/,/g, '.')
+                    if (!/^[0-9.]*$/.test(cleanValue)) return
+                    if ((cleanValue.match(/\./g) || []).length > 1) return
+                    const newPriceRange = { ...filters.priceRange, min: cleanValue }
                     onFilterChange('priceRange', newPriceRange)
                   }}
                   className="mes-filter-input is-compact"
                   style={{ flex: 1 }}
+                  pattern="[0-9]*\.?[0-9]*"
                 />
                 <input
-                  type="number"
+                  type="text" inputMode="decimal"
                   placeholder="Max"
                   value={filters.priceRange.max}
                   onChange={(e) => {
-                    const newPriceRange = { ...filters.priceRange, max: e.target.value }
+                    let cleanValue = e.target.value.replace(/,/g, '.')
+                    if (!/^[0-9.]*$/.test(cleanValue)) return
+                    if ((cleanValue.match(/\./g) || []).length > 1) return
+                    const newPriceRange = { ...filters.priceRange, max: cleanValue }
                     onFilterChange('priceRange', newPriceRange)
                   }}
                   className="mes-filter-input is-compact"
                   style={{ flex: 1 }}
+                  pattern="[0-9]*\.?[0-9]*"
                 />
               </div>
               <button

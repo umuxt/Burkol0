@@ -597,8 +597,8 @@ window.exportDashboardCSV = async () => {
     csv += 'MATERIAL STOCK LEVELS\n';
     csv += 'Material Name,Current Stock,Reorder Point,Max Stock,Status\n';
     materials.materials.forEach(m => {
-      const status = m.stock_level <= m.reorder_point ? 'Low Stock' : 'OK';
-      csv += `${m.material_name},${m.stock_level},${m.reorder_point},${m.max_stock},${status}\n`;
+      const status = m.stock_level <= m.reorderPoint ? 'Low Stock' : 'OK';
+      csv += `${m.material_name},${m.stock_level},${m.reorderPoint},${m.maxStock},${status}\n`;
     });
     csv += '\n';
     

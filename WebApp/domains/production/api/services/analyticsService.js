@@ -113,20 +113,20 @@ export async function getMaterialConsumption() {
       'name',
       'stock',
       'reserved',
-      'wip_reserved',
+      'wipReserved',
       'unit',
-      'reorder_point',
-      'max_stock'
+      'reorderPoint',
+      'maxStock'
     )
     .where('isActive', true);
   
   const materialsWithStatus = materials.map(m => {
     const stock = parseFloat(m.stock) || 0;
     const reserved = parseFloat(m.reserved) || 0;
-    const wipReserved = parseFloat(m.wip_reserved) || 0;
+    const wipReserved = parseFloat(m.wipReserved) || 0;
     const available = stock - reserved - wipReserved;
-    const reorderPoint = parseFloat(m.reorder_point) || 0;
-    const maxStock = parseFloat(m.max_stock) || 0;
+    const reorderPoint = parseFloat(m.reorderPoint) || 0;
+    const maxStock = parseFloat(m.maxStock) || 0;
     
     return {
       code: m.code,

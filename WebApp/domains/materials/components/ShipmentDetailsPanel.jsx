@@ -584,10 +584,16 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal"
                     placeholder="Miktar"
                     value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                    onChange={(e) => {
+                      let cleanValue = e.target.value.replace(/,/g, '.')
+                      if (!/^[0-9.]*$/.test(cleanValue)) return
+                      if ((cleanValue.match(/\./g) || []).length > 1) return
+                      setNewItem({ ...newItem, quantity: cleanValue })
+                    }}
+                    pattern="[0-9]*\.?[0-9]*"
                     style={{
                       flex: 1,
                       padding: '8px',

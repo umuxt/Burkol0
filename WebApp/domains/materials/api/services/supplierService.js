@@ -159,8 +159,8 @@ export async function addMaterialToSupplier(supplierId, materialId, options = {}
     materialId,
     parseInt(supplierId),
     {
-      is_primary: options.isPrimary || false,
-      cost_price: options.costPrice
+      isPrimary: options.isPrimary || false,
+      costPrice: options.costPrice
     }
   );
 

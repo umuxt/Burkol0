@@ -245,10 +245,23 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Sayısal alanlar için özel validasyon
+    const numericFields = ['creditLimit', 'unitPrice', 'minOrderQuantity', 'leadTime', 'paymentTerms', 'minOrderAmount', 'deliveryFee', 'price', 'quantity', 'minOrder', 'leadTimeDays']
+    if (numericFields.includes(name)) {
+      let cleanValue = value.replace(/,/g, '.');
+      if (!/^[0-9.]*$/.test(cleanValue)) return;
+      if ((cleanValue.match(/\./g) || []).length > 1) return;
+      setFormData(prev => ({
+        ...prev,
+        [name]: cleanValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleOpenMaterialPopup = async () => {
@@ -404,7 +417,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
         code: finalCode,
         createdAt: new Date(),
         suppliers: [], // Will be updated when supplier is saved
-        reorder_point: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
+        reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
         stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
         stock: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0, // stock alanı da ekle
         costPrice: newMaterial.costPrice ? parseFloat(newMaterial.costPrice) : 0,
@@ -1111,7 +1124,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     Kredi Limiti:
                   </span>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                     name="creditLimit"
                     value={formData.creditLimit || ''}
                     onChange={handleInputChange}
@@ -1160,7 +1173,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     Yıllık Ciro:
                   </span>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                     name="annualRevenue"
                     value={formData.annualRevenue || ''}
                     onChange={handleInputChange}
@@ -1348,7 +1361,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     Tedarik Süresi:
                   </span>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                     name="leadTime"
                     value={formData.leadTime || ''}
                     onChange={handleInputChange}
@@ -1434,7 +1447,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     Kuruluş Yılı:
                   </span>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                     name="yearEstablished"
                     value={formData.yearEstablished || ''}
                     onChange={handleInputChange}
@@ -1792,7 +1805,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       Minimum Stok:
                     </span>
                     <input
-                      type="number"
+                      type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                       name="reorderPoint"
                       value={newMaterial.reorderPoint}
                       onChange={handleNewMaterialChange}
@@ -1813,7 +1826,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       Mevcut Stok:
                     </span>
                     <input
-                      type="number"
+                      type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                       name="stockLevel"
                       value={newMaterial.stockLevel}
                       onChange={handleNewMaterialChange}
@@ -1834,7 +1847,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       Maliyet Fiyatı:
                     </span>
                     <input
-                      type="number"
+                      type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                       step="0.01"
                       name="costPrice"
                       value={newMaterial.costPrice}
@@ -1856,7 +1869,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       Satış Fiyatı:
                     </span>
                     <input
-                      type="number"
+                      type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                       step="0.01"
                       name="sellPrice"
                       value={newMaterial.sellPrice}

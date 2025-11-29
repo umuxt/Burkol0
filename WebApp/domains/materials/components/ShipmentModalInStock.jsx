@@ -98,7 +98,7 @@ export default function ShipmentModalInStock({
 
   if (!isOpen || !material) return null
 
-  const availableStock = (material.stock || 0) - (material.reserved || 0) - (material.wip_reserved || 0)
+  const availableStock = (material.stock || 0) - (material.reserved || 0) - (material.wipReserved || 0)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -138,7 +138,15 @@ export default function ShipmentModalInStock({
   }
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    // Sayısal alanlar için virgül → nokta dönüşümü
+    if (field === 'shipmentQuantity') {
+      let cleanValue = value.replace(/,/g, '.');
+      if (!/^[0-9.]*$/.test(cleanValue)) return;
+      if ((cleanValue.match(/\./g) || []).length > 1) return;
+      setFormData(prev => ({ ...prev, [field]: cleanValue }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   }
 
   // Filter work orders based on search
@@ -323,14 +331,13 @@ export default function ShipmentModalInStock({
             <label style={labelStyle}>Sevk Miktarı *</label>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
-                type="number"
+                type="text"
                 className="mes-filter-input is-compact"
                 value={formData.shipmentQuantity}
                 onChange={(e) => handleChange('shipmentQuantity', e.target.value)}
                 placeholder="0"
-                min="0.0001"
-                max={availableStock}
-                step="any"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
                 required
                 style={{ flex: 1 }}
                 autoFocus

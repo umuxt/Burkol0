@@ -32,7 +32,7 @@ export async function checkMaterialAvailability(requiredMaterials) {
   allMaterials.forEach(mat => {
     const stock = parseFloat(mat.stock) || 0;
     const reserved = parseFloat(mat.reserved) || 0;
-    const wipReserved = parseFloat(mat.wip_reserved) || 0;
+    const wipReserved = parseFloat(mat.wipReserved) || 0;
     const available = stock - reserved - wipReserved;
     
     // Map by code (primary)

@@ -166,25 +166,25 @@ export async function createMaterial(materialData) {
         subcategory: materialData.subcategory || null,
         stock: materialData.stock || 0,
         reserved: materialData.reserved || 0,
-        wipReserved: materialData.wipReserved || materialData.wip_reserved || 0,
-        reorderPoint: materialData.reorderPoint || materialData.reorder_point || 0,
-        maxStock: materialData.maxStock || materialData.max_stock || null,
+        wipReserved: materialData.wipReserved || 0,
+        reorderPoint: materialData.reorderPoint || 0,
+        maxStock: materialData.maxStock || null,
         unit: materialData.unit,
-        costPrice: materialData.costPrice || materialData.cost_price || null,
-        averageCost: materialData.averageCost || materialData.average_cost || null,
+        costPrice: materialData.costPrice || null,
+        averageCost: materialData.averageCost || null,
         currency: materialData.currency || 'TRY',
-        primarySupplierId: materialData.primarySupplierId || materialData.primary_supplier_id || null,
+        primarySupplierId: materialData.primarySupplierId || null,
         barcode: materialData.barcode || null,
-        qrCode: materialData.qrCode || materialData.qr_code || null,
+        qrCode: materialData.qrCode || null,
         status: materialData.status || 'active',
-        isActive: materialData.isActive !== undefined ? materialData.isActive : (materialData.is_active !== false),
-        scrapType: materialData.scrapType || materialData.scrap_type || null,
-        parentMaterial: materialData.parentMaterial || materialData.parent_material || null,
+        isActive: materialData.isActive !== undefined ? materialData.isActive : true,
+        scrapType: materialData.scrapType || null,
+        parentMaterial: materialData.parentMaterial || null,
         specifications: materialData.specifications || null,
         storage: materialData.storage || null,
-        productionHistory: materialData.productionHistory || materialData.production_history || null,
-        suppliersData: materialData.suppliersData || materialData.suppliers_data || null,
-        createdBy: materialData.createdBy || materialData.created_by || null,
+        productionHistory: materialData.productionHistory || null,
+        suppliersData: materialData.suppliersData || null,
+        createdBy: materialData.createdBy || null,
         createdAt: db.fn.now()
       })
       .returning('*')
@@ -216,37 +216,24 @@ export async function updateMaterial(id, updates) {
     if (updates.stock !== undefined) updateData.stock = updates.stock
     if (updates.reserved !== undefined) updateData.reserved = updates.reserved
     if (updates.wipReserved !== undefined) updateData.wipReserved = updates.wipReserved
-    if (updates.wip_reserved !== undefined) updateData.wipReserved = updates.wip_reserved
     if (updates.reorderPoint !== undefined) updateData.reorderPoint = updates.reorderPoint
-    if (updates.reorder_point !== undefined) updateData.reorderPoint = updates.reorder_point
     if (updates.maxStock !== undefined) updateData.maxStock = updates.maxStock
-    if (updates.max_stock !== undefined) updateData.maxStock = updates.max_stock
     if (updates.unit !== undefined) updateData.unit = updates.unit
     if (updates.costPrice !== undefined) updateData.costPrice = updates.costPrice
-    if (updates.cost_price !== undefined) updateData.costPrice = updates.cost_price
     if (updates.averageCost !== undefined) updateData.averageCost = updates.averageCost
-    if (updates.average_cost !== undefined) updateData.averageCost = updates.average_cost
     if (updates.currency !== undefined) updateData.currency = updates.currency
     if (updates.primarySupplierId !== undefined) updateData.primarySupplierId = updates.primarySupplierId
-    if (updates.primary_supplier_id !== undefined) updateData.primarySupplierId = updates.primary_supplier_id
     if (updates.barcode !== undefined) updateData.barcode = updates.barcode
     if (updates.qrCode !== undefined) updateData.qrCode = updates.qrCode
-    if (updates.qr_code !== undefined) updateData.qrCode = updates.qr_code
     if (updates.status !== undefined) updateData.status = updates.status
     if (updates.isActive !== undefined) updateData.isActive = updates.isActive
-    if (updates.is_active !== undefined) updateData.isActive = updates.is_active
     if (updates.scrapType !== undefined) updateData.scrapType = updates.scrapType
-    if (updates.scrap_type !== undefined) updateData.scrapType = updates.scrap_type
     if (updates.parentMaterial !== undefined) updateData.parentMaterial = updates.parentMaterial
-    if (updates.parent_material !== undefined) updateData.parentMaterial = updates.parent_material
     if (updates.specifications !== undefined) updateData.specifications = updates.specifications
     if (updates.storage !== undefined) updateData.storage = updates.storage
     if (updates.productionHistory !== undefined) updateData.productionHistory = updates.productionHistory
-    if (updates.production_history !== undefined) updateData.productionHistory = updates.production_history
     if (updates.suppliersData !== undefined) updateData.suppliersData = updates.suppliersData
-    if (updates.suppliers_data !== undefined) updateData.suppliersData = updates.suppliers_data
     if (updates.updatedBy !== undefined) updateData.updatedBy = updates.updatedBy
-    if (updates.updated_by !== undefined) updateData.updatedBy = updates.updated_by
     
     const [material] = await db(MATERIALS_TABLE)
       .where({ id })

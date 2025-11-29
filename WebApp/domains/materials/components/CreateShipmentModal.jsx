@@ -124,6 +124,14 @@ export default function CreateShipmentModal({
         }
       }
       
+      // Sayısal alanlar için virgül → nokta dönüşümü
+      if (field === 'quantity') {
+        let cleanValue = value.replace(/,/g, '.');
+        if (!/^[0-9.]*$/.test(cleanValue)) return item;
+        if ((cleanValue.match(/\./g) || []).length > 1) return item;
+        return { ...item, [field]: cleanValue }
+      }
+      
       return { ...item, [field]: value }
     }))
   }
@@ -647,14 +655,12 @@ export default function CreateShipmentModal({
                             <td style={{ padding: '8px 12px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <input
-                                  type="number"
+                                  type="text" inputMode="decimal"
                                   className="mes-filter-input is-compact"
                                   value={item.quantity}
                                   onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
                                   placeholder="0"
-                                  min="0.0001"
-                                  max={item.availableStock}
-                                  step="any"
+                                  pattern="[0-9]*\.?[0-9]*"
                                   style={{ width: '70px', textAlign: 'right' }}
                                 />
                                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)', minWidth: '30px' }}>

@@ -207,7 +207,7 @@ function MaterialsApp() {
     // Low stock filter: show only materials where stock < reorderPoint
     if (filters.lowStock) {
       const stockLevel = parseFloat(material.stock) || 0;
-      const reorderLevel = parseFloat(material.reorder_point) || 0;
+      const reorderLevel = parseFloat(material.reorderPoint) || 0;
       
       // Gizle: stok >= reorder point olanları
       if (stockLevel >= reorderLevel) {
@@ -232,10 +232,43 @@ function MaterialsApp() {
     setIsModalOpen(true);
   };
 
-  const handleEditMaterial = (material) => {
-    console.log('🔍 handleEditMaterial called for material:', material?.name);
-    // StocksTabContent handles edit via selectedMaterial state
-    // Just log for debugging
+  const handleEditMaterial = async (materialId, materialData, newCategoryName) => {
+    try {
+      console.log('🔄 handleEditMaterial called:', { materialId, materialData, newCategoryName });
+      
+      let categoryId = materialData.category || materialData.categoryId;
+
+      // Yeni kategori eklendiyse önce kategoriyi oluştur
+      if (newCategoryName && !categories.some(cat => cat.name === newCategoryName)) {
+        console.log(`✨ Yeni kategori oluşturuluyor: ${newCategoryName}`);
+        const newCategory = await createCategory(newCategoryName);
+        if (newCategory && newCategory.id) {
+          categoryId = newCategory.id;
+          materialData.category = newCategory.id;
+          console.log('✅ Yeni kategori ID malzeme datasına eklendi:', newCategory.id);
+          if (refreshCategories) {
+            await refreshCategories();
+          }
+        }
+      }
+
+      const updatedMaterial = await updateMaterial(materialId, materialData);
+      
+      if (!updatedMaterial || !updatedMaterial.id) {
+        console.error('❌ updateMaterial başarısız - updatedMaterial:', updatedMaterial);
+        throw new Error('Malzeme güncellenemedi');
+      }
+      
+      console.log('✅ Malzeme başarıyla güncellendi:', updatedMaterial);
+      await refreshMaterials(true);
+      showToast('Malzeme başarıyla güncellendi!', 'success');
+      
+      return updatedMaterial;
+    } catch (error) {
+      console.error('❌ handleEditMaterial error:', error);
+      showToast(`Malzeme güncellenirken hata: ${error.message}`, 'error');
+      throw error;
+    }
   };
 
   const handleMaterialSelect = (material) => {
@@ -255,6 +288,7 @@ function MaterialsApp() {
 
   const handleSaveMaterial = async (materialData, newCategoryName) => {
     try {
+      console.log('📝 handleSaveMaterial called:', { materialData, newCategoryName });
       let categoryId = materialData.category || materialData.categoryId;
 
       // Yeni kategori eklendiyse önce kategoriyi oluştur

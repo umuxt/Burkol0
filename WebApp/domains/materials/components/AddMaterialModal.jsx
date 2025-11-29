@@ -127,10 +127,33 @@ export default function AddMaterialModal({
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Sayısal alanlar için özel validasyon
+    if (['stock', 'reorderPoint', 'costPrice', 'sellPrice'].includes(name)) {
+      // 1. Virgülleri noktaya çevir
+      let cleanValue = value.replace(/,/g, '.');
+      
+      // 2. Sadece sayı ve nokta girişine izin ver
+      if (!/^[0-9.]*$/.test(cleanValue)) {
+        return; // Sayı ve nokta dışındaki karakterleri reddet
+      }
+      
+      // 3. Birden fazla nokta girişini engelle
+      if ((cleanValue.match(/\./g) || []).length > 1) {
+        return;
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        [name]: cleanValue
+      }));
+    } else {
+      // Diğer alanlar (text) için normal işlem
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleCategoryChange = (e) => {
@@ -158,16 +181,24 @@ export default function AddMaterialModal({
       return;
     }
 
+    // Helper to parse localized numbers (handles comma as decimal separator)
+    const parseLocalizedNumber = (val) => {
+      if (!val) return 0;
+      // Replace comma with dot
+      const normalized = val.toString().replace(',', '.');
+      return parseFloat(normalized) || 0;
+    };
+
     const materialData = {
       code: finalCode,
       name: formData.name,
       type: formData.type,
       category: finalCategory,
       unit: formData.unit,
-      stock: parseInt(formData.stock) || 0,
-      reorder_point: parseInt(formData.reorderPoint) || 0,
-      costPrice: parseFloat(formData.costPrice) || 0,
-      sellPrice: parseFloat(formData.sellPrice) || 0,
+      stock: parseLocalizedNumber(formData.stock),
+      reorder_point: parseLocalizedNumber(formData.reorderPoint),
+      costPrice: parseLocalizedNumber(formData.costPrice),
+      sellPrice: parseLocalizedNumber(formData.sellPrice),
       supplier: formData.supplier || '',
       description: formData.description || '',
       status: formData.status || 'Aktif'
@@ -314,12 +345,13 @@ export default function AddMaterialModal({
         <div className="form-group">
           <label>Stok Miktarı *</label>
           <input
-            type="number"
+            type="text"
             name="stock"
             value={formData.stock}
             onChange={handleInputChange}
             placeholder="0"
-            min="0"
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
             required
           />
         </div>
@@ -327,12 +359,13 @@ export default function AddMaterialModal({
         <div className="form-group">
           <label>Reorder Point *</label>
           <input
-            type="number"
+            type="text"
             name="reorderPoint"
             value={formData.reorderPoint}
             onChange={handleInputChange}
             placeholder="Minimum stok seviyesi"
-            min="0"
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
             required
           />
         </div>
@@ -342,26 +375,26 @@ export default function AddMaterialModal({
         <div className="form-group">
           <label>Maliyet Fiyatı</label>
           <input
-            type="number"
+            type="text"
             name="costPrice"
             value={formData.costPrice}
             onChange={handleInputChange}
             placeholder="0.00"
-            min="0"
-            step="0.01"
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
           />
         </div>
         
         <div className="form-group">
           <label>Satış Fiyatı</label>
           <input
-            type="number"
+            type="text"
             name="sellPrice"
             value={formData.sellPrice}
             onChange={handleInputChange}
             placeholder="0.00"
-            min="0"
-            step="0.01"
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
           />
         </div>
       </div>

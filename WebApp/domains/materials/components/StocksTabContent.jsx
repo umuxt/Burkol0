@@ -5,7 +5,6 @@ import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'
 import BulkProgressModal from './BulkProgressModal.jsx'
 import AddOrderModal from './AddOrderModal.jsx'
-import AddMaterialModal from './AddMaterialModal.jsx'
 import MaterialDetailsPanel from './MaterialDetailsPanel.jsx'
 import ShipmentModalInStock from './ShipmentModalInStock.jsx'
 import { materialsService } from '../services/materials-service.js'
@@ -27,7 +26,6 @@ export default function StocksTabContent({
 }) {
   const [selectedMaterials, setSelectedMaterials] = useState(new Set());
   const [selectedMaterial, setSelectedMaterial] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
   const bulkCancelRef = useRef(false);
   
@@ -48,6 +46,17 @@ export default function StocksTabContent({
     setOrderModalMaterial(material);
     setIsAddOrderModalOpen(true);
   };
+
+  // Sync selectedMaterial when materials list updates
+  useEffect(() => {
+    if (selectedMaterial && materials.length > 0) {
+      const updatedMaterial = materials.find(m => m.id === selectedMaterial.id);
+      if (updatedMaterial && JSON.stringify(updatedMaterial) !== JSON.stringify(selectedMaterial)) {
+        console.log('🔄 Syncing selectedMaterial with updated materials list');
+        setSelectedMaterial(updatedMaterial);
+      }
+    }
+  }, [materials]);
 
   // Handle shipment button click
   const handleShipmentClick = (material, event) => {
@@ -81,7 +90,16 @@ export default function StocksTabContent({
   const handleMaterialSave = async (materialData, newCategory) => {
     try {
       console.log('💾 Updating material:', materialData);
-      await handleEditMaterial(selectedMaterial.id, materialData, newCategory);
+      const updatedMaterial = await handleEditMaterial(selectedMaterial.id, materialData, newCategory);
+      
+      // Update selectedMaterial with new data to refresh detail panel
+      if (updatedMaterial) {
+        setSelectedMaterial(updatedMaterial);
+      } else {
+        // Fallback: merge local changes
+        setSelectedMaterial(prev => ({ ...prev, ...materialData }));
+      }
+      
       refreshMaterials && await refreshMaterials();
     } catch (error) {
       console.error('Material update error:', error);
@@ -142,7 +160,7 @@ export default function StocksTabContent({
       getTypeLabel(material.type),
       material.unit || '',
       material.stock || 0,
-      material.reorder_point || 0,
+      material.reorderPoint || 0,
       material.reserved || 0,
       material.available || material.stock || 0,
       material.costPrice || 0,
@@ -370,7 +388,7 @@ export default function StocksTabContent({
         <button 
           type="button" 
           className="mes-primary-action is-compact"
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => handleAddMaterial()}
           disabled={loading}
         >
           <Plus size={14} />
@@ -474,18 +492,7 @@ export default function StocksTabContent({
         }}
       />
       
-      {/* Add Material Modal - Fullscreen popup */}
-      <AddMaterialModal
-        isOpen={showAddForm}
-        onClose={() => setShowAddForm(false)}
-        onSave={async (material) => {
-          await handleAddMaterial(material);
-          setShowAddForm(false);
-        }}
-        categories={categories}
-        types={materialTypes}
-        materials={materials}
-      />
+      {/* Add Material Modal is now handled by main.jsx */}
 
       {/* Shipment Modal */}
       <ShipmentModalInStock

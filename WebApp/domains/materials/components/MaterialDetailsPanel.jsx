@@ -122,7 +122,7 @@ export default function MaterialDetailsPanel({
         category: material.category || '',
         unit: material.unit || '',
         stock: safeNumber(material.stock),
-        reorderPoint: safeNumber(material.reorder_point),
+        reorderPoint: safeNumber(material.reorderPoint),
         costPrice: safeNumber(material.costPrice),
         sellPrice: safeNumber(material.sellPrice),
         supplier: material.supplier || '',
@@ -223,14 +223,23 @@ export default function MaterialDetailsPanel({
     
     const { name, value } = e.target;
     
-    if (Number.isNaN(value)) {
-      console.warn('🚨 NaN value detected in input change:', name, value);
-      return;
+    // Text input olduğu için validasyon yapıyoruz
+    // 1. Virgülleri noktaya çevir
+    let cleanValue = value.replace(/,/g, '.');
+    
+    // 2. Sadece sayı ve nokta girişine izin ver
+    if (!/^[0-9.]*$/.test(cleanValue)) {
+      return; // Sayı ve nokta dışındaki karakterleri reddet
     }
     
+    // 3. Birden fazla nokta girişini engelle
+    if ((cleanValue.match(/\./g) || []).length > 1) {
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: cleanValue
     }));
   };
 
@@ -262,7 +271,11 @@ export default function MaterialDetailsPanel({
     
     const finalCategory = showNewCategory ? newCategory : formData.category;
     
-    if (!formData.name || !formData.type || !finalCategory || !formData.stock || !formData.reorderPoint) {
+    // Validate required fields - stock and reorderPoint can be 0
+    const stockValue = formData.stock === '' ? null : formData.stock;
+    const reorderValue = formData.reorderPoint === '' ? null : formData.reorderPoint;
+    
+    if (!formData.name || !formData.type || !finalCategory || stockValue === null || reorderValue === null) {
       showToast('Lütfen tüm zorunlu alanları doldurun!', 'warning');
       return;
     }
@@ -290,8 +303,8 @@ export default function MaterialDetailsPanel({
     const materialData = {
       ...formData,
       category: finalCategory,
-      stock: parseInt(formData.stock) || 0,
-      reorderPoint: parseInt(formData.reorderPoint) || 0,
+      stock: parseFloat(formData.stock) || 0,
+      reorderPoint: parseFloat(formData.reorderPoint) || 0,
       costPrice: parseFloat(formData.costPrice) || 0,
       sellPrice: parseFloat(formData.sellPrice) || 0
     };
@@ -657,10 +670,12 @@ export default function MaterialDetailsPanel({
                 </span>
                 {isEditing ? (
                   <input
-                    type="number"
+                    type="text"
                     name="stock"
                     value={safeRender(formData.stock, '0')}
                     onChange={handleInputChange}
+                    inputMode="decimal"
+                    pattern="[0-9]*\.?[0-9]*"
                     style={{
                       padding: '8px 12px',
                       border: '1px solid #3b82f6',
@@ -683,10 +698,12 @@ export default function MaterialDetailsPanel({
                 </span>
                 {isEditing ? (
                   <input
-                    type="number"
+                    type="text"
                     name="reorderPoint"
                     value={safeRender(formData.reorderPoint, '0')}
                     onChange={handleInputChange}
+                    inputMode="decimal"
+                    pattern="[0-9]*\.?[0-9]*"
                     style={{
                       padding: '8px 12px',
                       border: '1px solid #3b82f6',

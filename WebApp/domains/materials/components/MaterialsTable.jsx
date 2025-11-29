@@ -123,7 +123,7 @@ export default function MaterialsTable({
     }
 
     // Stok alanı için sayısal karşılaştırma
-    if (sortField === 'stock' || sortField === 'reorder_point') {
+    if (sortField === 'stock' || sortField === 'reorderPoint') {
       aValue = Number(aValue);
       bValue = Number(bValue);
     }
@@ -311,7 +311,7 @@ export default function MaterialsTable({
             {!loading && !error && sortedMaterials.map((material) => (
               <tr 
                 key={material.id || material.code} 
-                className={`mes-table-row ${material.stock <= material.reorder_point ? 'low-stock' : ''} ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}`.trim()}
+                className={`mes-table-row ${material.stock <= material.reorderPoint ? 'low-stock' : ''} ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}`.trim()}
                 onClick={(e) => {
                   // Checkbox tıklamasında satır seçimini engelle
                   if (e.target.type !== 'checkbox') {
@@ -341,7 +341,7 @@ export default function MaterialsTable({
                 <td className="stock-cell">
                   <StockBar 
                     stock={material.stock} 
-                    reorderPoint={material.reorder_point} 
+                    reorderPoint={material.reorderPoint} 
                     reserved={material.reserved || 0}
                     available={material.available || material.stock}
                   />
