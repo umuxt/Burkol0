@@ -1075,7 +1075,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>{material.lineId}</div>
                         <div style={{ fontWeight: '600' }}>{material.materialName}</div>
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                          {material.materialCode} • {material.quantity} adet × {formatCurrency(material.unitPrice)}
+                          {material.materialCode} • {(() => { const qty = parseFloat(material.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {material.unit || 'adet'} × {formatCurrency(material.unitPrice)}
                         </div>
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>
                           Durum: {material.itemStatus}

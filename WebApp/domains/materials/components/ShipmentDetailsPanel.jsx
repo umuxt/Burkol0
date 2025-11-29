@@ -666,7 +666,7 @@ export default function ShipmentDetailsPanel({
                       <span style={{ fontWeight: '500', fontSize: '13px', color: '#111827' }}>{currentShipment.productCode}</span>
                     </div>
                     <span style={{ fontWeight: '600', fontSize: '13px', color: '#3b82f6' }}>
-                      {currentShipment.shipmentQuantity} adet
+                      {(() => { const qty = parseFloat(currentShipment.shipmentQuantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {currentShipment.unit || 'adet'}
                     </span>
                   </div>
                 </div>

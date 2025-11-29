@@ -272,7 +272,10 @@ export default function ShipmentPanel() {
                                    </span>
                                    <span style={{ color: '#d1d5db' }}>|</span>
                                    <span style={{ fontWeight: '600' }}>
-                                     {item.quantity} {item.unit || 'adet'}
+                                     {(() => {
+                                       const qty = parseFloat(item.quantity) || 0;
+                                       return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
+                                     })()} {item.unit || 'adet'}
                                    </span>
                                  </div>
                                );

@@ -2661,7 +2661,10 @@ export default function OrdersTabContent() {
                               {item.materialName || '-'}
                             </div>
                             <div style={{ textAlign: 'right', fontWeight: 600 }}>
-                              {item.quantity || 0} adet
+                              {(() => {
+                                const qty = parseFloat(item.quantity) || 0;
+                                return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
+                              })()} {item.unit || 'adet'}
                             </div>
                           </div>
                         </div>
@@ -2742,7 +2745,7 @@ export default function OrdersTabContent() {
               </h2>
               <div style={{ fontSize: '13px', color: '#6b7280' }}>
                 <div><strong>Malzeme:</strong> {deliveryModalItem.item.materialName} ({deliveryModalItem.item.materialCode})</div>
-                <div><strong>Miktar:</strong> {deliveryModalItem.item.quantity} adet</div>
+                <div><strong>Miktar:</strong> {(() => { const qty = parseFloat(deliveryModalItem.item.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {deliveryModalItem.item.unit || 'adet'}</div>
               </div>
             </div>
             

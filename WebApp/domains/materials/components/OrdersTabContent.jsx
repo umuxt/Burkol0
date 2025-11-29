@@ -2589,7 +2589,10 @@ export default function OrdersTabContent() {
                                   {item.materialName || '-'}
                                 </td>
                                 <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
-                                  {item.quantity || 0} adet
+                                  {(() => {
+                                    const qty = parseFloat(item.quantity) || 0;
+                                    return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
+                                  })()} {item.unit || 'adet'}
                                 </td>
                                 <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
                                   <span style={{ fontSize: '10px', fontWeight: 600, color: '#0f172a', background: '#e2e8f0', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block' }}>
@@ -2710,7 +2713,7 @@ export default function OrdersTabContent() {
               </h2>
               <div style={{ fontSize: '13px', color: '#6b7280' }}>
                 <div><strong>Malzeme:</strong> {deliveryModalItem.item.materialName} ({deliveryModalItem.item.materialCode})</div>
-                <div><strong>Miktar:</strong> {deliveryModalItem.item.quantity} adet</div>
+                <div><strong>Miktar:</strong> {(() => { const qty = parseFloat(deliveryModalItem.item.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {deliveryModalItem.item.unit || 'adet'}</div>
               </div>
             </div>
             
