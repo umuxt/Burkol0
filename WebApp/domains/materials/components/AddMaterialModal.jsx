@@ -128,31 +128,13 @@ export default function AddMaterialModal({
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Sayısal alanlar için özel validasyon
     if (['stock', 'reorderPoint', 'costPrice', 'sellPrice'].includes(name)) {
-      // 1. Virgülleri noktaya çevir
       let cleanValue = value.replace(/,/g, '.');
-      
-      // 2. Sadece sayı ve nokta girişine izin ver
-      if (!/^[0-9.]*$/.test(cleanValue)) {
-        return; // Sayı ve nokta dışındaki karakterleri reddet
-      }
-      
-      // 3. Birden fazla nokta girişini engelle
-      if ((cleanValue.match(/\./g) || []).length > 1) {
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        [name]: cleanValue
-      }));
+      if (!/^[0-9.]*$/.test(cleanValue)) return;
+      if ((cleanValue.match(/\./g) || []).length > 1) return;
+      setFormData(prev => ({ ...prev, [name]: cleanValue }));
     } else {
-      // Diğer alanlar (text) için normal işlem
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -172,8 +154,6 @@ export default function AddMaterialModal({
     
     const finalCategory = showNewCategory ? newCategory : formData.category;
     const finalCode = formData.code.trim() || nextCode;
-    
-    // Category is optional for processed and scrap types
     const requiresCategory = !['processed', 'scrap'].includes(formData.type);
     
     if (!finalCode || !formData.name || !formData.type || (requiresCategory && !finalCategory) || !formData.unit || !formData.stock || !formData.reorderPoint) {
@@ -181,10 +161,8 @@ export default function AddMaterialModal({
       return;
     }
 
-    // Helper to parse localized numbers (handles comma as decimal separator)
     const parseLocalizedNumber = (val) => {
       if (!val) return 0;
-      // Replace comma with dot
       const normalized = val.toString().replace(',', '.');
       return parseFloat(normalized) || 0;
     };
@@ -207,18 +185,8 @@ export default function AddMaterialModal({
     onSave(materialData, showNewCategory ? newCategory : null);
     
     setFormData({
-      code: '',
-      name: '',
-      type: '',
-      category: '',
-      unit: '',
-      stock: '',
-      reorderPoint: '',
-      costPrice: '',
-      sellPrice: '',
-      supplier: '',
-      description: '',
-      status: 'Aktif'
+      code: '', name: '', type: '', category: '', unit: '', stock: '',
+      reorderPoint: '', costPrice: '', sellPrice: '', supplier: '', description: '', status: 'Aktif'
     });
     setShowNewCategory(false);
     setNewCategory('');
@@ -226,18 +194,8 @@ export default function AddMaterialModal({
 
   const handleClose = () => {
     setFormData({
-      code: '',
-      name: '',
-      type: '',
-      category: '',
-      unit: '',
-      stock: '',
-      reorderPoint: '',
-      costPrice: '',
-      sellPrice: '',
-      supplier: '',
-      description: '',
-      status: 'Aktif'
+      code: '', name: '', type: '', category: '', unit: '', stock: '',
+      reorderPoint: '', costPrice: '', sellPrice: '', supplier: '', description: '', status: 'Aktif'
     });
     setShowNewCategory(false);
     setNewCategory('');
@@ -246,23 +204,65 @@ export default function AddMaterialModal({
 
   if (!isOpen) return null;
 
+  const inputStyle = {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #d1d5db',
+    borderRadius: '4px',
+    fontSize: '12px',
+    background: 'white'
+  };
+
+  const labelStyle = {
+    fontWeight: '600',
+    fontSize: '12px',
+    color: '#374151',
+    minWidth: '100px',
+    marginRight: '8px'
+  };
+
+  const sectionStyle = {
+    marginBottom: '16px',
+    padding: '12px',
+    background: 'white',
+    borderRadius: '6px',
+    border: '1px solid #e5e7eb'
+  };
+
+  const sectionTitleStyle = {
+    margin: '0 0 12px 0',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#111827',
+    borderBottom: '1px solid #e5e7eb',
+    paddingBottom: '6px'
+  };
+
   const formContent = (
-    <form id="add-material-form" onSubmit={handleSubmit} className="modal-form">
-      <div className="form-row">
-        <div className="form-group">
-          <label>Malzeme Kodu <span className="optional">(opsiyonel)</span></label>
-          <input
-            type="text"
-            name="code"
-            value={formData.code || nextCode}
-            onChange={handleInputChange}
-            placeholder={nextCode}
-          />
-          <small className="form-help">Boş bırakılırsa otomatik olarak {nextCode} atanacak</small>
+    <form id="add-material-form" onSubmit={handleSubmit}>
+      {/* Temel Malzeme Bilgileri */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>Temel Malzeme Bilgileri</h3>
+        
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={labelStyle}>Malzeme Kodu:</span>
+          <div style={{ flex: 1 }}>
+            <input
+              type="text"
+              name="code"
+              value={formData.code || ''}
+              onChange={handleInputChange}
+              placeholder={nextCode}
+              style={inputStyle}
+            />
+            <small style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginTop: '2px' }}>
+              Boş bırakılırsa otomatik olarak {nextCode} atanacak
+            </small>
+          </div>
         </div>
         
-        <div className="form-group">
-          <label>Malzeme Adı *</label>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={labelStyle}>Malzeme Adı *:</span>
           <input
             type="text"
             name="name"
@@ -270,18 +270,18 @@ export default function AddMaterialModal({
             onChange={handleInputChange}
             placeholder="Malzeme adını girin"
             required
+            style={inputStyle}
           />
         </div>
-      </div>
 
-      <div className="form-row">
-        <div className="form-group">
-          <label>Tip *</label>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={labelStyle}>Tip *:</span>
           <select
             name="type"
             value={formData.type}
             onChange={handleInputChange}
             required
+            style={inputStyle}
           >
             <option value="">Tip seçin</option>
             {types.map(type => (
@@ -290,45 +290,45 @@ export default function AddMaterialModal({
           </select>
         </div>
 
-        <div className="form-group">
-          <label>
-            Kategori {['processed', 'scrap'].includes(formData.type) 
-              ? <span className="optional">(opsiyonel)</span> 
-              : '*'}
-          </label>
-          <select
-            value={showNewCategory ? 'new-category' : formData.category}
-            onChange={handleCategoryChange}
-            required={!['processed', 'scrap'].includes(formData.type)}
-          >
-            <option value="">Kategori seçin</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name || cat.label}</option>
-            ))}
-            <option value="new-category">+ Yeni Kategori Ekle</option>
-          </select>
-          
-          {showNewCategory && (
-            <input
-              type="text"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              placeholder="Yeni kategori adı"
-              className="new-category-input"
-              required
-            />
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={labelStyle}>
+            Kategori {['processed', 'scrap'].includes(formData.type) ? '' : '*'}:
+          </span>
+          <div style={{ flex: 1 }}>
+            <select
+              value={showNewCategory ? 'new-category' : formData.category}
+              onChange={handleCategoryChange}
+              required={!['processed', 'scrap'].includes(formData.type)}
+              style={inputStyle}
+            >
+              <option value="">Kategori seçin</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name || cat.label}</option>
+              ))}
+              <option value="new-category">+ Yeni Kategori Ekle</option>
+            </select>
+            
+            {showNewCategory && (
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Yeni kategori adı"
+                required
+                style={{ ...inputStyle, marginTop: '6px' }}
+              />
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="form-row">
-        <div className="form-group">
-          <label>Birim *</label>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={labelStyle}>Birim *:</span>
           <select
             name="unit"
             value={formData.unit}
             onChange={handleInputChange}
             required
+            style={inputStyle}
           >
             <option value="">Birim seçin</option>
             <option value="kg">kg</option>
@@ -341,103 +341,123 @@ export default function AddMaterialModal({
         </div>
       </div>
 
-      <div className="form-row">
-        <div className="form-group">
-          <label>Stok Miktarı *</label>
-          <input
-            type="text"
-            name="stock"
-            value={formData.stock}
-            onChange={handleInputChange}
-            placeholder="0"
-            inputMode="decimal"
-            pattern="[0-9]*\.?[0-9]*"
-            required
-          />
+      {/* Stok ve Fiyat Bilgileri */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+        {/* Stok Bilgileri */}
+        <div style={sectionStyle}>
+          <h3 style={sectionTitleStyle}>Stok Bilgileri</h3>
+          
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Stok Miktarı *:</span>
+            <input
+              type="text"
+              name="stock"
+              value={formData.stock}
+              onChange={handleInputChange}
+              placeholder="0"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              required
+              style={inputStyle}
+            />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Reorder Point *:</span>
+            <input
+              type="text"
+              name="reorderPoint"
+              value={formData.reorderPoint}
+              onChange={handleInputChange}
+              placeholder="Minimum stok seviyesi"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              required
+              style={inputStyle}
+            />
+          </div>
         </div>
-        
-        <div className="form-group">
-          <label>Reorder Point *</label>
-          <input
-            type="text"
-            name="reorderPoint"
-            value={formData.reorderPoint}
-            onChange={handleInputChange}
-            placeholder="Minimum stok seviyesi"
-            inputMode="decimal"
-            pattern="[0-9]*\.?[0-9]*"
-            required
-          />
+
+        {/* Fiyat Bilgileri */}
+        <div style={sectionStyle}>
+          <h3 style={sectionTitleStyle}>Fiyat Bilgileri</h3>
+          
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Maliyet Fiyatı:</span>
+            <input
+              type="text"
+              name="costPrice"
+              value={formData.costPrice}
+              onChange={handleInputChange}
+              placeholder="0.00"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              style={inputStyle}
+            />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Satış Fiyatı:</span>
+            <input
+              type="text"
+              name="sellPrice"
+              value={formData.sellPrice}
+              onChange={handleInputChange}
+              placeholder="0.00"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              style={inputStyle}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="form-row">
-        <div className="form-group">
-          <label>Maliyet Fiyatı</label>
-          <input
-            type="text"
-            name="costPrice"
-            value={formData.costPrice}
-            onChange={handleInputChange}
-            placeholder="0.00"
-            inputMode="decimal"
-            pattern="[0-9]*\.?[0-9]*"
-          />
-        </div>
+      {/* Ek Bilgiler */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>Ek Bilgiler</h3>
         
-        <div className="form-group">
-          <label>Satış Fiyatı</label>
-          <input
-            type="text"
-            name="sellPrice"
-            value={formData.sellPrice}
-            onChange={handleInputChange}
-            placeholder="0.00"
-            inputMode="decimal"
-            pattern="[0-9]*\.?[0-9]*"
-          />
-        </div>
-      </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Tedarikçi:</span>
+            <select
+              name="supplier"
+              value={formData.supplier}
+              onChange={handleInputChange}
+              style={inputStyle}
+            >
+              <option value="">Tedarikçi seçin</option>
+              {suppliers.map(supplier => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.code} - {supplier.name || supplier.companyName}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="form-row">
-        <div className="form-group">
-          <label>Tedarikçi</label>
-          <select
-            name="supplier"
-            value={formData.supplier}
-            onChange={handleInputChange}
-          >
-            <option value="">Tedarikçi seçin</option>
-            {suppliers.map(supplier => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.code} - {supplier.name || supplier.companyName}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ ...labelStyle, minWidth: '80px' }}>Durum:</span>
+            <select
+              name="status"
+              value={formData.status}
+              onChange={handleInputChange}
+              style={inputStyle}
+            >
+              <option value="Aktif">Aktif</option>
+              <option value="Pasif">Pasif</option>
+            </select>
+          </div>
         </div>
         
-        <div className="form-group">
-          <label>Açıklama</label>
+        <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+          <span style={{ ...labelStyle, marginTop: '6px' }}>Açıklama:</span>
           <textarea
             name="description"
             value={formData.description}
             onChange={handleInputChange}
             placeholder="Malzeme açıklaması"
             rows="2"
+            style={{ ...inputStyle, resize: 'vertical' }}
           />
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label>Durum</label>
-          <select
-            name="status"
-            value={formData.status}
-            onChange={handleInputChange}
-          >
-            <option value="Aktif">Aktif</option>
-          </select>
         </div>
       </div>
     </form>
@@ -450,7 +470,7 @@ export default function AddMaterialModal({
         top: '100%',
         right: 0,
         marginTop: '8px',
-        background: 'white',
+        background: '#f9fafb',
         border: '1px solid #d1d5db',
         borderRadius: '8px',
         boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
@@ -460,33 +480,133 @@ export default function AddMaterialModal({
         overflowY: 'auto',
         zIndex: 9999
       }}>
-        <div className="modal-header">
-          <h2>Yeni Malzeme Ekle</h2>
-          <div className="header-actions">
-            <button type="submit" form="add-material-form" className="btn-save" title="Kaydet">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '16px 20px', 
+          borderBottom: '1px solid #e5e7eb',
+          background: 'white',
+          borderRadius: '8px 8px 0 0'
+        }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+            Yeni Malzeme Ekle
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              type="submit" 
+              form="add-material-form" 
+              style={{
+                padding: '8px 16px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Kaydet"
+            >
               💾 Kaydet
             </button>
-            <button className="modal-close" onClick={handleClose}>×</button>
+            <button 
+              onClick={handleClose}
+              style={{
+                padding: '8px',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#6b7280'
+              }}
+            >
+              ×
+            </button>
           </div>
         </div>
-        {formContent}
+        <div style={{ padding: '16px 20px' }}>
+          {formContent}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 2102 }}>
-        <div className="modal-header">
-          <h2>Yeni Malzeme Ekle</h2>
-          <div className="header-actions">
-            <button type="submit" form="add-material-form" className="btn-save" title="Kaydet">
+      <div 
+        onClick={(e) => e.stopPropagation()} 
+        style={{ 
+          maxWidth: '700px',
+          width: '90%',
+          background: '#f9fafb',
+          borderRadius: '8px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 2102
+        }}
+      >
+        {/* Header */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '16px 20px', 
+          borderBottom: '1px solid #e5e7eb',
+          background: 'white',
+          borderRadius: '8px 8px 0 0'
+        }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+            Yeni Malzeme Ekle
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              type="submit" 
+              form="add-material-form" 
+              style={{
+                padding: '8px 16px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Kaydet"
+            >
               💾 Kaydet
             </button>
-            <button className="modal-close" onClick={handleClose}>×</button>
+            <button 
+              onClick={handleClose}
+              style={{
+                padding: '8px',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#6b7280'
+              }}
+            >
+              ×
+            </button>
           </div>
         </div>
-        {formContent}
+        
+        {/* Body */}
+        <div style={{ 
+          padding: '16px 20px',
+          overflowY: 'auto',
+          flex: 1
+        }}>
+          {formContent}
+        </div>
       </div>
     </div>
   );

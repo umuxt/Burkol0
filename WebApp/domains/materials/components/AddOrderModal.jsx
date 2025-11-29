@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
 import { useMaterials } from '../hooks/useMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 import { showToast } from '../../../shared/components/MESToast.js'
 
-export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null }) {
+export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null, anchorPosition = null }) {
   
   const [currentStep, setCurrentStep] = useState(1) // 1: Tedarikçi Seçimi, 2: Malzeme Ekleme, 3: Özet
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false)
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [formData, setFormData] = useState({
     supplierId: '',
     supplierName: '',
@@ -546,30 +549,78 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
   if (!isOpen) return null
 
-  return (
-    <div style={{
+  // Popover mode (when anchorPosition is provided)
+  const isPopover = !!anchorPosition
+
+  // Calculate popover position
+  const getPopoverStyle = () => {
+    if (!anchorPosition) return {}
+    
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    const popoverWidth = 520
+    const popoverHeight = Math.min(600, viewportHeight - 100)
+    
+    let top = anchorPosition.top + 8
+    let left = anchorPosition.left
+    
+    // Adjust if goes below viewport
+    if (top + popoverHeight > viewportHeight - 20) {
+      top = anchorPosition.top - popoverHeight - 8
+    }
+    
+    // Adjust if goes right of viewport
+    if (left + popoverWidth > viewportWidth - 20) {
+      left = viewportWidth - popoverWidth - 20
+    }
+    
+    // Ensure minimum left position
+    if (left < 20) left = 20
+    
+    return {
       position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: '4px',
-        width: '90%',
-        maxWidth: '600px',
-        maxHeight: '85vh',
-        overflow: 'hidden',
+      top: `${Math.max(20, top)}px`,
+      left: `${left}px`,
+      width: `${popoverWidth}px`,
+      maxHeight: `${popoverHeight}px`,
+      zIndex: 10001
+    }
+  }
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: isPopover ? 'transparent' : 'rgba(0,0,0,0.5)',
         display: 'flex',
-        flexDirection: 'column',
-        color: '#1f2937'
-      }}>
+        alignItems: isPopover ? 'flex-start' : 'center',
+        justifyContent: isPopover ? 'flex-start' : 'center',
+        zIndex: 10000
+      }}
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: 'white',
+          borderRadius: '8px',
+          width: isPopover ? 'auto' : '90%',
+          maxWidth: isPopover ? 'none' : '600px',
+          maxHeight: isPopover ? 'none' : '85vh',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          color: '#1f2937',
+          boxShadow: isPopover 
+            ? '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)' 
+            : '0 20px 50px rgba(0,0,0,0.2)',
+          ...(isPopover ? getPopoverStyle() : {})
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div style={{
           padding: '10px 14px',
@@ -648,11 +699,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         </div>
 
         {/* Content */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '14px'
-        }}>
+        <div 
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            padding: '14px'
+          }}
+          onClick={() => { setSupplierDropdownOpen(false); setStatusDropdownOpen(false); }}
+        >
           {/* Step 1: Supplier Selection */}
           {currentStep === 1 && (
             <div>
@@ -675,36 +729,68 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                 </div>
               ) : (
                 <div>
-                  <div style={{ marginBottom: '12px' }}>
+                  <div style={{ marginBottom: '12px', position: 'relative', zIndex: 30 }}>
                     <label style={{ 
                       display: 'block', 
                       marginBottom: '4px', 
-                      fontSize: '14px', 
-                      fontWeight: '600' 
+                      fontSize: '13px', 
+                      fontWeight: '600',
+                      color: '#374151'
                     }}>
                       Tedarikçi *
                     </label>
-                    <select
-                      value={formData.supplierId}
-                      onChange={(e) => handleSupplierChange(e.target.value)}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSupplierDropdownOpen(!supplierDropdownOpen); setStatusDropdownOpen(false); }}
                       style={{
                         width: '100%',
-                        padding: '6px 10px',
+                        padding: '8px 12px',
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
-                        fontSize: '14px'
+                        fontSize: '13px',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        color: formData.supplierId ? '#1f2937' : '#9ca3af'
                       }}
                     >
-                      <option value="">Tedarikçi seçiniz</option>
-                      {filteredSuppliers?.map(supplier => (
-                        <option key={supplier.id} value={supplier.id}>
-                          {supplier.name || supplier.companyName} ({supplier.code})
-                        </option>
-                      ))}
-                      {filteredSuppliers && filteredSuppliers.length === 0 && (
-                        <option value="" disabled>Bu malzemeyi tedarik eden tedarikçi bulunmuyor</option>
-                      )}
-                    </select>
+                      <span>{formData.supplierName || 'Tedarikçi seçiniz'}</span>
+                      <ChevronDown size={14} />
+                    </button>
+                    {supplierDropdownOpen && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: 'white',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        zIndex: 1000,
+                        maxHeight: '200px',
+                        overflow: 'auto',
+                        marginTop: '4px'
+                      }}>
+                        {filteredSuppliers?.map(supplier => (
+                          <div
+                            key={supplier.id}
+                            onClick={() => { handleSupplierChange(supplier.id); setSupplierDropdownOpen(false); }}
+                            style={{
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              borderBottom: '1px solid #f3f4f6',
+                              backgroundColor: formData.supplierId === supplier.id ? '#dbeafe' : 'transparent'
+                            }}
+                          >
+                            {supplier.name || supplier.companyName} ({supplier.code})
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ 
@@ -714,40 +800,79 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     marginTop: '16px'
                   }}>
                     {!deliveredRecordMode && (
-                    <div>
+                    <div style={{ position: 'relative', zIndex: 20 }}>
                       <label style={{ 
                         display: 'block', 
                         marginBottom: '4px', 
-                        fontSize: '14px', 
-                        fontWeight: '600' 
+                        fontSize: '13px', 
+                        fontWeight: '600',
+                        color: '#374151'
                       }}>
                         Sipariş Durumu
                       </label>
-                      <select
-                        value={formData.orderStatus}
-                        onChange={(e) => setFormData(prev => ({ ...prev, orderStatus: e.target.value }))}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setStatusDropdownOpen(!statusDropdownOpen); setSupplierDropdownOpen(false); }}
                         style={{
                           width: '100%',
-                          padding: '6px 10px',
+                          padding: '8px 12px',
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
-                          fontSize: '14px'
+                          fontSize: '13px',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          color: '#1f2937'
                         }}
                       >
-                        <option value="Taslak">Taslak</option>
-                        <option value="Onay Bekliyor">Onay Bekliyor</option>
-                        <option value="Onaylandı">Onaylandı</option>
-                      </select>
+                        <span>{formData.orderStatus}</span>
+                        <ChevronDown size={14} />
+                      </button>
+                      {statusDropdownOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          backgroundColor: 'white',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          zIndex: 1000,
+                          maxHeight: '200px',
+                          overflow: 'auto',
+                          marginTop: '4px'
+                        }}>
+                          {['Taslak', 'Onay Bekliyor', 'Onaylandı'].map(status => (
+                            <div
+                              key={status}
+                              onClick={() => { setFormData(prev => ({ ...prev, orderStatus: status })); setStatusDropdownOpen(false); }}
+                              style={{
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                borderBottom: '1px solid #f3f4f6',
+                                backgroundColor: formData.orderStatus === status ? '#dbeafe' : 'transparent'
+                              }}
+                            >
+                              {status}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     )}
 
                     {!deliveredRecordMode && (
-                    <div>
+                    <div style={{ zIndex: 10 }}>
                       <label style={{ 
                         display: 'block', 
                         marginBottom: '4px', 
-                        fontSize: '14px', 
-                        fontWeight: '600' 
+                        fontSize: '13px', 
+                        fontWeight: '600',
+                        color: '#374151'
                       }}>
                         Beklenen Teslimat Tarihi
                       </label>
@@ -757,10 +882,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         onChange={(e) => setFormData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
                         style={{
                           width: '100%',
-                          padding: '6px 10px',
+                          padding: '8px 12px',
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
-                          fontSize: '14px'
+                          fontSize: '13px'
                         }}
                       />
                     </div>
@@ -771,8 +896,9 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     <label style={{ 
                       display: 'block', 
                       marginBottom: '4px', 
-                      fontSize: '14px', 
-                      fontWeight: '600' 
+                      fontSize: '13px', 
+                      fontWeight: '600',
+                      color: '#374151'
                     }}>
                       Notlar
                     </label>
@@ -783,7 +909,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       style={{
                         width: '100%',
                         minHeight: '60px',
-                        padding: '6px 10px',
+                        padding: '8px 12px',
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
                         fontSize: '14px',
