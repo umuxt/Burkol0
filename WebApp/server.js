@@ -10,34 +10,16 @@ import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
-// Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
-import { setupMaterialsRoutes } from './server/materialsRoutes.js'
-// Orders routes - PostgreSQL migrated
-import ordersRoutes from './server/ordersRoutes.js'
 // Quotes routes - PostgreSQL migrated
 import { setupQuotesRoutes } from './domains/quotes/server/quotesRoutes.js'
 import { setupFormRoutes } from './domains/quotes/server/formRoutes.js'
 import { setupPriceRoutes } from './domains/quotes/server/priceRoutes.js'
-import {
-    getAllSuppliers,
-    addSupplier,
-    updateSupplier,
-    deleteSupplier,
-    getSuppliersByCategory,
-    addMaterialToSupplier,
-    getSuppliersForMaterial,
-    getMaterialsForSupplier
-} from './server/suppliersRoutes.js'
-import {
-    getMaterialCategories,
-    createMaterialCategory,
-    updateMaterialCategory,
-    deleteMaterialCategory,
-    getMaterialCategoryUsage
-} from './server/materialCategoriesRoutes.js'
 import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
-import mesRoutes from './domains/production/api/index.js'; // Yeni production/api/index.js
+
+// Domain routes - Modular architecture
+import mesRoutes from './domains/production/api/index.js';
+import materialsRoutes from './domains/materials/api/index.js';
 
 // Load environment variables
 dotenv.config()
@@ -126,35 +108,15 @@ setupQuotesRoutes(app)
 setupFormRoutes(app)
 setupPriceRoutes(app)
 
-// Lazily bootstrap LEGACY settings routes (NOT quote routes - those are migrated to PostgreSQL)
-// Materials routes
-setupMaterialsRoutes(app)
+// Materials domain routes (materials, orders, suppliers, categories)
+app.use('/api', materialsRoutes)
 
-// Orders routes
-app.use('/api', ordersRoutes)
-
-app.use('/api/mes', mesRoutes); // Yeni production/api/index.js
+// Production domain routes (MES, work orders, production)
+app.use('/api/mes', mesRoutes);
 
 // Settings routes (System config)
 import settingsRoutes from './server/settingsRoutes.js'
 app.use('/api/settings', settingsRoutes)
-
-// Setup suppliers routes (PostgreSQL)
-app.get('/api/suppliers', getAllSuppliers)
-app.post('/api/suppliers', addSupplier)
-app.patch('/api/suppliers/:id', updateSupplier)
-app.delete('/api/suppliers/:id', deleteSupplier)
-app.get('/api/suppliers/category/:category', getSuppliersByCategory)
-app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
-app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
-app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
-
-// Setup material categories CRUD routes (PostgreSQL)
-app.get('/api/material-categories', getMaterialCategories)
-app.post('/api/material-categories', createMaterialCategory)
-app.put('/api/material-categories/:id', updateMaterialCategory)
-app.delete('/api/material-categories/:id', deleteMaterialCategory)
-app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
 
 
 // Expose migration management API routes used by admin tooling
