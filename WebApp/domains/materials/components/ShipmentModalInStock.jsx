@@ -119,7 +119,8 @@ export default function ShipmentModalInStock({
     setLoading(true)
 
     try {
-      const result = await shipmentsService.createShipment({
+      // Use the new quick shipment endpoint (backwards compatible)
+      const result = await shipmentsService.createQuickShipment({
         productCode: material.code,
         shipmentQuantity: quantity,
         workOrderCode: formData.workOrderCode || undefined,

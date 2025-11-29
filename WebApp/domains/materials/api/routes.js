@@ -52,14 +52,34 @@ router.post('/materials/:code/release', requireAuth, stockController.releaseRese
 // ================================
 // SHIPMENTS (Outgoing to customers)
 // ================================
+// Helper data for dropdowns
 router.get('/materials/shipments/approved-quotes', requireAuth, shipmentController.getApprovedQuotesForShipment);
 router.get('/materials/shipments/completed-work-orders', requireAuth, shipmentController.getCompletedWorkOrdersForShipment);
+router.get('/materials/shipments/available-materials', requireAuth, shipmentController.getMaterialsForShipment);
+router.get('/materials/shipments/stats', requireAuth, shipmentController.getShipmentStats);
+router.get('/materials/shipments/item-stats', requireAuth, shipmentController.getItemStats);
+
+// Shipment CRUD (header)
 router.post('/materials/shipments', requireAuth, shipmentController.createShipment);
+router.post('/materials/shipments/quick', requireAuth, shipmentController.createQuickShipment); // For stock page
 router.get('/materials/shipments', requireAuth, shipmentController.getShipments);
+router.get('/materials/shipments/code/:code', requireAuth, shipmentController.getShipmentByCode);
 router.get('/materials/shipments/:id', requireAuth, shipmentController.getShipmentById);
 router.put('/materials/shipments/:id', requireAuth, shipmentController.updateShipment);
 router.put('/materials/shipments/:id/status', requireAuth, shipmentController.updateShipmentStatus);
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
+router.delete('/materials/shipments/:id', requireAuth, shipmentController.deleteShipment);
+
+// Shipment Items CRUD
+router.get('/materials/shipments/:id/items', requireAuth, shipmentController.getShipmentItems);
+router.post('/materials/shipments/:id/items', requireAuth, shipmentController.addItemToShipment);
+router.get('/materials/shipments/items/:itemId', requireAuth, shipmentController.getShipmentItemById);
+router.put('/materials/shipments/items/:itemId/quantity', requireAuth, shipmentController.updateItemQuantity);
+router.put('/materials/shipments/items/:itemId/notes', requireAuth, shipmentController.updateItemNotes);
+router.delete('/materials/shipments/items/:itemId', requireAuth, shipmentController.removeItemFromShipment);
+
+// Shipment history by material
+router.get('/materials/:materialCode/shipments', requireAuth, shipmentController.getItemsByMaterial);
 
 // ================================
 // ORDERS (Purchase orders from suppliers)

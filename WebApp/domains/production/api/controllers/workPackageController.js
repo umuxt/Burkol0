@@ -32,7 +32,7 @@ export const getWorkerTaskQueue = async (req, res) => {
     res.json({
       success: true,
       workerId,
-      queue: tasks,
+      tasks: tasks,  // Frontend expects 'tasks' not 'queue'
       total: tasks.length,
       timestamp: new Date().toISOString()
     });

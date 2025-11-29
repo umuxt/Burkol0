@@ -220,26 +220,26 @@ export async function getWorkerNextTask(workerId) {
         'a.planId as planId',
         'a.nodeId as nodeId',
         'a.status',
-        'a."estimatedStartTime"',
-        'a.nominal_time as nominalTime',
-        'a.effective_time as effectiveTime',
-        'a.is_urgent as isUrgent',
-        'a.scheduling_mode as schedulingMode',
+        'a.estimatedStartTime',
+        'a.nominalTime',
+        'a.effectiveTime',
+        'a.isUrgent',
+        'a.schedulingMode',
         'p.workOrderCode as workOrderCode',
-        'p.quote_id as quoteId',
+        'p.quoteId',
         'n.name as nodeName',
         'n.operation_id as operationId',
         'o.name as operationName'
       )
       .join('mes.production_plans as p', 'p.id', 'a.planId')
-      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.nodeId::integer')
+      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a."nodeId"::integer')
       .leftJoin('mes.operations as o', 'o.id', 'n.operation_id')
       .where('a.workerId', workerId)
       .whereIn('a.status', ['pending', 'ready'])
-      .where('a.scheduling_mode', 'fifo')
+      .where('a.schedulingMode', 'fifo')
       .orderBy([
-        { column: 'a.is_urgent', order: 'desc' },    // Urgent first
-        { column: 'a.expected_start', order: 'asc' }, // FIFO (oldest first)
+        { column: 'a.isUrgent', order: 'desc' },    // Urgent first
+        { column: 'a.estimatedStartTime', order: 'asc' }, // FIFO (oldest first)
         { column: 'a.createdAt', order: 'asc' }      // Tiebreaker
       ])
       .limit(1)
@@ -279,24 +279,24 @@ export async function getWorkerTaskQueue(workerId, limit = 10) {
         'a.planId as planId',
         'a.nodeId as nodeId',
         'a.status',
-        'a."estimatedStartTime"',
-        'a.nominal_time as nominalTime',
-        'a.effective_time as effectiveTime',
-        'a.is_urgent as isUrgent',
+        'a.estimatedStartTime',
+        'a.nominalTime',
+        'a.effectiveTime',
+        'a.isUrgent',
         'p.workOrderCode as workOrderCode',
         'n.name as nodeName',
         'n.operation_id as operationId',
         'o.name as operationName'
       )
       .join('mes.production_plans as p', 'p.id', 'a.planId')
-      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.nodeId::integer')
+      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a."nodeId"::integer')
       .leftJoin('mes.operations as o', 'o.id', 'n.operation_id')
       .where('a.workerId', workerId)
       .whereIn('a.status', ['pending', 'ready'])
-      .where('a.scheduling_mode', 'fifo')
+      .where('a.schedulingMode', 'fifo')
       .orderBy([
-        { column: 'a.is_urgent', order: 'desc' },
-        { column: 'a.expected_start', order: 'asc' },
+        { column: 'a.isUrgent', order: 'desc' },
+        { column: 'a.estimatedStartTime', order: 'asc' },
         { column: 'a.createdAt', order: 'asc' }
       ])
       .limit(limit);
@@ -333,14 +333,14 @@ export async function getWorkerTaskStats(workerId) {
     const stats = await db('mes.worker_assignments')
       .where('workerId', workerId)
       .whereIn('status', ['pending', 'ready'])
-      .where('scheduling_mode', 'fifo')
+      .where('schedulingMode', 'fifo')
       .select(
         db.raw('COUNT(*) as total_tasks'),
         db.raw('COUNT(*) FILTER (WHERE status = \'pending\') as total_pending'),
         db.raw('COUNT(*) FILTER (WHERE status = \'ready\') as total_ready'),
-        db.raw('COUNT(*) FILTER (WHERE is_urgent = true) as urgent_count'),
-        db.raw('MIN(expected_start) as next_task_due'),
-        db.raw('SUM(effective_time) as estimated_workload')
+        db.raw('COUNT(*) FILTER (WHERE "isUrgent" = true) as urgent_count'),
+        db.raw('MIN("estimatedStartTime") as next_task_due'),
+        db.raw('SUM("effectiveTime") as estimated_workload')
       )
       .first();
 
@@ -1139,6 +1139,86 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         }
       );
 
+      // ✅ CRITICAL: Promote successor tasks whose predecessors are now all completed
+      // This handles cross-worker dependencies (e.g., Worker A completes task, Worker B's task becomes ready)
+      const completedNode = await trx('mes.production_plan_nodes')
+        .where('id', assignment.nodeId)
+        .first();
+      
+      if (completedNode?.nodeId) {
+        // Find all successor nodes that depend on this completed node
+        const successorRelations = await trx('mes.node_predecessors')
+          .where('predecessorNodeId', completedNode.nodeId);
+        
+        for (const rel of successorRelations) {
+          // Get the assignment for this successor node
+          const successorAssignment = await trx('mes.worker_assignments as wa')
+            .join('mes.production_plan_nodes as n', function() {
+              this.on('n.id', '=', trx.raw('wa."nodeId"::integer'));
+            })
+            .where('n.nodeId', rel.nodeId)
+            .where('wa.status', 'queued')
+            .select('wa.*')
+            .first();
+          
+          if (successorAssignment) {
+            // Check if ALL predecessors of this successor are completed
+            const allPredecessors = await trx('mes.node_predecessors')
+              .where('nodeId', rel.nodeId);
+            
+            let allCompleted = true;
+            for (const pred of allPredecessors) {
+              const predAssignment = await trx('mes.worker_assignments as wa')
+                .join('mes.production_plan_nodes as n', function() {
+                  this.on('n.id', '=', trx.raw('wa."nodeId"::integer'));
+                })
+                .where('n.nodeId', pred.predecessorNodeId)
+                .whereNot('wa.status', 'completed')
+                .first();
+              
+              if (predAssignment) {
+                allCompleted = false;
+                break;
+              }
+            }
+            
+            if (allCompleted) {
+              // All predecessors completed - promote to pending and try to reserve substation
+              const successorSubstation = await trx('mes.substations')
+                .where('id', successorAssignment.substationId)
+                .first();
+              
+              const canReserveSuccessor = successorSubstation && (
+                successorSubstation.status === 'available' || 
+                (successorSubstation.status === 'reserved' && successorSubstation.currentAssignmentId === successorAssignment.id)
+              );
+              
+              await trx('mes.worker_assignments')
+                .where('id', successorAssignment.id)
+                .update({ status: 'pending' });
+              
+              if (canReserveSuccessor) {
+                await trx('mes.substations')
+                  .where('id', successorAssignment.substationId)
+                  .update({
+                    status: 'reserved',
+                    currentAssignmentId: successorAssignment.id,
+                    assignedWorkerId: successorAssignment.workerId,
+                    currentOperation: successorAssignment.operationId,
+                    reservedAt: trx.fn.now(),
+                    currentExpectedEnd: successorAssignment.estimatedEndTime || null,
+                    updatedAt: trx.fn.now()
+                  });
+                
+                console.log(`🔗 [FIFO] Promoted successor task ${successorAssignment.id} (worker ${successorAssignment.workerId}) to pending + reserved substation`);
+              } else {
+                console.log(`🔗 [FIFO] Promoted successor task ${successorAssignment.id} (worker ${successorAssignment.workerId}) to pending (substation ${successorAssignment.substationId} not available)`);
+              }
+            }
+          }
+        }
+      }
+
       console.log(`✅ [FIFO] Task ${assignmentIdInt} completed by worker ${workerId}`);
       
       if (materialsConsumed > 0) {
@@ -1177,7 +1257,7 @@ export async function hasTasksInQueue(workerId) {
     const count = await db('mes.worker_assignments')
       .where('workerId', workerId)
       .whereIn('status', ['pending', 'ready'])
-      .where('scheduling_mode', 'fifo')
+      .where('schedulingMode', 'fifo')
       .count('id as count')
       .first();
 

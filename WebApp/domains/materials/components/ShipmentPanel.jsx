@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../services/shipments-service.js';
 import ShipmentDetailsPanel from './ShipmentDetailsPanel.jsx';
+import CreateShipmentModal from './CreateShipmentModal.jsx';
+import { Plus, Package } from 'lucide-react';
 
 export default function ShipmentPanel() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,6 +11,7 @@ export default function ShipmentPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedShipment, setSelectedShipment] = useState(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
     loadShipments();
@@ -83,16 +86,25 @@ export default function ShipmentPanel() {
     // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      const shipmentCode = (shipment.shipmentCode || '').toLowerCase();
       const code = (shipment.productCode || '').toLowerCase();
       const workOrder = (shipment.workOrderCode || '').toLowerCase();
-      const note = (shipment.description || '').toLowerCase();
+      const customer = (shipment.customerName || shipment.customerCompany || '').toLowerCase();
+      const note = (shipment.description || shipment.notes || '').toLowerCase();
       const id = (shipment.id || '').toString();
       
-      return code.includes(term) || workOrder.includes(term) || note.includes(term) || id.includes(term);
+      return shipmentCode.includes(term) || code.includes(term) || workOrder.includes(term) || customer.includes(term) || note.includes(term) || id.includes(term);
     }
 
     return true;
   });
+
+  // Handle new shipment created
+  const handleShipmentCreated = (newShipment) => {
+    console.log('✅ New shipment created:', newShipment);
+    loadShipments();
+    setCreateModalOpen(false);
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -110,7 +122,7 @@ export default function ShipmentPanel() {
          <div className="mes-filter-controls">
             <input 
               type="text" 
-              placeholder="Sevkiyat Ara (Kod, İş Emri, Not)..." 
+              placeholder="Sevkiyat Ara (Kod, İş Emri, Müşteri, Not)..." 
               value={searchTerm}
               onChange={handleSearchChange}
               className="mes-filter-input is-compact"
@@ -121,6 +133,21 @@ export default function ShipmentPanel() {
               title="Yenile"
             >
               <span>Yenile</span>
+            </button>
+            <button 
+              className="mes-filter-button is-compact is-primary"
+              onClick={() => setCreateModalOpen(true)}
+              title="Yeni Sevkiyat"
+              style={{
+                backgroundColor: 'var(--primary, #3b82f6)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Plus size={16} />
+              <span>Yeni Sevkiyat</span>
             </button>
          </div>
       </div>
@@ -151,11 +178,10 @@ export default function ShipmentPanel() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '60px', textAlign: 'left' }}>ID</th>
-                    <th style={{ minWidth: '140px', textAlign: 'left' }}>Malzeme Kodu</th>
-                    <th style={{ width: '100px', textAlign: 'left' }}>Miktar</th>
+                    <th style={{ minWidth: '120px', textAlign: 'left' }}>Sevkiyat Kodu</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Kalem</th>
+                    <th style={{ minWidth: '140px', textAlign: 'left' }}>Müşteri/İş Emri</th>
                     <th style={{ width: '120px', textAlign: 'left' }}>Durum</th>
-                    <th style={{ minWidth: '140px', textAlign: 'left' }}>Kaynak</th>
                     <th style={{ minWidth: '140px', textAlign: 'left' }}>Tarih</th>
                     <th style={{ minWidth: '150px', textAlign: 'left' }}>Not</th>
                   </tr>
@@ -163,7 +189,7 @@ export default function ShipmentPanel() {
                 <tbody>
                    {loading && (
                      <tr>
-                       <td colSpan="7" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                       <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center' }}>
                          <div className="loading-spinner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                            <div className="spinner"></div>
                            <span style={{ color: '#6b7280' }}>Yükleniyor...</span>
@@ -174,7 +200,7 @@ export default function ShipmentPanel() {
 
                    {!loading && !error && filteredShipments.length === 0 && (
                      <tr>
-                       <td colSpan="7" style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
+                       <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
                           {shipments.length === 0 ? 'Henüz hiç sevkiyat kaydı yok.' : 'Aranan kriterlere uygun sevkiyat bulunamadı.'}
                        </td>
                      </tr>
@@ -182,7 +208,7 @@ export default function ShipmentPanel() {
 
                    {!loading && error && (
                      <tr>
-                       <td colSpan="7" style={{ padding: '40px 20px', textAlign: 'center', color: '#dc2626' }}>
+                       <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center', color: '#dc2626' }}>
                           {error}
                        </td>
                      </tr>
@@ -196,25 +222,41 @@ export default function ShipmentPanel() {
                        style={{ cursor: 'pointer' }}
                      >
                         <td>
-                           <span style={{ color: '#6b7280', fontSize: '12px' }}>#{shipment.id}</span>
+                           <div style={{ display: 'flex', flexDirection: 'column' }}>
+                             <span className="mes-code-text" style={{ fontWeight: '600' }}>
+                               {shipment.shipmentCode || `SHP-${shipment.id}`}
+                             </span>
+                             <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                               #{shipment.id}
+                             </span>
+                           </div>
                         </td>
-                        <td>
-                           <span className="mes-code-text">{shipment.productCode}</span>
-                        </td>
-                        <td>
-                           <span style={{ fontWeight: '500' }}>{shipment.shipmentQuantity}</span>
-                        </td>
-                        <td>
-                           <span className="mes-tag" style={{ 
-                             backgroundColor: `${SHIPMENT_STATUS_COLORS[shipment.status]}20`,
-                             color: SHIPMENT_STATUS_COLORS[shipment.status],
-                             border: `1px solid ${SHIPMENT_STATUS_COLORS[shipment.status]}40`
+                        <td style={{ textAlign: 'center' }}>
+                           <span style={{ 
+                             display: 'inline-flex', 
+                             alignItems: 'center', 
+                             gap: '4px',
+                             padding: '2px 8px',
+                             backgroundColor: 'var(--muted-bg, #f3f4f6)',
+                             borderRadius: '4px',
+                             fontSize: '12px',
+                             fontWeight: '500'
                            }}>
-                             {SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
+                             <Package size={12} />
+                             {shipment.itemCount || shipment.items?.length || 1}
                            </span>
                         </td>
                         <td>
-                           {shipment.workOrderCode ? (
+                           {shipment.customerName || shipment.customerCompany ? (
+                             <div style={{ display: 'flex', flexDirection: 'column' }}>
+                               <span style={{ fontWeight: '500' }}>{shipment.customerName || shipment.customerCompany}</span>
+                               {shipment.workOrderCode && (
+                                 <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                                   İş Emri: {shipment.workOrderCode}
+                                 </span>
+                               )}
+                             </div>
+                           ) : shipment.workOrderCode ? (
                              <div style={{ display: 'flex', flexDirection: 'column' }}>
                                <span style={{ fontSize: '11px', color: '#6b7280' }}>İş Emri</span>
                                <span>{shipment.workOrderCode}</span>
@@ -228,11 +270,20 @@ export default function ShipmentPanel() {
                              <span style={{ color: '#9ca3af' }}>-</span>
                            )}
                         </td>
+                        <td>
+                           <span className="mes-tag" style={{ 
+                             backgroundColor: `${SHIPMENT_STATUS_COLORS[shipment.status]}20`,
+                             color: SHIPMENT_STATUS_COLORS[shipment.status],
+                             border: `1px solid ${SHIPMENT_STATUS_COLORS[shipment.status]}40`
+                           }}>
+                             {SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
+                           </span>
+                        </td>
                         <td style={{ fontSize: '13px', color: '#4b5563' }}>
                            {formatDate(shipment.createdAt)}
                         </td>
-                        <td style={{ fontSize: '13px', color: '#4b5563', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={shipment.description}>
-                           {shipment.description || '-'}
+                        <td style={{ fontSize: '13px', color: '#4b5563', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={shipment.notes || shipment.description}>
+                           {shipment.notes || shipment.description || '-'}
                         </td>
                      </tr>
                    ))}
@@ -254,6 +305,13 @@ export default function ShipmentPanel() {
           />
         )}
       </div>
+
+      {/* Create Shipment Modal */}
+      <CreateShipmentModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={handleShipmentCreated}
+      />
     </div>
   );
 }

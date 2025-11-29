@@ -171,38 +171,38 @@ export async function getStockMovements(filters = {}) {
   } = filters;
 
   let query = db('materials.stock_movements as sm')
-    .leftJoin('materials.materials as m', 'sm.material_id', 'm.id')
+    .leftJoin('materials.materials as m', 'sm.materialId', 'm.id')
     .select(
       'sm.*',
       'm.name as materialName',
       'm.code as materialCode',
       'm.unit'
     )
-    .orderBy('sm.created_at', 'desc');
+    .orderBy('sm.createdAt', 'desc');
 
   if (materialCode) {
-    query = query.where('m.code', materialCode);
+    query = query.where('sm.materialCode', materialCode);
   }
 
   if (materialId) {
-    query = query.where('sm.material_id', materialId);
+    query = query.where('sm.materialId', materialId);
   }
 
   if (movementType) {
-    query = query.where('sm.movement_type', movementType);
+    query = query.where('sm.type', movementType);
   }
 
   if (startDate) {
-    query = query.where('sm.created_at', '>=', startDate);
+    query = query.where('sm.createdAt', '>=', startDate);
   }
 
   if (endDate) {
-    query = query.where('sm.created_at', '<=', endDate);
+    query = query.where('sm.createdAt', '<=', endDate);
   }
 
-  query = query.limit(limit).offset(offset);
-
-  return query;
+  const movements = await query.limit(limit).offset(offset);
+  
+  return { movements, total: movements.length };
 }
 
 /**

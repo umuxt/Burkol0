@@ -150,12 +150,19 @@ export const getWorkPackages = async ({ status, workerId, stationId, limit } = {
     return acc;
   }, {});
 
-  // Get all unique material codes needed across all tasks (inputs + outputs)
+  // Get all unique material codes needed across all tasks (inputs + outputs + preProductionReservedAmount)
   const allMaterialCodes = [...new Set(materialInputs.map(m => m.materialCode))];
   
   // Also collect output codes from tasks
   const outputCodes = tasks.map(t => t.outputCode).filter(Boolean);
-  const allCodes = [...new Set([...allMaterialCodes, ...outputCodes])];
+  
+  // Collect material codes from preProductionReservedAmount
+  const reservedMaterialCodes = tasks.flatMap(t => {
+    const reserved = parseJsonb(t.preProductionReservedAmount);
+    return Object.keys(reserved);
+  });
+  
+  const allCodes = [...new Set([...allMaterialCodes, ...outputCodes, ...reservedMaterialCodes])];
   
   // Get predecessor relationships for all nodes
   const predecessorRelations = nodeIds.length > 0
@@ -236,18 +243,19 @@ export const getWorkPackages = async ({ status, workerId, stationId, limit } = {
   // Format response with canonical schema
   const formatted = tasks.map(t => {
     // Check if materials are sufficient for this task
-    const taskMaterials = materialsByNode[t.nodeIdString] || {};
+    // Use preProductionReservedAmount which contains the ACTUAL materials needed (with defect buffer)
     const reservedAmounts = parseJsonb(t.preProductionReservedAmount);
     
     let materialStatus = 'sufficient';
     
-    // Check each material required for this task
-    for (const [materialCode, requiredQty] of Object.entries(taskMaterials)) {
-      const reserved = parseFloat(reservedAmounts[materialCode]) || 0;
+    // Check each material in preProductionReservedAmount
+    // This is the planned requirement calculated at launch time
+    for (const [materialCode, plannedQty] of Object.entries(reservedAmounts)) {
       const available = stockAvailability[materialCode] || 0;
+      const required = parseFloat(plannedQty) || 0;
       
-      // If we need more than what's available in stock
-      if (reserved > available) {
+      // Check if stock is sufficient for planned requirement
+      if (required > available) {
         materialStatus = 'insufficient';
         break;
       }
@@ -486,6 +494,20 @@ export const getWorkerTaskQueue = async (workerId) => {
         .select('nmi.nodeId', 'nmi.materialCode', 'nmi.requiredQuantity', 'm.name as materialName', 'm.unit as materialUnit')
     : [];
 
+  // Get output material details (name, unit) from materials table
+  const outputCodes = [...new Set(tasks.map(t => t.outputCode).filter(Boolean))];
+  const outputMaterialDetails = outputCodes.length > 0
+    ? await db('materials.materials')
+        .whereIn('code', outputCodes)
+        .select('code', 'name', 'unit')
+    : [];
+  
+  // Map output materials by code
+  const outputMaterialsByCode = outputMaterialDetails.reduce((acc, m) => {
+    acc[m.code] = { name: m.name, unit: m.unit };
+    return acc;
+  }, {});
+
   // Group materials by nodeId with name and unit
   const materialsByNode = materialInputs.reduce((acc, m) => {
     if (!acc[m.nodeId]) acc[m.nodeId] = {};
@@ -498,24 +520,48 @@ export const getWorkerTaskQueue = async (workerId) => {
   }, {});
 
   // Format response
-  return tasks.map((t, index) => ({
-    position: index + 1,
-    assignmentId: t.assignmentId,
-    status: t.status,
-    isUrgent: t.isUrgent,
-    priority: t.priority,
-    planName: t.planName,
-    workOrderCode: t.workOrderCode,
-    nodeName: t.nodeName,
-    operationName: t.operationName,
-    stationName: t.stationName,
-    substationCode: t.substationCode,
-    estimatedStartTime: t.estimatedStartTime,
-    estimatedEndTime: t.estimatedEndTime,
-    estimatedDuration: t.effectiveTime || t.nominalTime,
-    outputCode: t.outputCode,
-    outputQty: t.outputQty,
-    materialInputs: materialsByNode[t.nodeIdString] || {},
-    preProductionReservedAmount: parseJsonb(t.preProductionReservedAmount)
-  }));
+  return tasks.map((t, index) => {
+    // Build plannedOutput from node's outputCode/outputQty if plannedOutput is null
+    let plannedOutput = parseJsonb(t.plannedOutput);
+    if ((!plannedOutput || Object.keys(plannedOutput).length === 0) && t.outputCode) {
+      const outputMaterial = outputMaterialsByCode[t.outputCode] || {};
+      plannedOutput = {
+        [t.outputCode]: {
+          qty: t.outputQty,
+          name: outputMaterial.name || null,
+          unit: outputMaterial.unit || null
+        }
+      };
+    }
+    
+    return {
+      position: index + 1,
+      assignmentId: t.assignmentId,
+      workerId: t.workerId,
+      workerName: t.workerName,
+      planId: t.planId,
+      nodeId: t.nodeId,
+      operationId: t.operationId,
+      status: t.status,
+      isUrgent: t.isUrgent,
+      priority: t.priority,
+      planName: t.planName,
+      workOrderCode: t.workOrderCode,
+      nodeName: t.nodeName,
+      operationName: t.operationName,
+      stationName: t.stationName,
+      substationCode: t.substationCode,
+      estimatedStartTime: t.estimatedStartTime,
+      estimatedEndTime: t.estimatedEndTime,
+      estimatedDuration: t.effectiveTime || t.nominalTime,
+      estimatedNominalTime: t.nominalTime,
+      estimatedEffectiveTime: t.effectiveTime,
+      startedAt: t.startedAt,
+      outputCode: t.outputCode,
+      outputQty: t.outputQty,
+      plannedOutput,
+      materialInputs: materialsByNode[t.nodeIdString] || {},
+      preProductionReservedAmount: parseJsonb(t.preProductionReservedAmount)
+    };
+  });
 };

@@ -779,9 +779,11 @@ function showCompletionModal(task) {
     
     // Fetch scrap counters
     const counters = await getScrapCounters(task.assignmentId);
-    const outputDefectQty = counters.defectQuantity || 0;
-    const hasScrapData = (Object.keys(counters.inputScrapCounters).length > 0 || 
-                          Object.keys(counters.productionScrapCounters).length > 0 || 
+    const inputScrapCounters = counters?.inputScrapCounters || {};
+    const productionScrapCounters = counters?.productionScrapCounters || {};
+    const outputDefectQty = counters?.defectQuantity || 0;
+    const hasScrapData = (Object.keys(inputScrapCounters).length > 0 || 
+                          Object.keys(productionScrapCounters).length > 0 || 
                           outputDefectQty > 0);
     
     const modal = document.createElement('div');
@@ -841,17 +843,17 @@ function showCompletionModal(task) {
             <div style="font-size: 12px; color: #92400e; margin-bottom: 8px;">
               <strong>🔥 Fire Detayları:</strong>
             </div>
-            ${Object.keys(counters.inputScrapCounters).length > 0 ? `
+            ${Object.keys(inputScrapCounters).length > 0 ? `
             <div style="font-size: 11px; color: #78350f; margin-bottom: 4px;">
-              <strong>Hasarlı Gelen:</strong> ${Object.entries(counters.inputScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
+              <strong>Hasarlı Gelen:</strong> ${Object.entries(inputScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
             </div>` : ''}
-            ${Object.keys(counters.productionScrapCounters).length > 0 ? `
+            ${Object.keys(productionScrapCounters).length > 0 ? `
             <div style="font-size: 11px; color: #78350f; margin-bottom: 4px;">
-              <strong>Üretimde Hurda:</strong> ${Object.entries(counters.productionScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
+              <strong>Üretimde Hurda:</strong> ${Object.entries(productionScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
             </div>` : ''}
-            ${counters.defectQuantity > 0 ? `
+            ${outputDefectQty > 0 ? `
             <div style="font-size: 11px; color: #78350f;">
-              <strong>Çıktı Hatası:</strong> ${counters.defectQuantity}
+              <strong>Çıktı Hatası:</strong> ${outputDefectQty}
             </div>` : ''}
           </div>` : ''}
           
@@ -2094,7 +2096,7 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
           </div>
         </div>
         <div class="task-card-meta">
-          <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.planId}</span>
+          <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.workOrderCode || 'İş Emri Yok'}</span>
           ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
         </div>
       </div>
@@ -2236,7 +2238,7 @@ function renderCompactTaskCard(task, fifoPosition) {
         </div>
         <div class="task-card-meta" style="display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.planId}</span>
+            <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.workOrderCode || 'İş Emri Yok'}</span>
             ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
           </div>
           <div style="font-size: 11px; opacity: 0.5; display: flex; gap: 8px; align-items: center;">

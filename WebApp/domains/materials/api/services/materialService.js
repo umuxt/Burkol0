@@ -180,7 +180,7 @@ export async function getCategories() {
   const result = await db('materials.materials')
     .distinct('category')
     .whereNotNull('category')
-    .where('is_active', true)
+    .whereNot('status', 'Kaldırıldı')
     .orderBy('category');
   
   return result.map(r => r.category);

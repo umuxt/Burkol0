@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText } from '../../../shared/components/Icons.jsx'
+import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus } from '../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../services/shipments-service.js'
 
 export default function ShipmentDetailsPanel({
@@ -13,6 +13,15 @@ export default function ShipmentDetailsPanel({
   const [currentShipment, setCurrentShipment] = useState(shipment);
   const [isUpdating, setIsUpdating] = useState(false);
   const [statusNote, setStatusNote] = useState('');
+  const [shipmentItems, setShipmentItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  
+  // Add item state
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({ materialCode: '', quantity: '', notes: '' });
+  const [materials, setMaterials] = useState([]);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
   
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -28,9 +37,79 @@ export default function ShipmentDetailsPanel({
         workOrderCode: shipment.workOrderCode || '',
         quoteId: shipment.quoteId || '',
         planId: shipment.planId || '',
-        description: shipment.description || ''
+        customerName: shipment.customerName || '',
+        customerCompany: shipment.customerCompany || '',
+        deliveryAddress: shipment.deliveryAddress || '',
+        description: shipment.description || shipment.notes || ''
     });
+    
+    // Load items
+    loadShipmentItems(shipment.id);
   }, [shipment]);
+
+  const loadShipmentItems = async (shipmentId, forceRefresh = false) => {
+    if (!shipmentId) return;
+    setItemsLoading(true);
+    try {
+      // If force refresh or no cached items, fetch from API
+      if (forceRefresh || !shipment.items || !Array.isArray(shipment.items)) {
+        const items = await shipmentsService.getShipmentItems(shipmentId);
+        setShipmentItems(items || []);
+      } else {
+        setShipmentItems(shipment.items);
+      }
+    } catch (error) {
+      console.error('Failed to load shipment items:', error);
+      setShipmentItems([]);
+    } finally {
+      setItemsLoading(false);
+    }
+  };
+
+  // Load materials for add item dropdown
+  const loadMaterials = async () => {
+    if (materials.length > 0) return;
+    setMaterialsLoading(true);
+    try {
+      const response = await fetch('/api/materials');
+      const data = await response.json();
+      setMaterials(data.materials || data || []);
+    } catch (error) {
+      console.error('Failed to load materials:', error);
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
+  // Handle add item
+  const handleAddItem = async () => {
+    if (!newItem.materialCode || !newItem.quantity) {
+      alert('Malzeme ve miktar zorunludur');
+      return;
+    }
+    
+    setAddingItem(true);
+    try {
+      await shipmentsService.addItemToShipment(currentShipment.id, {
+        materialCode: newItem.materialCode,
+        quantity: parseFloat(newItem.quantity),
+        notes: newItem.notes
+      });
+      
+      // Refresh items from API (force refresh)
+      await loadShipmentItems(currentShipment.id, true);
+      setShowAddItem(false);
+      setNewItem({ materialCode: '', quantity: '', notes: '' });
+      
+      // Refresh parent list if available
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      alert(error.message || 'Kalem eklenemedi');
+    } finally {
+      setAddingItem(false);
+    }
+  };
 
   if (!currentShipment) return null;
 
@@ -336,19 +415,37 @@ export default function ShipmentDetailsPanel({
               Sevkiyat Bilgileri
             </h3>
             
+            {/* Shipment Code */}
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
-                  Malzeme Kodu:
+                  Sevkiyat Kodu:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{currentShipment.productCode}</span>
-            </div>
-            
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
-                  Miktar:
+                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', fontWeight: '600' }}>
+                  {currentShipment.shipmentCode || `SHP-${currentShipment.id}`}
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{currentShipment.shipmentQuantity}</span>
             </div>
+
+            {/* Customer Name */}
+            {(currentShipment.customerName || currentShipment.customerCompany) && (
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                    Müşteri:
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
+                    {currentShipment.customerName}{currentShipment.customerCompany && currentShipment.customerName ? ` - ${currentShipment.customerCompany}` : currentShipment.customerCompany}
+                  </span>
+              </div>
+            )}
+
+            {/* Delivery Address */}
+            {currentShipment.deliveryAddress && (
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                    Teslimat Adresi:
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{currentShipment.deliveryAddress}</span>
+              </div>
+            )}
 
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
@@ -365,6 +462,16 @@ export default function ShipmentDetailsPanel({
 
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                  Kalem Sayısı:
+                </span>
+                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Package size={12} />
+                  {currentShipment.itemCount || shipmentItems.length || 1}
+                </span>
+            </div>
+
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
                   Oluşturma Tarihi:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{formatDate(currentShipment.createdAt)}</span>
@@ -376,6 +483,218 @@ export default function ShipmentDetailsPanel({
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{formatDate(currentShipment.updatedAt)}</span>
             </div>
+          </div>
+
+          {/* Sevkiyat Kalemleri */}
+          <div style={{ 
+            marginBottom: '16px', 
+            padding: '12px', 
+            background: 'white', 
+            borderRadius: '6px',
+            border: '1px solid rgb(229, 231, 235)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Package size={14} />
+                Sevkiyat Kalemleri
+                {itemsLoading && <Loader2 size={14} className="animate-spin" />}
+              </h3>
+              {currentShipment.status === 'pending' && (
+                <button
+                  onClick={() => { setShowAddItem(true); loadMaterials(); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={14} />
+                  Yeni Kalem Ekle
+                </button>
+              )}
+            </div>
+            
+            {/* Add Item Form */}
+            {showAddItem && (
+              <div style={{ 
+                marginBottom: '12px', 
+                padding: '12px', 
+                backgroundColor: '#f0f9ff', 
+                borderRadius: '6px',
+                border: '1px solid #bfdbfe'
+              }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <select
+                    value={newItem.materialCode}
+                    onChange={(e) => setNewItem({ ...newItem, materialCode: e.target.value })}
+                    style={{
+                      flex: 2,
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <option value="">Malzeme Seçin...</option>
+                    {materials.map(m => (
+                      <option key={m.id || m.code} value={m.code}>
+                        {m.code} - {m.name} (Stok: {m.stock || 0})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Miktar"
+                    value={newItem.quantity}
+                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Not (opsiyonel)"
+                    value={newItem.notes}
+                    onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '13px'
+                    }}
+                  />
+                  <button
+                    onClick={handleAddItem}
+                    disabled={addingItem}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: addingItem ? 'not-allowed' : 'pointer',
+                      opacity: addingItem ? 0.7 : 1
+                    }}
+                  >
+                    {addingItem ? 'Ekleniyor...' : 'Ekle'}
+                  </button>
+                  <button
+                    onClick={() => { setShowAddItem(false); setNewItem({ materialCode: '', quantity: '', notes: '' }); }}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    İptal
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {itemsLoading ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
+                <Loader2 size={20} className="animate-spin" style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }} />
+                <p style={{ margin: '8px 0 0', fontSize: '12px' }}>Yükleniyor...</p>
+              </div>
+            ) : shipmentItems.length === 0 ? (
+              // Legacy: Single item display for old data
+              currentShipment.productCode ? (
+                <div style={{ padding: '8px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontWeight: '500', fontSize: '13px', color: '#111827' }}>{currentShipment.productCode}</span>
+                    </div>
+                    <span style={{ fontWeight: '600', fontSize: '13px', color: '#3b82f6' }}>
+                      {currentShipment.shipmentQuantity} adet
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
+                  Kalem bulunamadı
+                </div>
+              )
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {shipmentItems.map((item, index) => (
+                  <div 
+                    key={item.id || index}
+                    style={{ 
+                      padding: '10px 12px', 
+                      backgroundColor: '#f9fafb', 
+                      borderRadius: '6px',
+                      border: '1px solid #e5e7eb'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: '500', fontSize: '13px', color: '#111827', marginBottom: '2px' }}>
+                          {item.materialCode}
+                        </div>
+                        {item.materialName && (
+                          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                            {item.materialName}
+                          </div>
+                        )}
+                        {item.notes && (
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', fontStyle: 'italic' }}>
+                            {item.notes}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontWeight: '600', fontSize: '14px', color: '#3b82f6' }}>
+                          {item.quantity}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
+                          {item.unit || 'adet'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Total */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '4px',
+                  marginTop: '4px'
+                }}>
+                  <span style={{ fontWeight: '600', fontSize: '12px', color: '#374151' }}>
+                    Toplam: {shipmentItems.length} kalem
+                  </span>
+                  <span style={{ fontWeight: '600', fontSize: '13px', color: '#1d4ed8' }}>
+                    {shipmentItems.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toLocaleString('tr-TR')}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Kaynak & Referans */}

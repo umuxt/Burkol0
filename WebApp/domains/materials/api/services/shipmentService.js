@@ -1,9 +1,12 @@
 /**
- * Shipment Service
- * Handles outgoing shipments to customers
+ * Shipment Service (Refactored)
+ * Handles outgoing shipments with multi-item support
+ * Uses Shipments and ShipmentItems models
  */
 
 import db from '#db/connection';
+import Shipments from '#db/models/shipments';
+import ShipmentItems from '#db/models/shipmentItems';
 
 const SHIPMENT_STATUSES = {
   PENDING: 'pending',
@@ -19,290 +22,273 @@ const VALID_TRANSITIONS = {
   cancelled: []
 };
 
+// ============================================
+// SHIPMENT CRUD (Header)
+// ============================================
+
 /**
- * Create a new shipment with stock deduction
+ * Create a new shipment with multiple items
+ * @param {Object} data - Shipment data with items array
+ * @param {Object} user - Current user
+ * @returns {Object} Created shipment with items
  */
 export async function createShipment(data, user) {
-  const { productCode, shipmentQuantity, planId, workOrderCode, quoteId, description } = data;
+  const { items = [], ...shipmentData } = data;
   
-  const trx = await db.transaction();
-
-  try {
-    // Validate required fields
-    if (!productCode || !shipmentQuantity) {
-      await trx.rollback();
-      const error = new Error('productCode ve shipmentQuantity zorunludur');
-      error.code = 'VALIDATION_ERROR';
-      throw error;
-    }
-
-    if (shipmentQuantity <= 0) {
-      await trx.rollback();
-      const error = new Error('Miktar pozitif olmalıdır');
-      error.code = 'VALIDATION_ERROR';
-      throw error;
-    }
-
-    // Get material details
-    const material = await trx('materials.materials')
-      .where({ code: productCode })
-      .first();
-
-    if (!material) {
-      await trx.rollback();
-      const error = new Error('Ürün bulunamadı');
-      error.code = 'NOT_FOUND';
-      throw error;
-    }
-
-    // Check stock availability
-    const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
-    if (shipmentQuantity > availableStock) {
-      await trx.rollback();
-      const error = new Error(`Yetersiz stok. Mevcut: ${availableStock}, İstenen: ${shipmentQuantity}`);
-      error.code = 'INSUFFICIENT_STOCK';
-      throw error;
-    }
-
-    const previousStock = material.stock;
-    const newStock = previousStock - shipmentQuantity;
-
-    // 1. Create stock movement (out - shipment)
-    const [stockMovement] = await trx('materials.stock_movements')
-      .insert({
-        materialId: material.id,
-        materialCode: material.code,
-        materialName: material.name,
-        type: 'out',
-        subType: 'shipment',
-        status: 'completed',
-        quantity: shipmentQuantity,
-        unit: material.unit || 'adet',
-        stockBefore: previousStock,
-        stockAfter: newStock,
-        warehouse: 'Warehouse',
-        location: material.storage || 'Main',
-        notes: description || `Sevkiyat: ${shipmentQuantity} ${material.unit}`,
-        reason: workOrderCode ? `Work Order: ${workOrderCode}` : 'Shipment',
-        movementDate: new Date(),
-        approved: true,
-        userId: user?.uid || 'system',
-        userName: user?.email || 'system'
-      })
-      .returning('*');
-
-    // 2. Update material stock
-    await trx('materials.materials')
-      .where({ id: material.id })
-      .update({ stock: newStock });
-
-    // 3. Create shipment record
-    const [shipment] = await trx('materials.shipments')
-      .insert({
-        productCode: productCode,
-        productName: material.name,
-        shipmentQuantity: shipmentQuantity,
-        unit: material.unit || 'adet',
-        status: 'pending',
-        planId: planId || null,
-        workOrderCode: workOrderCode || null,
-        quoteId: quoteId || null,
-        stockMovementId: stockMovement.id,
-        description: description || null,
-        createdBy: user?.email || 'system',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-      .returning('*');
-
-    await trx.commit();
-
-    return {
-      shipment,
-      stockMovement,
-      previousStock,
-      newStock
-    };
-  } catch (error) {
-    await trx.rollback();
+  // Validate
+  if (!items || items.length === 0) {
+    const error = new Error('En az bir kalem gerekli');
+    error.code = 'VALIDATION_ERROR';
     throw error;
   }
+  
+  // Validate each item
+  for (const item of items) {
+    if (!item.materialCode) {
+      const error = new Error('Her kalem için malzeme kodu gerekli');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+    if (!item.quantity || parseFloat(item.quantity) <= 0) {
+      const error = new Error('Her kalem için pozitif miktar gerekli');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+  }
+  
+  try {
+    const result = await Shipments.createShipment(shipmentData, items, user);
+    return result;
+  } catch (error) {
+    // Re-throw with appropriate code
+    if (!error.code) {
+      error.code = 'CREATE_ERROR';
+    }
+    throw error;
+  }
+}
+
+/**
+ * Create a quick shipment from stock page (single item)
+ * Backwards compatible with old single-item flow
+ * @param {Object} data - Single item shipment data
+ * @param {Object} user - Current user
+ * @returns {Object} Created shipment
+ */
+export async function createQuickShipment(data, user) {
+  const { productCode, shipmentQuantity, planId, workOrderCode, quoteId, description, lotNumber } = data;
+  
+  // Validate required fields
+  if (!productCode || !shipmentQuantity) {
+    const error = new Error('productCode ve shipmentQuantity zorunludur');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  
+  if (parseFloat(shipmentQuantity) <= 0) {
+    const error = new Error('Miktar pozitif olmalıdır');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  
+  // Convert to multi-item format
+  const shipmentDataObj = {
+    planId,
+    workOrderCode,
+    quoteId,
+    notes: description
+  };
+  
+  const itemsArray = [{
+    materialCode: productCode,
+    quantity: shipmentQuantity,
+    notes: description,
+    lotNumber
+  }];
+  
+  return createShipment({ ...shipmentDataObj, items: itemsArray }, user);
 }
 
 /**
  * Get all shipments with optional filters
+ * @param {Object} filters - Filter options
+ * @returns {Array} Shipments with items
  */
 export async function getShipments(filters = {}) {
-  const { productCode, status, planId, workOrderCode, quoteId, startDate, endDate, limit, offset } = filters;
-
-  let query = db('materials.shipments')
-    .select('*')
-    .orderBy('createdAt', 'desc');
-
-  if (productCode) {
-    query = query.where('productCode', productCode);
-  }
-  if (status) {
-    query = query.where('status', status);
-  }
-  if (planId) {
-    query = query.where('planId', planId);
-  }
-  if (workOrderCode) {
-    query = query.where('workOrderCode', workOrderCode);
-  }
-  if (quoteId) {
-    query = query.where('quoteId', quoteId);
-  }
-  if (startDate) {
-    query = query.where('createdAt', '>=', startDate);
-  }
-  if (endDate) {
-    query = query.where('createdAt', '<=', endDate);
-  }
-  if (limit) {
-    query = query.limit(parseInt(limit, 10));
-  }
-  if (offset) {
-    query = query.offset(parseInt(offset, 10));
-  }
-
-  return query;
+  return Shipments.getAllShipments(filters);
 }
 
 /**
  * Get shipment by ID
+ * @param {number} id - Shipment ID
+ * @returns {Object} Shipment with items
  */
 export async function getShipmentById(id) {
-  const shipment = await db('materials.shipments')
-    .where('id', id)
-    .first();
-
-  if (!shipment) {
-    const error = new Error('Shipment not found');
-    error.code = 'NOT_FOUND';
-    throw error;
-  }
-
-  return shipment;
+  return Shipments.getShipmentById(id);
 }
 
 /**
- * Update shipment
+ * Get shipment by code
+ * @param {string} code - Shipment code
+ * @returns {Object} Shipment with items
+ */
+export async function getShipmentByCode(code) {
+  return Shipments.getShipmentByCode(code);
+}
+
+/**
+ * Update shipment header
+ * @param {number} id - Shipment ID
+ * @param {Object} updates - Fields to update
+ * @returns {Object} Updated shipment
  */
 export async function updateShipment(id, updates) {
-  const shipment = await db('materials.shipments')
-    .where('id', id)
-    .first();
-
-  if (!shipment) {
-    const error = new Error('Shipment not found');
-    error.code = 'NOT_FOUND';
-    throw error;
-  }
-
-  // Can't update if delivered or cancelled
-  if (shipment.status === SHIPMENT_STATUSES.DELIVERED || 
-      shipment.status === SHIPMENT_STATUSES.CANCELLED) {
-    const error = new Error('Cannot update completed shipment');
-    error.code = 'INVALID_STATUS';
-    throw error;
-  }
-
-  const updateData = {
-    ...updates,
-    updatedAt: new Date()
-  };
-
-  await db('materials.shipments')
-    .where('id', id)
-    .update(updateData);
-
-  return getShipmentById(id);
+  return Shipments.updateShipment(id, updates);
 }
 
 /**
  * Update shipment status
+ * @param {number} id - Shipment ID
+ * @param {string} newStatus - New status
+ * @param {string} updatedBy - User making update
+ * @returns {Object} Updated shipment
  */
 export async function updateShipmentStatus(id, newStatus, updatedBy) {
-  const shipment = await db('materials.shipments')
-    .where('id', id)
-    .first();
-
-  if (!shipment) {
-    const error = new Error('Shipment not found');
-    error.code = 'NOT_FOUND';
-    throw error;
-  }
-
-  const currentStatus = shipment.status;
-  const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
-
-  if (!allowedTransitions.includes(newStatus)) {
-    const error = new Error(`Cannot transition from ${currentStatus} to ${newStatus}`);
-    error.code = 'INVALID_TRANSITION';
-    throw error;
-  }
-
-  const updateData = {
-    status: newStatus,
-    updatedAt: new Date(),
-    updatedBy: updatedBy
-  };
-
-  if (newStatus === SHIPMENT_STATUSES.SHIPPED) {
-    updateData.shippedAt = new Date();
-  } else if (newStatus === SHIPMENT_STATUSES.DELIVERED) {
-    updateData.deliveredAt = new Date();
-  } else if (newStatus === SHIPMENT_STATUSES.CANCELLED) {
-    updateData.cancelledAt = new Date();
-  }
-
-  await db('materials.shipments')
-    .where('id', id)
-    .update(updateData);
-
-  return getShipmentById(id);
+  return Shipments.updateShipmentStatus(id, newStatus, updatedBy);
 }
 
 /**
- * Cancel shipment
+ * Cancel shipment and restore stock
+ * @param {number} id - Shipment ID
+ * @param {string} reason - Cancellation reason
+ * @param {string} cancelledBy - User cancelling
+ * @returns {Object} Cancelled shipment
  */
 export async function cancelShipment(id, reason, cancelledBy) {
-  const shipment = await db('materials.shipments')
-    .where('id', id)
-    .first();
-
-  if (!shipment) {
-    const error = new Error('Shipment not found');
-    error.code = 'NOT_FOUND';
-    throw error;
-  }
-
-  if (shipment.status === SHIPMENT_STATUSES.DELIVERED) {
-    const error = new Error('Cannot cancel delivered shipment');
-    error.code = 'ALREADY_DELIVERED';
-    throw error;
-  }
-
-  if (shipment.status === SHIPMENT_STATUSES.CANCELLED) {
-    const error = new Error('Shipment already cancelled');
-    error.code = 'ALREADY_CANCELLED';
-    throw error;
-  }
-
-  await db('materials.shipments')
-    .where('id', id)
-    .update({
-      status: SHIPMENT_STATUSES.CANCELLED,
-      cancellationReason: reason,
-      cancelledAt: new Date(),
-      cancelledBy: cancelledBy,
-      updatedAt: new Date()
-    });
-
-  return getShipmentById(id);
+  return Shipments.cancelShipment(id, reason, cancelledBy);
 }
+
+/**
+ * Delete shipment
+ * @param {number} id - Shipment ID
+ * @returns {boolean} Success
+ */
+export async function deleteShipment(id) {
+  return Shipments.deleteShipment(id);
+}
+
+/**
+ * Get shipment statistics
+ * @returns {Object} Statistics
+ */
+export async function getShipmentStats() {
+  return Shipments.getShipmentStats();
+}
+
+// ============================================
+// SHIPMENT ITEMS CRUD
+// ============================================
+
+/**
+ * Get items for a shipment
+ * @param {number} shipmentId - Shipment ID
+ * @returns {Array} Shipment items
+ */
+export async function getShipmentItems(shipmentId) {
+  return ShipmentItems.getItemsByShipment(shipmentId);
+}
+
+/**
+ * Get single item by ID
+ * @param {number} itemId - Item ID
+ * @returns {Object} Shipment item
+ */
+export async function getShipmentItemById(itemId) {
+  return ShipmentItems.getItemById(itemId);
+}
+
+/**
+ * Add item to existing shipment
+ * @param {number} shipmentId - Shipment ID
+ * @param {Object} itemData - Item data
+ * @param {Object} user - Current user
+ * @returns {Object} Created item
+ */
+export async function addItemToShipment(shipmentId, itemData, user) {
+  // Validate
+  if (!itemData.materialCode) {
+    const error = new Error('Malzeme kodu gerekli');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  if (!itemData.quantity || parseFloat(itemData.quantity) <= 0) {
+    const error = new Error('Pozitif miktar gerekli');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  
+  return ShipmentItems.addItemToShipment(shipmentId, itemData, user);
+}
+
+/**
+ * Remove item from shipment
+ * @param {number} itemId - Item ID
+ * @param {Object} user - Current user
+ * @returns {boolean} Success
+ */
+export async function removeItemFromShipment(itemId, user) {
+  return ShipmentItems.removeItemFromShipment(itemId, user);
+}
+
+/**
+ * Update item quantity
+ * @param {number} itemId - Item ID
+ * @param {number} newQuantity - New quantity
+ * @param {Object} user - Current user
+ * @returns {Object} Updated item
+ */
+export async function updateItemQuantity(itemId, newQuantity, user) {
+  if (!newQuantity || parseFloat(newQuantity) <= 0) {
+    const error = new Error('Pozitif miktar gerekli');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  
+  return ShipmentItems.updateItemQuantity(itemId, newQuantity, user);
+}
+
+/**
+ * Update item notes
+ * @param {number} itemId - Item ID
+ * @param {string} notes - New notes
+ * @returns {Object} Updated item
+ */
+export async function updateItemNotes(itemId, notes) {
+  return ShipmentItems.updateItemNotes(itemId, notes);
+}
+
+/**
+ * Get items by material code (shipment history)
+ * @param {string} materialCode - Material code
+ * @param {Object} filters - Optional filters
+ * @returns {Array} Shipment items
+ */
+export async function getItemsByMaterial(materialCode, filters = {}) {
+  return ShipmentItems.getItemsByMaterial(materialCode, filters);
+}
+
+/**
+ * Get shipment item statistics
+ * @param {Object} filters - Optional filters
+ * @returns {Object} Statistics
+ */
+export async function getItemStats(filters = {}) {
+  return ShipmentItems.getItemStats(filters);
+}
+
+// ============================================
+// HELPER DATA (for dropdowns)
+// ============================================
 
 /**
  * Get approved quotes for shipment
@@ -349,3 +335,29 @@ export async function getCompletedWorkOrdersForShipment() {
     createdAt: wo.createdAt
   }));
 }
+
+/**
+ * Get materials for shipment (with stock > 0)
+ */
+export async function getMaterialsForShipment() {
+  const materials = await db('materials.materials')
+    .select('id', 'code', 'name', 'stock', 'reserved', 'wipReserved', 'unit')
+    .where('stock', '>', 0)
+    .orderBy('name');
+
+  return materials.map(m => {
+    const availableStock = parseFloat(m.stock) - parseFloat(m.reserved || 0) - parseFloat(m.wipReserved || 0);
+    return {
+      id: m.id,
+      code: m.code,
+      name: m.name,
+      label: `${m.code} - ${m.name}`,
+      stock: parseFloat(m.stock),
+      availableStock,
+      unit: m.unit || 'adet'
+    };
+  }).filter(m => m.availableStock > 0);
+}
+
+// Export constants
+export { SHIPMENT_STATUSES, VALID_TRANSITIONS };
