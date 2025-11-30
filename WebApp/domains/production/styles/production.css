@@ -347,12 +347,7 @@ body {
 }
 
 /* Detail Row - key/value layout */
-.detail-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
+.detail-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px }
 
 .skills-grid {
   max-height: 200px;
@@ -457,17 +452,9 @@ body {
 }
 
 /* Flex utilities */
-.flex-center-gap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.flex-center-gap { display: flex; align-items: center; gap: 8px }
 
-.flex-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+.flex-between { display: flex; justify-content: space-between; align-items: center }
 
 .flex-wrap-gap-sm {
   display: flex;
@@ -595,12 +582,6 @@ body {
   flex: 1;
 }
 
-.station-detail-row {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
 .station-detail-row.no-margin-bottom {
   margin-bottom: 0;
 }
@@ -680,24 +661,6 @@ body {
   font-size: 12px;
 }
 
-/* Skills Input Row */
-.skills-input-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 6px;
-}
-
-/* Skills Grid */
-.skills-grid {
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 8px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0px, 1fr));
-  gap: 6px;
-}
-
 /* Substation Item Row */
 .substation-item-row {
   display: flex;
@@ -720,35 +683,16 @@ body {
   border: 1px solid var(--border);
 }
 
-.substation-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* Substation List Grid */
 .substation-list-grid {
   display: grid;
   gap: 4px;
 }
 
-.view-detail-row {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
 .view-detail-row-last {
   display: flex;
   align-items: flex-start;
   margin-bottom: 0;
-}
-
-/* Flex Layouts */
-.view-flex-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .view-flex-between-sm {
@@ -762,12 +706,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.view-flex-center-gap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .view-flex-center-gap-12 {
@@ -1080,12 +1018,6 @@ body {
   gap: 16px;
 }
 
-.pd-flex-gap-6 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* ====================================================================== */
 /* === COMPONENTS: CARDS === */
 /* ====================================================================== */
@@ -1144,31 +1076,11 @@ body {
   background: rgb(248, 249, 250);
 }
 
-.skill-card-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 /* ========================================
    WORKERS.JS REUSABLE PATTERNS
    ======================================== */
 /* Section Card - White card container with border */
-.section-card {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid rgb(229, 231, 235);
-}
-
-/* Station Card */
-.station-card {
-  padding: 8px;
-  background: rgb(249, 250, 251);
-  border-radius: 4px;
-  border: 1px solid rgb(229, 231, 235);
-}
+.section-card { margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border) }
 
 .station-card-header {
   display: flex;
@@ -1220,26 +1132,12 @@ body {
   font-weight: 500;
 }
 
-.skill-card-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 /* Worker Section Styles */
 .worker-card-placeholder {
   width: 24px;
   height: 24px;
   margin-bottom: 8px;
   opacity: 0.5;
-}
-
-/* Worker Card Styles */
-.worker-card {
-  padding: 8px;
-  background: rgb(249, 250, 251);
-  border-radius: 4px;
-  border: 1px solid rgb(229, 231, 235);
 }
 
 .worker-card-header {
@@ -1282,15 +1180,6 @@ body {
   background: rgb(249, 250, 251);
   border-left: 3px solid rgb(156, 163, 175);
   border-radius: 4px;
-}
-
-/* Card and Container Patterns */
-.view-card {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid var(--border);
 }
 
 .view-card-full {
@@ -1766,11 +1655,6 @@ body {
   cursor: pointer;
 }
 
-.btn-icon {
-  display: flex;
-  align-items: center;
-}
-
 .operation-btn-sm {
   display: none;
   font-size: 0.75em;
@@ -1893,15 +1777,6 @@ body {
   cursor: pointer;
 }
 
-.btn-add-skill {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  background: white;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
 /* Substation Buttons */
 .btn-status-toggle {
   padding: 1px 2px;
@@ -1918,15 +1793,6 @@ body {
   color: #ef4444;
   border-radius: 4px;
   font-size: 11px;
-  cursor: pointer;
-}
-
-.btn-add-substation {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  background: white;
-  border-radius: 4px;
-  font-size: 12px;
   cursor: pointer;
 }
 
@@ -2504,15 +2370,6 @@ body {
   font-size: 10px;
 }
 
-.count-badge {
-  background: rgb(229, 231, 235);
-  color: rgb(55, 65, 81);
-  padding: 1px 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
 /* Status Badges */
 .status-badge-pending {
   background: rgb(220, 252, 231);
@@ -2762,12 +2619,7 @@ select.mes-filter-input.is-compact {
   border: 1px solid #d1d5db;
 }
 
-.detail-label {
-  min-width: 120px;
-  font-weight: 600;
-  font-size: 12px;
-  color: rgb(55, 65, 81);
-}
+.detail-label { min-width: 120px; font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); margin-right: 8px }
 
 .skills-search-input {
   width: 100%;
@@ -2976,14 +2828,6 @@ select.mes-filter-input.is-compact {
   white-space: nowrap;
 }
 
-.station-detail-label {
-  font-weight: 600;
-  font-size: 12px;
-  color: rgb(55, 65, 81);
-  min-width: 120px;
-  margin-right: 8px;
-}
-
 .sub-info-label {
   font-size: 11px;
   color: var(--muted-foreground);
@@ -3057,18 +2901,6 @@ select.mes-filter-input.is-compact {
   border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 12px;
-}
-
-/* ============================================
-   VIEWS.JS - REFACTORED STYLES
-   ============================================ */
-/* Detail Row Patterns (most frequent - 44 occurrences) */
-.view-detail-label {
-  font-weight: 600;
-  font-size: 12px;
-  color: rgb(55, 65, 81);
-  min-width: 120px;
-  margin-right: 8px;
 }
 
 /* Form Elements */
@@ -3369,11 +3201,7 @@ select.mes-filter-input.is-compact {
   align-items: center;
 }
 
-.modal-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
+.modal-title { margin: 0; font-size: 18px; font-weight: 600 }
 
 .modal-body {
   padding: 20px;
@@ -3411,11 +3239,7 @@ select.mes-filter-input.is-compact {
   color: var(--muted-foreground);
 }
 
-.modal-error-state {
-  padding: 20px;
-  text-align: center;
-  color: #ef4444;
-}
+.text-error { padding: 20px; text-align: center; color: #ef4444 }
 
 /* Modal max-width utility */
 .modal-content-md {
@@ -3552,13 +3376,6 @@ select.mes-filter-input.is-compact {
   align-items: center;
 }
 
-/* Modal heading */
-.view-modal-title-lg {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
 .view-modal-title-md {
   margin: 0;
   font-size: 16px;
@@ -3640,7 +3457,7 @@ select.mes-filter-input.is-compact {
   white-space: nowrap;
 }
 
-.mes-table {
+.table {
   width: 100%;
   border-collapse: collapse;
 }
@@ -3675,12 +3492,6 @@ select.mes-filter-input.is-compact {
 
 .workers-table .mes-table-body td {
   padding: 2px 8px;
-}
-
-/* Modern Table */
-.table {
-  width: 100%;
-  border-collapse: collapse;
 }
 
 .table th,
@@ -4746,31 +4557,6 @@ select.mes-filter-input.is-compact {
   overflow: hidden;
 }
 
-.skills-header {
-  padding: 8px 12px;
-  background: rgb(248, 249, 250);
-  border-bottom: 1px solid var(--border);
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--foreground);
-}
-
-.skills-display {
-  padding: 8px 12px;
-  background: white;
-  border-bottom: 1px solid var(--border);
-  min-height: 20px;
-  font-size: 12px;
-}
-
-/* Skills Interface */
-.modern-skills-interface {
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
 /* Skill Tags */
 .skill-tag-inherited {
   background-color: rgb(219, 234, 254);
@@ -4799,10 +4585,7 @@ select.mes-filter-input.is-compact {
 /* ====================================================================== */
 /* === DOMAIN: VIEWS === */
 /* ====================================================================== */
-.view-detail-value {
-  flex: 1 1 0%;
-  font-size: 12px;
-}
+.detail-value { flex: 1 1 0%; font-size: 12px; color: rgb(17, 24, 39) }
 
 .view-detail-value-mono {
   flex: 1 1 0%;
@@ -4903,10 +4686,7 @@ select.mes-filter-input.is-compact {
   color: var(--muted-foreground);
 }
 
-.view-text-sm {
-  font-size: 12px;
-  color: #6b7280;
-}
+.text-muted { font-size: 12px; color: rgb(107, 114, 128) }
 
 .view-text-xs {
   font-size: 11px;
@@ -4929,10 +4709,7 @@ select.mes-filter-input.is-compact {
 }
 
 /* Empty States */
-.view-empty-center {
-  text-align: center;
-  color: var(--muted-foreground);
-}
+.empty-message { text-align: center; color: rgb(107, 114, 128); padding: 20px; font-style: italic; font-size: 12px }
 
 .view-empty-padded {
   text-align: center;
@@ -5125,11 +4902,6 @@ select.mes-filter-input.is-compact {
   color: #9ca3af;
 }
 
-.view-text-11-gray {
-  font-size: 11px;
-  color: #6b7280;
-}
-
 .view-heading-lg-success {
   font-size: 20px;
   font-weight: 700;
@@ -5189,12 +4961,6 @@ select.mes-filter-input.is-compact {
   color: #ef4444;
   background: #fee;
   border-radius: 8px;
-}
-
-.view-error-text {
-  padding: 20px;
-  text-align: center;
-  color: #ef4444;
 }
 
 /* Info Boxes */
@@ -5594,25 +5360,12 @@ select.mes-filter-input.is-compact {
   overflow: hidden;
 }
 
-/* Empty/Error States */
-.pm-empty {
-  text-align: center;
-  padding: 20px;
-  color: #6b7280;
-}
-
 .pm-empty-box {
   text-align: center;
   padding: 20px;
   color: #6b7280;
   background: #f9fafb;
   border-radius: 4px;
-}
-
-.pm-error {
-  text-align: center;
-  padding: 20px;
-  color: #ef4444;
 }
 
 /* Status Cells */
@@ -5838,96 +5591,6 @@ select.mes-filter-input.is-compact {
 @media (min-width: 769px) {
   .mobile-nav-toggle {
     display: none;
-  }
-}
-
-/* Enhanced mobile sidebar */
-/* Show all nav groups when sidebar is open */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    top: 70px;
-    left: 0;
-    bottom: 0;
-    width: 280px;
-    height: calc(100vh - 70px);
-    max-height: none;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-  }
-  
-  .sidebar.mobile-open {
-    transform: translateX(0);
-  }
-  
-  .sidebar .nav-group {
-    display: block; 
-  }
-  
-  .mobile-overlay {
-    position: fixed;
-    top: 70px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 999;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-  }
-  
-  .mobile-overlay.active {
-    opacity: 1;
-    visibility: visible;
-  }
-}
-
-/* Improved touch targets for mobile */
-@media (max-width: 768px) {
-  .nav-item {
-    padding: 16px;
-    font-size: 16px;
-  }
-  
-  button {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  .badge {
-    font-size: 14px;
-    padding: 6px 12px;
-  }
-}
-
-@media (max-width: 768px) {
-  .help-button { bottom: 16px; right: 16px; width: 48px; height: 48px; font-size: 18px; }
-  .help-panel { width: 95%; max-height: 90vh; }
-  .help-header { padding: 16px; }
-  .help-content { padding: 16px; max-height: calc(90vh - 100px); }
-  .help-tabs { flex-wrap: wrap; }
-  .help-tab { padding: 8px 16px; font-size: 13px; }
-}
-
-/* Entity Relations Responsive */
-@media (max-width: 768px) {
-  .entity-relation-section {
-    padding: 16px;
-  }
-
-  .relation-row {
-    padding: 12px;
-  }
-
-  .relation-name {
-    font-size: 14px;
-  }
-
-  .relation-details {
-    font-size: 12px;
   }
 }
 
@@ -6262,17 +5925,6 @@ select.mes-filter-input.is-compact {
 
 .state-text-preparing { color: #9ca3af; }
 
-/* Text Utilities */
-.text-muted {
-  font-size: 12px;
-  color: rgb(107, 114, 128);
-}
-
-.text-primary {
-  font-size: 12px;
-  color: rgb(17, 24, 39);
-}
-
 .absence-item-active {
   border-left: 3px solid rgb(220, 38, 38);
 }
@@ -6351,10 +6003,7 @@ select.mes-filter-input.is-compact {
 }
 
 /* Loading State */
-.loading-text-muted {
-  font-size: 14px;
-  color: rgb(107, 114, 128);
-}
+.loading-text { font-size: 14px; color: rgb(107, 114, 128) }
 
 /* Icon with muted color */
 .icon-14-muted {
@@ -6660,15 +6309,6 @@ span i {
   background: repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 0, transparent 3px);
 }
 
-/* ==========================================================================
-   OPERATIONS & COMMON UI STYLES
-   ========================================================================== */
-/* Loading/Error States */
-.loading-text {
-  padding: 12px;
-  color: #888;
-}
-
 .error-text {
   padding: 12px;
   color: #ef4444;
@@ -6682,25 +6322,6 @@ span i {
 .empty-cell-text {
   padding: 8px;
   color: #666;
-}
-
-.detail-value {
-  font-size: 12px;
-  color: rgb(17, 24, 39);
-}
-
-.detail-value-muted {
-  font-size: 12px;
-  color: rgb(107, 114, 128);
-}
-
-/* Detail Section Card */
-.detail-section {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid rgb(229, 231, 235);
 }
 
 .detail-section-title {
@@ -6886,15 +6507,6 @@ span i {
 
 .link-primary:hover {
   text-decoration: underline;
-}
-
-/* Empty State Messages */
-.empty-message {
-  text-align: center;
-  padding: 20px;
-  color: rgb(107, 114, 128);
-  font-style: italic;
-  font-size: 12px;
 }
 
 .empty-message-sm {
@@ -7097,15 +6709,6 @@ span i {
   color: #1e40af;
 }
 
-/* Station Detail Styles */
-.station-detail-section {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-
 .station-detail-section.no-margin-bottom {
   margin-bottom: 0;
 }
@@ -7119,19 +6722,9 @@ span i {
   padding-bottom: 6px;
 }
 
-.station-detail-value {
-  flex: 1 1 0%;
-  font-size: 12px;
-}
-
 .station-loading {
   padding: 20px;
   text-align: center;
-}
-
-.station-loading-text {
-  font-size: 14px;
-  color: rgb(107, 114, 128);
 }
 
 /* Substation List Styles */
@@ -7154,15 +6747,6 @@ span i {
   color: rgb(17, 24, 39);
 }
 
-/* Empty/Loading States */
-.empty-state-center {
-  text-align: center;
-  padding: 20px;
-  color: rgb(107, 114, 128);
-  font-style: italic;
-  font-size: 12px;
-}
-
 .font-500 {
   font-weight: 500;
 }
@@ -7180,22 +6764,11 @@ span i {
   font-size: 12px;
 }
 
-/* Filter Count */
-.filter-count {
-  color: var(--muted-foreground);
-  font-size: 11px;
-}
-
 /* Detail Value Variants */
 .detail-value-mono {
   font-size: 12px;
   color: rgb(17, 24, 39);
   font-family: monospace;
-}
-
-.detail-value-text {
-  font-size: 12px;
-  color: rgb(17, 24, 39);
 }
 
 .current-task-header {
@@ -7350,32 +6923,6 @@ span i {
   color: rgb(127, 29, 29);
   font-size: 12px;
   text-align: center;
-}
-
-/* Loading Text */
-.loading-text {
-  color: #888;
-}
-
-.error-text {
-  color: #ef4444;
-}
-
-.substation-code {
-  font-family: monospace;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.substation-hint {
-  font-size: 10px;
-  color: rgb(156, 163, 175);
-  font-style: italic;
-}
-
-.substation-actions {
-  display: flex;
-  gap: 8px;
 }
 
 /* Empty Substation Message */
