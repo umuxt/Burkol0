@@ -39,7 +39,7 @@ export async function initializeOperationsUI() {
 
 async function loadOperationsAndRender() {
   const container = document.getElementById('operations-list-container')
-  if (container) container.innerHTML = `<div style="padding:12px; color:#888;">Loading operations...</div>`
+  if (container) container.innerHTML = `<div class="loading-text">Loading operations...</div>`
   const body = document.getElementById('operations-table-body')
   if (body) {
     body.innerHTML = buildOperationsRows([], 'Loading operations...')
@@ -50,7 +50,7 @@ async function loadOperationsAndRender() {
     renderOperations()
   } catch (e) {
     console.error('Operations load error:', e)
-    if (container) container.innerHTML = `<div style="padding:12px; color:#ef4444;">Operations yüklenemedi.</div>`
+    if (container) container.innerHTML = `<div class="error-text">Operations yüklenemedi.</div>`
     showErrorToast('Operations yüklenemedi')
   }
 }
@@ -72,7 +72,7 @@ function renderOperations() {
   const container = document.getElementById('operations-list-container')
   if (!container) return
   if (!operationsState.length) {
-    container.innerHTML = `<div style="padding:12px; color:#666;">No operations yet. Add your first operation.</div>`
+    container.innerHTML = `<div class="empty-text">No operations yet. Add your first operation.</div>`
     return
   }
   container.innerHTML = `
@@ -92,7 +92,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
   const columnCount = legacy ? 6 : 5
   if (!items.length) {
     if (legacy) {
-      return `<tr><td colspan="${columnCount}" style="padding:8px; color:#666;">${escapeHtml(emptyText)}</td></tr>`
+      return `<tr><td colspan="${columnCount}" class="empty-cell-text">${escapeHtml(emptyText)}</td></tr>`
     }
     return `
       <tr class="mes-table-row is-empty">
@@ -122,7 +122,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
     // Efficiency badge (separate column)
     const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
     const efficiencyBadge = efficiencyPercent !== 100
-      ? `<span class="badge badge-info" style="margin-left: 8px;">${efficiencyPercent}%</span>`
+      ? `<span class="badge badge-info badge-info-inline">${efficiencyPercent}%</span>`
       : ''
     const efficiencyMarkup = efficiencyPercent !== 100
       ? (legacy ? `${efficiencyPercent}%` : `<span class="badge badge-info">${efficiencyPercent}%</span>`)
@@ -137,7 +137,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
       ? (legacy
         ? skills.map(s => {
             const skillName = getSkillName(s) // Convert ID to name
-            return `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(skillName)}</span>`
+            return `<span class="badge badge-outline skill-badge-outline">${escapeHtml(skillName)}</span>`
           }).join('')
         : `<div class="mes-tag-group">${skills.map(skill => {
             const skillName = getSkillName(skill) // Convert ID to name
@@ -155,8 +155,8 @@ function buildOperationsRows(list, emptyText, options = {}) {
     const actionMarkup = legacy
       ? `
         <td>
-          <button onclick="editOperation('${op.id}')" style="padding:4px 8px; margin-right:4px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">Edit</button>
-          <button onclick="deleteOperation('${op.id}')" style="padding:4px 8px; border:1px solid #ef4444; background:white; color:#ef4444; border-radius:4px; cursor:pointer;">Delete</button>
+          <button onclick="editOperation('${op.id}')" class="btn-action-edit">Edit</button>
+          <button onclick="deleteOperation('${op.id}')" class="btn-action-delete">Delete</button>
         </td>`
       : ''
 
@@ -233,13 +233,13 @@ export async function showOperationDetail(id) {
       skillsDisplay = op.skills
         .map(skillId => {
           const skillName = skillMap.get(skillId) || skillId
-          return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+          return `<span class="skill-badge">${escapeHtml(skillName)}</span>`
         })
         .join('')
     }
   } catch (e) {
     console.error('Error loading skills for display:', e)
-    skillsDisplay = '<span style="font-size:12px; color: rgb(239,68,68);">Skills yüklenemedi</span>'
+    skillsDisplay = '<span class="error-text">Skills yüklenemedi</span>'
   }
   
   let supervisorHtml = ''
@@ -249,33 +249,33 @@ export async function showOperationDetail(id) {
       const w = workers.find(x => x.id === op.supervisorId)
       if (w) {
         supervisorHtml = `
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.name || '')}</span></div>
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">E-posta:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.email || '-')}</span></div>
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Telefon:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.phone || '-')}</span></div>`
+          <div class="detail-row"><span class="detail-label">Şef:</span><span class="detail-value">${escapeHtml(w.name || '')}</span></div>
+          <div class="detail-row"><span class="detail-label">E-posta:</span><span class="detail-value">${escapeHtml(w.email || '-')}</span></div>
+          <div class="detail-row"><span class="detail-label">Telefon:</span><span class="detail-value">${escapeHtml(w.phone || '-')}</span></div>`
       } else {
-        supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+        supervisorHtml = `<div class="detail-row"><span class="detail-label">Şef:</span><span class="detail-value-muted">-</span></div>`
       }
     } else {
-      supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+      supervisorHtml = `<div class="detail-row"><span class="detail-label">Şef:</span><span class="detail-value-muted">-</span></div>`
     }
   } catch {
-    supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+supervisorHtml = `<div class="detail-row"><span class="detail-label">Şef:</span><span class="detail-value-muted">-</span></div>`
   }
 
   content.innerHTML = `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
-  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yüzdelik Fire Oranı:</span><span style="font-size:12px; color: rgb(17,24,39);">${defectRate}</span></div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Verimlilik:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(efficiencyDisplay)}</span></div>
+    <div class="detail-section">
+      <h3 class="detail-section-title">Temel Bilgiler</h3>
+      <div class="detail-row"><span class="detail-label">Operasyon Adı:</span><span class="detail-value">${escapeHtml(op.name||'')}</span></div>
+      <div class="detail-row"><span class="detail-label">Tür:</span><span class="detail-value">${escapeHtml(op.type||'General')}</span></div>
+      <div class="detail-row"><span class="detail-label">Yarı Mamül Kodu:</span><span class="detail-value">${escapeHtml(op.semiOutputCode || '-')}</span></div>
+  <div class="detail-row"><span class="detail-label">Yüzdelik Fire Oranı:</span><span class="detail-value">${defectRate}</span></div>
+      <div class="detail-row"><span class="detail-label">Verimlilik:</span><span class="detail-value">${escapeHtml(efficiencyDisplay)}</span></div>
       ${supervisorHtml}
       
     </div>
-    <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Gerekli Yetenekler</h3>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">${skillsDisplay}</div>
+    <div class="detail-section mb-0">
+      <h3 class="detail-section-title">Gerekli Yetenekler</h3>
+      <div class="skills-display">${skillsDisplay}</div>
     </div>
   `
 }
@@ -439,9 +439,9 @@ function openOperationModal(op = null) {
       const outputDetail = outputCodeEl && outputCodeEl.closest('.detail-item')
       if (outputDetail && outputDetail.parentElement) {
         const supervisorBlock = `
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Şef (Opsiyonel):</span>
-            <select id="operation-supervisor" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; min-width: 200px;">
+          <div class="detail-item supervisor-select-wrapper">
+            <span class="detail-label">Şef (Opsiyonel):</span>
+            <select id="operation-supervisor" class="supervisor-select">
               <option value="">— Şef seçilmedi —</option>
             </select>
           </div>`
@@ -455,7 +455,7 @@ function openOperationModal(op = null) {
 async function populateOperationSkillsBox() {
   const box = document.getElementById('operation-skills-box')
   if (!box) return
-  box.innerHTML = '<div style="color:#888;">Loading skills...</div>'
+  box.innerHTML = '<div class="loading-text">Loading skills...</div>'
   try {
     // ✅ Fetch skills from SQL instead of master data
     const { getSkillsFromSQL } = await import('./mesApi.js')
@@ -474,22 +474,22 @@ async function populateOperationSkillsBox() {
     
     // Create modern skills interface similar to worker skills
     box.innerHTML = `
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
-        <div class="detail-item" style="display: block;">
-          <select id="operation-skills" multiple style="display: none;"></select>
-          <div class="modern-skills-interface" style="background: white; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
-            <div class="selected-skills-header" style="padding: 8px 12px; background: rgb(248, 249, 250); border-bottom: 1px solid var(--border); font-weight: 500; font-size: 13px; color: var(--foreground);">
+      <div class="detail-section">
+        <h3 class="detail-section-title">Yetenekler</h3>
+        <div class="detail-item d-block">
+          <select id="operation-skills" multiple class="d-none"></select>
+          <div class="modern-skills-interface">
+            <div class="skills-header">
               ${selected.size > 0 ? `${selected.size} Skill Seçili` : 'Seçili Skill Yok'}
             </div>
-            <div class="selected-skills-display" style="padding: 8px 12px; background: white; border-bottom: 1px solid var(--border); min-height: 20px; font-size: 12px;">
+            <div class="skills-display-box">
               ${selected.size > 0 ? 
-                selectedNames.map(name => `<span style="display: inline-block; padding: 2px 6px; margin: 2px; background: rgb(248, 249, 250); border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">${escapeHtml(name)}</span>`).join('') :
-                '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
+                selectedNames.map(name => `<span class="skill-chip">${escapeHtml(name)}</span>`).join('') :
+                '<span class="skills-placeholder">Henüz skill seçilmedi</span>'
               }
             </div>
-            <input type="text" placeholder="Skill arayın..." class="skills-search" id="operation-skills-search" style="width: 100%; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); outline: none; font-size: 14px; box-sizing: border-box;">
-            <div class="skills-grid" style="max-height: 200px; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 6px;" id="operation-skills-grid"></div>
+            <input type="text" placeholder="Skill arayın..." class="skills-search-input" id="operation-skills-search">
+            <div class="skills-grid" id="operation-skills-grid"></div>
           </div>
         </div>
       </div>`
@@ -502,19 +502,8 @@ async function populateOperationSkillsBox() {
       grid.innerHTML = filteredSkills.map(s => {
         const isSelected = selected.has(s.id)
         return `
-          <div class="skill-card" data-skill-id="${escapeHtml(s.id)}" data-skill-name="${escapeHtml(s.name)}" style="
-            padding: 4px 6px; 
-            border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            transition: 0.2s; 
-            background: ${isSelected ? 'rgb(248, 249, 250)' : 'white'}; 
-            color: var(--foreground); 
-            font-weight: 400; 
-            font-size: 12px; 
-            text-align: center;
-          ">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div class="skill-card ${isSelected ? 'selected' : ''}" data-skill-id="${escapeHtml(s.id)}" data-skill-name="${escapeHtml(s.name)}">
+            <div class="skill-card-content">
               <span>${escapeHtml(s.name)}</span>
             </div>
           </div>`
@@ -593,7 +582,7 @@ async function populateOperationSkillsBox() {
     
   } catch (e) {
     console.error('populateOperationSkillsBox error', e)
-    box.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
+    box.innerHTML = '<div class="error-text">Skills yüklenemedi</div>'
   }
 }
 
@@ -722,21 +711,21 @@ async function populateOperationSupervisorSelect(currentId = '') {
 export function openOperationTypesModal() {
   // Create modal HTML
   const modalHTML = `
-    <div id="operation-types-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-      <div style="background: white; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.15);">
-        <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-          <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Operasyon Tipleri Yönetimi</h2>
-          <button onclick="closeOperationTypesModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; padding: 0; color: var(--muted-foreground);">×</button>
+    <div id="operation-types-modal" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h2 class="modal-title">Operasyon Tipleri Yönetimi</h2>
+          <button onclick="closeOperationTypesModal()" class="modal-close-btn">×</button>
         </div>
-        <div style="padding: 20px; max-height: 50vh; overflow-y: auto;">
-          <div style="margin-bottom: 16px;">
-            <div style="display: flex; gap: 8px; align-items: stretch;">
-              <input id="new-operation-type-input" type="text" placeholder="Yeni operasyon tipi adı..." style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;">
-              <button onclick="addOperationTypeFromModal()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Ekle</button>
+        <div class="modal-body">
+          <div class="modal-form-group">
+            <div class="modal-form-row">
+              <input id="new-operation-type-input" type="text" placeholder="Yeni operasyon tipi adı..." class="modal-input">
+              <button onclick="addOperationTypeFromModal()" class="modal-btn-primary">Ekle</button>
             </div>
           </div>
-          <div id="operation-types-list" style="border: 1px solid var(--border); border-radius: 6px; background: white;">
-            <div style="padding: 12px; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="operation-types-list" class="modal-list">
+            <div class="loading-text">Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -786,7 +775,7 @@ async function loadOperationTypes() {
     
     if (operationTypes.length === 0) {
       listContainer.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: var(--muted-foreground);">
+        <div class="modal-empty-state">
           Henüz operasyon tipi eklenmemiş.
         </div>
       `
@@ -794,18 +783,18 @@ async function loadOperationTypes() {
     }
     
     listContainer.innerHTML = operationTypes.map(ot => `
-      <div style="display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); background: white;">
-        <div style="flex: 1; font-weight: 500;">${escapeHtml(ot.name)}</div>
-        <div style="display: flex; gap: 8px;">
-          <button onclick="editOperationType('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
-          <button onclick="deleteOperationTypeConfirm('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
+      <div class="modal-list-item">
+        <div class="modal-list-item-name">${escapeHtml(ot.name)}</div>
+        <div class="modal-list-item-actions">
+          <button onclick="editOperationType('${ot.id}', '${escapeHtml(ot.name)}')" class="btn-action-edit"><i class="fa-solid fa-edit"></i> Düzenle</button>
+          <button onclick="deleteOperationTypeConfirm('${ot.id}', '${escapeHtml(ot.name)}')" class="btn-action-delete"><i class="fa-solid fa-trash"></i> Sil</button>
         </div>
       </div>
     `).join('')
   } catch (error) {
     console.error('Error loading operation types:', error)
     listContainer.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: #ef4444;">
+      <div class="modal-error-state">
         Operasyon tipleri yüklenirken hata oluştu.
       </div>
     `
@@ -892,22 +881,22 @@ async function loadOperationTypeDropdown() {
     
     if (filtered.length === 0) {
       dropdown.innerHTML = `
-        <div style="padding: 8px 12px; color: var(--muted-foreground); font-size: 12px;">
+        <div class="dropdown-item-muted">
           No matching operation types
         </div>
-        <div onclick="addNewOperationTypeFromInput()" style="padding: 8px 12px; cursor: pointer; background: var(--primary); color: var(--primary-foreground); font-size: 12px;">
+        <div onclick="addNewOperationTypeFromInput()" class="dropdown-item-add">
           + Add "${input?.value || 'New Type'}" as new type
         </div>
       `
     } else {
       dropdown.innerHTML = [
         ...filtered.map(ot => `
-          <div onclick="selectOperationTypeFromDropdown('${escapeHtml(ot.name)}')" style="padding: 8px 12px; cursor: pointer; font-size: 14px; border-bottom: 1px solid var(--border);" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='white'">
+          <div onclick="selectOperationTypeFromDropdown('${escapeHtml(ot.name)}')" class="dropdown-item">
             ${escapeHtml(ot.name)}
           </div>
         `),
         input?.value && !operationTypes.some(ot => ot.name.toLowerCase() === input.value.toLowerCase()) ? 
-          `<div onclick="addNewOperationTypeFromInput()" style="padding: 8px 12px; cursor: pointer; background: var(--primary); color: var(--primary-foreground); font-size: 12px; border-top: 1px solid var(--border);">
+          `<div onclick="addNewOperationTypeFromInput()" class="dropdown-item-add-alt">
             + Add "${escapeHtml(input.value)}" as new type
           </div>` : ''
       ].filter(Boolean).join('')
@@ -915,7 +904,7 @@ async function loadOperationTypeDropdown() {
   } catch (error) {
     console.error('Error loading operation types:', error)
     dropdown.innerHTML = `
-      <div style="padding: 8px 12px; color: #ef4444; font-size: 12px;">
+      <div class="dropdown-error">
         Error loading operation types
       </div>
     `

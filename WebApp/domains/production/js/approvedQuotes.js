@@ -724,28 +724,28 @@ function showCancelProgressModal(plan) {
     modal.className = 'modal-overlay';
     modal.style.zIndex = '10000';
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-content modal-content-md">
         <div class="modal-header">
           <h2 class="modal-title">⚠️ Üretim İptal - İlerleme Kaydı</h2>
           <button class="modal-close" onclick="this.closest('.modal-overlay').remove(); event.stopPropagation();">×</button>
         </div>
         <div class="modal-body">
-          <div style="margin-bottom: 20px; padding: 16px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
-            <div style="font-size: 14px; color: #92400e; font-weight: 600; margin-bottom: 8px;">
+          <div class="alert-box alert-box-warning">
+            <div class="alert-title">
               <i class="fa-solid fa-clipboard-list"></i> Plan: ${plan.name}
             </div>
-            <div style="font-size: 13px; color: #78350f;">
+            <div class="alert-content">
               İş Emri: ${plan.orderCode || '-'}<br>
               Planlanan Çıktı: ${totalPlannedOutput} ${outputUnit}
               ${outputCode ? `<br>Çıktı Kodu: ${outputCode}` : ''}
             </div>
           </div>
           
-          <div style="margin-bottom: 20px; padding: 16px; background: #fee2e2; border-left: 4px solid #dc2626; border-radius: 4px;">
-            <div style="font-size: 13px; color: #991b1b; font-weight: 600; margin-bottom: 6px;">
+          <div class="alert-box alert-box-danger">
+            <div class="alert-title">
               ⚠️ Önemli Bilgi
             </div>
-            <div style="font-size: 12px; color: #7f1d1d; line-height: 1.5;">
+            <div class="alert-content">
               Üretim iptal edilmeden önce, o ana kadar ne kadar üretim gerçekleştiğini girmeniz gerekiyor.
               Bu bilgi, malzeme stoklarının doğru şekilde güncellenmesi için kullanılacaktır.
             </div>
@@ -754,7 +754,7 @@ function showCancelProgressModal(plan) {
           <div class="form-group">
             <label class="form-label" for="cancelActualOutput">
               Üretilen Toplam Miktar (${outputUnit})
-              <span style="color: #dc2626;">*</span>
+              <span class="required-asterisk">*</span>
             </label>
             <input 
               type="number" 
@@ -785,9 +785,9 @@ function showCancelProgressModal(plan) {
             <p class="form-help">İptal anına kadar oluşan tüm hatalı/hurda ürünlerin toplamını girin.</p>
           </div>
           
-          <div style="margin-top: 20px; padding: 12px; background: #dbeafe; border-left: 4px solid #3b82f6; border-radius: 4px;">
-            <div style="font-size: 12px; color: #1e40af; line-height: 1.5;">
-              <strong><i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Not:</strong> Bu değerler, tüm görevlerin toplamı olmalıdır. 
+          <div class="alert-box alert-box-info">
+            <div class="alert-content">
+              <strong><i class="fa-solid fa-lightbulb icon-warning"></i> Not:</strong> Bu değerler, tüm görevlerin toplamı olmalıdır. 
               Sistem bu bilgilere göre malzeme stoklarını otomatik olarak düzeltecektir.
             </div>
           </div>
@@ -975,7 +975,7 @@ async function loadQuotesAndRender() {
     renderApprovedQuotesTable()
   } catch (e) {
     console.error('Approved quotes load error:', e)
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="color:#ef4444;">Quotes yüklenemedi.</td></tr>'
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="error-text">Quotes yüklenemedi.</td></tr>'
   }
 }
 
@@ -1119,11 +1119,11 @@ function renderApprovedQuotesTable() {
         const due = toMidnight(d)
         const daysDiff = Math.ceil((due - today) / msPerDay)
         if (daysDiff >= 0) {
-          const badge = `<span style=\"margin-left:6px; font-size:11px; padding:2px 6px; border-radius: 10px; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-weight: 600;\">${daysDiff}</span>`
+          const badge = `<span class="badge-success-pill">${daysDiff}</span>`
           deliveryCell = `${esc(deliveryDate)} ${badge}`
         } else {
           const overdue = Math.abs(daysDiff)
-          const late = `<span style=\"margin-left:6px; font-size:11px; padding:2px 6px; border-radius: 4px; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; font-weight: 600;\">${overdue} gün gecikti</span>`
+          const late = `<span class="badge-danger-pill">${overdue} gün gecikti</span>`
           deliveryCell = `${esc(deliveryDate)} ${late}`
         }
       } else {
@@ -1142,20 +1142,20 @@ function renderApprovedQuotesTable() {
       const planName = plan.name || ''
       // Check if template or production plan (based on status field)
       const isTemplate = plan.status === 'template'
-      const typeIcon = !isTemplate ? '<i class="fa-solid fa-check-circle" style="color: #10b981;"></i>' : '<i class="fa-solid fa-square-check" style="color: #6b7280;"></i>'
+      const typeIcon = !isTemplate ? '<i class="fa-solid fa-check-circle icon-success"></i>' : '<i class="fa-solid fa-square-check icon-muted"></i>'
       const actionIcon = !isTemplate ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-edit"></i>'
       const actionMode = !isTemplate ? 'view' : 'edit'
       const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}&orderCode=${encodeURIComponent(idForRow)}`
-      planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
+      planCell = `<span class="inline-flex-center">${shortPlanId} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" class="btn-transparent" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
     } else {
       // No production plan exists - show create button
       const createPlanUrl = `../pages/production.html?view=plan-designer&action=create&orderCode=${encodeURIComponent(idForRow)}`
-      planCell = `<span style=\\"display:inline-flex; align-items:center;\\"><button onclick="event.stopPropagation(); window.open('${createPlanUrl}', '_blank')" style="background: var(--primary); color: var(--primary-foreground); padding: 3px 8px; border: none; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; white-space: nowrap; line-height:1; height:22px; display:inline-flex; align-items:center;" title="Üretim Planı Oluştur">+ Üretim Planı Oluştur</button></span>`
+      planCell = `<span class="inline-flex-center"><button onclick="event.stopPropagation(); window.open('${createPlanUrl}', '_blank')" class="btn-create-plan" title="Üretim Planı Oluştur">+ Üretim Planı Oluştur</button></span>`
     }
 
     // Production state/actions only visible if a production plan exists (status != 'template')
     const hasProductionPlan = !!plan && plan.status !== 'template'
-    let productionStateCell = '<span style=\"font-size:11px; color:#6b7280;\">—</span>'
+    let productionStateCell = '<span class="text-muted-sm">—</span>'
     let actionsCell = ''
     
     if (hasProductionPlan) {
@@ -1196,22 +1196,22 @@ function renderApprovedQuotesTable() {
         }
       }
       
-      let stateColor = '#6b7280'
+      let stateClass = 'state-text-waiting'
       switch(currentState) {
         case PRODUCTION_STATES.WAITING_APPROVAL:
-          stateColor = '#f59e0b'; break
+          stateClass = 'state-text-waiting'; break
         case PRODUCTION_STATES.IN_PRODUCTION:
-          stateColor = '#10b981'; break
+          stateClass = 'state-text-production'; break
         case PRODUCTION_STATES.PAUSED:
-          stateColor = '#ef4444'; break
+          stateClass = 'state-text-paused'; break
         case PRODUCTION_STATES.COMPLETED:
-          stateColor = '#3b82f6'; break
+          stateClass = 'state-text-completed'; break
         case PRODUCTION_STATES.CANCELLED:
-          stateColor = '#6b7280'; break
+          stateClass = 'state-text-cancelled'; break
         case 'Plan Hazırlanıyor':
-          stateColor = '#9ca3af'; break
+          stateClass = 'state-text-preparing'; break
       }
-      productionStateCell = `<div style=\"color: ${stateColor}; font-weight: 600; font-size: 12px;\">${esc(currentState)}</div>`
+      productionStateCell = `<div class="state-text ${stateClass}">${esc(currentState)}</div>`
 
       // Button rendering based on state
       const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 9px; padding: 1px 3px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
@@ -1238,11 +1238,11 @@ function renderApprovedQuotesTable() {
       } else if (currentState === PRODUCTION_STATES.PAUSED) {
         actionsCell += `<button onclick=\"event.stopPropagation(); resumeProduction('${esc(idForRow)}')\" class="btn-action btn-resume" title=\"Üretime Devam Et\">▶️ Devam Et</button>`
       } else if (currentState === PRODUCTION_STATES.COMPLETED) {
-        actionsCell += `<span style=\"color: #3b82f6; font-size: 11px;\"><i class="fa-solid fa-check-circle"></i> Tamamlandı</span>`
+        actionsCell += `<span class="action-status-completed"><i class="fa-solid fa-check-circle"></i> Tamamlandı</span>`
       } else if (currentState === PRODUCTION_STATES.CANCELLED) {
-        actionsCell = `<span style=\"color: #6b7280; font-size: 11px;\"><i class="fa-solid fa-times-circle"></i> İptal Edildi</span>`
+        actionsCell = `<span class="action-status-cancelled"><i class="fa-solid fa-times-circle"></i> İptal Edildi</span>`
       } else if (currentState === 'Plan Hazırlanıyor') {
-        actionsCell += `<span style=\"color: #9ca3af; font-size: 10px;\">Plan henüz hazır değil</span>`
+        actionsCell += `<span class="action-status-preparing">Plan henüz hazır değil</span>`
       }
 
       // Show cancel button for all states except cancelled and completed
@@ -1252,14 +1252,14 @@ function renderApprovedQuotesTable() {
     }
 
     return `
-      <tr data-quote-id="${esc(idForRow)}" onclick="showApprovedQuoteDetail('${esc(idForRow)}')" style="cursor: pointer;">
-        <td style="padding:8px; border-bottom:1px solid var(--border);"><span class="mes-code-text">${esc(idForRow)}</span></td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(customer)}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(company)}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${deliveryCell}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${planCell}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${productionStateCell}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${actionsCell}</td>
+      <tr data-quote-id="${esc(idForRow)}" onclick="showApprovedQuoteDetail('${esc(idForRow)}')" class="cursor-pointer">
+        <td class="table-cell"><span class="mes-code-text">${esc(idForRow)}</span></td>
+        <td class="table-cell">${esc(customer)}</td>
+        <td class="table-cell">${esc(company)}</td>
+        <td class="table-cell">${deliveryCell}</td>
+        <td class="table-cell">${planCell}</td>
+        <td class="table-cell">${productionStateCell}</td>
+        <td class="table-cell">${actionsCell}</td>
       </tr>
     `
   }).join('')
@@ -1455,15 +1455,15 @@ export async function showApprovedQuoteDetail(id) {
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]))
   const field = (label, value) => `
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-      <div style="min-width:140px; font-weight:600; font-size:12px; color:#374151;">${esc(label)}</div>
-      <div style="font-size:12px; color:#111827;">${esc(value ?? '-')}</div>
+    <div class="detail-row-wide">
+      <div class="detail-label-wide">${esc(label)}</div>
+      <div class="detail-value-wide">${esc(value ?? '-')}</div>
     </div>`
 
   const files = Array.isArray(q?.uploadedFiles) ? q.uploadedFiles : (Array.isArray(q?.quoteSnapshot?.uploadedFiles) ? q.quoteSnapshot.uploadedFiles : [])
   const filesHtml = files.length
-    ? `<ul style="margin:0; padding-left:18px;">${files.map(f => `<li><a href="${esc(f.url || f.path || '#')}" target="_blank" rel="noopener">${esc(f.name || f.fileName || 'file')}</a></li>`).join('')}</ul>`
-    : '<span style="font-size:12px; color:#6b7280;">Dosya yok</span>'
+    ? `<ul class="file-list">${files.map(f => `<li><a href="${esc(f.url || f.path || '#')}" target="_blank" rel="noopener">${esc(f.name || f.fileName || 'file')}</a></li>`).join('')}</ul>`
+    : '<span class="no-files-text">Dosya yok</span>'
 
   // Format dates
   const formatDate = (dateStr) => {
@@ -1486,8 +1486,8 @@ export async function showApprovedQuoteDetail(id) {
 
   // Show initial content with loading state for assignments
   content.innerHTML = `
-    <div style="margin-bottom: 12px;">
-      <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Temel Bilgiler</div>
+    <div class="section-block">
+      <div class="section-title">Temel Bilgiler</div>
       ${field('WO Kodu', q?.workOrderCode || q?.id)}
       ${field('Teklif #', q?.quoteId || q?.quoteSnapshot?.id)}
       ${field('Durum', q?.status)}
@@ -1495,26 +1495,26 @@ export async function showApprovedQuoteDetail(id) {
       ${field('Toplam Fiyat', (q?.price != null ? `₺${Number(q.price).toFixed(2)}` : '-'))}
       ${field('Oluşturulma', createdAtFormatted)}
     </div>
-    <div style="margin-bottom: 12px;">
-      <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Müşteri</div>
+    <div class="section-block">
+      <div class="section-title">Müşteri</div>
       ${field('Ad Soyad', q?.customer || q?.name || q?.quoteSnapshot?.name)}
       ${field('Firma', q?.company)}
       ${field('E‑posta', q?.email)}
       ${field('Telefon', q?.phone)}
     </div>
-    <div style="margin-bottom: 12px;">
-      <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Teklif İçeriği</div>
+    <div class="section-block">
+      <div class="section-title">Teklif İçeriği</div>
       ${field('Proje', q?.projectName || q?.project || '-')}
       ${field('Teslim Tarihi', deliveryDateFormatted)}
       ${field('Açıklama', q?.description || '-')}
     </div>
-    <div style="margin-bottom: 12px;">
-      <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Dosyalar</div>
+    <div class="section-block">
+      <div class="section-title">Dosyalar</div>
       ${filesHtml}
     </div>
-    <div id="assignments-section" style="margin-top: 16px; padding: 12px; background: #f9fafb; border-radius: 6px;">
-      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
-      <div style="text-align: center; padding: 20px; color: #6b7280;">
+    <div id="assignments-section" class="assignments-section">
+      <div class="section-title">Work Packages</div>
+      <div class="loading-state-center">
         <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
       </div>
     </div>
@@ -1536,8 +1536,8 @@ export async function showApprovedQuoteDetail(id) {
     } else {
       // No plan - show basic message
       assignmentsSection.innerHTML = `
-        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">🎯 Üretim İzleme</div>
-        <div style="text-align: center; padding: 20px; color: #6b7280; background: #f9fafb; border-radius: 4px;">
+        <div class="section-title">🎯 Üretim İzleme</div>
+        <div class="loading-state-center">
           <i class="fa-solid fa-info-circle"></i> Henüz üretim planı oluşturulmamış
         </div>
       `

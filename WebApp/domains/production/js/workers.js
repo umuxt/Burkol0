@@ -76,8 +76,8 @@ export async function showWorkerDetail(id) {
   
   // Show loading state first
   detailContent.innerHTML = `
-    <div style="padding: 20px; text-align: center;">
-      <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
+    <div class="loading-container">
+      <div class="loading-message">Yükleniyor...</div>
     </div>
   `
   
@@ -603,17 +603,17 @@ function renderStaticWeeklyTimeline(blocksByDay) {
   const hourMarks = generateStaticHourMarks()
   let html = ''
   html += `
-    <div style="border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden;">
-      <div style="display: grid; grid-template-columns: 50px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
-        <div style="padding: 6px; font-size: 11px; font-weight: 600; border-right: 1px solid var(--border); display: flex; align-items: center; justify-content: center;">Saat</div>
+    <div class="weekly-timeline-container">
+      <div class="weekly-timeline-header">
+        <div class="weekly-timeline-hour-label">Saat</div>
         ${dayOrder.map((d, i) => `
-          <div style="padding: 6px; text-align: center; border-right: 1px solid var(--border); ${i === dayOrder.length - 1 ? 'border-right: none;' : ''}">
-            <div style="font-size: 12px; font-weight: 600;">${dayLabels[d]}</div>
+          <div class="weekly-timeline-day-header">
+            <div class="weekly-timeline-day-label">${dayLabels[d]}</div>
           </div>
         `).join('')}
       </div>
-      <div style="display: grid; grid-template-columns: 50px repeat(7, 1fr); height: 220px; position: relative;">
-        <div style="background: var(--muted); border-right: 1px solid var(--border); position: relative;">${hourMarks}</div>
+      <div class="weekly-timeline-grid">
+        <div class="weekly-timeline-hour-column">${hourMarks}</div>
         ${dayOrder.map((d, i) => {
           const blocks = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
           const blocksHtml = blocks.map(b => {
@@ -631,12 +631,12 @@ function renderStaticWeeklyTimeline(blocksByDay) {
             const label = b.type === 'break' ? 'Mola' : (b.type === 'rest' ? 'Dinlenme' : 'Çalışma')
             const time = `${escapeHtml(startTime)}-${escapeHtml(endTime)}`
             return `
-              <div style="position:absolute; left:2px; right:2px; top:${top}%; height:${height}%; background:${c.bg}; border:1px solid ${c.border}; color:${c.text}; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; pointer-events:none;">
-                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${label} ${time}</span>
+              <div class="timeline-block" style="top:${top}%; height:${height}%; background:${c.bg}; border-color:${c.border}; color:${c.text};">
+                <span class="timeline-block-text">${label} ${time}</span>
               </div>`
           }).join('')
           return `
-            <div style="position: relative; background: white; border-right: 1px solid var(--border); ${i === dayOrder.length - 1 ? 'border-right: none;' : ''}; pointer-events: none;">
+            <div class="weekly-timeline-day-column">
               ${blocksHtml}
             </div>`
         }).join('')}
@@ -650,8 +650,8 @@ function generateStaticHourMarks() {
   for (let i = 0; i <= 24; i += 2) {
     const percentage = (i / 24) * 100
     const translate = (i === 0) ? 'translateY(0)' : (i === 24 ? 'translateY(-100%)' : 'translateY(-50%)')
-    marks += `<div style=\"position: absolute; top: ${percentage}%; left: 0; right: 0; height: 1px; background: var(--border);\"></div>`
-    marks += `<div style=\"position: absolute; top: ${percentage}%; transform: ${translate}; left: 4px; font-size: 10px; color: var(--muted-foreground); background: var(--muted); padding: 0 2px;\">${i}:00</div>`
+    marks += `<div class="hour-mark-line" style="top: ${percentage}%;"></div>`
+    marks += `<div class="hour-mark-label" style="top: ${percentage}%; transform: ${translate};">${i}:00</div>`
   }
   return marks
 }
@@ -671,35 +671,35 @@ function generateWorkerDetailContent(worker) {
   return `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışan Adı:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
+      <div class="section-card">
+        <h3 class="section-title-bordered">Temel Bilgiler</h3>
+        <div class="detail-item">
+          <span class="detail-label">Çalışan Adı:</span>
+          <span class="detail-value">${escapeHtml(worker.name || '')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">E-posta:</span>
+        <div class="detail-item">
+          <span class="detail-label">E-posta:</span>
           ${worker.email
-            ? `<a class="detail-value" href="${mailtoHref(worker.email)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.email)}</a>`
-            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+            ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
+            : '<span class="detail-value text-muted">-</span>'}
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
+        <div class="detail-item">
+          <span class="detail-label">Telefon:</span>
           ${worker.phone
-            ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
-            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+            ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
+            : '<span class="detail-value text-muted">-</span>'}
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(capitalize(worker.status || 'available'))}</span>
+        <div class="detail-item">
+          <span class="detail-label">Durum:</span>
+          <span class="detail-value">${escapeHtml(capitalize(worker.status || 'available'))}</span>
         </div>
       </div>
 
       <!-- Çalışma Zaman Bilgileri -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Çalışma Zaman Bilgileri</h3>
-          <button type="button" onclick="openWorkerScheduleModal()" style="padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:white; cursor:pointer;">Detaylı Düzenle</button>
+      <div class="section-card">
+        <div class="section-header-row">
+          <h3 class="section-title-plain">Çalışma Zaman Bilgileri</h3>
+          <button type="button" onclick="openWorkerScheduleModal()" class="btn-outline-sm">Detaylı Düzenle</button>
         </div>
         
         ${(() => {
@@ -709,12 +709,12 @@ function generateWorkerDetailContent(worker) {
           
           if (savedMode === 'company') {
             return `
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayarlar</span>
-                <span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
+              <div class="flex-center-gap mb-10">
+                <span class="schedule-badge schedule-badge-company">Genel Ayarlar</span>
+                <span class="text-muted">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
               </div>
               <div>
-                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div style="font-size:12px;color:var(--muted-foreground);">Genel ayarlar bulunamadı</div>'}
+                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div class="text-muted">Genel ayarlar bulunamadı</div>'}
               </div>
             `
           } else {
@@ -722,8 +722,8 @@ function generateWorkerDetailContent(worker) {
             const rawBlocks = worker.personalSchedule?.blocks || {}
             const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
             return `
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#fef2e2; color:#d97706; font-weight:600;">Kişisel Ayar</span>
+              <div class="flex-center-gap mb-10">
+                <span class="schedule-badge schedule-badge-personal">Kişisel Ayar</span>
               </div>
               <div>
                 ${renderStaticWeeklyTimeline(normalizedBlocks)}
@@ -734,32 +734,32 @@ function generateWorkerDetailContent(worker) {
       </div>
 
       <!-- Yetenekler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+      <div class="section-card">
+        <h3 class="section-title-bordered">Sahip Olunan Yetenekler</h3>
+        <div class="flex-wrap-gap">
           ${skills.map(skill => `
-            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>
+            <span class="skill-badge">${escapeHtml(getSkillName(skill))}</span>
           `).join('')}
-          ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
+          ${skills.length === 0 ? '<span class="text-muted">Henüz yetenek atanmamış</span>' : ''}
         </div>
       </div>
 
       <!-- Performans Bilgileri -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Performans Özeti</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+      <div class="section-card">
+        <h3 class="section-title-bordered">Performans Özeti</h3>
+        <div class="grid-2col">
+          <div class="detail-item">
+            <span class="detail-label">Tamamlanan Görev:</span>
+            <span class="detail-value">-</span>
           </div>
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          <div class="detail-item">
+            <span class="detail-label">Ortalama Süre:</span>
+            <span class="detail-value">-</span>
           </div>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Verimlilik Skoru:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+        <div class="detail-item">
+          <span class="detail-label">Verimlilik Skoru:</span>
+          <span class="detail-value">-</span>
         </div>
       </div>
     </form>
@@ -772,9 +772,9 @@ function generateCurrentTaskSection(worker) {
   
   if (!currentTask || !currentTask.planId) {
     return `
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
-        <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+      <div class="section-card">
+        <h3 class="section-title-bordered">Mevcut Görev</h3>
+        <div class="empty-message">
           Şu anda atanmış bir görev bulunmuyor
         </div>
       </div>
@@ -790,24 +790,24 @@ function generateCurrentTaskSection(worker) {
   const statusConfig = statusColors[status] || { bg: '#f3f4f6', text: '#6b7280', label: status || 'Unknown' };
   
   return `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-      <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
-      <div style="padding: 12px; background: ${statusConfig.bg}; border-radius: 4px; border-left: 3px solid ${statusConfig.text};">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <span style="font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">Üretim Planı</span>
-          <span style="font-size: 11px; padding: 2px 8px; background: ${statusConfig.text}; color: white; border-radius: 12px; font-weight: 500;">${escapeHtml(statusConfig.label)}</span>
+    <div class="section-card">
+      <h3 class="section-title-bordered">Mevcut Görev</h3>
+      <div class="task-content-box" style="background: ${statusConfig.bg}; border-left-color: ${statusConfig.text};">
+        <div class="task-header">
+          <span class="task-title">Üretim Planı</span>
+          <span class="task-status-pill" style="background: ${statusConfig.text};">${escapeHtml(statusConfig.label)}</span>
         </div>
-        <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
-          Plan ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(planId.startsWith('PPL-') ? planId : planId.slice(-10))}</span>
+        <div class="task-info-line">
+          Plan ID: <span class="task-code">${escapeHtml(planId.startsWith('PPL-') ? planId : planId.slice(-10))}</span>
         </div>
         ${stationName ? `
-          <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
+          <div class="task-info-line">
             İstasyon: <strong>${escapeHtml(stationName)}</strong>
           </div>
         ` : ''}
         ${nodeId ? `
-          <div style="font-size: 11px; color: rgb(75, 85, 99);">
-            Operasyon ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(nodeId.slice(-8))}</span>
+          <div class="task-info-line">
+            Operasyon ID: <span class="task-code">${escapeHtml(nodeId.slice(-8))}</span>
           </div>
         ` : ''}
       </div>
@@ -825,89 +825,89 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
   // Determine current status badge
   let statusBadge = '';
   if (!worker.isActive) {
-    statusBadge = '<span style="background: rgb(156, 163, 175); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">❌ İşten Ayrılmış</span>';
+    statusBadge = '<span class="status-badge status-badge-inactive">❌ İşten Ayrılmış</span>';
   } else if (currentAbsence) {
     const typeEmoji = currentAbsence.type === 'sick' ? '🤒' : currentAbsence.type === 'vacation' ? '🏖️' : currentAbsence.type === 'training' ? '📚' : currentAbsence.type === 'meeting' ? '📅' : '📝';
     const typeText = currentAbsence.type === 'sick' ? 'Hasta' : currentAbsence.type === 'vacation' ? 'İzinli' : currentAbsence.type === 'training' ? 'Eğitimde' : currentAbsence.type === 'meeting' ? 'Toplantıda' : 'Devamsız';
-    statusBadge = `<span style="background: rgb(220, 38, 38); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${typeEmoji} ${typeText} (${currentAbsence.startDate} - ${currentAbsence.endDate})</span>`;
+    statusBadge = `<span class="status-badge status-badge-danger">${typeEmoji} ${typeText} (${currentAbsence.startDate} - ${currentAbsence.endDate})</span>`;
   } else {
-    statusBadge = '<span style="background: rgb(34, 197, 94); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">✅ Çalışıyor</span>';
+    statusBadge = '<span class="status-badge status-badge-success">✅ Çalışıyor</span>';
   }
   
   return `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışan Adı:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
+      <div class="section-card">
+        <h3 class="section-title-bordered">Temel Bilgiler</h3>
+        <div class="detail-item">
+          <span class="detail-label">Çalışan Adı:</span>
+          <span class="detail-value">${escapeHtml(worker.name || '')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">E-posta:</span>
+        <div class="detail-item">
+          <span class="detail-label">E-posta:</span>
           ${worker.email
-            ? `<a class="detail-value" href="${mailtoHref(worker.email)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.email)}</a>`
-            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+            ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
+            : '<span class="detail-value text-muted">-</span>'}
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
+        <div class="detail-item">
+          <span class="detail-label">Telefon:</span>
           ${worker.phone
-            ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
-            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+            ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
+            : '<span class="detail-value text-muted">-</span>'}
         </div>
         
         <!-- Bugünkü Durum (Otomatik - Absences'den hesaplanan) -->
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 12px; padding-top: 8px; border-top: 1px solid rgb(229, 231, 235);">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Bugünkü Durum:</span>
+        <div class="detail-item pt-8 border-top">
+          <span class="detail-label">Bugünkü Durum:</span>
           ${statusBadge}
         </div>
         
         <!-- Çalışma Durumu (Manuel - Sadece İşten Ayrılma) -->
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışma Durumu:</span>
-          <select id="worker-employment-status" onchange="handleEmploymentStatusChange()" style="flex: 1; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;">
+        <div class="detail-item">
+          <span class="detail-label">Çalışma Durumu:</span>
+          <select id="worker-employment-status" onchange="handleEmploymentStatusChange()" class="form-select-md">
             <option value="active" ${worker.isActive ? 'selected' : ''}>✅ Aktif Çalışan</option>
             <option value="inactive" ${!worker.isActive ? 'selected' : ''}>❌ İşten Ayrılmış</option>
           </select>
         </div>
         
         <!-- Mesai Durumu (Otomatik - Çalışma Programından) -->
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mesai Durumu:</span>
-          <span id="worker-schedule-status" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgb(243, 244, 246); color: rgb(107, 114, 128);">
+        <div class="detail-item">
+          <span class="detail-label">Mesai Durumu:</span>
+          <span id="worker-schedule-status" class="schedule-status-loading">
             <i class="fa-solid fa-spinner fa-spin"></i> Hesaplanıyor...
           </span>
         </div>
         
         <!-- İzin Yönetimi -->
-        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgb(229, 231, 235);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: rgb(17, 24, 39);">
+        <div class="mt-16 pt-12 border-top">
+          <div class="section-header-row">
+            <h4 class="section-title-plain text-13">
               <i class="fa-solid fa-calendar-days"></i> İzin Kayıtları
             </h4>
-            <button type="button" onclick="openAddAbsenceForm()" style="padding: 6px 12px; background: rgb(37, 99, 235); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            <button type="button" onclick="openAddAbsenceForm()" class="btn-primary-sm">
               <i class="fa-solid fa-plus"></i> Yeni İzin Ekle
             </button>
           </div>
           
           <!-- Add Absence Form (Initially Hidden) -->
-          <div id="add-absence-form" style="display: none; margin-bottom: 12px; padding: 12px; background: rgb(239, 246, 255); border: 1px solid rgb(191, 219, 254); border-radius: 6px;">
-            <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(30, 64, 175);">
+          <div id="add-absence-form" class="absence-form-container">
+            <div class="absence-form-title">
               <i class="fa-solid fa-calendar-plus"></i> Yeni İzin Kaydı Oluştur
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <div class="grid-2col-sm">
               <div>
-                <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Başlangıç Tarihi:</label>
-                <input type="date" id="new-absence-start" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+                <label class="form-label-sm">Başlangıç Tarihi:</label>
+                <input type="date" id="new-absence-start" class="form-input-sm">
               </div>
               <div>
-                <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Bitiş Tarihi:</label>
-                <input type="date" id="new-absence-end" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+                <label class="form-label-sm">Bitiş Tarihi:</label>
+                <input type="date" id="new-absence-end" class="form-input-sm">
               </div>
             </div>
-            <div style="margin-bottom: 8px;">
-              <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">İzin Tipi:</label>
-              <select id="new-absence-type" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+            <div class="mb-8">
+              <label class="form-label-sm">İzin Tipi:</label>
+              <select id="new-absence-type" class="form-select-sm">
                 <option value="vacation">🏖️ Yıllık İzin</option>
                 <option value="sick">🤒 Hastalık İzni</option>
                 <option value="training">📚 Eğitim</option>
@@ -915,15 +915,15 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                 <option value="other">📝 Diğer</option>
               </select>
             </div>
-            <div style="margin-bottom: 8px;">
-              <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Sebep/Açıklama:</label>
-              <input type="text" id="new-absence-reason" placeholder="Örn: Yıllık izin, grip, eğitim semineri..." style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+            <div class="mb-8">
+              <label class="form-label-sm">Sebep/Açıklama:</label>
+              <input type="text" id="new-absence-reason" placeholder="Örn: Yıllık izin, grip, eğitim semineri..." class="form-input-sm">
             </div>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" onclick="saveNewAbsence()" style="flex: 1; padding: 6px; background: rgb(34, 197, 94); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            <div class="flex-center-gap">
+              <button type="button" onclick="saveNewAbsence()" class="btn-success-sm flex-1">
                 <i class="fa-solid fa-check"></i> Kaydet
               </button>
-              <button type="button" onclick="closeAddAbsenceForm()" style="flex: 1; padding: 6px; background: rgb(156, 163, 175); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              <button type="button" onclick="closeAddAbsenceForm()" class="btn-secondary-sm flex-1">
                 <i class="fa-solid fa-times"></i> İptal
               </button>
             </div>
@@ -931,31 +931,31 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           
           <!-- Absences List -->
           ${worker.absences && worker.absences.length > 0 ? `
-            <div style="max-height: 250px; overflow-y: auto;">
+            <div class="absence-list-container">
               ${worker.absences.sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).map(abs => {
                 const isPast = abs.endDate < now;
                 const isCurrent = abs.startDate <= now && abs.endDate >= now;
                 const typeEmoji = abs.type === 'sick' ? '🤒' : abs.type === 'vacation' ? '🏖️' : abs.type === 'training' ? '📚' : abs.type === 'meeting' ? '📅' : '📝';
                 const statusBadge = isCurrent 
-                  ? '<span style="background: rgb(220, 38, 38); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">AKTİF</span>' 
+                  ? '<span class="status-mini-badge status-mini-active">AKTİF</span>' 
                   : isPast 
-                  ? '<span style="background: rgb(156, 163, 175); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">GEÇMİŞ</span>' 
-                  : '<span style="background: rgb(59, 130, 246); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">GELECEK</span>';
+                  ? '<span class="status-mini-badge status-mini-past">GEÇMİŞ</span>' 
+                  : '<span class="status-mini-badge status-mini-future">GELECEK</span>';
                 
                 return `
-                  <div style="padding: 8px; margin-bottom: 6px; background: white; border: 1px solid rgb(229, 231, 235); border-radius: 4px; ${isCurrent ? 'border-left: 3px solid rgb(220, 38, 38);' : ''}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                      <span style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39);">
+                  <div class="absence-item ${isCurrent ? 'absence-item-active' : ''}">
+                    <div class="absence-item-header">
+                      <span class="absence-item-title">
                         ${typeEmoji} ${escapeHtml(abs.reason || abs.type)}
                         ${statusBadge}
                       </span>
                       ${!isPast ? `
-                        <button type="button" onclick="deleteAbsence('${abs.id}')" style="padding: 2px 6px; background: rgb(239, 68, 68); color: white; border: none; border-radius: 3px; font-size: 10px; cursor: pointer;">
+                        <button type="button" onclick="deleteAbsence('${abs.id}')" class="btn-danger-sm">
                           <i class="fa-solid fa-trash"></i>
                         </button>
                       ` : ''}
                     </div>
-                    <div style="font-size: 10px; color: rgb(107, 114, 128);">
+                    <div class="absence-item-date">
                       ${abs.startDate} → ${abs.endDate}
                     </div>
                   </div>
@@ -963,7 +963,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
               }).join('')}
             </div>
           ` : `
-            <div style="padding: 16px; text-align: center; color: rgb(107, 114, 128); font-size: 11px;">
+            <div class="empty-message-sm">
               <i class="fa-solid fa-inbox"></i> Henüz izin kaydı yok
             </div>
           `}
@@ -971,10 +971,10 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
       </div>
 
       <!-- Çalışma Zaman Bilgileri -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Çalışma Zaman Bilgileri</h3>
-          <button type="button" onclick="openWorkerScheduleModal()" style="padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:white; cursor:pointer;">Detaylı Düzenle</button>
+      <div class="section-card">
+        <div class="section-header-row">
+          <h3 class="section-title-plain">Çalışma Zaman Bilgileri</h3>
+          <button type="button" onclick="openWorkerScheduleModal()" class="btn-outline-sm">Detaylı Düzenle</button>
         </div>
         
         ${(() => {
@@ -984,12 +984,12 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           
           if (savedMode === 'company') {
             return `
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayarlar</span>
-                <span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
+              <div class="flex-center-gap mb-10">
+                <span class="schedule-badge schedule-badge-company">Genel Ayarlar</span>
+                <span class="text-muted">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
               </div>
               <div>
-                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div style="font-size:12px;color:var(--muted-foreground);">Genel ayarlar bulunamadı</div>'}
+                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div class="text-muted">Genel ayarlar bulunamadı</div>'}
               </div>
             `
           } else {
@@ -997,8 +997,8 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
             const rawBlocks = worker.personalSchedule?.blocks || {}
             const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
             return `
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#fef2e2; color:#d97706; font-weight:600;">Kişisel Ayar</span>
+              <div class="flex-center-gap mb-10">
+                <span class="schedule-badge schedule-badge-personal">Kişisel Ayar</span>
               </div>
               <div>
                 ${renderStaticWeeklyTimeline(normalizedBlocks)}
@@ -1009,47 +1009,47 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
       </div>
 
       <!-- Yetenekler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+      <div class="section-card">
+        <h3 class="section-title-bordered">Sahip Olunan Yetenekler</h3>
+        <div class="flex-wrap-gap">
           ${skills.map(skill => `
-            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>
+            <span class="skill-badge">${escapeHtml(getSkillName(skill))}</span>
           `).join('')}
-          ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
+          ${skills.length === 0 ? '<span class="text-muted">Henüz yetenek atanmamış</span>' : ''}
         </div>
       </div>
 
       <!-- Çalışabileceği İstasyonlar -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışabileceği İstasyonlar (${workerStationsData.compatibleStations.length})</h3>
+      <div class="section-card">
+        <h3 class="section-title-bordered">Çalışabileceği İstasyonlar (${workerStationsData.compatibleStations.length})</h3>
 
         ${workerStationsData.compatibleStations.length > 0 ? `
-          <div style="display: grid; gap: 8px;">
+          <div class="grid-gap-sm">
             ${workerStationsData.compatibleStations.map(station => `
-              <div style="padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                  <span style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(station.name || '')}</span>
-                  <span style="font-size: 10px; color: rgb(107, 114, 128);">${escapeHtml(station.status || 'active')}</span>
+              <div class="station-card">
+                <div class="station-card-header">
+                  <span class="station-card-title">${escapeHtml(station.name || '')}</span>
+                  <span class="station-card-status">${escapeHtml(station.status || 'active')}</span>
                 </div>
                 ${station.location ? `
-                  <div style="margin-bottom: 4px; font-size: 10px; color: rgb(107, 114, 128);">
+                  <div class="station-card-location">
                     Lokasyon: ${escapeHtml(station.location)}
                   </div>
                 ` : ''}
-                <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+                <div class="flex-wrap-gap-sm">
                   ${(station.requiredSkills || []).map(skill => 
-                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>`
+                    `<span class="skill-badge skill-badge-xs">${escapeHtml(getSkillName(skill))}</span>`
                   ).join('')}
                 </div>
               </div>
             `).join('')}
           </div>
         ` : `
-          <div style="text-align: center; padding: 16px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+          <div class="empty-message">
             Bu çalışan için uygun istasyon bulunamadı.
             ${workerStationsData.workerSkills.length > 0 ? 
-              `<br><span style="font-size: 11px;">Mevcut yetenekleri ile tam eşleşen istasyon yok.</span>` : 
-              `<br><span style="font-size: 11px;">Önce yetenek tanımlaması yapılması gerekiyor.</span>`
+              `<br><span class="text-muted-sm">Mevcut yetenekleri ile tam eşleşen istasyon yok.</span>` : 
+              `<br><span class="text-muted-sm">Önce yetenek tanımlaması yapılması gerekiyor.</span>`
             }
           </div>
         `}
@@ -1059,30 +1059,30 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
       ${generateCurrentTaskSection(worker)}
 
       <!-- Yaklaşan Görevler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Yaklaşan Görevler (${assignments.length})</h3>
-          <button type="button" onclick="refreshWorkerAssignments('${worker.id}')" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">🔄 Yenile</button>
+      <div class="section-card">
+        <div class="section-header-row">
+          <h3 class="section-title-plain">Yaklaşan Görevler (${assignments.length})</h3>
+          <button type="button" onclick="refreshWorkerAssignments('${worker.id}')" class="btn-refresh-sm">🔄 Yenile</button>
         </div>
         <div class="assignments-timeline">${generateAssignmentsTimeline(assignments)}</div>
       </div>
 
       <!-- Performans Bilgileri -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Performans Özeti</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+      <div class="section-card">
+        <h3 class="section-title-bordered">Performans Özeti</h3>
+        <div class="grid-2col">
+          <div class="detail-item">
+            <span class="detail-label">Tamamlanan Görev:</span>
+            <span class="detail-value">-</span>
           </div>
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          <div class="detail-item">
+            <span class="detail-label">Ortalama Süre:</span>
+            <span class="detail-value">-</span>
           </div>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Verimlilik Skoru:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+        <div class="detail-item">
+          <span class="detail-label">Verimlilik Skoru:</span>
+          <span class="detail-value">-</span>
         </div>
       </div>
     </form>
@@ -1121,7 +1121,7 @@ function showStatusColumn() {
 function generateAssignmentsTimeline(assignments) {
   if (!assignments || assignments.length === 0) {
     return `
-      <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+      <div class="empty-message">
         Yaklaşan görev bulunmuyor
       </div>
     `;
@@ -1153,7 +1153,7 @@ function generateAssignmentsTimeline(assignments) {
   }
 
   return `
-    <div style="max-height: 300px; overflow-y: auto;">
+    <div class="timeline-scroll-container">
       ${sortedAssignments.map(assignment => {
         const start = new Date(assignment.start);
         const end = new Date(assignment.end);
@@ -1161,19 +1161,19 @@ function generateAssignmentsTimeline(assignments) {
         const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // minutes
         
         return `
-          <div style="padding: 8px; margin-bottom: 6px; border-radius: 4px; border: 1px solid ${hasConflict ? '#fecaca' : '#e5e7eb'}; background: ${hasConflict ? '#fef2f2' : '#f9fafb'};">
-            ${hasConflict ? '<div style="font-size: 10px; color: #dc2626; margin-bottom: 4px; font-weight: 600;"><i class="fa-solid fa-exclamation-triangle"></i> ÇAKIŞMA</div>' : ''}
+          <div class="assignment-item ${hasConflict ? 'assignment-item-conflict' : ''}">
+            ${hasConflict ? '<div class="assignment-conflict-label"><i class="fa-solid fa-exclamation-triangle"></i> ÇAKIŞMA</div>' : ''}
             
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
-              <div style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
+            <div class="assignment-header">
+              <div class="assignment-title">
                 ${assignment.planName || 'Plan #' + (assignment.planId || '').slice(-6)}
               </div>
-              <span style="font-size: 10px; color: rgb(107, 114, 128); background: rgb(243, 244, 246); padding: 1px 4px; border-radius: 3px;">
+              <span class="assignment-order-badge">
                 ${duration}dk
               </span>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; color: rgb(55, 65, 81);">
+            <div class="assignment-time-row">
               <span>🕒 ${start.toLocaleString('tr-TR', { 
                 month: 'short', 
                 day: 'numeric', 
@@ -1185,10 +1185,10 @@ function generateAssignmentsTimeline(assignments) {
               })}</span>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; color: rgb(107, 114, 128);">
+            <div class="assignment-meta-row">
               ${assignment.stationId ? `<span><i class="fa-solid fa-industry"></i> ${assignment.stationId}</span>` : ''}
               ${assignment.subStationCode ? `<span>📍 ${assignment.subStationCode}</span>` : ''}
-              <span style="margin-left: auto; background: ${getStatusColor(assignment.status)}; color: white; padding: 1px 4px; border-radius: 3px;">
+              <span class="assignment-status-badge assignment-status-${assignment.status || 'default'}">
                 ${getStatusLabel(assignment.status)}
               </span>
             </div>
@@ -1977,23 +1977,13 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
       : `${currentSelected.length} Skill Seçildi`;
       
     if (currentSelected.length === 0) {
-      selectedDisplay.innerHTML = '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>';
+      selectedDisplay.innerHTML = '<span class="skill-selected-empty">Henüz skill seçilmedi</span>';
     } else {
       selectedDisplay.innerHTML = currentSelected.map(skillId => {
         const skill = allSkills.find(s => s.id === skillId);
         const skillName = skill ? skill.name : skillId;
         return `
-          <span style="
-            display: inline-block;
-            background: var(--primary);
-            color: var(--primary-foreground);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            margin: 2px 4px 2px 0;
-            cursor: pointer;
-          " onclick="removeSkill('${skillId}')" title="Kaldırmak için tıklayın">
+          <span class="skill-badge-removable" onclick="removeSkill('${skillId}')" title="Kaldırmak için tıklayın">
             ${escapeHtml(skillName)} ×
           </span>
         `;
@@ -2017,41 +2007,14 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     const isSelected = currentSelected.includes(skill.id);
     
     const card = document.createElement('div');
-    card.className = 'skill-card';
-    card.style.cssText = `
-      padding: 4px 6px;
-      border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'};
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      background: ${isSelected ? 'var(--primary)' : 'white'};
-      color: ${isSelected ? 'var(--primary-foreground)' : 'var(--foreground)'};
-      font-weight: ${isSelected ? '500' : '400'};
-      font-size: 12px;
-      user-select: none;
-      text-align: center;
-    `;
+    card.className = `skill-card-selectable ${isSelected ? 'is-selected' : ''}`;
     
     card.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div class="skill-card-content">
         <span>${escapeHtml(skill.name)}</span>
-        ${isSelected ? '<span style="font-weight: bold; margin-left: 4px;">✓</span>' : ''}
+        ${isSelected ? '<span class="skill-check-icon">✓</span>' : ''}
       </div>
     `;
-    
-    card.addEventListener('mouseenter', () => {
-      if (!isSelected) {
-        card.style.borderColor = 'var(--primary)';
-        card.style.background = '#f8f9fa';
-      }
-    });
-    
-    card.addEventListener('mouseleave', () => {
-      if (!isSelected) {
-        card.style.borderColor = 'var(--border)';
-        card.style.background = 'white';
-      }
-    });
     
     card.addEventListener('click', () => {
       toggleSkill(skill.id);
@@ -2223,7 +2186,7 @@ async function loadWorkerActiveTasks(workerId) {
     
     if (tasks.length === 0) {
       return `
-        <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+        <div class="empty-message">
           Aktif görev bulunmuyor
         </div>
       `;
@@ -2240,40 +2203,40 @@ async function loadWorkerActiveTasks(workerId) {
       const prerequisitesHtml = generatePrerequisitesIcons(task.prerequisites);
       
       return `
-        <tr style="border-bottom: 1px solid rgb(229, 231, 235);">
-          <td style="padding: 8px; font-size: 12px;">${statusBadge}</td>
-          <td style="padding: 8px; font-size: 12px; font-weight: 500;">${escapeHtml(task.planId || '-')}</td>
-          <td style="padding: 8px; font-size: 12px;">${escapeHtml(task.name || task.operationName || '-')}</td>
-          <td style="padding: 8px; font-size: 12px;">${escapeHtml(task.stationName || '-')}</td>
-          <td style="padding: 8px; font-size: 11px;">${prerequisitesHtml}</td>
+        <tr class="task-table-row">
+          <td class="task-table-td">${statusBadge}</td>
+          <td class="task-table-td-bold">${escapeHtml(task.planId || '-')}</td>
+          <td class="task-table-td">${escapeHtml(task.name || task.operationName || '-')}</td>
+          <td class="task-table-td">${escapeHtml(task.stationName || '-')}</td>
+          <td class="task-table-td task-table-td-sm">${prerequisitesHtml}</td>
         </tr>
       `;
     }).join('');
     
     return `
-      <div style="margin-bottom: 12px; display: flex; gap: 8px;">
-        <div style="padding: 6px 10px; background: #dbeafe; border-radius: 4px; font-size: 11px; color: #1e40af; font-weight: 600;">
+      <div class="task-summary-container">
+        <div class="task-summary-badge task-summary-inprogress">
           Devam Eden: ${inProgress.length}
         </div>
-        <div style="padding: 6px 10px; background: #d1fae5; border-radius: 4px; font-size: 11px; color: #065f46; font-weight: 600;">
+        <div class="task-summary-badge task-summary-active">
           Hazır: ${ready.length}
         </div>
-        <div style="padding: 6px 10px; background: #fed7aa; border-radius: 4px; font-size: 11px; color: #92400e; font-weight: 600;">
+        <div class="task-summary-badge task-summary-paused">
           Duraklatıldı: ${paused.length}
         </div>
-        <div style="padding: 6px 10px; background: #f3f4f6; border-radius: 4px; font-size: 11px; color: #6b7280; font-weight: 600;">
+        <div class="task-summary-badge task-summary-completed">
           Bekliyor: ${pending.length}
         </div>
       </div>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="background: rgb(249, 250, 251); border-bottom: 2px solid rgb(229, 231, 235);">
-              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">DURUM</th>
-              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">PLAN</th>
-              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">GÖREV</th>
-              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">İSTASYON</th>
-              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">ÖN KOŞULLAR</th>
+      <div class="task-table-container">
+        <table class="task-table">
+          <thead class="task-table-header">
+            <tr>
+              <th class="task-table-th">DURUM</th>
+              <th class="task-table-th">PLAN</th>
+              <th class="task-table-th">GÖREV</th>
+              <th class="task-table-th">İSTASYON</th>
+              <th class="task-table-th">ÖN KOŞULLAR</th>
             </tr>
           </thead>
           <tbody>
@@ -2285,7 +2248,7 @@ async function loadWorkerActiveTasks(workerId) {
   } catch (err) {
     console.error('Failed to load active tasks:', err);
     return `
-      <div style="text-align: center; padding: 20px; color: #ef4444; font-size: 12px;">
+      <div class="empty-message text-danger">
         Görevler yüklenemedi: ${err.message}
       </div>
     `;
@@ -2307,7 +2270,7 @@ function getTaskStatusBadge(status) {
   
   const info = statusMap[status] || { label: status, color: '#6b7280', bg: '#f3f4f6' };
   
-  return `<span style="padding: 2px 6px; background: ${info.bg}; color: ${info.color}; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;">${info.label}</span>`;
+  return `<span class="task-status-label task-status-${status || 'default'}">${info.label}</span>`;
 }
 
 /**
@@ -2319,23 +2282,23 @@ function generatePrerequisitesIcons(prerequisites) {
   const icons = [];
   
   if (prerequisites.predecessorsDone === false) {
-    icons.push('<i class="fa-solid fa-clock" style="font-size: 14px; color: #f59e0b;" title="Önceki görevler bitmedi"></i>');
+    icons.push('<i class="fa-solid fa-clock prereq-icon prereq-warning" title="Önceki görevler bitmedi"></i>');
   }
   
   if (prerequisites.workerAvailable === false) {
-    icons.push('<i class="fa-solid fa-hard-hat" style="font-size: 14px; color: #ef4444;" title="İşçi meşgul"></i>');
+    icons.push('<i class="fa-solid fa-hard-hat prereq-icon prereq-danger" title="İşçi meşgul"></i>');
   }
   
   if (prerequisites.stationAvailable === false) {
-    icons.push('<i class="fa-solid fa-industry" style="font-size: 14px; color: #ef4444;" title="İstasyon meşgul"></i>');
+    icons.push('<i class="fa-solid fa-industry prereq-icon prereq-danger" title="İstasyon meşgul"></i>');
   }
   
   if (prerequisites.materialsReady === false) {
-    icons.push('<i class="fa-solid fa-boxes-stacked" style="font-size: 14px; color: #ef4444;" title="Malzeme eksik"></i>');
+    icons.push('<i class="fa-solid fa-boxes-stacked prereq-icon prereq-danger" title="Malzeme eksik"></i>');
   }
   
   if (icons.length === 0) {
-    return '<i class="fa-solid fa-check-circle" style="color: #10b981; font-size: 14px;" title="Hazır"></i>';
+    return '<i class="fa-solid fa-check-circle prereq-icon prereq-success" title="Hazır"></i>';
   }
   
   return icons.join(' ');

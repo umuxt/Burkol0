@@ -752,12 +752,10 @@ export function ProductionPlanDesigner() {
                     connectingFrom === node.id ? "border-primary" : 
                     draggingNode === node.id ? "border-primary shadow-2xl" : 
                     !node.assignedWorkerId ? "border-destructive/50" : "border-border"
-                  } bg-card p-3 shadow-lg hover:shadow-xl transition-all group cursor-pointer`}
+                  } bg-card p-3 shadow-lg hover:shadow-xl transition-all group cursor-pointer operation-node`}
                   style={{
                     left: `${node.x}px`,
                     top: `${node.y}px`,
-                    width: "180px",
-                    userSelect: "none",
                   }}
                   onClick={() => {
                     if (connectingFrom && connectingFrom !== node.id) {
@@ -826,11 +824,8 @@ export function ProductionPlanDesigner() {
                   
                   {/* Drag Handle */}
                   <div
-                    className="absolute bottom-0 right-0 w-6 h-6 cursor-grab active:cursor-grabbing opacity-30 hover:opacity-100 transition-opacity"
+                    className="absolute bottom-0 right-0 w-6 h-6 cursor-grab active:cursor-grabbing opacity-30 hover:opacity-100 transition-opacity node-drag-handle"
                     onMouseDown={(e) => handleNodeMouseDown(e, node.id, true)}
-                    style={{
-                      background: 'repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 0, transparent 3px)',
-                    }}
                   >
                     <GripVertical className="h-4 w-4 absolute bottom-0.5 right-0.5 text-muted-foreground" />
                   </div>

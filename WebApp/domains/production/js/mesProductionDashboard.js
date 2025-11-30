@@ -349,7 +349,7 @@ function renderBottleneckChart(data) {
     if (container) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon"><i data-lucide="bar-chart" style="width: 48px; height: 48px; opacity: 0.5;"></i></div>
+          <div class="empty-state-icon"><i data-lucide="bar-chart" class="mes-dash-img-muted"></i></div>
           <div>No completed operations yet</div>
         </div>
       `;
@@ -423,7 +423,7 @@ function renderMaterialChart(data) {
     if (container) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon"><i data-lucide="package" style="width: 48px; height: 48px; opacity: 0.5;"></i></div>
+          <div class="empty-state-icon"><i data-lucide="package" class="mes-dash-img-muted"></i></div>
           <div>No materials found</div>
         </div>
       `;
@@ -497,7 +497,7 @@ function renderMasterGantt(data) {
   if (!data.workOrders || data.workOrders.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon"><i data-lucide="calendar-x" style="width: 48px; height: 48px; opacity: 0.5;"></i></div>
+        <div class="empty-state-icon"><i data-lucide="calendar-x" class="mes-dash-img-muted"></i></div>
         <div>No active work orders</div>
       </div>
     `;
@@ -507,14 +507,14 @@ function renderMasterGantt(data) {
   }
   
   // Simple timeline visualization (can be replaced with ApexCharts or similar)
-  let html = '<div style="font-family: monospace; font-size: 12px;">';
+  let html = '<div class="mes-dash-mono">';
   
   data.workOrders.forEach(wo => {
-    html += `<div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 6px; border-left: 4px solid #3b82f6;">`;
-    html += `<div style="font-weight: 600; margin-bottom: 8px; color: #111827;">📋 ${wo.workOrderCode}</div>`;
+    html += `<div class="mes-dash-info-box">`;
+    html += `<div class="mes-dash-title">📋 ${wo.workOrderCode}</div>`;
     
     if (wo.assignments.length === 0) {
-      html += `<div style="color: #6b7280; font-size: 11px;">No assignments</div>`;
+      html += `<div class="mes-dash-text-muted">No assignments</div>`;
     } else {
       wo.assignments.forEach(a => {
         const start = new Date(a.start);
@@ -529,11 +529,11 @@ function renderMasterGantt(data) {
         }[a.status] || '#6b7280';
         
         html += `
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 4px; background: white; border-radius: 4px;">
+          <div class="mes-dash-worker-row">
             <span style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
-            <span style="flex: 1; font-size: 11px;">${a.nodeName}</span>
-            <span style="color: #6b7280; font-size: 10px;">👷 ${a.workerName}</span>
-            <span style="color: #6b7280; font-size: 10px;">⏱️ ${duration}h</span>
+            <span class="mes-dash-flex-1">${a.nodeName}</span>
+            <span class="mes-dash-text-muted-sm">👷 ${a.workerName}</span>
+            <span class="mes-dash-text-muted-sm">⏱️ ${duration}h</span>
             <span style="font-size: 10px; padding: 2px 6px; background: ${statusColor}20; color: ${statusColor}; border-radius: 3px; font-weight: 500;">${a.status}</span>
           </div>
         `;

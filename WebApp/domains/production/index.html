@@ -20,14 +20,14 @@
 
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-      <div style="padding: 24px 0;">
+      <div class="sidebar-inner">
         <!-- Logo Area -->
-        <div style="padding: 0 16px 16px; border-bottom: 1px solid var(--border);">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🏭</div>
+        <div class="sidebar-logo-section">
+          <div class="sidebar-logo-row">
+            <div class="sidebar-logo-icon">🏭</div>
             <div>
-              <h2 style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 2px;">MES System</h2>
-              <p style="font-size: 12px; color: var(--muted-foreground);">Manufacturing Execution</p>
+              <h2 class="sidebar-logo-title">MES System</h2>
+              <p class="sidebar-logo-subtitle">Manufacturing Execution</p>
             </div>
           </div>
         </div>
@@ -60,10 +60,10 @@
         </div>
 
         <!-- Footer -->
-        <div style="padding: 16px; border-top: 1px solid var(--border); margin-top: auto;">
-          <div style="font-size: 11px; color: var(--muted-foreground);">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-              <div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
+        <div class="sidebar-footer">
+          <div class="sidebar-footer-text">
+            <div class="sidebar-status-row">
+              <div class="sidebar-status-dot"></div>
               <span>System Online</span>
             </div>
             <p>Version 1.0.0</p>

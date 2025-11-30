@@ -359,10 +359,10 @@ export async function loadOperationsToolbox() {
   const fullscreenListContainer = document.getElementById('fullscreen-operations-list');
   
   if (listContainer) {
-    listContainer.innerHTML = '<div style="padding:6px;color:#888;">Loading operations...</div>';
+    listContainer.innerHTML = '<div class="pdb-muted">Loading operations...</div>';
   }
   if (fullscreenListContainer) {
-    fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#888;">Loading operations...</div>';
+    fullscreenListContainer.innerHTML = '<div class="pdb-muted">Loading operations...</div>';
   }
   
   try {
@@ -394,11 +394,11 @@ export async function loadOperationsToolbox() {
     // Normal operations list
     if (listContainer) {
       if (operations.length === 0) {
-        listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+        listContainer.innerHTML = '<div class="pd-empty-center">No operations available<br>Add operations in Master Data</div>';
       } else {
         listContainer.innerHTML = operations.map(op => {
-          const effBadge = op.defaultEfficiency ? `<span style="margin-left: 8px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 3px; font-size: 10px; font-weight: 600;">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
-          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
+          const effBadge = op.defaultEfficiency ? `<span class="pd-badge-blue-sm">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
+          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" class="pdb-draggable-item-sm view-flex-between" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
         }).join('');
       }
     }
@@ -406,11 +406,11 @@ export async function loadOperationsToolbox() {
     // Fullscreen operations list
     if (fullscreenListContainer) {
       if (operations.length === 0) {
-        fullscreenListContainer.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground); font-size: 14px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+        fullscreenListContainer.innerHTML = '<div class="pd-empty-lg">No operations available<br>Add operations in Master Data</div>';
       } else {
         fullscreenListContainer.innerHTML = operations.map(op => {
-          const effBadge = op.defaultEfficiency ? `<span style="margin-left: 8px; padding: 3px 8px; background: #dbeafe; color: #1e40af; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
-          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
+          const effBadge = op.defaultEfficiency ? `<span class="pd-badge-blue">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
+          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" class="pdb-draggable-item view-flex-between" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
         }).join('');
       }
     }
@@ -420,10 +420,10 @@ export async function loadOperationsToolbox() {
   } catch (e) {
     console.error('loadOperationsToolbox error', e);
     if (listContainer) {
-      listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>';
+      listContainer.innerHTML = '<div class="pdb-error">Failed to load operations</div>';
     }
     if (fullscreenListContainer) {
-      fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#ef4444;">Failed to load operations</div>';
+      fullscreenListContainer.innerHTML = '<div class="pdb-error">Failed to load operations</div>';
     }
   }
 }
@@ -1055,7 +1055,7 @@ export function renderTimingSummary() {
   // If no summary data, show minimal message
   if (!summary || planDesignerState.nodes.length === 0) {
     container.innerHTML = `
-      <div style="color: #6b7280; font-size: 14px; text-align: center; padding: 12px;">No operations in plan</div>
+      <div class="pd-empty-ops">No operations in plan</div>
     `;
     return;
   }
@@ -1072,11 +1072,11 @@ export function renderTimingSummary() {
   
   const bottleneckInfo = summary.bottleneck
     ? `
-      <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 10px; margin-top: 12px;">
-        <div style="font-size: 13px; font-weight: 600; color: #92400e; margin-bottom: 4px;">
+      <div class="pd-warning-box">
+        <div class="pd-warning-title">
           🔴 Bottleneck Station
         </div>
-        <div style="font-size: 12px; color: #78350f;">
+        <div class="pd-warning-text">
           <strong>${summary.bottleneck.stationName}</strong><br>
           Load: ${summary.bottleneck.load.toFixed(1)} min
         </div>
@@ -1086,12 +1086,12 @@ export function renderTimingSummary() {
   
   const stationsList = summary.stationLoads.length > 0
     ? `
-      <div style="margin-top: 12px;">
-        <div style="font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px;">
+      <div class="view-mt-12">
+        <div class="pd-section-title-gray">
           Station Loads
         </div>
         ${summary.stationLoads.slice(0, 5).map(st => `
-          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+          <div class="pd-flex-between-sm">
             <span>${st.stationName}</span>
             <span style="font-weight: 500;">${st.load.toFixed(1)} min</span>
           </div>
@@ -1102,27 +1102,27 @@ export function renderTimingSummary() {
     : '';
   
   container.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-      <div style="background: #f3f4f6; border-radius: 6px; padding: 10px;">
-        <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Nominal Time</div>
-        <div style="font-size: 18px; font-weight: 600; color: #1f2937;">${summary.totalNominalTime.toFixed(1)} min</div>
+    <div class="pd-grid-2col">
+      <div class="pdb-alert-muted">
+        <div class="pd-subtitle-mb">Nominal Time</div>
+        <div class="pd-title">${summary.totalNominalTime.toFixed(1)} min</div>
       </div>
-      <div style="background: #f3f4f6; border-radius: 6px; padding: 10px;">
-        <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Effective Time</div>
-        <div style="font-size: 18px; font-weight: 600; color: #1f2937;">${summary.totalEffectiveTime.toFixed(1)} min</div>
+      <div class="pdb-alert-muted">
+        <div class="pd-subtitle-mb">Effective Time</div>
+        <div class="pd-title">${summary.totalEffectiveTime.toFixed(1)} min</div>
       </div>
     </div>
     
-    ${efficiencyBadge ? `<div style="text-align: center; margin-bottom: 12px;">${efficiencyBadge}</div>` : ''}
+    ${efficiencyBadge ? `<div class="text-center view-mb-12">${efficiencyBadge}</div>` : ''}
     
-    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px;">
-      <div style="font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 6px;">
+    <div class="pd-info-box-blue">
+      <div class="pd-info-title-blue">
         📅 Estimated Completion
       </div>
-      <div style="font-size: 20px; font-weight: 700; color: #1e40af;">
+      <div class="pd-info-value-blue">
         ${summary.estimatedDays} ${summary.estimatedDays === 1 ? 'day' : 'days'}
       </div>
-      <div style="font-size: 11px; color: #3b82f6; margin-top: 4px;">
+      <div class="pd-info-note-blue">
         Plan Qty: ${summary.planQuantity} × ${summary.dailyShiftMinutes} min/day
       </div>
     </div>
@@ -1158,18 +1158,18 @@ export function renderNode(node, targetCanvas = null) {
     return parts.join(', ') + extra
   })()
   const warningBadge = node.requiresAttention ? 
-    '<span style="background: #dc2626; color: white; font-size: 10px; padding: 1px 4px; border-radius: 8px; margin-left: 4px;">!</span>' : '';
+    '<span class="pd-badge-error">!</span>' : '';
   
   // Efficiency badge (show if overridden)
   const hasEfficiencyOverride = node.efficiency !== undefined && node.efficiency !== null;
   const efficiencyBadge = hasEfficiencyOverride
-    ? `<span style="margin-left: 4px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 3px; font-size: 10px; font-weight: 600;">⚡ ${Math.round(node.efficiency * 100)}%</span>`
+    ? `<span class="pd-badge-blue-xs">⚡ ${Math.round(node.efficiency * 100)}%</span>`
     : '';
   
   const actionsHtml = planDesignerState.readOnly ? '' : [
-    '<div style="display: flex; gap: 2px;">',
-    `<button onclick="event.stopPropagation(); editNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #f3f4f6; border-radius: 3px; cursor: pointer; font-size: 10px;"><i class="fa-solid fa-edit" style="font-size: 8px;"></i></button>`,
-    `<button onclick="event.stopPropagation(); deleteNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #fee2e2; border-radius: 3px; cursor: pointer; font-size: 10px;">🗑️</button>`,
+    '<div class="pd-flex-gap-2">',
+    `<button onclick="event.stopPropagation(); editNode('${node.id}')" class="pd-btn-icon-sm"><i class="fa-solid fa-edit" style="font-size: 8px;"></i></button>`,
+    `<button onclick="event.stopPropagation(); deleteNode('${node.id}')" class="pd-btn-icon-danger">🗑️</button>`,
     '</div>'
   ].join('');
   const scheduleInfo = node.startTime && node.endTime ? 
@@ -1207,12 +1207,12 @@ export function renderNode(node, targetCanvas = null) {
   
   // Sequence badge (sol üst köşe)
   const sequenceBadge = node.sequence 
-    ? `<div style="position: absolute; top: -8px; left: -8px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 20;">${node.sequence}</div>`
+    ? `<div class="pd-number-badge-abs">${node.sequence}</div>`
     : '';
   
   nodeElement.innerHTML = [
     sequenceBadge,
-    '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
+    '<div class="pd-flex-between-start">',
     `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}${efficiencyBadge}</div>`,
     actionsHtml,
     '</div>',
@@ -1637,8 +1637,8 @@ function buildStationSelector(node) {
   
   // Build multi-select with chips
   let stationSelectHTML = `
-    <div style="border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; min-height: 42px;">
-      <div id="station-chips-container" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;">
+    <div class="pd-station-container">
+      <div id="station-chips-container" class="pd-station-chips">
         ${currentStationIds.map(stationId => {
           const station = availableStations.find(s => s.id === stationId);
           if (!station) {
@@ -1646,16 +1646,16 @@ function buildStationSelector(node) {
           }
           const stationType = station.type || 'Unknown';
           const stationLabel = `${station.name} (${stationType})`;
-          return `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 4px; font-size: 12px; color: #1e40af;">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" style="border: none; background: none; cursor: pointer; padding: 0; margin-left: 4px; color: #1e40af; font-weight: bold;">×</button></span>`;
+          return `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" class="pd-tag-blue">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" class="pd-btn-link">×</button></span>`;
         }).join('')}
       </div>
-      <div style="position: relative;">
+      <div class="position-relative">
         <input 
           type="text" 
           id="station-search-input" 
           placeholder="Search and select stations..." 
           autocomplete="off"
-          style="width: 100%; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px;"
+          class="pd-input-alt"
         />
         <div id="station-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: 4px; margin-top: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;"></div>
       </div>
@@ -1666,7 +1666,7 @@ function buildStationSelector(node) {
   let missingStationsWarning = '';
   if (missingStations.length > 0) {
     const missingList = missingStations.map(s => escapeHtml(s)).join(', ');
-    missingStationsWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Some previously selected stations no longer exist: ${missingList}. Please remove them and select new stations.</div>`;
+    missingStationsWarning = `<div class="pd-alert-warning">⚠️ Some previously selected stations no longer exist: ${missingList}. Please remove them and select new stations.</div>`;
   }
   
   return { stationSelectHTML, missingStationsWarning };
@@ -1734,7 +1734,7 @@ function setupStationSearch() {
     });
     
     if (filtered.length === 0) {
-      dropdown.innerHTML = '<div style="padding: 8px; color: #6b7280; font-size: 12px;">No stations found</div>';
+      dropdown.innerHTML = '<div class="pd-empty-muted">No stations found</div>';
       return;
     }
     
@@ -1743,7 +1743,7 @@ function setupStationSearch() {
       const stationTags = station.tags && station.tags.length > 0 ? ` [${station.tags.join(', ')}]` : '';
       const label = `${station.name} (${stationType})${stationTags}`;
       
-      return `<div class="station-option" data-station-id="${escapeHtml(station.id)}" style="padding: 8px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" onclick="selectStation('${escapeHtml(station.id)}')">${escapeHtml(label)}</div>`;
+      return `<div class="station-option" data-station-id="${escapeHtml(station.id)}" class="pd-dropdown-item" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" onclick="selectStation('${escapeHtml(station.id)}')">${escapeHtml(label)}</div>`;
     }).join('');
   }
 }
@@ -1766,7 +1766,7 @@ window.selectStation = function(stationId) {
   // Add chip
   const stationType = station.type || 'Unknown';
   const stationLabel = `${station.name} (${stationType})`;
-  const chipHTML = `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 4px; font-size: 12px; color: #1e40af;">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" style="border: none; background: none; cursor: pointer; padding: 0; margin-left: 4px; color: #1e40af; font-weight: bold;">×</button></span>`;
+  const chipHTML = `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" class="pd-tag-blue">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" class="pd-btn-link">×</button></span>`;
   
   chipsContainer.insertAdjacentHTML('beforeend', chipHTML);
   
@@ -1808,7 +1808,7 @@ export async function editNode(nodeId) {
   // If no matching workers, show warning
   if (matchingWorkers.length === 0 && requiredSkills.length > 0) {
     workerOptions += '<option value="" disabled>⚠️ No workers with required skills found</option>';
-    workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ No workers have all required skills (${requiredSkills.join(', ')}). Please use auto-assignment or add skills to workers.</div>`;
+    workerNotFoundWarning = `<div class="pd-alert-warning">⚠️ No workers have all required skills (${requiredSkills.join(', ')}). Please use auto-assignment or add skills to workers.</div>`;
   } else {
     matchingWorkers.forEach(worker => {
       const skills = (worker.skills || []).join(', ') || 'No skills';
@@ -1823,9 +1823,9 @@ export async function editNode(nodeId) {
   if (selectedWorkerId) {
     const savedWorker = availableWorkers.find(w => w.id === selectedWorkerId);
     if (!savedWorker) {
-      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(selectedWorkerId)}" no longer exists. Please select another worker.</div>`;
+      workerNotFoundWarning = `<div class="pd-alert-warning">⚠️ Previously selected worker "${escapeHtml(selectedWorkerId)}" no longer exists. Please select another worker.</div>`;
     } else if (!matchingWorkers.find(w => w.id === selectedWorkerId)) {
-      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedWorker.name)}" no longer has required skills (${requiredSkills.join(', ')}). Please select another worker.</div>`;
+      workerNotFoundWarning = `<div class="pd-alert-warning">⚠️ Previously selected worker "${escapeHtml(savedWorker.name)}" no longer has required skills (${requiredSkills.join(', ')}). Please select another worker.</div>`;
     }
   }
   
@@ -1854,12 +1854,12 @@ export async function editNode(nodeId) {
   
   // Build material inputs display
   const materialInputs = node.materialInputs || [];
-  let materialsHTML = '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Material Inputs</label>';
+  let materialsHTML = '<div class="view-mb-16"><label class="pdb-label">Material Inputs</label>';
   
   if (materialInputs.length === 0) {
-    materialsHTML += '<div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">No material inputs defined</div>';
+    materialsHTML += '<div class="pd-info-box">No material inputs defined</div>';
   } else {
-    materialsHTML += '<div style="border: 1px solid var(--border); border-radius: 4px; overflow: hidden;">';
+    materialsHTML += '<div class="pd-materials-container">';
     materialInputs.forEach((mat, idx) => {
       const bgColor = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
       const materialCode = mat.materialCode || mat.code || 'N/A';
@@ -1868,27 +1868,27 @@ export async function editNode(nodeId) {
       
       materialsHTML += `
         <div style="padding: 8px 12px; background: ${bgColor}; display: flex; justify-content: space-between; align-items: center;">
-          <div style="flex: 1;">
+          <div class="pd-flex-1">
             <div style="font-size: 13px; font-weight: 500; color: #1f2937;">${escapeHtml(materialCode)}</div>
-            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Qty: ${quantity} | Ratio: ${ratio}</div>
+            <div class="pd-subtitle-sm">Qty: ${quantity} | Ratio: ${ratio}</div>
           </div>
         </div>
       `;
     });
     materialsHTML += '</div>';
   }
-  materialsHTML += '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Material inputs are inherited from the operation definition</div></div>';
+  materialsHTML += '<div class="pd-subtitle">Material inputs are inherited from the operation definition</div></div>';
   
   const formContent =
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Nominal Time (minutes)</label><input type="number" id="edit-time" value="' + nominalTime + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Design-time duration (will be adjusted by efficiency)</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Efficiency Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="number" id="edit-efficiency" value="' + (efficiency < 1.0 ? efficiencyPercent.toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Leave empty for operation default" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div id="effective-time-preview" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + effectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Lower efficiency → longer effective time (e.g., 80% = 1.25x time)</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" class="pdb-input" /></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Nominal Time (minutes)</label><input type="number" id="edit-time" value="' + nominalTime + '" min="1" class="pdb-input" oninput="updateEffectiveTimePreview()" /><div class="pd-subtitle">Design-time duration (will be adjusted by efficiency)</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Efficiency Override (%) <span class="pd-subtitle-normal">(optional)</span></label><input type="number" id="edit-efficiency" value="' + (efficiency < 1.0 ? efficiencyPercent.toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Leave empty for operation default" class="pdb-input" oninput="updateEffectiveTimePreview()" /><div id="effective-time-preview" class="pd-preview-text">Effective Time: ' + effectiveTime + ' min</div><div class="pd-subtitle-sm">Lower efficiency → longer effective time (e.g., 80% = 1.25x time)</div></div>' +
     materialsHTML +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Specific Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Capability Tags <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assignment Mode</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="assignment-mode" value="auto" ' + (assignmentMode === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="assignment-mode" value="manual" ' + (assignmentMode === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Assign specific worker)</label></div></div>' +
-    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (assignmentMode === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker <span style="color: #ef4444;">*</span></label><select id="edit-worker-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;">' + workerOptions + '</select>' + workerNotFoundWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Backend will assign this worker at launch (if available).</div></div>';
+    '<div class="view-mb-16"><label class="pdb-label">Required Skills</label><div class="pd-info-box">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div class="pd-subtitle">Skills are inherited from the operation definition</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Preferred Specific Stations <span class="pd-subtitle-normal">(optional)</span> <span class="pd-help-link" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div class="pd-subtitle">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Capability Tags <span class="pd-subtitle-normal">(optional)</span> <span class="pd-help-link" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" class="pdb-input" /><div class="pd-subtitle">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Assignment Mode</label><div class="pd-flex-gap-16"><label class="pd-flex-gap-6"><input type="radio" name="assignment-mode" value="auto" ' + (assignmentMode === 'auto' ? 'checked' : '') + ' class="cursor-pointer" />Auto (System assigns at launch)</label><label class="pd-flex-gap-6"><input type="radio" name="assignment-mode" value="manual" ' + (assignmentMode === 'manual' ? 'checked' : '') + ' class="cursor-pointer" />Manual (Assign specific worker)</label></div></div>' +
+    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (assignmentMode === 'manual' ? 'block' : 'none') + ';"><label class="pdb-label">Assigned Worker <span class="pd-text-required">*</span></label><select id="edit-worker-select" class="pd-input-white">' + workerOptions + '</select>' + workerNotFoundWarning + '<div class="pd-subtitle">Backend will assign this worker at launch (if available).</div></div>';
     
   document.getElementById('node-edit-form').innerHTML = formContent;
   
@@ -3253,12 +3253,12 @@ export function renderPlanOrderListFromSelect() {
   const opts = Array.from(sel.options || []);
   const rows = opts
     .filter(o => o.value)
-    .map(o => `<label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+    .map(o => `<label class="pd-checkbox-label">
       <input type="radio" name="plan-order-radio" value="${o.value}" data-label="${(o.text||o.value).replace(/"/g, '&quot;')}">
       <span style="font-size:12px;">${o.text || o.value}</span>
     </label>`)
     .join('');
-  list.innerHTML = rows || '<div style="color: var(--muted-foreground); font-size: 12px;">No orders</div>';
+  list.innerHTML = rows || '<div class="pd-no-orders">No orders</div>';
   
   // Add event listeners to radio buttons
   const radios = list.querySelectorAll('input[type="radio"]');

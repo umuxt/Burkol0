@@ -16,27 +16,27 @@ export async function initMasterDataUI() {
   // Initialize Skills (SQL-based)
   const skillsHost = document.getElementById('skills-management')
   if (skillsHost) {
-    skillsHost.innerHTML = '<div style="color:#888;">Loading skills...</div>'
+    skillsHost.innerHTML = '<div class="loading-text">Loading skills...</div>'
     try {
       // Load from SQL (mes.skills table)
       skillsState = await getSkillsFromSQL()
       renderSkills(skillsHost)
     } catch (e) {
       console.error('Skills load error', e)
-      skillsHost.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
+      skillsHost.innerHTML = '<div class="error-text">Skills yüklenemedi</div>'
     }
   }
 
   // Initialize Operations
   const operationsHost = document.getElementById('operations-management')
   if (operationsHost) {
-    operationsHost.innerHTML = '<div style="color:#888;">Loading operations...</div>'
+    operationsHost.innerHTML = '<div class="loading-text">Loading operations...</div>'
     try {
       operationsState = await getOperations()
       renderOperations(operationsHost)
     } catch (e) {
       console.error('Operations load error', e)
-      operationsHost.innerHTML = '<div style="color:#ef4444;">Operations yüklenemedi</div>'
+      operationsHost.innerHTML = '<div class="error-text">Operations yüklenemedi</div>'
     }
   }
 }
@@ -49,40 +49,40 @@ function renderSkills(host) {
     : filtered.map(s => `
       <tr class="mes-table-row" data-skill-row="${escapeHtml(s.id)}" onclick="activateSkillRow('${escapeHtml(s.id)}')">
         <td>
-          <div class="skill-row" style="display:inline-flex; align-items:center; gap:8px;">
-            <span data-skill-label="${escapeHtml(s.id)}" style="display:inline-block; font-weight: 500;">${escapeHtml(s.name)}</span>
+          <div class="skill-row skill-row-container">
+            <span data-skill-label="${escapeHtml(s.id)}" class="skill-name-label">${escapeHtml(s.name)}</span>
             <input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}"
                    oninput="onSkillNameInput('${escapeHtml(s.id)}')"
-                   style="display:none; width:auto; flex:0 0 220px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.9em;" />
-            <div data-skill-actions="${escapeHtml(s.id)}" style="display:none; gap:6px; align-items:center;">
+                   class="skill-name-input" />
+            <div data-skill-actions="${escapeHtml(s.id)}" class="skill-actions">
               <button data-skill-save="${escapeHtml(s.id)}" onclick="event.stopPropagation(); renameSkill('${escapeHtml(s.id)}')"
-                      style="display:none; padding:2px 8px; border:1px solid var(--border); background:white; border-radius:4px; font-size:12px;">Kaydet</button>
+                      class="skill-btn-save">Kaydet</button>
               <button data-skill-cancel="${escapeHtml(s.id)}" onclick="event.stopPropagation(); cancelSkillEdit('${escapeHtml(s.id)}')"
-                      style="display:inline-block; padding:2px 8px; border:1px solid var(--border); color:#6b7280; background:white; border-radius:4px; font-size:12px;">İptal</button>
+                      class="skill-btn-cancel">İptal</button>
               <button data-skill-delete="${escapeHtml(s.id)}" onclick="event.stopPropagation(); deleteSkill('${escapeHtml(s.id)}')"
-                      style="display:inline-block; padding:2px 8px; border:1px solid #ef4444; color:#ef4444; background:white; border-radius:4px; font-size:12px;">Sil</button>
+                      class="skill-btn-delete">Sil</button>
             </div>
           </div>
         </td>
-        <td style="color:#6b7280; font-size:0.85em;">${escapeHtml(s.description || '')}</td>
+        <td class="skill-description">${escapeHtml(s.description || '')}</td>
       </tr>`).join('')
 
   host.innerHTML = `
-    <div class="skills-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
-      <input id="skill-new-name" type="text" placeholder="Yeni skill adı veya ara" value="${escapeHtml(skillsQuery)}" oninput="onSkillsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
-      <button id="skill-add-btn" onclick="addSkillFromSettings()" disabled style="padding:4px 8px; background:#e5e7eb; color:#9ca3af; border:none; border-radius:4px; font-size: 0.9em; cursor:not-allowed;">+ Ekle</button>
+    <div class="skills-input-row">
+      <input id="skill-new-name" type="text" placeholder="Yeni skill adı veya ara" value="${escapeHtml(skillsQuery)}" oninput="onSkillsSearchInput()" class="skill-search-input" />
+      <button id="skill-add-btn" onclick="addSkillFromSettings()" disabled class="skill-add-btn">+ Ekle</button>
     </div>
-    <div class="skills-scroll mes-table-container" style="position: relative; min-width:300px;">
+    <div class="skills-scroll mes-table-container skills-table-container">
       <table class="mes-table">
         <thead class="mes-table-header">
           <tr>
-            <th style="min-width: 200px;">
-              <button type="button" class="mes-sort-button" style="cursor: default;">
+            <th class="th-min-200">
+              <button type="button" class="mes-sort-button sort-button-static">
                 Ad <span class="mes-sort-icon">↕</span>
               </button>
             </th>
-            <th style="min-width: 300px;">
-              <button type="button" class="mes-sort-button" style="cursor: default;">
+            <th class="th-min-300">
+              <button type="button" class="mes-sort-button sort-button-static">
                 Açıklama <span class="mes-sort-icon">↕</span>
               </button>
             </th>
@@ -94,29 +94,29 @@ function renderSkills(host) {
       </table>
     </div>
     <!-- Skill Create Modal -->
-    <div id="skill-create-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); z-index:9999; align-items:center; justify-content:center;" onclick="if(event.target.id==='skill-create-modal') closeSkillModal()">
-      <div style="background:white; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.1); padding:20px; min-width:400px; max-width:500px;" onclick="event.stopPropagation()">
-        <h4 style="margin:0 0 16px; font-size:16px; font-weight:600; color:#000;">Yeni Skill Ekle</h4>
+    <div id="skill-create-modal" class="skill-modal-overlay" onclick="if(event.target.id==='skill-create-modal') closeSkillModal()">
+      <div class="skill-modal-container" onclick="event.stopPropagation()">
+        <h4 class="skill-modal-title">Yeni Skill Ekle</h4>
         
-        <div style="margin-bottom:12px;">
-          <label style="display:block; font-size:13px; font-weight:500; margin-bottom:4px; color:#000;">Skill Adı *</label>
-          <input id="skill-modal-name" type="text" placeholder="Örn: TIG Kaynağı" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:4px; font-size:14px;" />
+        <div class="skill-form-group">
+          <label class="skill-form-label">Skill Adı *</label>
+          <input id="skill-modal-name" type="text" placeholder="Örn: TIG Kaynağı" class="skill-form-input" />
         </div>
         
-        <div style="margin-bottom:16px;">
-          <label style="display:block; font-size:13px; font-weight:500; margin-bottom:4px; color:#000;">Açıklama (opsiyonel)</label>
-          <textarea id="skill-modal-description" placeholder="Skill hakkında detaylı açıklama..." rows="3" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:4px; font-size:14px; resize:vertical;"></textarea>
+        <div class="skill-form-group-lg">
+          <label class="skill-form-label">Açıklama (opsiyonel)</label>
+          <textarea id="skill-modal-description" placeholder="Skill hakkında detaylı açıklama..." rows="3" class="skill-form-textarea"></textarea>
         </div>
         
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
-          <button onclick="saveNewSkillFromModal()" style="display:flex; align-items:center; gap:6px; padding:8px 16px; background:#000; color:#fff; border:none; border-radius:4px; font-size:14px; cursor:pointer;">
-            <span style="display:flex; align-items:center;">
+        <div class="skill-modal-footer">
+          <button onclick="saveNewSkillFromModal()" class="skill-btn-primary">
+            <span class="btn-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             </span>
             <span>Skill Kaydet</span>
           </button>
-          <button onclick="closeSkillModal()" style="display:flex; align-items:center; gap:6px; padding:8px 16px; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:4px; font-size:14px; cursor:pointer;">
-            <span style="display:flex; align-items:center;">
+          <button onclick="closeSkillModal()" class="skill-btn-secondary">
+            <span class="btn-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
             </span>
             <span>İptal</span>
@@ -425,44 +425,44 @@ function renderOperations(host) {
         return `
           <tr class="mes-table-row" data-operation-row="${escapeHtml(op.id)}" onclick="activateOperationRow('${escapeHtml(op.id)}')">
             <td>
-              <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.name)}</span>
+              <span class="operation-name-sm">${escapeHtml(op.name)}</span>
             </td>
             <td class="text-center">
               <span class="mes-code-text">${escapeHtml(op.semiOutputCode || '-')}</span>
             </td>
             <td class="text-center">
-              <div class="operation-row" style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
-                <span data-operation-defect-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${escapeHtml(defectLabel)}</span>
+              <div class="operation-row operation-row-container">
+                <span data-operation-defect-label="${escapeHtml(op.id)}" class="operation-defect-label">${escapeHtml(defectLabel)}</span>
                 <input data-operation-defect-id="${escapeHtml(op.id)}" type="number" min="0" step="0.1" value="${escapeHtml(String(normalizedRate))}"
                        oninput="onOperationDefectRateInput('${escapeHtml(op.id)}')"
-                       style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em; text-align:center;" />
+                       class="operation-defect-input" />
               </div>
             </td>
             <td class="text-center">
-              <div class="operation-row" style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
-                <span data-operation-efficiency-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${escapeHtml(efficiencyLabel)}</span>
+              <div class="operation-row operation-row-container">
+                <span data-operation-efficiency-label="${escapeHtml(op.id)}" class="operation-defect-label">${escapeHtml(efficiencyLabel)}</span>
                 <input data-operation-efficiency-id="${escapeHtml(op.id)}" type="number" min="10" max="200" step="1" value="${escapeHtml(String(efficiencyPercentage))}"
                        oninput="onOperationEfficiencyInput('${escapeHtml(op.id)}')"
-                       style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em; text-align:center;" />
-                <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✓</button>
-                <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✗</button>
+                       class="operation-defect-input" />
+                <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" class="operation-btn-sm">✓</button>
+                <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" class="operation-btn-sm">✗</button>
               </div>
             </td>
           </tr>`
       }).join('')
 
   host.innerHTML = `
-    <div class="operations-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
-      <input id="operation-search" type="text" placeholder="Operasyon ara..." value="${escapeHtml(operationsQuery)}" oninput="onOperationsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
+    <div class="operations-input-row">
+      <input id="operation-search" type="text" placeholder="Operasyon ara..." value="${escapeHtml(operationsQuery)}" oninput="onOperationsSearchInput()" class="operation-search-input" />
     </div>
-    <div class="operations-scroll mes-table-container" style="position: relative; min-width:300px; max-height: 200px;">
+    <div class="operations-scroll mes-table-container operations-table-container">
       <table class="mes-table">
         <thead class="mes-table-header">
           <tr>
-            <th style="min-width: 150px; text-align:left; font-size: 0.85em;">Operasyon Adı</th>
-            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Çıktı Kodu</th>
-            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Fire Oranı (%)</th>
-            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Verimlilik %</th>
+            <th class="th-op-name">Operasyon Adı</th>
+            <th class="th-op-code">Çıktı Kodu</th>
+            <th class="th-op-rate">Fire Oranı (%)</th>
+            <th class="th-op-rate">Verimlilik %</th>
           </tr>
         </thead>
         <tbody class="mes-table-body">

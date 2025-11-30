@@ -73,7 +73,7 @@ async function generateStationId(operationIds) {
 
 async function loadStationsAndRender() {
   const list = document.getElementById('stations-list')
-  if (list) list.innerHTML = '<div style="padding:12px;color:#888;">Loading stations...</div>'
+  if (list) list.innerHTML = '<div class="station-loading"><span class="station-loading-text">Loading stations...</span></div>'
   try {
     operationsCache = await getOperations(true)
     skillsCache = await getSkillsFromSQL() // Load skills for ID→name mapping
@@ -81,7 +81,7 @@ async function loadStationsAndRender() {
     renderStations()
   } catch (e) {
     console.error('Stations load error:', e)
-    if (list) list.innerHTML = '<div style="padding:12px;color:#ef4444;">Stations yüklenemedi.</div>'
+    if (list) list.innerHTML = '<div class="station-loading"><span class="text-danger">Stations yüklenemedi.</span></div>'
     showErrorToast('Stations yüklenemedi')
   }
 }
@@ -170,12 +170,12 @@ function renderStations() {
       if (compact) {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 70px;">
+            <th class="min-w-70">
               <button type="button" class="mes-sort-button" onclick="sortStations('id')">
                 Station ID <span class="mes-sort-icon">${getSortIcon('id')}</span>
               </button>
             </th>
-            <th style="min-width: 200px;">
+            <th class="min-w-200">
               <button type="button" class="mes-sort-button" onclick="sortStations('name')">
                 Station Name <span class="mes-sort-icon">${getSortIcon('name')}</span>
               </button>
@@ -185,27 +185,27 @@ function renderStations() {
       } else {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 70px;">
+            <th class="min-w-70">
               <button type="button" class="mes-sort-button" onclick="sortStations('id')">
                 Station ID <span class="mes-sort-icon">${getSortIcon('id')}</span>
               </button>
             </th>
-            <th style="min-width: 200px;">
+            <th class="min-w-200">
               <button type="button" class="mes-sort-button" onclick="sortStations('name')">
                 Station Name <span class="mes-sort-icon">${getSortIcon('name')}</span>
               </button>
             </th>
-            <th style="min-width: 1%; white-space: nowrap; text-align: center;" class="text-center">
+            <th class="th-amount text-center">
               <button type="button" class="mes-sort-button" onclick="sortStations('amount')">
                 Amount <span class="mes-sort-icon">${getSortIcon('amount')}</span>
               </button>
             </th>
-            <th style="min-width: 160px;">
+            <th class="min-w-160">
               <button type="button" class="mes-sort-button" onclick="sortStations('operations')">
                 Operations <span class="mes-sort-icon">${getSortIcon('operations')}</span>
               </button>
             </th>
-            <th style="min-width: 160px;">
+            <th class="min-w-160">
               <button type="button" class="mes-sort-button" onclick="sortStations('skills')">
                 Skills <span class="mes-sort-icon">${getSortIcon('skills')}</span>
               </button>
@@ -490,8 +490,8 @@ function populateFilterPanel(filterType) {
              value="${escapeHtml(item.value)}" 
              ${stationFilters[filterType].has(item.value) ? 'checked' : ''}
              onchange="handleFilterChange('${filterType}', '${escapeHtml(item.value)}', this.checked)">
-      <span style="flex: 1;">${escapeHtml(item.label)}</span>
-      <span style="color: var(--muted-foreground); font-size: 11px;">(${item.count})</span>
+      <span class="flex-1">${escapeHtml(item.label)}</span>
+<span class="filter-count">(${item.count})</span>
     </label>
   `).join('')
 
@@ -708,8 +708,8 @@ export async function showStationDetail(stationId) {
   
   // Show loading state first
   detailContent.innerHTML = `
-    <div style="padding: 20px; text-align: center;">
-      <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
+    <div class="station-loading">
+      <div class="station-loading-text">Yükleniyor...</div>
     </div>
   `
   
@@ -729,52 +729,52 @@ export async function showStationDetail(stationId) {
     const subStationsSection = buildSubStationsSection(station)
     
     detailContent.innerHTML = `
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.name || '')}</span>
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Temel Bilgiler</h3>
+        <div class="station-detail-row">
+          <span class="station-detail-label">İsim:</span>
+          <span class="station-detail-value">${escapeHtml(station.name || '')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">
+        <div class="station-detail-row">
+          <span class="station-detail-label">Status:</span>
+          <span class="station-detail-value">
             <span class="badge badge-${station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')}">${escapeHtml(station.status || '')}</span>
           </span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Location:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.location || '-')}</span>
+        <div class="station-detail-row">
+          <span class="station-detail-label">Location:</span>
+          <span class="station-detail-value">${escapeHtml(station.location || '-')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.description || '-')}</span>
+        <div class="station-detail-row no-margin-bottom">
+          <span class="station-detail-label">Açıklama:</span>
+          <span class="station-detail-value">${escapeHtml(station.description || '-')}</span>
         </div>
       </div>
       
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Desteklenen Operasyonlar</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Desteklenen Operasyonlar</h3>
+        <div class="flex-wrap-gap">
           ${opsLabels.length > 0 ? opsLabels.map(name => 
-            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(name)}</span>`
-          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Operasyon tanımlanmamış</span>'}
+            `<span class="badge-muted">${escapeHtml(name)}</span>`
+          ).join('') : '<span class="text-muted text-italic">Operasyon tanımlanmamış</span>'}
         </div>
       </div>
       
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Yetenekler</h3>
+        <div class="flex-wrap-gap">
           ${effective.length > 0 ? effective.map(skill => {
             const skillName = getSkillName(skill) // Convert ID to name
-            return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skillName)}</span>`
-          }).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+            return `<span class="badge-muted">${escapeHtml(skillName)}</span>`
+          }).join('') : '<span class="text-muted text-italic">Yetenek tanımlanmamış</span>'}
         </div>
         ${stationSpecificSkills.length > 0 ? `
-          <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
-            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <div class="sub-info-section">
+            <div class="sub-info-label">İstasyon Özel Yetenekleri:</div>
+            <div class="flex-wrap-gap-xs">
               ${stationSpecificSkills.map(skill => {
                 const skillName = getSkillName(skill) // Convert ID to name
-                return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+                return `<span class="badge-error">${escapeHtml(skillName)}</span>`
               }).join('')}
             </div>
           </div>
@@ -782,35 +782,35 @@ export async function showStationDetail(stationId) {
       </div>
       ${subStationsSection}
       
-      <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel (${stationWorkersData.compatibleWorkers.length})</h3>
+      <div class="station-detail-section no-margin-bottom">
+        <h3 class="station-detail-title">Çalışabilecek Personel (${stationWorkersData.compatibleWorkers.length})</h3>
         ${stationWorkersData.requiredSkills.length > 0 ? `
-          <div style="margin-bottom: 12px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
-            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">Gerekli Yetenekler:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <div class="skill-info-box">
+            <div class="skill-info-label">Gerekli Yetenekler:</div>
+            <div class="flex-wrap-gap-xs">
               ${stationWorkersData.requiredSkills.map(skill => {
                 const skillName = getSkillName(skill) // Convert ID to name
-                return `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+                return `<span class="badge-primary">${escapeHtml(skillName)}</span>`
               }).join('')}
             </div>
           </div>
         ` : ''}
         ${stationWorkersData.compatibleWorkers.length > 0 ? `
-          <div style="display: grid; gap: 8px;">
+          <div class="grid-gap-8">
             ${stationWorkersData.compatibleWorkers.map(worker => `
-              <div style="padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                  <span style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
-                  <span style="font-size: 10px; color: rgb(107, 114, 128);">${escapeHtml(worker.status || 'available')}</span>
+              <div class="worker-card">
+                <div class="worker-card-header">
+                  <span class="worker-card-name">${escapeHtml(worker.name || '')}</span>
+                  <span class="item-subtitle">${escapeHtml(worker.status || 'available')}</span>
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+                <div class="flex-wrap-gap-3">
                   ${(worker.skills || []).map(skill => {
                     const skillName = getSkillName(skill) // Convert ID to name
-                    return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+                    return `<span class="badge-skill-xs">${escapeHtml(skillName)}</span>`
                   }).join('')}
                 </div>
                 ${worker.station ? `
-                  <div style="margin-top: 4px; font-size: 10px; color: rgb(107, 114, 128);">
+                  <div class="worker-card-station">
                     Mevcut İstasyon: ${escapeHtml(worker.station)}
                   </div>
                 ` : ''}
@@ -818,10 +818,10 @@ export async function showStationDetail(stationId) {
             `).join('')}
           </div>
         ` : `
-          <div style="text-align: center; padding: 16px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+          <div class="empty-state-center">
             Bu istasyonda çalışabilecek uygun personel bulunamadı.
             ${stationWorkersData.requiredSkills.length > 0 ? 
-              `<br><span style="font-size: 11px;">Tüm gerekli yeteneklere sahip personel gerekiyor.</span>` : 
+              `<br><span class="text-11">Tüm gerekli yeteneklere sahip personel gerekiyor.</span>` : 
               ''
             }
           </div>
@@ -843,52 +843,52 @@ export async function showStationDetail(stationId) {
     const subStationsSection = buildSubStationsSection(station)
     
     detailContent.innerHTML = `
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.name || '')}</span>
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Temel Bilgiler</h3>
+        <div class="detail-item" class="station-detail-row">
+          <span class="detail-label" class="station-detail-label">İsim:</span>
+          <span class="station-detail-value">${escapeHtml(station.name || '')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">
+        <div class="detail-item" class="station-detail-row">
+          <span class="detail-label" class="station-detail-label">Status:</span>
+          <span class="station-detail-value">
             <span class="badge badge-${station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')}">${escapeHtml(station.status || '')}</span>
           </span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Location:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.location || '-')}</span>
+        <div class="detail-item" class="station-detail-row">
+          <span class="detail-label" class="station-detail-label">Location:</span>
+          <span class="station-detail-value">${escapeHtml(station.location || '-')}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
-          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.description || '-')}</span>
+        <div class="detail-item" class="station-detail-row no-margin-bottom">
+          <span class="detail-label" class="station-detail-label">Açıklama:</span>
+          <span class="station-detail-value">${escapeHtml(station.description || '-')}</span>
         </div>
       </div>
       
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Desteklenen Operasyonlar</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Desteklenen Operasyonlar</h3>
+        <div class="flex-wrap-gap">
           ${opsLabels.length > 0 ? opsLabels.map(name => 
-            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(name)}</span>`
-          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Operasyon tanımlanmamış</span>'}
+            `<span class="badge-muted">${escapeHtml(name)}</span>`
+          ).join('') : '<span class="text-muted text-italic">Operasyon tanımlanmamış</span>'}
         </div>
       </div>
       
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <div class="station-detail-section">
+        <h3 class="station-detail-title">Yetenekler</h3>
+        <div class="flex-wrap-gap">
           ${effective.length > 0 ? effective.map(skill => {
             const skillName = getSkillName(skill) // Convert ID to name
-            return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skillName)}</span>`
-          }).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+            return `<span class="badge-muted">${escapeHtml(skillName)}</span>`
+          }).join('') : '<span class="text-muted text-italic">Yetenek tanımlanmamış</span>'}
         </div>
         ${(station.subSkills || []).length > 0 ? `
-          <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
-            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <div class="sub-info-section">
+            <div class="sub-info-label">İstasyon Özel Yetenekleri:</div>
+            <div class="flex-wrap-gap-xs">
               ${(station.subSkills || []).map(skill => {
                 const skillName = getSkillName(skill) // Convert ID to name
-                return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+                return `<span class="badge-error">${escapeHtml(skillName)}</span>`
               }).join('')}
             </div>
           </div>
@@ -896,9 +896,9 @@ export async function showStationDetail(stationId) {
       </div>
       ${subStationsSection}
       
-      <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel</h3>
-        <div style="text-align: center; padding: 16px; color: rgb(220, 38, 38); font-size: 12px;">
+      <div class="station-detail-section no-margin-bottom">
+        <h3 class="station-detail-title">Çalışabilecek Personel</h3>
+        <div class="empty-state-error">
           Personel bilgileri yüklenirken hata oluştu.
         </div>
       </div>
@@ -946,8 +946,8 @@ export async function showSubStationDetail(substationId) {
   
   // Show loading state
   detailContent.innerHTML = `
-    <div style="padding: 20px; text-align: center;">
-      <div style="font-size: 14px; color: rgb(107, 114, 128);">Alt istasyon detayları yükleniyor...</div>
+    <div class="station-loading">
+      <div class="loading-text-muted">Alt istasyon detayları yükleniyor...</div>
     </div>
   `
   
@@ -998,22 +998,22 @@ export async function showSubStationDetail(substationId) {
     // Render detail panel
     detailContent.innerHTML = `
       <!-- Temel Bilgiler -->
-      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
-          <i data-lucide="info" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+      <div class="mes-section" class="station-detail-section">
+        <div class="mes-section-header" class="station-detail-title with-icon">
+          <i data-lucide="info" class="icon-16 icon-blue"></i>
           Alt İstasyon Bilgileri
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Kod:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39); font-family: monospace;">${escapeHtml(substation.code)}</span>
+        <div class="detail-item" class="flex-center-gap mb-8">
+          <span class="detail-label" class="station-detail-label">Kod:</span>
+          <span class="detail-value detail-value-mono">${escapeHtml(substation.code)}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ana İstasyon:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(substation.stationName || substation.stationId)}</span>
+        <div class="detail-item" class="flex-center-gap mb-8">
+          <span class="detail-label" class="station-detail-label">Ana İstasyon:</span>
+          <span class="detail-value detail-value-text">${escapeHtml(substation.stationName || substation.stationId)}</span>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teknik Durum:</span>
-          <select id="technical-status-select" style="font-size: 12px; padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer;" onchange="updateTechnicalStatus('${escapeHtml(substationId)}', this.value)">
+        <div class="detail-item station-detail-row no-margin-bottom">
+          <span class="detail-label station-detail-label">Teknik Durum:</span>
+          <select id="technical-status-select" class="form-select-technical" onchange="updateTechnicalStatus('${escapeHtml(substationId)}', this.value)">
             <option value="active" ${substation.technicalStatus === 'active' ? 'selected' : ''}>🟢 Aktif</option>
             <option value="passive" ${substation.technicalStatus === 'passive' ? 'selected' : ''}>⚪ Pasif</option>
             <option value="maintenance" ${substation.technicalStatus === 'maintenance' ? 'selected' : ''}>🟡 Bakımda</option>
@@ -1022,152 +1022,152 @@ export async function showSubStationDetail(substationId) {
       </div>
       
       <!-- Mevcut Görev -->
-      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
-          <i data-lucide="play-circle" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+      <div class="mes-section" class="station-detail-section">
+        <div class="mes-section-header" class="station-detail-title with-icon">
+          <i data-lucide="play-circle" class="icon-16 icon-blue"></i>
           Mevcut Görev
         </div>
         ${currentTask ? `
-          <div style="padding: 12px; background: rgb(254, 249, 195); border-left: 3px solid rgb(245, 158, 11); border-radius: 4px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-              <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">
-                <i data-lucide="factory" style="width: 14px; height: 14px; color: rgb(107, 114, 128);"></i>
+          <div class="current-task-card">
+            <div class="current-task-header">
+              <div class="current-task-title">
+                <i data-lucide="factory" class="icon-14-muted"></i>
                 ${escapeHtml(currentTask.operationName)}
               </div>
               ${currentTask.timeRemaining !== null ? `
-                <div style="display: flex; align-items: center; gap: 4px; background: rgb(254, 226, 226); color: rgb(153, 27, 27); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">
-                  <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
+                <div class="current-task-timer">
+                  <i data-lucide="clock" class="icon-12"></i>
                   ${formatDuration(currentTask.timeRemaining)} kaldı
                 </div>
               ` : ''}
             </div>
-            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 6px;">
+            <div class="current-task-details">
               ${currentTask.planName ? `
-              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="clipboard-list" style="width: 11px; height: 11px;"></i>
-                <span style="font-weight: 500;">Plan:</span> ${escapeHtml(currentTask.planName)}
+              <div class="item-row">
+                <i data-lucide="clipboard-list" class="icon-11"></i>
+                <span class="font-500">Plan:</span> ${escapeHtml(currentTask.planName)}
               </div>
               ` : ''}
-              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="package" style="width: 11px; height: 11px;"></i>
-                <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(currentTask.workPackageId || '-')}
+              <div class="item-row">
+                <i data-lucide="package" class="icon-11"></i>
+                <span class="font-500">İş Paketi:</span> ${escapeHtml(currentTask.workPackageId || '-')}
               </div>
-              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="user" style="width: 11px; height: 11px;"></i>
-                <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(currentTask.workerName)}
+              <div class="item-row">
+                <i data-lucide="user" class="icon-11"></i>
+                <span class="font-500">İşçi:</span> ${escapeHtml(currentTask.workerName)}
               </div>
-              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="play" style="width: 11px; height: 11px;"></i>
-                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.startTime)}
+              <div class="item-row">
+                <i data-lucide="play" class="icon-11"></i>
+                <span class="font-500">Başlangıç:</span> ${formatTime(currentTask.startTime)}
               </div>
               ${currentTask.expectedEnd ? `
-                <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                  <i data-lucide="flag" style="width: 11px; height: 11px;"></i>
-                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.expectedEnd)}
+                <div class="item-row">
+                  <i data-lucide="flag" class="icon-11"></i>
+                  <span class="font-500">Tahmini Bitiş:</span> ${formatTime(currentTask.expectedEnd)}
                 </div>
               ` : ''}
               ${currentTask.estimatedDuration ? `
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <i data-lucide="timer" style="width: 11px; height: 11px;"></i>
-                  <span style="font-weight: 500;">Süre:</span> ${formatDuration(currentTask.estimatedDuration)}
+                <div class="flex-center-gap-sm">
+                  <i data-lucide="timer" class="icon-11"></i>
+                  <span class="font-500">Süre:</span> ${formatDuration(currentTask.estimatedDuration)}
                 </div>
               ` : ''}
             </div>
           </div>
         ` : `
-          <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
-            <i data-lucide="coffee" style="width: 24px; height: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
+          <div class="empty-state-center">
+            <i data-lucide="coffee" class="worker-card-placeholder"></i>
             <div>Şu anda atanmış bir görev bulunmuyor</div>
           </div>
         `}
       </div>
       
       <!-- Yaklaşan Görevler -->
-      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
-          <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">
-            <i data-lucide="list-todo" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+      <div class="mes-section station-detail-section">
+        <div class="section-header-split">
+          <div class="section-header-title">
+            <i data-lucide="list-todo" class="icon-16 icon-blue"></i>
             Yaklaşan Görevler
-            <span style="background: rgb(229, 231, 235); color: rgb(55, 65, 81); padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">${upcomingTasks.length}</span>
+            <span class="count-badge">${upcomingTasks.length}</span>
           </div>
-          <button type="button" onclick="showSubStationDetail('${escapeHtml(substationId)}')" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">
-            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+          <button type="button" onclick="showSubStationDetail('${escapeHtml(substationId)}')" class="btn-refresh-sm">
+            <i data-lucide="refresh-cw" class="icon-12"></i>
             Yenile
           </button>
         </div>
         ${upcomingTasks.length > 0 ? `
-          <div style="display: grid; gap: 8px; max-height: 300px; overflow-y: auto;">
+          <div class="tasks-grid-scroll">
             ${upcomingTasks.map((task, index) => `
-              <div style="padding: 10px; background: rgb(249, 250, 251); border-left: 3px solid ${task.status === 'pending' ? 'rgb(34, 197, 94)' : 'rgb(156, 163, 175)'}; border-radius: 4px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                  <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
-                    <span style="background: rgb(229, 231, 235); color: rgb(55, 65, 81); padding: 0 6px; border-radius: 3px; font-size: 10px;">#${index + 1}</span>
-                    <i data-lucide="factory" style="width: 12px; height: 12px; color: rgb(107, 114, 128);"></i>
+              <div class="${task.status === 'pending' ? 'task-card-pending' : 'task-card-queued'}">
+                <div class="upcoming-task-header">
+                  <div class="upcoming-task-title">
+                    <span class="count-badge-sm">#${index + 1}</span>
+                    <i data-lucide="factory" class="icon-12-muted"></i>
                     ${escapeHtml(task.operationName)}
                   </div>
-                  <span style="background: ${task.status === 'pending' ? 'rgb(220, 252, 231)' : 'rgb(243, 244, 246)'}; color: ${task.status === 'pending' ? 'rgb(22, 101, 52)' : 'rgb(75, 85, 99)'}; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                  <span class="${task.status === 'pending' ? 'status-badge-pending' : 'status-badge-queued'}">
                     ${task.status === 'pending' ? 'Bekliyor' : 'Kuyrukta'}
                   </span>
                 </div>
-                <div style="font-size: 10px; color: rgb(107, 114, 128);">
+                <div class="item-subtitle">
                   ${task.planName ? `
-                  <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                    <i data-lucide="clipboard-list" style="width: 10px; height: 10px;"></i>
-                    <span style="font-weight: 500;">Plan:</span> ${escapeHtml(task.planName)}
+                  <div class="item-row">
+                    <i data-lucide="clipboard-list" class="icon-10"></i>
+                    <span class="font-500">Plan:</span> ${escapeHtml(task.planName)}
                   </div>
                   ` : ''}
-                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
-                    <i data-lucide="package" style="width: 10px; height: 10px;"></i>
-                    <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(task.workPackageId || '-')}
+                  <div class="item-row">
+                    <i data-lucide="package" class="icon-10"></i>
+                    <span class="font-500">İş Paketi:</span> ${escapeHtml(task.workPackageId || '-')}
                   </div>
-                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
-                    <i data-lucide="user" style="width: 10px; height: 10px;"></i>
-                    <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(task.workerName)}
+                  <div class="item-row">
+                    <i data-lucide="user" class="icon-10"></i>
+                    <span class="font-500">İşçi:</span> ${escapeHtml(task.workerName)}
                   </div>
-                  <div style="display: flex; align-items: center; gap: 4px;">
-                    <i data-lucide="calendar" style="width: 10px; height: 10px;"></i>
-                    <span style="font-weight: 500;">Tahmini Başlangıç:</span> ${formatTime(task.estimatedStartTime)}
-                    ${task.estimatedDuration ? ` <span style="margin-left: 8px;"><i data-lucide="timer" style="width: 10px; height: 10px; display: inline;"></i> ${formatDuration(task.estimatedDuration)}</span>` : ''}
+                  <div class="flex-center-gap-sm">
+                    <i data-lucide="calendar" class="icon-10"></i>
+                    <span class="font-500">Tahmini Başlangıç:</span> ${formatTime(task.estimatedStartTime)}
+                    ${task.estimatedDuration ? ` <span class="ml-8"><i data-lucide="timer" class="icon-inline"></i> ${formatDuration(task.estimatedDuration)}</span>` : ''}
                   </div>
                 </div>
               </div>
             `).join('')}
           </div>
         ` : `
-          <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
-            <i data-lucide="inbox" style="width: 24px; height: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
+          <div class="empty-state-center">
+            <i data-lucide="inbox" class="worker-card-placeholder"></i>
             <div>Yaklaşan görev bulunmuyor</div>
           </div>
         `}
       </div>
       
       <!-- Performans Bilgileri -->
-      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
-          <i data-lucide="bar-chart-2" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+      <div class="mes-section station-detail-section">
+        <div class="mes-section-header station-detail-title with-icon">
+          <i data-lucide="bar-chart-2" class="icon-16 icon-blue"></i>
           Performans Özeti
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div style="padding: 10px; background: rgb(249, 250, 251); border-radius: 6px; text-align: center;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">
-              <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i>
+        <div class="performance-grid">
+          <div class="sub-list-item">
+            <div class="item-header-row">
+              <i data-lucide="check-circle" class="icon-12"></i>
               Tamamlanan
             </div>
-            <div style="font-size: 20px; font-weight: 700; color: rgb(17, 24, 39);">${performance.totalCompleted || 0}</div>
+            <div class="stat-value-large">${performance.totalCompleted || 0}</div>
           </div>
-          <div style="padding: 10px; background: rgb(249, 250, 251); border-radius: 6px; text-align: center;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">
-              <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
+          <div class="sub-list-item">
+            <div class="item-header-row">
+              <i data-lucide="clock" class="icon-12"></i>
               Ort. Süre
             </div>
-            <div style="font-size: 20px; font-weight: 700; color: rgb(17, 24, 39);">${formatDuration(performance.avgCompletionTime) || '-'}</div>
+            <div class="stat-value-large">${formatDuration(performance.avgCompletionTime) || '-'}</div>
           </div>
         </div>
         ${performance.totalDefects > 0 ? `
-          <div style="margin-top: 12px; padding: 8px; background: rgb(254, 226, 226); border-left: 3px solid rgb(220, 38, 38); border-radius: 4px;">
-            <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: rgb(127, 29, 29);">
-              <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
-              <span style="font-weight: 600;">Toplam Kusur:</span> ${performance.totalDefects}
+          <div class="defect-warning">
+            <div class="defect-warning-content">
+              <i data-lucide="alert-triangle" class="icon-12"></i>
+              <span class="font-600">Toplam Kusur:</span> ${performance.totalDefects}
             </div>
           </div>
         ` : ''}
@@ -1187,10 +1187,10 @@ export async function showSubStationDetail(substationId) {
   } catch (error) {
     console.error('Error loading substation details:', error)
     detailContent.innerHTML = `
-      <div style="padding: 20px; text-align: center;">
-        <div style="font-size: 14px; color: rgb(220, 38, 38); margin-bottom: 8px;">⚠️ Detaylar yüklenirken hata oluştu</div>
-        <div style="font-size: 12px; color: rgb(107, 114, 128);">${escapeHtml(error.message)}</div>
-        <button onclick="closeStationDetail()" style="margin-top: 12px; padding: 6px 16px; border: 1px solid rgb(209, 213, 219); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Kapat</button>
+      <div class="station-loading">
+        <div class="error-message">⚠️ Detaylar yüklenirken hata oluştu</div>
+        <div class="text-muted-sm">${escapeHtml(error.message)}</div>
+        <button onclick="closeStationDetail()" class="btn-close-modal">Kapat</button>
       </div>
     `
   }
@@ -1333,9 +1333,9 @@ function fillStationModal(station) {
   const selected = new Set(station.operationIds || [])
   opsContainer.innerHTML = (operationsCache||[]).map(op => {
     const checked = selected.has(op.id) ? 'checked' : ''
-    return `<label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: pointer; font-size: 12px;">
-      <input type="checkbox" value="${op.id}" ${checked} onchange="handleOperationChange()" style="margin: 0;">
-      <span style="flex: 1;">${escapeHtml(op.name)}</span>
+    return `<label class="checkbox-label-row">
+      <input type="checkbox" value="${op.id}" ${checked} onchange="handleOperationChange()" class="m-0">
+      <span class="flex-1">${escapeHtml(op.name)}</span>
     </label>`
   }).join('')
   
@@ -1356,7 +1356,7 @@ function handleOperationChange() {
   if (selectedOperations.length === 0) {
     // No operations selected - show warning
     skillsContainer.innerHTML = `
-      <div style="padding: 12px; background: rgb(254, 242, 242); border: 1px solid rgb(252, 165, 165); border-radius: 6px; color: rgb(127, 29, 29); font-size: 12px; text-align: center;">
+      <div class="warning-message-box">
         İstasyon Özel Yetenekleri belirlemeden önce operasyon seçmek zorundasınız
       </div>
     `
@@ -1387,7 +1387,7 @@ async function renderStationSubskillsBox(station) {
   const container = document.getElementById('station-subskills-box')
   if (!container) return
   
-  container.innerHTML = '<div style="color:#888;">Loading skills...</div>'
+  container.innerHTML = '<div class="loading-text">Loading skills...</div>'
   try {
     // Load skills from SQL database
     const skills = await getSkillsFromSQL()
@@ -1401,38 +1401,35 @@ async function renderStationSubskillsBox(station) {
     inheritedSkills.forEach(skill => selected.add(skill))
     
     container.innerHTML = `
-      <div class="modern-skills-interface" style="background: white; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
-        <div class="selected-skills-header" style="padding: 8px 12px; background: rgb(248, 249, 250); border-bottom: 1px solid var(--border); font-weight: 500; font-size: 13px; color: var(--foreground);">
+      <div class="modern-skills-interface">
+        <div class="selected-skills-header">
           ${selected.size > 0 ? `Seçili ${selected.size} Skill` : 'Seçili Skill Yok'}
         </div>
-        <div class="selected-skills-display" style="padding: 8px 12px; background: white; border-bottom: 1px solid var(--border); min-height: 20px; font-size: 12px;">
+        <div class="selected-skills-display">
           ${selected.size > 0 ? 
             Array.from(selected).map(skillId => {
               const isInherited = inheritedSet.has(skillId)
-              const bgColor = isInherited ? 'rgb(219, 234, 254)' : 'rgb(252, 165, 165)'
-              const textColor = isInherited ? 'rgb(30, 64, 175)' : 'rgb(127, 29, 29)'
               const title = isInherited ? 'Operasyondan miras alınan yetenek' : 'İstasyon özel yetenek'
               const skillName = getSkillName(skillId) // Convert ID to name
-              return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;" title="${title}">${escapeHtml(skillName)}</span>`
+              return `<span class="${isInherited ? 'skill-tag-inherited' : 'skill-tag-custom'}" title="${title}">${escapeHtml(skillName)}</span>`
             }).join('') : 
-            '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
+            '<span class="text-muted text-italic">Henüz skill seçilmedi</span>'
           }
         </div>
-        <div style="padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 6px;">
-          <input id="station-skill-new" type="text" placeholder="Yeni skill ekle..." style="flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
-          <button id="station-skill-add" style="padding: 6px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">+ Ekle</button>
+        <div class="skills-input-row">
+          <input id="station-skill-new" type="text" placeholder="Yeni skill ekle..." class="skill-input-text">
+          <button id="station-skill-add" class="btn-add-skill">+ Ekle</button>
         </div>
-        <div class="skills-grid" style="max-height: 200px; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 6px;" id="station-skills-grid">
+        <div class="skills-grid" id="station-skills-grid">
           ${skills.map(s => {
             const checked = selected.has(s.id) ? 'checked' : ''
             const isInherited = inheritedSet.has(s.id)
             const disabled = isInherited ? 'disabled' : ''
-            const opacity = isInherited ? 'opacity: 0.6;' : ''
             const title = isInherited ? 'Bu yetenek operasyondan miras alınmıştır ve değiştirilemez' : ''
-            return `<label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: ${isInherited ? 'not-allowed' : 'pointer'}; font-size: 12px; ${opacity}" title="${title}">
-              <input type="checkbox" value="${escapeHtml(s.id)}" ${checked} ${disabled} onchange="updateStationSkillsDisplay()" style="margin: 0;">
-              <span style="flex: 1;">${escapeHtml(s.name)}</span>
-              ${isInherited ? '<span style="font-size: 10px; color: rgb(107, 114, 128);">(miras)</span>' : ''}
+            return `<label class="${isInherited ? 'checkbox-label-disabled' : 'checkbox-label-row'}" title="${title}">
+              <input type="checkbox" value="${escapeHtml(s.id)}" ${checked} ${disabled} onchange="updateStationSkillsDisplay()" class="m-0">
+              <span class="flex-1">${escapeHtml(s.name)}</span>
+              ${isInherited ? '<span class="item-subtitle">(miras)</span>' : ''}
             </label>`
           }).join('')}
         </div>
@@ -1456,7 +1453,7 @@ async function renderStationSubskillsBox(station) {
     }
   } catch (e) {
     console.error('renderStationSubskillsBox error', e)
-    container.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
+    container.innerHTML = '<div class="error-text">Skills yüklenemedi</div>'
   }
 }
 
@@ -1477,9 +1474,9 @@ function updateStationSkillsDisplay() {
     display.innerHTML = selected.length > 0 ? 
       selected.map(skillId => {
         const skillName = getSkillName(skillId) // Convert ID to name
-        return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;">${escapeHtml(skillName)}</span>`
+        return `<span class="skill-tag-custom">${escapeHtml(skillName)}</span>`
       }).join('') : 
-      '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
+      '<span class="text-muted text-italic">Henüz skill seçilmedi</span>'
   }
 }
 
@@ -1555,37 +1552,37 @@ function buildSubStationsSection(station) {
     // Use subCode as substationId since they are the same
     const substationIdJs = escapeJsString(sub.code)
     return `
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer;" data-substation-code="${subCode}" onclick="showSubStationDetail('${substationIdJs}')" title="Detayları görmek için tıklayın">
-        <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-          <span style="font-family: monospace; font-size: 12px; font-weight: 500;">${subCode}</span>
-          <span style="font-size: 10px; color: rgb(156, 163, 175); font-style: italic;">Detayları görmek için tıkla</span>
+      <div class="substation-item-row" data-substation-code="${subCode}" onclick="showSubStationDetail('${substationIdJs}')" title="Detayları görmek için tıklayın">
+        <div class="substation-item-content">
+          <span class="substation-code">${subCode}</span>
+          <span class="substation-hint">Detayları görmek için tıkla</span>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" data-role="status-toggle" style="padding: 1px 2px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="event.stopPropagation(); toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
-          <button type="button" style="padding: 1px 2px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="event.stopPropagation(); deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
+        <div class="substation-actions">
+          <button type="button" data-role="status-toggle" class="btn-status-toggle" style="border: 1px solid ${border}; background: ${bg}; color: ${color};" onclick="event.stopPropagation(); toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
+          <button type="button" class="btn-delete-substation" onclick="event.stopPropagation(); deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
         </div>
       </div>
     `
   }).join('') : `
-    <div style="padding: 12px; border: 1px dashed var(--border); border-radius: 6px; font-size: 12px; color: var(--muted-foreground); text-align: center;">
+    <div class="empty-substation-message">
       Henüz sub istasyon eklenmemiş.
     </div>
   `
 
   return `
-    <div style="margin-bottom: 4px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">İstasyonlar</h3>
-          <span data-role="substation-total" data-station-id="${escapeHtml(station.id || '')}" style="font-size: 12px; color: rgb(107, 114, 128);">(${total})</span>
+    <div class="substation-section-container">
+      <div class="substation-section-header">
+        <div class="substation-title-row">
+          <h3 class="substation-title">İstasyonlar</h3>
+          <span data-role="substation-total" data-station-id="${escapeHtml(station.id || '')}" class="text-muted-sm">(${total})</span>
         </div>
-        <button type="button" data-role="button" onclick="handleSubStationAdd('${stationIdJs}')" style="padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">İstasyon Ekle</button>
+        <button type="button" data-role="button" onclick="handleSubStationAdd('${stationIdJs}')" class="btn-add-substation">İstasyon Ekle</button>
       </div>
-      <div class="substation-list" style="display: grid; gap: 4px;">
+      <div class="substation-list substation-list-grid">
         ${listHtml}
       </div>
-      <div class="substation-add" data-station-id="${escapeHtml(station.id || '')}" data-mode="idle" style="margin-top: 3px; display: flex; gap: 8px; align-items: center;">
-        <input type="number" min="1" value="1" data-role="input" oninput="handleSubStationAddInputChange('${stationIdJs}')" style="display: none; width: 80px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
+      <div class="substation-add substation-add-section" data-station-id="${escapeHtml(station.id || '')}" data-mode="idle">
+        <input type="number" min="1" value="1" data-role="input" oninput="handleSubStationAddInputChange('${stationIdJs}')" class="substation-add-input" style="display: none;" />
       </div>
     </div>
   `

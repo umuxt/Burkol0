@@ -8,51 +8,51 @@ export const tableState = {
 
 export function generateModernDashboard() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">MES Dashboard</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">MES Dashboard</h1>
+      <p class="view-section-title-sm">
         Central hub for monitoring production activities, tracking work orders, and managing manufacturing execution. Access real-time production metrics and quick navigation to all system functions.
       </p>
     </div>
 
     <!-- Quick Actions -->
-    <div style="margin-bottom: 24px;">
+    <div class="view-mb-24">
       <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Hızlı Erişim</h2>
-      <div class="grid grid-cols-4" style="gap: 16px;">
-        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="window.location.href='/pages/worker-selection.html'" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-hard-hat"></i></div>
-            <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">İşçi Portalı</div>
-            <div style="font-size: 13px; color: var(--muted-foreground);">Görev yönetimi ve takip</div>
+      <div class="grid grid-cols-4" class="view-gap-16">
+        <div class="card" class="view-clickable" onclick="window.location.href='/pages/worker-selection.html'" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+          <div class="card-content" class="view-empty-padded">
+            <div class="view-stat-xl"><i class="fa-solid fa-hard-hat"></i></div>
+            <div class="view-title-sm">İşçi Portalı</div>
+            <div class="view-subtitle-alt">Görev yönetimi ve takip</div>
           </div>
         </div>
-        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('plan-designer')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-route"></i></div>
-            <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Plan Tasarlayıcı</div>
-            <div style="font-size: 13px; color: var(--muted-foreground);">Üretim planı oluştur</div>
+        <div class="card" class="view-clickable" onclick="navigateToView('plan-designer')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+          <div class="card-content" class="view-empty-padded">
+            <div class="view-stat-xl"><i class="fa-solid fa-route"></i></div>
+            <div class="view-title-sm">Plan Tasarlayıcı</div>
+            <div class="view-subtitle-alt">Üretim planı oluştur</div>
           </div>
         </div>
-        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('approved-quotes')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-clipboard-check"></i></div>
-            <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Onaylı Siparişler</div>
-            <div style="font-size: 13px; color: var(--muted-foreground);">Sipariş takibi</div>
+        <div class="card" class="view-clickable" onclick="navigateToView('approved-quotes')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+          <div class="card-content" class="view-empty-padded">
+            <div class="view-stat-xl"><i class="fa-solid fa-clipboard-check"></i></div>
+            <div class="view-title-sm">Onaylı Siparişler</div>
+            <div class="view-subtitle-alt">Sipariş takibi</div>
           </div>
         </div>
-        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('settings')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-cogs"></i></div>
-            <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Master Data</div>
-            <div style="font-size: 13px; color: var(--muted-foreground);">Operasyonlar, istasyonlar, işçiler</div>
+        <div class="card" class="view-clickable" onclick="navigateToView('settings')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+          <div class="card-content" class="view-empty-padded">
+            <div class="view-stat-xl"><i class="fa-solid fa-cogs"></i></div>
+            <div class="view-title-sm">Master Data</div>
+            <div class="view-subtitle-alt">Operasyonlar, istasyonlar, işçiler</div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- System Status Bar -->
-    <div class="card" style="margin-bottom: 24px;">
-      <div class="card-content" style="padding: 16px 24px;">
+    <div class="card" class="view-mb-24">
+      <div class="card-content" class="view-section-padded">
         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
           <div class="status-indicator"><div class="status-dot status-online"></div><span>System Online</span></div>
           <div class="status-indicator" id="status-operations"><div class="status-dot status-busy"></div><span>Operations: Loading...</span></div>
@@ -64,7 +64,7 @@ export function generateModernDashboard() {
     </div>
 
     <!-- Main Dashboard Widgets Grid -->
-    <div class="grid grid-cols-2" style="gap: 16px; margin-bottom: 24px;">
+    <div class="grid grid-cols-2" class="view-gap-16-mb-24">
       <!-- Production Plans Widget -->
       <div class="card">
         <div class="card-header">
@@ -72,8 +72,8 @@ export function generateModernDashboard() {
           <div class="card-description">Aktif ve taslak planlar</div>
         </div>
         <div class="card-content">
-          <div id="production-plans-widget" style="padding: 16px;">
-            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="production-plans-widget" class="view-p-16">
+            <div class="empty-state-center">Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -81,27 +81,27 @@ export function generateModernDashboard() {
       <!-- Station Alerts Widget -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title"><i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i> İstasyon Uyarıları</div>
+          <div class="card-title"><i class="fa-solid fa-exclamation-triangle" class="view-icon-warning"></i> İstasyon Uyarıları</div>
           <div class="card-description">Son bildirilen hatalar</div>
         </div>
         <div class="card-content">
-          <div id="station-alerts-widget" style="padding: 16px;">
-            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="station-alerts-widget" class="view-p-16">
+            <div class="empty-state-center">Yükleniyor...</div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Master Data Overview Grid -->
-    <div class="grid grid-cols-3" style="gap: 16px; margin-bottom: 24px;">
+    <div class="grid grid-cols-3" class="view-gap-16-mb-24">
       <!-- Operations Overview -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">🔧 Operasyonlar</div>
         </div>
         <div class="card-content">
-          <div id="operations-overview-widget" style="padding: 16px;">
-            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="operations-overview-widget" class="view-p-16">
+            <div class="empty-state-center">Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -112,8 +112,8 @@ export function generateModernDashboard() {
           <div class="card-title"><i class="fa-solid fa-industry"></i> İş İstasyonları</div>
         </div>
         <div class="card-content">
-          <div id="stations-overview-widget" style="padding: 16px;">
-            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="stations-overview-widget" class="view-p-16">
+            <div class="empty-state-center">Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -124,8 +124,8 @@ export function generateModernDashboard() {
           <div class="card-title"><i class="fa-solid fa-users"></i> Üretim Personeli</div>
         </div>
         <div class="card-content">
-          <div id="workers-overview-widget" style="padding: 16px;">
-            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          <div id="workers-overview-widget" class="view-p-16">
+            <div class="empty-state-center">Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -138,8 +138,8 @@ export function generateModernDashboard() {
         <div class="card-description">Tüm işçilerin görev durumları</div>
       </div>
       <div class="card-content">
-        <div id="active-tasks-widget" style="padding: 16px;">
-          <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+        <div id="active-tasks-widget" class="view-p-16">
+          <div class="empty-state-center">Yükleniyor...</div>
         </div>
       </div>
     </div>
@@ -148,14 +148,14 @@ export function generateModernDashboard() {
 
 export function generateWorkerPanel() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Packages</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Work Packages</h1>
+      <p class="view-section-title-sm">
         Active work package assignments for production personnel. Monitor task progress, manage operations, and track completion status across all manufacturing activities.
       </p>
     </div>
 
-    <div class="mes-filter-bar" style="margin-bottom: 24px;">
+    <div class="mes-filter-bar" class="view-mb-24">
       <button id="work-packages-refresh-btn" type="button" class="mes-primary-action is-compact">
         <span>🔄</span>
         <span>Refresh</span>
@@ -220,7 +220,7 @@ export function generateWorkerPanel() {
 
         <label id="wp-hide-completed-wrapper" class="mes-filter-toggle is-compact" title="Click to show completed tasks">
           <input type="checkbox" id="wp-hide-completed-toggle" checked>
-          <span id="wp-hide-completed-text" style="white-space: nowrap;">Hide Completed</span>
+          <span id="wp-hide-completed-text" class="text-nowrap">Hide Completed</span>
         </label>
         <button id="wp-clear-filters-btn" type="button" class="mes-filter-clear is-compact" onclick="clearAllWPFilters()">
           Clear Filters
@@ -229,7 +229,7 @@ export function generateWorkerPanel() {
     </div>
 
     <div style="display: flex; gap: 16px; height: 100vh; max-height: calc(100vh - 280px);">
-      <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+      <div class="workers-table-panel" class="view-panel-main">
         <div id="work-packages-table-panel" style="flex: 1 1 auto; display: flex; flex-direction: column;">
           <div id="work-packages-widget" class="mes-table-container">
             <table class="mes-table">
@@ -243,25 +243,25 @@ export function generateWorkerPanel() {
         </div>
         <div id="work-packages-chart-panel" style="flex: 1 1 auto; display: none; flex-direction: column;">
           <div class="mes-table-container" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center;">
-            <div style="text-align: center; color: var(--muted-foreground);">
-              <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+            <div class="empty-state-center">
+              <div class="view-stat-md">📊</div>
               <div>Chart view is loading...</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="worker-detail-panel" id="work-package-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
-        <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
-          <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <button title="Detayları Kapat" onclick="closeWorkPackageDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
-              <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Work Package Detayları</h3>
+      <div class="worker-detail-panel" id="work-package-detail-panel" class="view-panel-side">
+        <div class="view-card-full">
+          <div class="view-card-header">
+            <div class="view-flex-center-gap-12">
+              <button title="Detayları Kapat" onclick="closeWorkPackageDetail()" class="view-btn-outline">←</button>
+              <h3 class="view-card-header-title">Work Package Detayları</h3>
             </div>
           </div>
-          <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+          <div class="view-card-body">
             <div id="work-package-detail-content">
-              <div style="text-align: center; color: var(--muted-foreground); padding: 64px;">
+              <div class="view-empty-lg">
                 <div style="font-size: 48px; margin-bottom: 16px;"><i class="fa-solid fa-boxes-stacked"></i></div>
                 <p>Bir work package seçin</p>
               </div>
@@ -275,9 +275,9 @@ export function generateWorkerPanel() {
 
 export function generateSettings() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Master Data</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Master Data</h1>
+      <p class="view-section-title-sm">
         Configure fundamental system data including skills, operation types, and production settings. This master data forms the foundation for all production planning and resource management activities.
       </p>
     </div>
@@ -285,19 +285,19 @@ export function generateSettings() {
     <!-- İlk satır: Skills ve Production Settings -->
     <div class="grid grid-cols-2" style="margin-bottom: 24px; grid-template-columns: minmax(280px, 420px) 1fr; align-items: start; gap: 16px;">
       <div class="card">
-        <div class="card-header" style="padding: 8px 12px;">
-          <div class="card-title" style="font-size: 1.1em;">Skills Management</div>
+        <div class="card-header" class="view-p-12">
+          <div class="card-title" class="view-text-em">Skills Management</div>
         </div>
-        <div class="card-content" style="padding: 8px 12px;">
+        <div class="card-content" class="view-p-12">
           <div id="skills-management"></div>
         </div>
       </div>
       
       <div class="card">
-        <div class="card-header" style="padding: 8px 12px;">
-          <div class="card-title" style="font-size: 1.1em;">Production Settings</div>
+        <div class="card-header" class="view-p-12">
+          <div class="card-title" class="view-text-em">Production Settings</div>
         </div>
-        <div class="card-content" style="padding: 8px 12px;">
+        <div class="card-content" class="view-p-12">
           <div style="margin-bottom: 16px;">
             <h4 style="font-size: 0.95em; font-weight: 600; margin: 0 0 8px 0; color: var(--foreground);">Operations Management</h4>
             <div id="operations-management"></div>
@@ -308,14 +308,14 @@ export function generateSettings() {
 
     <!-- İkinci satır: Zaman Yönetimi (tek başına) -->
     <div class="card">
-      <div class="card-header" style="padding: 8px 12px;">
-        <div class="card-title" style="font-size: 1.1em;">Zaman Yönetimi</div>
+      <div class="card-header" class="view-p-12">
+        <div class="card-title" class="view-text-em">Zaman Yönetimi</div>
       </div>
-      <div class="card-content" style="padding: 16px 20px;">
+      <div class="card-content" class="view-section-20">
         <!-- Timezone Selection -->
         <div id="timezone-section" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
           <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom:12px;">
-            <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Saat Dilimi</h3>
+            <h3 class="view-heading-md">Saat Dilimi</h3>
           </div>
           <div style="display: flex; gap: 12px; align-items: center;">
             <select id="timezone-select" style="flex: 1; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: white;">
@@ -337,28 +337,28 @@ export function generateSettings() {
           </div>
         </div>
         
-        <div id="shift-schedule" style="display: block;">
+        <div id="shift-schedule" class="d-block">
           <div style="display:flex; align-items:center; justify-content: space-between; gap:12px; margin-bottom:16px;">
             <div style="display:flex; align-items:center; gap:12px;">
-              <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Haftalık Çalışma Programı</h3>
+              <h3 class="view-heading-md">Haftalık Çalışma Programı</h3>
               <span style="font-size: 11px; color: var(--muted-foreground);">( Çalışma: 🟩 , Mola: 🟨 )</span>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div class="flex-center-gap">
               <button id="timeline-edit-btn" onclick="startTimelineEdit()" style="background: white; color: var(--foreground); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px; line-height: 1;">Düzenle</button>
               <button id="timeline-cancel-btn" onclick="stopTimelineEdit()" style="display:none; background: white; color: var(--foreground); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px; line-height: 1;">İptal</button>
               <button id="timeline-save-btn" onclick="saveTimeManagement()" style="display:none; background: var(--primary); color: var(--primary-foreground); padding: 6px 10px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; line-height: 1;">Çalışma Programını Kaydet</button>
             </div>
           </div>
-          <div id="timeline-wrapper" style="position: relative;">
+          <div id="timeline-wrapper" class="position-relative">
             ${generateWeeklyTimeline('shift')}
-            <div id="timeline-edit-overlay" style="position:absolute; inset:0; background: rgba(255,255,255,0.6); z-index: 5;"></div>
+            <div id="timeline-edit-overlay" class="view-loading-overlay"></div>
           </div>
         </div>
 
         <!-- Tatil ve İzin Günleri -->
         <div id="holidays-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
           <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom:16px;">
-            <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Tatil ve İzin Günleri</h3>
+            <h3 class="view-heading-md">Tatil ve İzin Günleri</h3>
             <button onclick="openHolidayModal()" style="background: var(--primary); color: var(--primary-foreground); padding: 6px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px;">+ Yeni Tatil Ekle</button>
           </div>
           <div id="holidays-calendar"></div>
@@ -368,13 +368,13 @@ export function generateSettings() {
     </div>
 
     <!-- Block/Schedule Edit Modal -->
-    <div id="schedule-edit-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-      <div style="background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%;">
-        <h3 style="margin-top: 0; margin-bottom: 16px;">Zaman Bloğu Düzenle</h3>
+    <div id="schedule-edit-modal" class="view-modal-overlay-fixed">
+      <div class="view-modal-dialog">
+        <h3 class="view-mt-0-mb-16">Zaman Bloğu Düzenle</h3>
         
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Blok Tipi:</label>
-          <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+        <div class="view-mb-12">
+          <label class="view-label">Blok Tipi:</label>
+          <select id="block-type" class="view-input">
             <option value="work">Çalışma</option>
             <option value="break">Mola</option>
           </select>
@@ -382,20 +382,20 @@ export function generateSettings() {
         
         <!-- FAZ 3: Shift selection for multi-lane schedules -->
         <div id="block-shift-selector" style="margin-bottom: 12px; display: none;">
-          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Vardiya:</label>
-          <select id="block-shift" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+          <label class="view-label">Vardiya:</label>
+          <select id="block-shift" class="view-input">
             <option value="0">Vardiya 1</option>
           </select>
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+        <div class="grid-2col view-mb-16">
           <div>
-            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Başlangıç:</label>
-            <input type="time" id="block-start" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <label class="view-label">Başlangıç:</label>
+            <input type="time" id="block-start" class="view-input">
           </div>
           <div>
-            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Bitiş:</label>
-            <input type="time" id="block-end" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <label class="view-label">Bitiş:</label>
+            <input type="time" id="block-end" class="view-input">
           </div>
         </div>
         
@@ -446,8 +446,8 @@ export function generateWeeklyTimeline(scheduleType) {
   return `
     <div style="border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden;">
       <!-- Header with days -->
-      <div style="display: grid; grid-template-columns: 60px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
-        <div style="padding: 8px; font-size: 12px; font-weight: 600; border-right: 1px solid var(--border); display: flex; align-items: center; justify-content: center;">Saat</div>
+      <div class="view-grid-week-header">
+        <div class="view-week-cell-header">Saat</div>
         ${dayNames.map((day, index) => `
           <div style="padding: 8px; text-align: center; border-right: 1px solid var(--border); ${index === dayNames.length - 1 ? 'border-right: none;' : ''}">
             <div style="font-size: 13px; font-weight: 600;">${day}</div>
@@ -456,8 +456,8 @@ export function generateWeeklyTimeline(scheduleType) {
       </div>
 
       <!-- Lane header row (outside of day columns) -->
-      <div class="lanes-header" style="display: grid; grid-template-columns: 60px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
-        <div style="padding: 4px; border-right: 1px solid var(--border);"></div>
+      <div class="lanes-header" class="view-grid-week-header">
+        <div class="view-cell-pad-4"></div>
         ${dayIds.map((dayId, index) => `
           <div id="lanes-header-${dayId}" class="lanes-header-cell" style="padding: 4px; border-right: 1px solid var(--border); ${index === dayIds.length - 1 ? 'border-right: none;' : ''}"></div>
         `).join('')}
@@ -476,7 +476,7 @@ export function generateWeeklyTimeline(scheduleType) {
                style="position: relative; background: white; border-right: 1px solid var(--border); cursor: crosshair; ${index === dayIds.length - 1 ? 'border-right: none;' : ''}"
                data-day="${dayId}">
             <!-- Blocks container -->
-            <div id="blocks-${dayId}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+            <div id="blocks-${dayId}" class="view-canvas-absolute">
               <!-- Drag created blocks will be added here -->
             </div>
           </div>
@@ -484,10 +484,10 @@ export function generateWeeklyTimeline(scheduleType) {
       </div>
       
       <!-- Instructions + Lane count -->
-      <div style="padding: 8px 12px; background: var(--muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); display:flex; align-items:center; gap:12px;">
-        <div style="display:flex; align-items:center; gap:8px;">
+      <div class="view-flex-footer-muted">
+        <div class="flex-center-gap">
           <span style="font-weight:600; font-size:12px;">Vardiya Sayısı</span>
-          <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:28px; padding:2px 3px; border:1px solid var(--border); border-radius:6px;">
+          <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" class="view-input-72">
         </div>
         <span>Sürükleyerek zaman bloğu oluşturun • Blokları tıklayarak düzenleyin</span>
       </div>
@@ -521,13 +521,13 @@ function generateTimeGridLines() {
 
 export function generateWorkers() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Personnel Management</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Production Personnel Management</h1>
+      <p class="view-section-title-sm">
         Manage production personnel, their skills, operations assignments, and work station capabilities. Add new personnel, define their expertise areas, and track their availability for production tasks.
       </p>
     </div>
-    <div class="workers-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+    <div class="workers-filter-compact mes-filter-bar" class="view-mb-24">
       <button onclick="openAddWorkerModal()" class="worker-add-button mes-primary-action is-compact">+ Add Production Personnel</button>
       <div class="mes-filter-controls">
         <input id="worker-filter-search" type="text" placeholder="Search production personnel..." class="worker-filter-input mes-filter-input is-compact">
@@ -555,7 +555,7 @@ export function generateWorkers() {
             <span class="mes-filter-caret">▾</span>
           </button>
           <div id="worker-filter-status-panel" class="mes-filter-panel is-narrow">
-            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+            <div class="mes-filter-panel-header" class="view-justify-end">
               <button id="worker-filter-status-clear" type="button" class="worker-filter-panel-button mes-filter-panel-button">Clear</button>
               <button id="worker-filter-status-hide" type="button" title="Kapat" class="worker-filter-panel-button mes-filter-panel-button">×</button>
             </div>
@@ -568,32 +568,32 @@ export function generateWorkers() {
           <span>Has conflict</span>
         </label>
 
-        <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button worker-clear-all-button mes-filter-clear is-compact" style="display: none;">
+        <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button worker-clear-all-button mes-filter-clear is-compact" class="d-none">
           Clear All
         </button>
       </div>
     </div>
     
     <section class="workers-table">
-      <div style="padding: 0px;">
-        <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
-          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+      <div class="p-0">
+        <div class="workers-container" class="view-flex-main-container">
+          <div class="workers-table-panel" class="view-panel-main">
             <div class="workers-table">
               <div class="mes-table-container">
                   <table id="workers-table" class="mes-table">
                     <thead class="mes-table-header">
                       <tr>
-                        <th class="worker-name-column" style="min-width: 160px;">
+                        <th class="worker-name-column" class="view-min-w-160">
                           <button type="button" class="mes-sort-button">
                             Name <span class="mes-sort-icon">↕</span>
                           </button>
                         </th>
-                        <th class="worker-skills-column" style="min-width: 140px;">
+                        <th class="worker-skills-column" class="view-min-w-140">
                           <button type="button" class="mes-sort-button">
                             Skills <span class="mes-sort-icon">↕</span>
                           </button>
                         </th>
-                        <th class="worker-status-column text-center" style="min-width: 100px; text-align: center;">
+                        <th class="worker-status-column text-center" class="min-w-100-center">
                           <button type="button" class="mes-sort-button">
                             Status <span class="mes-sort-icon">↕</span>
                           </button>
@@ -610,19 +610,19 @@ export function generateWorkers() {
             </div>
           </div>
           
-          <div class="worker-detail-panel" id="worker-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
-            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
-              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <button title="Detayları Kapat" onclick="closeWorkerDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
-                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Çalışan Detayları</h3>
+          <div class="worker-detail-panel" id="worker-detail-panel" class="view-panel-side">
+            <div class="view-card-full">
+              <div class="view-card-header">
+                <div class="view-flex-center-gap-12">
+                  <button title="Detayları Kapat" onclick="closeWorkerDetail()" class="view-btn-outline">←</button>
+                  <h3 class="view-card-header-title">Çalışan Detayları</h3>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <button onclick="editWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
-                  <button onclick="deleteWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
+                <div class="flex-center-gap-sm">
+                  <button onclick="editWorkerFromDetail()" class="view-btn-outline"><i class="fa-solid fa-edit"></i> Düzenle</button>
+                  <button onclick="deleteWorkerFromDetail()" class="view-btn-danger-outline"><i class="fa-solid fa-trash"></i> Sil</button>
                 </div>
               </div>
-              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+              <div class="view-card-body">
                 <div id="worker-detail-content">
                   <!-- Worker details will be populated here -->
                 </div>
@@ -634,41 +634,41 @@ export function generateWorkers() {
     </section>
 
     <div id="worker-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;" onclick="closeWorkerModal(event)">
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
-        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <h3 id="worker-modal-title" style="margin: 0; font-size: 18px;">Add New Worker</h3>
+      <div class="view-modal-center" onclick="event.stopPropagation()">
+        <div class="view-header-border">
+          <h3 id="worker-modal-title" class="view-heading-18">Add New Worker</h3>
         </div>
-        <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
+        <div class="view-body-scroll">
           <!-- Temel Bilgiler -->
-          <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
+          <div class="view-card">
+            <h3 class="view-section-title">Temel Bilgiler</h3>
             <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
-              <input type="text" id="worker-name" placeholder="İsim" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+              <span class="detail-label" class="view-detail-label">İsim:</span>
+              <input type="text" id="worker-name" placeholder="İsim" class="view-input-flex" />
             </div>
-            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Email:</span>
-              <input type="email" id="worker-email" placeholder="email@domain.com" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+            <div class="detail-item" class="flex-center-gap mb-0">
+              <span class="detail-label" class="view-detail-label">Email:</span>
+              <input type="email" id="worker-email" placeholder="email@domain.com" class="view-input-flex" />
             </div>
             <div class="detail-item" style="display: flex; align-items: center; margin-top: 8px;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
-              <input type="tel" id="worker-phone" placeholder="örn. +90 555 555 55 55" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+              <span class="detail-label" class="view-detail-label">Telefon:</span>
+              <input type="tel" id="worker-phone" placeholder="örn. +90 555 555 55 55" class="view-input-flex" />
             </div>
           </div>
 
           <!-- Yetenekler -->
-          <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
-            <div class="detail-item" style="display: block;">
+          <div class="view-card">
+            <h3 class="view-section-title">Yetenekler</h3>
+            <div class="detail-item" class="d-block">
               <select id="worker-skills" multiple></select>
             </div>
           </div>
 
           <!-- Çalışma Saatleri Ayarı -->
-          <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışma Saatleri</h3>
-            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Zaman Kaynağı:</span>
+          <div class="view-card-last">
+            <h3 class="view-section-title">Çalışma Saatleri</h3>
+            <div class="detail-item" class="flex-center-gap mb-0">
+              <span class="detail-label" class="view-detail-label">Zaman Kaynağı:</span>
               <select id="worker-time-source" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
                 <option value="company" selected>Şirket Genel Ayarları</option>
                 <option value="personal">Kişisel Ayar</option>
@@ -676,13 +676,13 @@ export function generateWorkers() {
             </div>
           </div>
         </div>
-        <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+        <div class="view-modal-footer-between">
           <div>
             <button id="worker-delete-btn" style="display: none; padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;">Delete</button>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <button onclick="closeWorkerModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
-            <button onclick="saveWorker()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+          <div class="view-flex-gap-8">
+            <button onclick="closeWorkerModal()" class="view-btn-default">Cancel</button>
+            <button onclick="saveWorker()" class="view-btn-primary">Save</button>
           </div>
         </div>
       </div>
@@ -690,21 +690,21 @@ export function generateWorkers() {
 
     <!-- Worker Schedule Modal -->
     <div id="worker-schedule-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;" onclick="closeWorkerScheduleModal(event)">
-      <div style="position: relative; background: white; border-radius: 8px; padding: 0; width: 820px; max-width: 95vw; max-height: 86vh; overflow: hidden;" onclick="event.stopPropagation()">
-        <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Çalışma Saatleri</h3>
-          <button onclick="closeWorkerScheduleModal()" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer;">✕</button>
+      <div class="view-modal-lg" onclick="event.stopPropagation()">
+        <div class="view-modal-header-compact">
+          <h3 class="view-modal-title-md">Çalışma Saatleri</h3>
+          <button onclick="closeWorkerScheduleModal()" class="btn-outline-sm">✕</button>
         </div>
-        <div style="padding: 14px 18px; background: #f9fafb; max-height: calc(86vh - 102px); overflow-y: auto;">
+        <div class="view-modal-body-scroll">
           <!-- Mode selection -->
-          <div style="margin-bottom: 12px;">
+          <div class="view-mb-12">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Zaman Kaynağı</label>
             <div style="display: flex; gap: 16px; align-items: center;">
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <label class="flex-center-gap-sm cursor-pointer">
                 <input type="radio" name="worker-schedule-mode" value="company" checked onchange="handleWorkerScheduleModeChange('company')" />
                 <span>Şirket Genel Ayarlarını Kullan</span>
               </label>
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <label class="flex-center-gap-sm cursor-pointer">
                 <input type="radio" name="worker-schedule-mode" value="personal" onchange="handleWorkerScheduleModeChange('personal')" />
                 <span>Kişisel Ayar Kullan</span>
               </label>
@@ -715,7 +715,7 @@ export function generateWorkers() {
           <div id="worker-schedule-company" style="display: block; margin-bottom: 16px; padding: 12px; background: white; border: 1px solid var(--border); border-radius: 8px;">
             <div style="font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px;">Bu çalışan için şirketin zaman yönetimi ayarları uygulanır.</div>
             <div class="detail-item" style="display: flex; align-items: center;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya No:</span>
+              <span class="detail-label" class="view-detail-label">Vardiya No:</span>
               <select id="worker-schedule-shift-no" style="flex: 0 0 160px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: white;">
                 <option value="1">1</option>
                 <option value="2">2</option>
@@ -730,47 +730,47 @@ export function generateWorkers() {
           </div>
 
           <!-- Personal settings section -->
-          <div id="worker-schedule-personal" style="display: none;">
+          <div id="worker-schedule-personal" class="d-none">
             <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 10px; color: var(--foreground);">Kişisel Haftalık Çalışma Programı</h3>
             ${generateWeeklyTimeline('fixed', 'worker-')}
           </div>
         </div>
-        <div style="padding: 10px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-          <button onclick="closeWorkerScheduleModal()" style="padding: 8px 14px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Vazgeç</button>
-          <button onclick="saveWorkerSchedule()" style="padding: 8px 14px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Kaydet</button>
+        <div class="view-modal-footer">
+          <button onclick="closeWorkerScheduleModal()" class="btn-outline-sm">Vazgeç</button>
+          <button onclick="saveWorkerSchedule()" class="modal-btn-primary">Kaydet</button>
         </div>
       </div>
     </div>
 
     <!-- Block/Schedule Edit Modal (used inside schedule editors) -->
-    <div id="schedule-edit-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-      <div style="background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%;">
-        <h3 style="margin-top: 0; margin-bottom: 16px;">Zaman Bloğu Düzenle</h3>
+    <div id="schedule-edit-modal" class="view-modal-overlay-fixed">
+      <div class="view-modal-dialog">
+        <h3 class="view-mt-0-mb-16">Zaman Bloğu Düzenle</h3>
         
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Blok Tipi:</label>
-          <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+        <div class="view-mb-12">
+          <label class="view-label">Blok Tipi:</label>
+          <select id="block-type" class="view-input">
             <option value="work">Çalışma</option>
             <option value="break">Mola</option>
           </select>
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+        <div class="grid-2col view-mb-16">
           <div>
-            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Başlangıç:</label>
-            <input type="time" id="block-start" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <label class="view-label">Başlangıç:</label>
+            <input type="time" id="block-start" class="view-input">
           </div>
           <div>
-            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Bitiş:</label>
-            <input type="time" id="block-end" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <label class="view-label">Bitiş:</label>
+            <input type="time" id="block-end" class="view-input">
           </div>
         </div>
         
         <div style="display: flex; justify-content: space-between; gap: 8px;">
-          <button onclick="deleteScheduleBlock()" style="padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;">Sil</button>
-          <div style="display: flex; gap: 8px;">
-            <button onclick="cancelScheduleEdit()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Vazgeç</button>
-            <button onclick="saveScheduleBlock()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Kaydet</button>
+          <button onclick="deleteScheduleBlock()" class="view-btn-danger-outline">Sil</button>
+          <div class="view-flex-gap-8">
+            <button onclick="cancelScheduleEdit()" class="view-btn-default">Vazgeç</button>
+            <button onclick="saveScheduleBlock()" class="view-btn-primary">Kaydet</button>
           </div>
         </div>
       </div>
@@ -780,14 +780,14 @@ export function generateWorkers() {
 
 export function generateOperations() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Operations Management</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Operations Management</h1>
+      <p class="view-section-title-sm">
         Define and manage production operations including machining, welding, assembly, and quality control processes. Configure required skills, estimated time, and station requirements for each operation type.
       </p>
     </div>
 
-    <div class="operations-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+    <div class="operations-filter-compact mes-filter-bar" class="view-mb-24">
       <button onclick="openAddOperationModal()" class="operation-add-button mes-primary-action is-compact">+ Add Operation</button>
       <div class="mes-filter-controls">
         <input id="operation-filter-search" type="text" placeholder="Search operations..." class="operation-filter-input mes-filter-input is-compact">
@@ -808,50 +808,50 @@ export function generateOperations() {
           </div>
         </div>
 
-        <button id="operation-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="operation-filter-button operation-clear-all-button mes-filter-clear is-compact" style="display: none;">
+        <button id="operation-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="operation-filter-button operation-clear-all-button mes-filter-clear is-compact" class="d-none">
           Clear All
         </button>
       </div>
     </div>
 
     <section class="workers-table">
-      <div style="padding: 0px;">
+      <div class="p-0">
         <div class="workers-container" style="display: flex; gap: 20px; height: auto; flex-direction: row;">
-          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+          <div class="workers-table-panel" class="view-panel-main">
             <div class="workers-table">
               <div class="mes-table-container">
                 <table id="operations-table" class="mes-table">
                   <thead class="mes-table-header">
                     <tr>
-                      <th style="min-width: 200px;">
+                      <th class="view-min-w-200">
                         <button type="button" class="mes-sort-button">
                           Name <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <div style="display: flex; align-items: center; gap: 8px;">
                           <button type="button" class="mes-sort-button">
                             Type <span class="mes-sort-icon">↕</span>
                           </button>
-                          <button type="button" title="Manage Operation Types" onclick="openOperationTypesModal()" style="padding: 0px 3px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Manage</button>
+                          <button type="button" title="Manage Operation Types" onclick="openOperationTypesModal()" class="view-btn-sm-inline">Manage</button>
                         </div>
                       </th>
-                      <th style="min-width: 110px; text-align: center;">
+                      <th class="min-w-110-center">
                         <button type="button" class="mes-sort-button">
                           Output Code <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 85px; text-align: center;">
+                      <th class="view-min-w-85">
                         <button type="button" class="mes-sort-button">
                           Verimlilik <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 85px; text-align: center;" class="text-center">
+                      <th class="view-min-w-85" class="text-center">
                         <button type="button" class="mes-sort-button">
                           Fire (%) <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" class="mes-sort-button">
                           Skills <span class="mes-sort-icon">↕</span>
                         </button>
@@ -867,19 +867,19 @@ export function generateOperations() {
               </div>
             </div>
           </div>
-          <div class="worker-detail-panel" id="operation-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
-            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
-              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <button title="Detayları Kapat" onclick="closeOperationDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
-                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Operasyon Detayları</h3>
+          <div class="worker-detail-panel" id="operation-detail-panel" class="view-panel-side">
+            <div class="view-card-full">
+              <div class="view-card-header">
+                <div class="view-flex-center-gap-12">
+                  <button title="Detayları Kapat" onclick="closeOperationDetail()" class="view-btn-outline">←</button>
+                  <h3 class="view-card-header-title">Operasyon Detayları</h3>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <button onclick="editOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
-                  <button onclick="deleteOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
+                <div class="flex-center-gap">
+                  <button onclick="editOperationFromDetail()" class="view-btn-outline"><i class="fa-solid fa-edit"></i> Düzenle</button>
+                  <button onclick="deleteOperationFromDetail()" class="view-btn-danger-outline"><i class="fa-solid fa-trash"></i> Sil</button>
                 </div>
               </div>
-              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+              <div class="view-card-body">
                 <div id="operation-detail-content"></div>
               </div>
             </div>
@@ -964,14 +964,14 @@ export function generateOperations() {
 
 export function generateStations() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Stations Management</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Work Stations Management</h1>
+      <p class="view-section-title-sm">
         Configure and manage production work stations including CNC machines, welding stations, and assembly areas. Define station capacity, operational status, and technical specifications for optimal resource planning.
       </p>
     </div>
 
-    <div class="mes-filter-bar" style="margin-bottom: 24px;">
+    <div class="mes-filter-bar" class="view-mb-24">
       <button onclick="openAddStationModal()" class="mes-primary-action is-compact">+ Add Work Station</button>
       <div class="mes-filter-controls">
         <input id="station-filter-search" type="text" placeholder="Search work stations..." class="mes-filter-input is-compact">
@@ -983,7 +983,7 @@ export function generateStations() {
             <span class="mes-filter-caret">▾</span>
           </button>
           <div id="station-filter-status-panel" class="mes-filter-panel is-narrow">
-            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+            <div class="mes-filter-panel-header" class="view-justify-end">
               <button id="station-filter-status-clear" type="button" class="mes-filter-panel-button">Clear</button>
               <button id="station-filter-status-hide" type="button" title="Kapat" class="mes-filter-panel-button">×</button>
             </div>
@@ -1023,7 +1023,7 @@ export function generateStations() {
           </div>
         </div>
 
-        <button id="station-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" style="display: none;">
+        <button id="station-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" class="d-none">
           Clear All
         </button>
       </div>
@@ -1044,27 +1044,27 @@ export function generateStations() {
                 <table id="stations-table" class="mes-table">
                   <thead class="mes-table-header">
                     <tr>
-                      <th style="min-width: 120px;">
+                      <th class="view-min-w-120">
                         <button type="button" class="mes-sort-button">
                           Station ID <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 200px;">
+                      <th class="view-min-w-200">
                         <button type="button" class="mes-sort-button">
                           Station Name <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 90px;" class="text-center">
+                      <th class="min-w-90" class="text-center">
                         <button type="button" class="mes-sort-button">
                           Amount <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" class="mes-sort-button">
                           Operations <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" class="mes-sort-button">
                           Skills <span class="mes-sort-icon">↕</span>
                         </button>
@@ -1186,18 +1186,18 @@ export function generateStationDuplicateModal() {
     <div id="station-duplicate-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1010;" onclick="closeStationDuplicateModal(event)">
       <div style="display:flex; align-items:center; justify-content:center; min-height:100%; padding:20px;">
         <div style="background:white; border-radius:8px; max-width:500px; width:100%; max-height:90vh; overflow:auto;" onclick="event.stopPropagation()">
-          <div style="padding:20px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+          <div class="view-modal-header-lg">
             <h3 style="margin:0; font-size:18px; font-weight:600; color:rgb(17,24,39);">İstasyon Kopyalama</h3>
             <div style="display:flex; gap:12px;">
-              <button onclick="closeStationDuplicateModal()" style="padding:8px 16px; background:white; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:14px;">
+              <button onclick="closeStationDuplicateModal()" class="view-btn-cancel">
                 İptal
               </button>
-              <button onclick="confirmStationDuplicate()" style="padding:8px 16px; background:rgb(34,197,94); color:white; border:none; border-radius:6px; cursor:pointer; font-size:14px;">
+              <button onclick="confirmStationDuplicate()" class="view-btn-success-lg">
                 Kopyala
               </button>
             </div>
           </div>
-          <div style="padding:24px;">
+          <div class="view-p-24">
             <div style="margin-bottom:20px;">
               <p style="margin:0 0 16px; color:rgb(75,85,99); font-size:14px;">
                 <span id="duplicate-station-name-display" style="font-weight:600;"></span> istasyonunu kopyalıyorsunuz.
@@ -1210,7 +1210,7 @@ export function generateStationDuplicateModal() {
                   type="text" 
                   id="duplicate-station-new-name" 
                   placeholder=""
-                  style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;"
+                  class="view-input-full-14"
                 />
                 <p style="margin:6px 0 0; color:rgb(107,114,128); font-size:12px;">
                   Boş bırakırsanız: "<span id="duplicate-default-name-preview"></span>"
@@ -1226,15 +1226,15 @@ export function generateStationDuplicateModal() {
 
 export function generatePlanDesigner() {
   return `
-    <div id="plans-header" style="margin-bottom: 24px;">
-      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Route Management</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div id="plans-header" class="view-mb-24">
+      <h1 id="plans-title" class="view-stat-lg">Production Route Management</h1>
+      <p class="view-section-title-sm">
         Design production routes and operation sequences. Define workflow dependencies, resource requirements, and process rules. Create reusable templates for efficient production planning.
       </p>
       <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
 
-    <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact" style="margin-bottom: 24px;">
+    <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact" class="view-mb-24">
       <button id="create-plan-button" onclick="openCreatePlan()" class="mes-primary-action is-compact">+ Create New Production Route</button>
 
       <div id="plans-header-controls" class="mes-filter-controls">
@@ -1297,13 +1297,13 @@ export function generatePlanDesigner() {
           </div>
         </div>
 
-        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="mes-filter-clear is-compact" style="display: none;" onclick="clearAllPlanFilters()">
+        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="mes-filter-clear is-compact" class="d-none" onclick="clearAllPlanFilters()">
           Clear All
         </button>
       </div>
     </div>
 
-    <div id="plans-panel-card" class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+    <div id="plans-panel-card" class="workers-table-panel" class="view-panel-main">
       <div class="workers-table">
         <div class="mes-table-container">
           <div class="mes-table-tabs" id="plans-tabs">
@@ -1317,21 +1317,21 @@ export function generatePlanDesigner() {
             </button>
           </div>
 
-          <div id="production-table-panel" style="display: block;">
+          <div id="production-table-panel" class="d-block">
             <table class="mes-table">
               <thead class="mes-table-header">
                 <tr>
-                  <th style="min-width: 140px;">Plan ID</th>
-                  <th style="min-width: 180px;">Plan Adı</th>
-                  <th style="min-width: 120px;">Order</th>
-                  <th style="min-width: 80px;">Steps</th>
-                  <th style="min-width: 140px;">Throughput</th>
-                  <th style="min-width: 160px;">Bottleneck</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Created At</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Created By</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Updated At</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Updated By</th>
-                  <th style="text-align: right;">
+                  <th class="view-min-w-140">Plan ID</th>
+                  <th class="view-min-w-180">Plan Adı</th>
+                  <th class="view-min-w-120">Order</th>
+                  <th class="view-min-w-80">Steps</th>
+                  <th class="view-min-w-140">Throughput</th>
+                  <th class="view-min-w-160">Bottleneck</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Created At</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Created By</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Updated At</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Updated By</th>
+                  <th class="text-right">
                     <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
                   </th>
                 </tr>
@@ -1343,19 +1343,19 @@ export function generatePlanDesigner() {
               </tbody>
             </table>
           </div>
-          <div id="templates-table-panel" style="display: none;">
+          <div id="templates-table-panel" class="d-none">
             <table class="mes-table">
               <thead class="mes-table-header">
                 <tr>
-                  <th style="min-width: 140px;">Plan ID</th>
-                  <th style="min-width: 180px;">Template Adı</th>
-                  <th style="min-width: 120px;">Order</th>
-                  <th style="min-width: 80px;">Steps</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Created At</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Created By</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Updated At</th>
-                  <th class="metadata-column hidden" style="min-width: 140px;">Updated By</th>
-                  <th style="text-align: right;">
+                  <th class="view-min-w-140">Plan ID</th>
+                  <th class="view-min-w-180">Template Adı</th>
+                  <th class="view-min-w-120">Order</th>
+                  <th class="view-min-w-80">Steps</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Created At</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Created By</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Updated At</th>
+                  <th class="metadata-column hidden" class="view-min-w-140">Updated By</th>
+                  <th class="text-right">
                     <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
                   </th>
                 </tr>
@@ -1373,20 +1373,20 @@ export function generatePlanDesigner() {
 
     <div id="plan-designer-section" style="margin-top: 24px; display: none;">
       <div class="card" style="margin-bottom: 10px;">
-        <div class="card-header" style="padding: 8px 10px;">
+        <div class="card-header" class="view-p-8-10">
           <div class="card-title" style="font-size: 15px; display: flex; align-items: center; gap: 8px;">
             Plan Configuration
             <span id="plan-config-id" style="font-family: 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 15px; font-weight: normal; opacity: 0.6; display: none;"></span>
           </div>
         </div>
-        <div class="card-content" style="padding: 6px 10px;">
+        <div class="card-content" class="view-p-6-10">
           <!-- Row 1: Plan name + short description -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Plan</label>
+            <div class="flex-center-gap">
+              <label class="view-label-mini">Plan</label>
               <input type="text" id="plan-name" placeholder="Plan name" style="flex:1; width: 100%; height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;" />
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div class="flex-center-gap">
               <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 80px;">Description</label>
               <input type="text" id="plan-description" placeholder="Plan description..." style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" />
             </div>
@@ -1394,78 +1394,78 @@ export function generatePlanDesigner() {
 
           <!-- Row 2: Order + Schedule type + Buttons -->
           <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 8px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Order</label>
-              <select id="order-select" style="display:none;" onchange="handleOrderChange()"><option value="">Select an order...</option></select>
-              <div style="position: relative; flex:1;">
+            <div class="flex-center-gap">
+              <label class="view-label-mini">Order</label>
+              <select id="order-select" class="d-none" onchange="handleOrderChange()"><option value="">Select an order...</option></select>
+              <div class="view-flex-relative">
                 <button id="plan-order-btn" type="button" class="plan-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 200px; width: 100%; display: flex; align-items: center; gap: 8px;">
                   <span id="plan-order-label">Select an order...</span>
-                  <span style="margin-left: auto; opacity: .6">▾</span>
+                  <span class="view-ml-auto">▾</span>
                 </button>
                 <div id="plan-order-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 360px; max-height: 320px; overflow: hidden; z-index: 9999;">
-                  <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+                  <div class="view-toolbar">
                     <input id="plan-order-search" type="text" placeholder="Search orders..." class="plan-filter-panel-input" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
-                    <button id="plan-order-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                    <button id="plan-order-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                    <button id="plan-order-clear" type="button" class="plan-filter-panel-button" class="view-btn-select">Clear</button>
+                    <button id="plan-order-close" type="button" title="Close" class="plan-filter-panel-button" class="view-btn-select-auto">×</button>
                   </div>
-                  <div id="plan-order-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+                  <div id="plan-order-list" class="view-scroll-grid"></div>
                 </div>
               </div>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div class="flex-center-gap">
               <label style="font-weight:500; font-size:12px; margin:0; min-width:72px;">Plan Türü</label>
-              <select id="schedule-type" style="display:none;" onchange="handleScheduleTypeChange()">
+              <select id="schedule-type" class="d-none" onchange="handleScheduleTypeChange()">
                 <option value="one-time">Tek seferlik</option>
                 <option value="recurring">Devirli</option>
               </select>
-              <div style="position: relative; flex:1;">
+              <div class="view-flex-relative">
                 <button id="plan-type-btn" type="button" class="plan-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; width: 100%; display: flex; align-items: center; gap: 8px;">
                   <span id="plan-type-label">Tek seferlik</span>
-                  <span style="margin-left: auto; opacity: .6">▾</span>
+                  <span class="view-ml-auto">▾</span>
                 </button>
                 <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; min-height: fit-content; max-height: 80vh; overflow: hidden; z-index: 9999;">
-                  <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+                  <div class="view-toolbar">
                     <span id="plan-type-modal-title" style="font-weight: 500; font-size: 13px; color: var(--foreground);">Plan Türü Ayarları</span>
                     <div style="margin-left: auto; display: flex; gap: 6px;">
-                      <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanType()">Clear</button>
+                      <button id="plan-type-clear" type="button" class="plan-filter-panel-button" class="view-btn-select" onclick="clearPlanType()">Clear</button>
                       <button id="modal-apply-btn" type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid black; background:black; color:white; border-radius:6px; cursor:pointer;" onclick="applyPlanTypeModal()">Apply</button>
-                      <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanTypePanel()">×</button>
+                      <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" class="view-btn-select-auto" onclick="hidePlanTypePanel()">×</button>
                     </div>
                   </div>
-                  <div style="max-height: 70vh; overflow-y: auto; padding: 8px; box-sizing: border-box;">
+                  <div class="view-scroll-content-lg">
                     <!-- Plan Type Selection -->
                     <div style="display: grid; gap: 6px; margin-bottom: 12px;">
-                      <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                      <label class="view-btn-pill">
                         <input type="radio" name="plan-type-radio" value="one-time" onchange="if(this.checked) { selectPlanType('one-time', 'Tek seferlik'); handlePlanTypeModalChange('one-time'); }">
-                        <span style="font-size:12px;">Tek seferlik</span>
+                        <span class="view-text-12">Tek seferlik</span>
                       </label>
-                      <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                      <label class="view-btn-pill">
                         <input type="radio" name="plan-type-radio" value="recurring" onchange="if(this.checked) { selectPlanType('recurring', 'Devirli'); handlePlanTypeModalChange('recurring'); }">
-                        <span style="font-size:12px;">Devirli</span>
+                        <span class="view-text-12">Devirli</span>
                       </label>
                     </div>
                     
                     <!-- Quantity Section -->
                     <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 12px;">
-                      <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Miktar</label>
-                      <input type="number" id="modal-plan-quantity" min="1" value="1" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handlePlanQuantityChange()" placeholder="1">
+                      <label class="view-label-inline">Miktar</label>
+                      <input type="number" id="modal-plan-quantity" min="1" value="1" class="view-input-sm" onchange="handlePlanQuantityChange()" placeholder="1">
                     </div>
                     
                     <!-- Recurring Options (shown when recurring is selected) -->
                     <div id="modal-recurring-options" style="display:none; border-top: 1px solid var(--border); padding-top: 12px;">
                       <!-- Devirli Türü -->
-                      <div style="margin-bottom: 12px;">
-                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Devirli Türü</label>
-                        <select id="modal-recurring-type" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleModalRecurringTypeChange()">
+                      <div class="view-mb-12">
+                        <label class="view-label-inline">Devirli Türü</label>
+                        <select id="modal-recurring-type" class="view-input-sm" onchange="handleModalRecurringTypeChange()">
                           <option value="periodic">Periyodik devirli</option>
                           <option value="indefinite">Süresiz devirli</option>
                         </select>
                       </div>
                       
                       <!-- Periyot (shown when periodic is selected) -->
-                      <div id="modal-periodic-frequency-container" style="margin-bottom: 12px;">
-                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Periyot</label>
-                        <select id="modal-periodic-frequency" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleModalPeriodicFrequencyChange()">
+                      <div id="modal-periodic-frequency-container" class="view-mb-12">
+                        <label class="view-label-inline">Periyot</label>
+                        <select id="modal-periodic-frequency" class="view-input-sm" onchange="handleModalPeriodicFrequencyChange()">
                           <option value="daily">Günlük</option>
                           <option value="weekly">Haftalık</option>
                           <option value="biweekly">2 haftalık</option>
@@ -1476,8 +1476,8 @@ export function generatePlanDesigner() {
                       
                       <!-- Custom Frequency (shown when custom is selected) -->
                       <div id="modal-custom-frequency-container" style="display:none; margin-bottom: 12px;">
-                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Custom Tanım</label>
-                        <input type="text" id="modal-custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;">
+                        <label class="view-label-inline">Custom Tanım</label>
+                        <input type="text" id="modal-custom-frequency" placeholder="Örn: her 3 gün, cron vb." class="view-input-sm">
                       </div>
                     </div>
                   </div>
@@ -1485,8 +1485,8 @@ export function generatePlanDesigner() {
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end;">
-              <button id="plan-save-btn" onclick="savePlanDraft()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button>
-              <button id="plan-save-as-template-btn" onclick="savePlanAsTemplate()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save As Template</button>
+              <button id="plan-save-btn" onclick="savePlanDraft()" class="view-input-height">Save</button>
+              <button id="plan-save-as-template-btn" onclick="savePlanAsTemplate()" class="view-input-height">Save As Template</button>
               <button id="plan-cancel-btn" onclick="cancelPlanCreation()" style="height: 32px; padding:0 12px; font-size:12px; border-radius:6px; background: #f3f4f6; color: #111827; border: 1px solid var(--border);">Cancel</button>
             </div>
           </div>
@@ -1494,49 +1494,49 @@ export function generatePlanDesigner() {
       </div>
       <div id="plan-workspace-grid" style="display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start;">
         <div class="card" style="height: fit-content;">
-          <div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 14px;">Operations</div><div class="card-description" style="font-size: 11px;">Drag to canvas</div></div>
-          <div id="operations-panel" class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
+          <div class="card-header" class="view-p-12"><div class="card-title" class="view-text-14">Operations</div><div class="card-description" class="view-text-xs">Drag to canvas</div></div>
+          <div id="operations-panel" class="card-content" class="view-p-8"><div id="operations-list"></div></div>
         </div>
         <div class="card">
           <div class="card-header" style="padding: 8px 12px !important; display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;">
-            <div class="card-title" style="font-size: 14px;">Plan Canvas</div>
+            <div class="card-title" class="view-text-14">Plan Canvas</div>
             <div style="display: flex; gap: 6px;">
-              <button id="fullscreen-canvas-btn" onclick="toggleCanvasFullscreen()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">⛶ Fullscreen</button>
-              <button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button>
-              <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;"><i class="fa-solid fa-trash"></i> Clear</button>
+              <button id="fullscreen-canvas-btn" onclick="toggleCanvasFullscreen()" class="view-btn-sm">⛶ Fullscreen</button>
+              <button id="connect-mode-btn" onclick="toggleConnectMode()" class="view-btn-sm">🔗 Connect</button>
+              <button onclick="clearCanvas()" class="view-btn-sm"><i class="fa-solid fa-trash"></i> Clear</button>
             </div>
           </div>
-          <div class="card-content" style="padding: 0; max-height: 400px; position: relative; overflow: hidden;">
-            <div id="plan-canvas" style="width: 100%; height: 400px; max-height: 400px; position: relative; background: var(--card); border: 1px solid var(--border);" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
+          <div class="card-content" class="view-scroll-box">
+            <div id="plan-canvas" class="view-canvas-container" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
           </div>
         </div>
       </div>
       <!-- Malzeme Akışı Paneli -->
-      <div class="card" style="margin-top: 12px;">
-        <div class="card-header" style="padding: 8px 12px; display:flex; align-items:center; justify-content: space-between; gap: 8px;">
-          <div class="card-title" style="font-size: 14px;">Malzeme Akışı</div>
+      <div class="card" class="view-mt-12">
+        <div class="card-header" class="view-flex-header">
+          <div class="card-title" class="view-text-14">Malzeme Akışı</div>
         </div>
-        <div class="card-content" style="padding: 8px 12px;">
-          <div id="material-flow-container" style="width: 100%; min-height: 80px; position: relative; overflow-x: auto; overflow-y: hidden;"></div>
+        <div class="card-content" class="view-p-12">
+          <div id="material-flow-container" class="view-scroll-container"></div>
         </div>
       </div>
       <!-- Timing / Capacity Summary Paneli -->
-      <div class="card" style="margin-top: 12px;">
-        <div class="card-header" style="padding: 8px 12px;">
+      <div class="card" class="view-mt-12">
+        <div class="card-header" class="view-p-12">
           <div class="card-title" style="font-size: 14px; display: flex; align-items: center;">
             <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
           </div>
         </div>
-        <div class="card-content" style="padding: 8px 12px;">
+        <div class="card-content" class="view-p-12">
           <div id="timing-summary-container"></div>
         </div>
       </div>
       <div id="node-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 3000;" onclick="closeNodeEditModal(event)">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
-          <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-            <h3 style="margin: 0; font-size: 18px;">Edit Production Step</h3>
+        <div class="view-modal-center" onclick="event.stopPropagation()">
+          <div class="view-header-border">
+            <h3 class="view-heading-18">Edit Production Step</h3>
           </div>
-          <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
+          <div class="view-body-scroll">
             <div id="node-edit-form"></div>
             
             <!-- Output Selection Container -->
@@ -1545,19 +1545,19 @@ export function generatePlanDesigner() {
               
               <!-- Radio Button Group -->
               <div class="output-mode-selector" style="display: flex; gap: 16px; margin-bottom: 16px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                  <input type="radio" name="output-mode" value="existing" onchange="toggleOutputMode('existing')" style="cursor: pointer;" />
+                <label class="flex-center-gap-sm cursor-pointer view-text-13">
+                  <input type="radio" name="output-mode" value="existing" onchange="toggleOutputMode('existing')" class="cursor-pointer" />
                   <span>Select Existing Output</span>
                 </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                  <input type="radio" name="output-mode" value="new" onchange="toggleOutputMode('new')" style="cursor: pointer;" />
+                <label class="flex-center-gap-sm cursor-pointer view-text-13">
+                  <input type="radio" name="output-mode" value="new" onchange="toggleOutputMode('new')" class="cursor-pointer" />
                   <span>Create New Output</span>
                 </label>
               </div>
               
               <!-- Existing Output Selection -->
-              <div id="existing-output-section" style="display: none;">
-                <button id="output-select-btn" onclick="openOutputSelectionDropdown()" style="width: 100%; padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; text-align: left;">
+              <div id="existing-output-section" class="d-none">
+                <button id="output-select-btn" onclick="openOutputSelectionDropdown()" class="view-select-dropdown">
                   <span>Select Output Material...</span>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -1570,23 +1570,23 @@ export function generatePlanDesigner() {
               </div>
               
               <!-- New Output Creation -->
-              <div id="new-output-section" style="display: none;">
+              <div id="new-output-section" class="d-none">
                 <div style="display: grid; gap: 12px;">
                   <div class="form-row">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Prefix (Auto)</label>
-                    <input id="output-prefix" readonly style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: rgb(249, 250, 251); color: var(--muted-foreground);" />
+                    <label class="view-label-sm">Prefix (Auto)</label>
+                    <input id="output-prefix" readonly class="view-input-disabled" />
                   </div>
                   <div class="form-row">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Suffix (Numeric) *</label>
-                    <input id="output-suffix" type="number" min="1" placeholder="e.g., 8 → 008" oninput="updateNewOutputPreview()" onblur="validateOutputCodeUniqueness()" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+                    <label class="view-label-sm">Suffix (Numeric) *</label>
+                    <input id="output-suffix" type="number" min="1" placeholder="e.g., 8 → 008" oninput="updateNewOutputPreview()" onblur="validateOutputCodeUniqueness()" class="view-input-lg" />
                   </div>
                   <div class="form-row">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Name *</label>
-                    <input id="output-name" placeholder="Material name" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+                    <label class="view-label-sm">Name *</label>
+                    <input id="output-name" placeholder="Material name" class="view-input-lg" />
                   </div>
                   <div class="form-row">
-                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Unit *</label>
-                    <select id="output-unit-new" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: white;">
+                    <label class="view-label-sm">Unit *</label>
+                    <select id="output-unit-new" class="view-input-lg-bg">
                       <option value="">Select unit</option>
                       <option value="kg">kg</option>
                       <option value="adet">adet</option>
@@ -1596,7 +1596,7 @@ export function generatePlanDesigner() {
                       <option value="litre">litre</option>
                     </select>
                   </div>
-                  <div id="output-code-preview" style="padding: 8px 12px; background: rgb(249, 250, 251); border-radius: 4px; font-size: 12px;">
+                  <div id="output-code-preview" class="view-info-box-muted">
                     Final Code: <strong><span id="output-code-final" style="color: var(--primary);">—</span></strong>
                   </div>
                 </div>
@@ -1604,14 +1604,14 @@ export function generatePlanDesigner() {
               
               <!-- Output Quantity (always visible) -->
               <div class="form-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-                <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Output Quantity *</label>
-                <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Quantity" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+                <label class="view-label-sm">Output Quantity *</label>
+                <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Quantity" class="view-input-lg" />
               </div>
               
               <!-- Output Unit (for existing selection) -->
               <div id="output-unit-container" class="form-row" style="margin-top: 12px; display: none;">
-                <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Output Unit *</label>
-                <select id="edit-output-unit" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: white;">
+                <label class="view-label-sm">Output Unit *</label>
+                <select id="edit-output-unit" class="view-input-lg-bg">
                   <option value="">Birim seçin</option>
                   <option value="kg">kg</option>
                   <option value="adet">adet</option>
@@ -1625,9 +1625,9 @@ export function generatePlanDesigner() {
           </div>
           
           <!-- Modal Footer -->
-          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-            <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px;">Cancel</button>
-            <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Save</button>
+          <div class="view-modal-footer">
+            <button onclick="closeNodeEditModal()" class="view-btn-outline">Cancel</button>
+            <button onclick="saveNodeEdit()" class="view-btn-primary">Save</button>
           </div>
         </div>
       </div>
@@ -1636,49 +1636,49 @@ export function generatePlanDesigner() {
       <div id="canvas-fullscreen-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 2000;">
         <div style="height: 100vh; display: flex; flex-direction: column;">
           <!-- Fullscreen Header -->
-          <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background: white; position: relative;">
-            <div style="position: absolute; left: 20px; display: flex; align-items: center;">
-              <h3 style="margin: 0; font-size: 18px; font-weight: 600;">Plan Canvas - Fullscreen</h3>
+          <div class="view-header-center">
+            <div class="view-flex-left-20">
+              <h3 class="view-modal-title-lg">Plan Canvas - Fullscreen</h3>
             </div>
             <!-- Centered Controls -->
             <div style="display: flex; gap: 6px; align-items: center;">
               <!-- Zoom Controls (Left Side) -->
               <div style="display: flex; gap: 4px; align-items: center; margin-right: 12px;">
-                <button id="zoom-out-btn" onclick="adjustCanvasZoom(-0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-search-minus"></i></button>
-                <input type="range" id="zoom-slider" min="30" max="150" value="100" step="10" oninput="setCanvasZoom(this.value)" style="width: 80px; height: 4px; background: #ddd; outline: none; border-radius: 2px; cursor: pointer;">
-                <button id="zoom-in-btn" onclick="adjustCanvasZoom(0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-search-plus"></i></button>
+                <button id="zoom-out-btn" onclick="adjustCanvasZoom(-0.1)" class="view-btn-icon"><i class="fa-solid fa-search-minus"></i></button>
+                <input type="range" id="zoom-slider" min="30" max="150" value="100" step="10" oninput="setCanvasZoom(this.value)" class="view-range-slider">
+                <button id="zoom-in-btn" onclick="adjustCanvasZoom(0.1)" class="view-btn-icon"><i class="fa-solid fa-search-plus"></i></button>
                 <span id="zoom-percentage" style="font-size: 11px; color: var(--muted-foreground); min-width: 35px;">100%</span>
-                <button onclick="resetCanvasPan()" title="Reset Pan" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-left: 8px;">⌂</button>
+                <button onclick="resetCanvasPan()" title="Reset Pan" class="view-btn-icon-32">⌂</button>
               </div>
               
               <!-- Main Controls -->
-              <button id="fullscreen-connect-mode-btn" onclick="toggleConnectMode()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">🔗 Connect</button>
-              <button onclick="clearCanvas()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Clear</button>
-              <button onclick="toggleCanvasFullscreen()" style="padding: 6px 12px; background: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Exit Fullscreen</button>
+              <button id="fullscreen-connect-mode-btn" onclick="toggleConnectMode()" class="btn-outline-sm">🔗 Connect</button>
+              <button onclick="clearCanvas()" class="btn-outline-sm"><i class="fa-solid fa-trash"></i> Clear</button>
+              <button onclick="toggleCanvasFullscreen()" class="view-btn-muted">✕ Exit Fullscreen</button>
             </div>
           </div>
           
           <!-- Fullscreen Content -->
           <div style="flex: 1; display: flex; min-height: 0;">
             <!-- Operations Panel in Fullscreen -->
-            <div id="fullscreen-operations-panel" style="width: 280px; background: var(--muted); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
-              <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <div id="fullscreen-operations-panel" class="view-sidebar">
+              <div class="view-section-border">
                 <h4 style="margin: 0 0 4px; font-size: 16px; font-weight: 600;">Operations</h4>
-                <p style="margin: 0; font-size: 12px; color: var(--muted-foreground);">Drag to canvas</p>
+                <p class="view-subtitle-muted">Drag to canvas</p>
               </div>
               <div style="flex: 1; padding: 16px; overflow-y: auto;">
                 <div id="fullscreen-operations-list">
-                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-225d1xh')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Boyama</div>
-                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-25m0lvw')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Montaj</div>
-                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-me5qd1y')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Press Kalıp Şekillendirme</div>
-                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-rqjlcwf')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Torna</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-225d1xh')" class="view-draggable-item" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Boyama</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-25m0lvw')" class="view-draggable-item" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Montaj</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-me5qd1y')" class="view-draggable-item" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Press Kalıp Şekillendirme</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-rqjlcwf')" class="view-draggable-item" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Torna</div>
                 </div>
               </div>
             </div>
             
             <!-- Fullscreen Canvas Area -->
             <div style="flex: 1; position: relative; background: var(--card); overflow: hidden;">
-              <div id="fullscreen-plan-canvas" style="width: 100%; height: 100%; position: relative; background: var(--card); cursor: grab;" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
+              <div id="fullscreen-plan-canvas" class="view-canvas-full" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
             </div>
           </div>
         </div>
@@ -1689,18 +1689,18 @@ export function generatePlanDesigner() {
 
 export function generateTemplates() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Templates</h1>
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Production Templates</h1>
       <p style="color: var(--muted-foreground);">Reusable production plan templates</p>
     </div>
-    <div style="margin-bottom: 24px;">
+    <div class="view-mb-24">
       <button onclick="createNewTemplate()" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create Template</button>
     </div>
-    <div id="templates-container" class="grid grid-cols-3" style="gap: 16px;">
+    <div id="templates-container" class="grid grid-cols-3" class="view-gap-16">
       <div class="card" style="border: 2px dashed var(--border); text-align: center; padding: 40px;">
         <div style="color: var(--muted-foreground); font-size: 14px;">
           <p>No templates found</p>
-          <p style="font-size: 12px;">Create your first production template to get started</p>
+          <p class="view-text-12">Create your first production template to get started</p>
         </div>
       </div>
     </div>
@@ -1710,14 +1710,14 @@ export function generateTemplates() {
 // Approved Quotes view (read-only list similar to workers/operations tables)
 export function generateApprovedQuotes() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Orders</h1>
-      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+    <div class="view-mb-24">
+      <h1 class="view-stat-lg">Work Orders</h1>
+      <p class="view-section-title-sm">
         Monitor and manage approved work orders ready for production. Launch production processes, track status, and control production flow with pause, resume, and cancel operations.
       </p>
     </div>
 
-    <div class="approved-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+    <div class="approved-filter-compact mes-filter-bar" class="view-mb-24">
       <div class="mes-filter-controls">
         <input id="approved-quotes-search" type="text" placeholder="Ara: müşteri, firma, teklif #..." class="mes-filter-input is-compact">
 
@@ -1738,7 +1738,7 @@ export function generateApprovedQuotes() {
             <span class="mes-filter-caret">▾</span>
           </button>
           <div id="aq-filter-state-panel" class="mes-filter-panel is-narrow">
-            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+            <div class="mes-filter-panel-header" class="view-justify-end">
               <button type="button" class="mes-filter-panel-button">Clear</button>
               <button type="button" title="Close" class="mes-filter-panel-button">×</button>
             </div>
@@ -1760,38 +1760,38 @@ export function generateApprovedQuotes() {
             <span class="mes-filter-caret">▾</span>
           </button>
           <div id="aq-filter-delivery-panel" class="mes-filter-panel is-wide">
-            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+            <div class="mes-filter-panel-header" class="view-justify-end">
               <button type="button" class="mes-filter-panel-button">Clear</button>
               <button type="button" title="Close" class="mes-filter-panel-button">×</button>
             </div>
-            <div style="padding: 8px; display: grid; gap: 8px;">
+            <div class="view-grid-gap-8">
               <!-- Gecikmiş Workorderlar butonu -->
-              <button type="button" id="aq-filter-delivery-overdue" style="width: 100%; height: 32px; padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              <button type="button" id="aq-filter-delivery-overdue" class="view-btn-danger-full">
                 📅 Gecikmiş Workorderlar
               </button>
               
               <!-- Başlangıç ve Bitiş yan yana -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end;">
                 <div>
-                  <label style="font-size:12px; color: var(--muted-foreground); display: block; margin-bottom: 4px;">Başlangıç</label>
-                  <input id="aq-filter-delivery-from" type="date" style="height: 28px; width: 100%; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">
+                  <label class="view-text-12-muted">Başlangıç</label>
+                  <input id="aq-filter-delivery-from" type="date" class="view-input-table">
                 </div>
                 <div>
-                  <label style="font-size:12px; color: var(--muted-foreground); display: block; margin-bottom: 4px;">Bitiş</label>
-                  <input id="aq-filter-delivery-to" type="date" style="height: 28px; width: 100%; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">
+                  <label class="view-text-12-muted">Bitiş</label>
+                  <input id="aq-filter-delivery-to" type="date" class="view-input-table">
                 </div>
               </div>
               
               <!-- Hızlı seçimler -->
               <div style="display: grid; gap: 4px;">
                 <label style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 2px;">Hızlı Seçimler:</label>
-                <button type="button" class="quick-select-btn" data-days="1" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
-                  <i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> 1 Gün Kaldı
+                <button type="button" class="quick-select-btn" data-days="1" class="view-select-mini">
+                  <i class="fa-solid fa-bolt" class="view-icon-warning"></i> 1 Gün Kaldı
                 </button>
-                <button type="button" class="quick-select-btn" data-days="3" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
+                <button type="button" class="quick-select-btn" data-days="3" class="view-select-mini">
                   ⏰ 3 Gün Kaldı
                 </button>
-                <button type="button" class="quick-select-btn" data-days="5" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
+                <button type="button" class="quick-select-btn" data-days="5" class="view-select-mini">
                   📅 5 Gün Kaldı
                 </button>
               </div>
@@ -1801,52 +1801,52 @@ export function generateApprovedQuotes() {
           </div>
         </div>
 
-        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" style="display: none;">
+        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" class="d-none">
           Clear All
         </button>
       </div>
     </div>
 
     <section class="approved-quotes-table">
-      <div style="padding: 0px;">
-        <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
-          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+      <div class="p-0">
+        <div class="workers-container" class="view-flex-main-container">
+          <div class="workers-table-panel" class="view-panel-main">
             <div class="workers-table">
               <div class="mes-table-container">
                 <table id="approved-quotes-table" class="mes-table">
                   <thead class="mes-table-header">
                     <tr>
-                      <th style="min-width: 80px;">
+                      <th class="view-min-w-80">
                         <button type="button" onclick="sortApprovedQuotes('woCode')" class="mes-sort-button">
                           WO Code <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" onclick="sortApprovedQuotes('customer')" class="mes-sort-button">
                           Customer <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" onclick="sortApprovedQuotes('company')" class="mes-sort-button">
                           Company <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 140px;">
+                      <th class="view-min-w-140">
                         <button type="button" onclick="sortApprovedQuotes('deliveryDate')" class="mes-sort-button">
                           Delivery Date <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px;">
+                      <th class="view-min-w-160">
                         <button type="button" onclick="sortApprovedQuotes('productionPlan')" class="mes-sort-button">
                           Production Plan <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 180px;">
+                      <th class="view-min-w-180">
                         <button type="button" onclick="sortApprovedQuotes('productionState')" class="mes-sort-button">
                           Üretim Durumu <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 200px;">Actions</th>
+                      <th class="view-min-w-200">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="approved-quotes-table-body" class="mes-table-body">
@@ -1859,15 +1859,15 @@ export function generateApprovedQuotes() {
             </div>
           </div>
 
-          <div class="worker-detail-panel" id="approved-quote-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
-            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
-              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <button title="Detayları Kapat" onclick="closeApprovedQuoteDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
-                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Teklif Detayları</h3>
+          <div class="worker-detail-panel" id="approved-quote-detail-panel" class="view-panel-side">
+            <div class="view-card-full">
+              <div class="view-card-header">
+                <div class="view-flex-center-gap-12">
+                  <button title="Detayları Kapat" onclick="closeApprovedQuoteDetail()" class="view-btn-outline">←</button>
+                  <h3 class="view-card-header-title">Teklif Detayları</h3>
                 </div>
               </div>
-              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+              <div class="view-card-body">
                 <div id="approved-quote-detail-content"></div>
               </div>
             </div>
@@ -1962,10 +1962,10 @@ export async function initActiveTasksWidget() {
     // If no workers exist yet, show empty state
     if (!workers || workers.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-hard-hat"></i></div>
-          <div style="font-size: 14px;">Henüz işçi kaydı yok</div>
-          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Workers sekmesinden işçi ekleyebilirsiniz</div>
+        <div class="view-empty-full">
+          <div class="view-stat-md"><i class="fa-solid fa-hard-hat"></i></div>
+          <div class="view-text-14">Henüz işçi kaydı yok</div>
+          <div class="view-caption">Workers sekmesinden işçi ekleyebilirsiniz</div>
         </div>
       `;
       return;
@@ -1998,7 +1998,7 @@ export async function initActiveTasksWidget() {
     const warningHtml = failedWorkers.length > 0 ? `
       <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
         <div style="font-size: 12px; color: #92400e; font-weight: 600; margin-bottom: 4px;">
-          <i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i> ${failedWorkers.length} işçi için görevler yüklenemedi
+          <i class="fa-solid fa-exclamation-triangle" class="view-icon-warning"></i> ${failedWorkers.length} işçi için görevler yüklenemedi
         </div>
         <div style="font-size: 11px; color: #78350f;">
           ${failedWorkers.map(w => `${w.name || w.id}: ${w.error}`).join('<br>')}
@@ -2008,13 +2008,13 @@ export async function initActiveTasksWidget() {
     
     // Render widget content
     container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="view-flex-col-gap">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #dbeafe; border-radius: 8px;">
           <div>
             <div style="font-size: 13px; color: #1e40af; font-weight: 500;">Devam Ediyor</div>
             <div style="font-size: 24px; font-weight: 700; color: #1e3a8a;">${totalInProgress}</div>
           </div>
-          <div style="font-size: 32px;">▶️</div>
+          <div class="view-stat-sm">▶️</div>
         </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #d1fae5; border-radius: 8px;">
@@ -2022,7 +2022,7 @@ export async function initActiveTasksWidget() {
             <div style="font-size: 13px; color: #065f46; font-weight: 500;">Hazır</div>
             <div style="font-size: 24px; font-weight: 700; color: #064e3b;">${totalReady}</div>
           </div>
-          <div style="font-size: 32px;"><i class="fa-solid fa-check-circle" style="color: #10b981;"></i></div>
+          <div class="view-stat-sm"><i class="fa-solid fa-check-circle" style="color: #10b981;"></i></div>
         </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #fed7aa; border-radius: 8px;">
@@ -2030,7 +2030,7 @@ export async function initActiveTasksWidget() {
             <div style="font-size: 13px; color: #92400e; font-weight: 500;">Duraklatıldı</div>
             <div style="font-size: 24px; font-weight: 700; color: #78350f;">${totalPaused}</div>
           </div>
-          <div style="font-size: 32px;">⏸️</div>
+          <div class="view-stat-sm">⏸️</div>
         </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f3f4f6; border-radius: 8px;">
@@ -2038,7 +2038,7 @@ export async function initActiveTasksWidget() {
             <div style="font-size: 13px; color: #6b7280; font-weight: 500;">Bekliyor</div>
             <div style="font-size: 24px; font-weight: 700; color: #374151;">${totalPending}</div>
           </div>
-          <div style="font-size: 32px;"><i class="fa-solid fa-clock" style="color: #f59e0b;"></i></div>
+          <div class="view-stat-sm"><i class="fa-solid fa-clock" class="view-icon-warning"></i></div>
         </div>
         ${warningHtml}
       </div>
@@ -2047,8 +2047,8 @@ export async function initActiveTasksWidget() {
     console.error('Failed to load active tasks widget:', err);
     const errorMessage = err.message || 'Bilinmeyen hata';
     container.innerHTML = `
-      <div style="padding: 16px; text-align: center; color: #ef4444; background: #fee; border-radius: 8px;">
-        <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i></div>
+      <div class="view-error-box">
+        <div class="view-stat-md"><i class="fa-solid fa-exclamation-triangle" class="view-icon-warning"></i></div>
         <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Görevler yüklenemedi</div>
         <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
       </div>
@@ -2574,7 +2574,7 @@ function renderWorkPackagesTable() {
       'cancelled': { label: 'Cancelled', className: 'badge badge-destructive' }
     };
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
-    return `<span class="${s.className}" style="padding: 1px 8px;">${s.label}</span>`;
+    return `<span class="${s.className}" class="view-badge-xs">${s.label}</span>`;
   };
   
   const getMaterialBadge = (status) => {
@@ -2598,10 +2598,10 @@ function renderWorkPackagesTable() {
       return '<span class="mes-muted-text">—</span>';
     }
     const codeHtml = code
-      ? `<span class="mes-muted-text" style="font-size: 11px; font-family: monospace;">${esc(code)}</span>`
+      ? `<span class="mes-muted-text" class="view-text-11-mono">${esc(code)}</span>`
       : '';
     const nameHtml = name
-      ? `<span style="display: block;">${esc(name)}</span>`
+      ? `<span class="d-block">${esc(name)}</span>`
       : '';
     return codeHtml + nameHtml;
   };
@@ -2612,7 +2612,7 @@ function renderWorkPackagesTable() {
     
     // Already completed or in-progress - show dash
     if (status === 'completed' || status === 'in-progress') {
-      return '<span class="mes-muted-text" style="font-size: 12px;">—</span>';
+      return '<span class="mes-muted-text" class="view-text-12">—</span>';
     }
     
     const prereqs = pkg.prerequisites || {};
@@ -2642,11 +2642,11 @@ function renderWorkPackagesTable() {
       const materialWarning = materialIssue 
         ? '<span style="color: #dc2626; font-weight: 700; font-size: 11px; margin-left: 2px;">M</span>' 
         : '';
-      return `<span style="display: inline-flex; align-items: center;"><i data-lucide="flag" style="width: 16px; height: 16px; color: #16a34a;" title="${tooltip}"></i>${materialWarning}</span>`;
+      return `<span style="display: inline-flex; align-items: center;"><i data-lucide="flag" class="icon-16-success" title="${tooltip}"></i>${materialWarning}</span>`;
     } else {
       // Cannot start - red flag only (no M needed)
       const tooltip = reasons.length > 0 ? reasons.join('\\n') : 'Başlatılamaz';
-      return `<i data-lucide="flag" style="width: 16px; height: 16px; color: #dc2626;" title="${tooltip}"></i>`;
+      return `<i data-lucide="flag" class="icon-16-danger" title="${tooltip}"></i>`;
     }
   };
   
@@ -2685,7 +2685,7 @@ function renderWorkPackagesTable() {
     return `
       <tr class="mes-table-row" onclick="showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}')" style="cursor: pointer; background-color: ${rowBackground};">
         <td>
-          <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
+          <div class="mes-muted-text" class="view-text-11-mono">
             ${esc(pkg.workPackageId || pkg.assignmentId || pkg.id || '—')}
           </div>
         </td>
@@ -2698,10 +2698,10 @@ function renderWorkPackagesTable() {
           <div>${esc(pkg.customer || pkg.company)}</div>
         </td>
         <td>
-          <div style="max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(pkg.nodeName || pkg.operationName || '—')}</div>
+          <div class="w-180-truncate">${esc(pkg.nodeName || pkg.operationName || '—')}</div>
         </td>
         <td>
-          <div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(pkg.workerName)}</div>
+          <div class="w-200-truncate">${esc(pkg.workerName)}</div>
         </td>
         <td>
           <div>${renderSubstationDisplay(pkg)}</div>
@@ -2719,8 +2719,8 @@ function renderWorkPackagesTable() {
           ${materialCellContent}
         </td>
         <td>
-          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.startedAt || pkg.estimatedStartTime)}</div>
-          <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.completedAt || pkg.estimatedEndTime)}</div>
+          <div class="mes-muted-text" class="view-text-50">Start: ${formatTime(pkg.startedAt || pkg.estimatedStartTime)}</div>
+          <div class="mes-muted-text" class="view-text-50">End: ${formatTime(pkg.completedAt || pkg.estimatedEndTime)}</div>
         </td>
       </tr>
     `;
@@ -2728,17 +2728,17 @@ function renderWorkPackagesTable() {
   
   const headerRow = `
     <tr>
-      <th style="width: 1%; white-space: nowrap;">ID</th>
-      <th style="width: 140px; white-space: nowrap;">Work Order</th>
-      <th style="max-width: 180px; width: 180px; white-space: nowrap;">Operation</th>
-      <th style="max-width: 200px; width: 200px; white-space: nowrap;">Worker</th>
+      <th class="w-1-nowrap">ID</th>
+      <th class="w-140">Work Order</th>
+      <th class="w-180-ellipsis">Operation</th>
+      <th class="w-200-ellipsis">Worker</th>
       <th>Station</th>
-      <th class="text-center" style="text-align: center; width: 40px;">
-        <span style="display: inline-flex; align-items: center; justify-content: center; width: 100%;"><i data-lucide="flag" style="width: 14px; height: 14px;"></i></span>
+      <th class="text-center" class="w-40">
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 100%;"><i data-lucide="flag" class="icon-14"></i></span>
       </th>
-      <th class="text-center" style="text-align: center; max-width: 110px; width: 110px;">Status</th>
-      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Priority</th>
-      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">M</th>
+      <th class="text-center" class="w-110">Status</th>
+      <th class="text-center" class="text-center-nowrap">Priority</th>
+      <th class="text-center" class="text-center-nowrap">M</th>
       <th>ETA</th>
     </tr>
   `;
@@ -3405,10 +3405,10 @@ export async function initStationAlertsWidget() {
       
       // Show empty state instead of error for 500s (likely empty collection)
       container.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
-          <div style="font-size: 14px;">Uyarı sistemi henüz kullanılmadı</div>
-          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">İstasyon hataları burada görünecek</div>
+        <div class="view-empty-full">
+          <div class="view-stat-md">📭</div>
+          <div class="view-text-14">Uyarı sistemi henüz kullanılmadı</div>
+          <div class="view-caption">İstasyon hataları burada görünecek</div>
         </div>
       `;
       return;
@@ -3419,9 +3419,9 @@ export async function initStationAlertsWidget() {
     
     if (alerts.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;">✅</div>
-          <div style="font-size: 14px;">Aktif uyarı bulunmuyor</div>
+        <div class="view-empty-full">
+          <div class="view-stat-md">✅</div>
+          <div class="view-text-14">Aktif uyarı bulunmuyor</div>
         </div>
       `;
       return;
@@ -3433,17 +3433,17 @@ export async function initStationAlertsWidget() {
       const timeAgo = getTimeAgo(createdAt);
       
       return `
-        <div style="padding: 12px; border-left: 3px solid #ef4444; background: #fef2f2; border-radius: 4px; margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+        <div class="view-info-box">
+          <div class="flex-between view-mb-4">
             <div style="font-size: 13px; font-weight: 600; color: #991b1b;">
               İstasyon: ${alert.stationId || 'Belirsiz'}
             </div>
-            <div style="font-size: 11px; color: #6b7280;">${timeAgo}</div>
+            <div class="view-text-11-gray">${timeAgo}</div>
           </div>
           <div style="font-size: 12px; color: #7f1d1d; margin-bottom: 4px;">
             ${alert.note || 'Hata açıklaması yok'}
           </div>
-          <div style="font-size: 11px; color: #9ca3af;">
+          <div class="view-text-11-muted">
             Plan: ${alert.planId ? (alert.planId.startsWith('PPL-') ? alert.planId : alert.planId.slice(-10)) : '-'} | İşçi: ${alert.workerId || '-'}
           </div>
         </div>
@@ -3454,9 +3454,9 @@ export async function initStationAlertsWidget() {
   } catch (err) {
     console.error('Failed to load station alerts widget:', err);
     container.innerHTML = `
-      <div style="text-align: center; padding: 16px; color: #9ca3af;">
-        <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
-        <div style="font-size: 13px;">Uyarı sistemi henüz kullanılmadı</div>
+      <div class="view-empty-muted">
+        <div class="view-stat-md">📭</div>
+        <div class="view-text-13">Uyarı sistemi henüz kullanılmadı</div>
         <div style="font-size: 11px; margin-top: 4px;">İstasyon hataları burada görünecek</div>
       </div>
     `;
@@ -3489,10 +3489,10 @@ export async function initProductionPlansWidget() {
 
     if (!plans || plans.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-clipboard-list"></i></div>
-          <div style="font-size: 14px;">Henüz üretim planı oluşturulmamış</div>
-          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Route Designer'dan yeni plan oluşturabilirsiniz</div>
+        <div class="view-empty-full">
+          <div class="view-stat-md"><i class="fa-solid fa-clipboard-list"></i></div>
+          <div class="view-text-14">Henüz üretim planı oluşturulmamış</div>
+          <div class="view-caption">Route Designer'dan yeni plan oluşturabilirsiniz</div>
         </div>
       `;
       return;
@@ -3513,20 +3513,20 @@ export async function initProductionPlansWidget() {
 
       return `
         <div style="padding: 12px; border-left: 3px solid ${statusColor}; background: #f9fafb; border-radius: 4px; margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+          <div class="flex-between view-mb-4">
             <div style="font-size: 13px; font-weight: 600; color: #111827;">
               ${plan.planId || plan.id}
             </div>
-            <div style="font-size: 11px; color: #6b7280;">${createdAt.toLocaleDateString('tr-TR')}</div>
+            <div class="view-text-11-gray">${createdAt.toLocaleDateString('tr-TR')}</div>
           </div>
           <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px;">
             ${plan.name || 'İsimsiz Plan'}
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="flex-center-gap-sm">
             <span style="font-size: 11px; padding: 2px 6px; background: ${statusColor}22; color: ${statusColor}; border-radius: 4px; font-weight: 500;">
               ${plan.status || 'draft'}
             </span>
-            <span style="font-size: 11px; color: #9ca3af;">
+            <span class="view-text-11-muted">
               ${plan.blocks?.length || 0} blok
             </span>
           </div>
@@ -3544,9 +3544,9 @@ export async function initProductionPlansWidget() {
   } catch (err) {
     console.error('Failed to load production plans widget:', err);
     container.innerHTML = `
-      <div style="text-align: center; padding: 16px; color: #9ca3af;">
-        <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
-        <div style="font-size: 13px;">Planlar yüklenemedi</div>
+      <div class="view-empty-muted">
+        <div class="view-stat-md">📭</div>
+        <div class="view-text-13">Planlar yüklenemedi</div>
         <div style="font-size: 11px; margin-top: 4px; color: #ef4444;">${err.message}</div>
       </div>
     `;
@@ -3571,18 +3571,18 @@ export async function initOperationsOverviewWidget() {
       : 0;
 
     container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Toplam Operasyon</span>
-          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalOps}</span>
+      <div class="view-flex-col-gap">
+        <div class="view-flex-between">
+          <span class="view-subtitle">Toplam Operasyon</span>
+          <span class="view-heading-lg">${totalOps}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Beceri Gerektiren</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Beceri Gerektiren</span>
           <span style="font-size: 20px; font-weight: 700; color: #3b82f6;">${withSkills}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Ort. Süre</span>
-          <span style="font-size: 20px; font-weight: 700; color: #10b981;">${avgDuration} dk</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Ort. Süre</span>
+          <span class="view-heading-lg-success">${avgDuration} dk</span>
         </div>
       </div>
     `;
@@ -3595,8 +3595,8 @@ export async function initOperationsOverviewWidget() {
   } catch (err) {
     console.error('Failed to load operations overview:', err);
     container.innerHTML = `
-      <div style="text-align: center; padding: 16px; color: #ef4444;">
-        <div style="font-size: 11px;">Yüklenemedi</div>
+      <div class="view-error-center">
+        <div class="view-text-xs">Yüklenemedi</div>
       </div>
     `;
   }
@@ -3618,17 +3618,17 @@ export async function initStationsOverviewWidget() {
     const withSchedule = stations.filter(s => s.productionSchedule?.enabled).length;
 
     container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Toplam İstasyon</span>
-          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalStations}</span>
+      <div class="view-flex-col-gap">
+        <div class="view-flex-between">
+          <span class="view-subtitle">Toplam İstasyon</span>
+          <span class="view-heading-lg">${totalStations}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Çok Operasyonlu</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Çok Operasyonlu</span>
           <span style="font-size: 20px; font-weight: 700; color: #f59e0b;">${multiOp}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Zaman Planlı</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Zaman Planlı</span>
           <span style="font-size: 20px; font-weight: 700; color: #8b5cf6;">${withSchedule}</span>
         </div>
       </div>
@@ -3642,8 +3642,8 @@ export async function initStationsOverviewWidget() {
   } catch (err) {
     console.error('Failed to load stations overview:', err);
     container.innerHTML = `
-      <div style="text-align: center; padding: 16px; color: #ef4444;">
-        <div style="font-size: 11px;">Yüklenemedi</div>
+      <div class="view-error-center">
+        <div class="view-text-xs">Yüklenemedi</div>
       </div>
     `;
   }
@@ -3668,47 +3668,47 @@ export async function initWorkersOverviewWidget() {
     const onLeaveWorkers = statusCounts.leaveSick + statusCounts.leaveVacation;
 
     container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="view-flex-col-gap">
         <!-- Total and Active -->
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Toplam İşçi</span>
-          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalWorkers}</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Toplam İşçi</span>
+          <span class="view-heading-lg">${totalWorkers}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Çalışıyor</span>
-          <span style="font-size: 20px; font-weight: 700; color: #10b981;">${statusCounts.available}</span>
+        <div class="view-flex-between">
+          <span class="view-subtitle">Çalışıyor</span>
+          <span class="view-heading-lg-success">${statusCounts.available}</span>
         </div>
         
         <!-- Status breakdown -->
-        <div style="padding-top: 8px; border-top: 1px solid #e5e7eb;">
+        <div class="view-section-border">
           <div style="font-size: 11px; font-weight: 600; color: #9ca3af; margin-bottom: 8px; text-transform: uppercase;">Durum Dağılımı</div>
           ${statusCounts.busy > 0 ? `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-              <span style="font-size: 12px; color: #6b7280;">Meşgul</span>
+            <div class="view-flex-between-sm">
+              <span class="view-text-sm">Meşgul</span>
               <span style="font-size: 14px; font-weight: 600; color: #f59e0b;">${statusCounts.busy}</span>
             </div>
           ` : ''}
           ${statusCounts.break > 0 ? `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-              <span style="font-size: 12px; color: #6b7280;">Mola</span>
+            <div class="view-flex-between-sm">
+              <span class="view-text-sm">Mola</span>
               <span style="font-size: 14px; font-weight: 600; color: #3b82f6;">${statusCounts.break}</span>
             </div>
           ` : ''}
           ${statusCounts.leaveVacation > 0 ? `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-              <span style="font-size: 12px; color: #6b7280;">İzinli</span>
+            <div class="view-flex-between-sm">
+              <span class="view-text-sm">İzinli</span>
               <span style="font-size: 14px; font-weight: 600; color: #f97316;">${statusCounts.leaveVacation}</span>
             </div>
           ` : ''}
           ${statusCounts.leaveSick > 0 ? `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-              <span style="font-size: 12px; color: #6b7280;">Hasta</span>
+            <div class="view-flex-between-sm">
+              <span class="view-text-sm">Hasta</span>
               <span style="font-size: 14px; font-weight: 600; color: #ef4444;">${statusCounts.leaveSick}</span>
             </div>
           ` : ''}
           ${statusCounts.inactive > 0 ? `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-              <span style="font-size: 12px; color: #6b7280;">İşten ayrıldı</span>
+            <div class="view-flex-between-sm">
+              <span class="view-text-sm">İşten ayrıldı</span>
               <span style="font-size: 14px; font-weight: 600; color: #6b7280;">${statusCounts.inactive}</span>
             </div>
           ` : ''}
@@ -3716,7 +3716,7 @@ export async function initWorkersOverviewWidget() {
         
         <!-- Visual bar for available workers -->
         ${totalWorkers > 0 ? `
-          <div style="padding-top: 8px; border-top: 1px solid #e5e7eb;">
+          <div class="view-section-border">
             <div style="font-size: 11px; color: #9ca3af; margin-bottom: 4px;">Müsaitlik: ${Math.round((activeWorkers / totalWorkers) * 100)}%</div>
             <div style="background: #e5e7eb; height: 6px; border-radius: 3px; overflow: hidden;">
               <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${(activeWorkers / totalWorkers) * 100}%;"></div>
@@ -3734,8 +3734,8 @@ export async function initWorkersOverviewWidget() {
   } catch (err) {
     console.error('Failed to load workers overview:', err);
     container.innerHTML = `
-      <div style="text-align: center; padding: 16px; color: #ef4444;">
-        <div style="font-size: 11px;">Yüklenemedi</div>
+      <div class="view-error-center">
+        <div class="view-text-xs">Yüklenemedi</div>
       </div>
     `;
   }
@@ -3791,7 +3791,7 @@ export async function showWorkPackageDetail(assignmentId) {
   
   // Show loading state first
   detailContent.innerHTML = `
-    <div style="padding: 20px; text-align: center;">
+    <div class="view-empty-center-20">
       <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
     </div>
   `;
@@ -3833,8 +3833,8 @@ export async function showWorkPackageDetail(assignmentId) {
   } catch (err) {
     console.error('Failed to show work package detail:', err);
     detailContent.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: #ef4444;">
-        <div style="font-size: 14px;">Detaylar yüklenemedi</div>
+      <div class="view-error-text">
+        <div class="view-text-14">Detaylar yüklenemedi</div>
         <div style="font-size: 12px; margin-top: 4px;">${err.message || 'Bilinmeyen hata'}</div>
       </div>
     `;
@@ -3868,13 +3868,13 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
       'cancelled': { label: 'İptal Edildi', className: 'badge badge-destructive' }
     };
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
-    return `<span class="${s.className}" style="padding: 1px 8px;">${s.label}</span>`;
+    return `<span class="${s.className}" class="view-badge-xs">${s.label}</span>`;
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'ok') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">Hazır</span>';
-    if (status === 'short') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Eksik</span>';
-    return '<span class="badge badge-outline" style="padding: 1px 8px; font-size: 0.75rem;">Bilinmeyen</span>';
+    if (status === 'ok') return '<span class="badge badge-success" class="view-badge-sm">Hazır</span>';
+    if (status === 'short') return '<span class="badge badge-destructive" class="view-badge-sm">Eksik</span>';
+    return '<span class="badge badge-outline" class="view-badge-sm">Bilinmeyen</span>';
   };
   
   const formatTime = (iso) => {
@@ -3895,207 +3895,207 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
   };
 
   return `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Work Package Bilgileri</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Package ID:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.assignmentId || workPackage.id || '—')}</span>
+    <div class="view-card">
+      <h3 class="view-section-title">Work Package Bilgileri</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Package ID:</span>
+        <span class="view-detail-value-mono">${esc(workPackage.assignmentId || workPackage.id || '—')}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.planName || '—')}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Plan:</span>
+        <span class="view-detail-value">${esc(workPackage.planName || '—')}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Priority:</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Priority:</span>
         <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600; color: var(--muted-foreground);">#${workPackage.priority || 0}</span>
       </div>
     </div>
 
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Work Order Bilgileri</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Work Order:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600;">${esc(workPackage.workOrderCode || '—')}</span>
+    <div class="view-card">
+      <h3 class="view-section-title">Work Order Bilgileri</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Work Order:</span>
+        <span class="view-detail-value-bold">${esc(workPackage.workOrderCode || '—')}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Müşteri:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.customer) || workPackage.customer || workPackage.company || '—')}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Müşteri:</span>
+        <span class="view-detail-value">${esc((additionalData.quote && additionalData.quote.customer) || workPackage.customer || workPackage.company || '—')}</span>
       </div>
       ${(additionalData.quote && additionalData.quote.projectName) || workPackage.projectName ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Proje:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.projectName) || workPackage.projectName)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Proje:</span>
+        <span class="view-detail-value">${esc((additionalData.quote && additionalData.quote.projectName) || workPackage.projectName)}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.description) || workPackage.description ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.description) || workPackage.description)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Açıklama:</span>
+        <span class="view-detail-value">${esc((additionalData.quote && additionalData.quote.description) || workPackage.description)}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.quantity) || workPackage.quantity ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Miktar:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.quantity) || workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Miktar:</span>
+        <span class="view-detail-value">${esc((additionalData.quote && additionalData.quote.quantity) || workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.deliveryDate) || workPackage.deliveryDate ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teslim Tarihi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime((additionalData.quote && additionalData.quote.deliveryDate) || workPackage.deliveryDate)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Teslim Tarihi:</span>
+        <span class="view-detail-value">${formatTime((additionalData.quote && additionalData.quote.deliveryDate) || workPackage.deliveryDate)}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.orderDate) || workPackage.orderDate ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sipariş Tarihi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime((additionalData.quote && additionalData.quote.orderDate) || workPackage.orderDate)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Sipariş Tarihi:</span>
+        <span class="view-detail-value">${formatTime((additionalData.quote && additionalData.quote.orderDate) || workPackage.orderDate)}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.quoteNumber) || workPackage.quoteId ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teklif No:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc((additionalData.quote && additionalData.quote.quoteNumber) || workPackage.quoteId)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Teklif No:</span>
+        <span class="view-detail-value-mono">${esc((additionalData.quote && additionalData.quote.quoteNumber) || workPackage.quoteId)}</span>
       </div>
       ` : ''}
       ${(additionalData.quote && additionalData.quote.totalValue) ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Değer:</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Toplam Değer:</span>
         <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600; color: rgb(34, 197, 94);">${additionalData.quote.totalValue} ₺</span>
       </div>
       ` : ''}
       ${workPackage.description ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.description)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Açıklama:</span>
+        <span class="view-detail-value">${esc(workPackage.description)}</span>
       </div>
       ` : ''}
       ${workPackage.quantity ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Miktar:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Miktar:</span>
+        <span class="view-detail-value">${esc(workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
       </div>
       ` : ''}
       ${workPackage.deliveryDate ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teslim Tarihi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.deliveryDate)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Teslim Tarihi:</span>
+        <span class="view-detail-value">${formatTime(workPackage.deliveryDate)}</span>
       </div>
       ` : ''}
       ${workPackage.orderDate ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sipariş Tarihi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.orderDate)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Sipariş Tarihi:</span>
+        <span class="view-detail-value">${formatTime(workPackage.orderDate)}</span>
       </div>
       ` : ''}
       ${workPackage.quoteId ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teklif ID:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.quoteId)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Teklif ID:</span>
+        <span class="view-detail-value-mono">${esc(workPackage.quoteId)}</span>
       </div>
       ` : ''}
       ${workPackage.projectName ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Proje:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.projectName)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Proje:</span>
+        <span class="view-detail-value">${esc(workPackage.projectName)}</span>
       </div>
       ` : ''}
       ${workPackage.notes ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Notlar:</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Notlar:</span>
         <span style="flex: 1 1 0%; font-size: 12px; white-space: pre-wrap;">${esc(workPackage.notes)}</span>
       </div>
       ` : ''}
     </div>
 
     ${workPackage.productName || workPackage.productCode || workPackage.drawingNumber ? `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Ürün Bilgileri</h3>
+    <div class="view-card">
+      <h3 class="view-section-title">Ürün Bilgileri</h3>
       ${workPackage.productName ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ürün Adı:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 500;">${esc(workPackage.productName)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Ürün Adı:</span>
+        <span class="view-detail-value-medium">${esc(workPackage.productName)}</span>
       </div>
       ` : ''}
       ${workPackage.productCode ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ürün Kodu:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.productCode)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Ürün Kodu:</span>
+        <span class="view-detail-value-mono">${esc(workPackage.productCode)}</span>
       </div>
       ` : ''}
       ${workPackage.drawingNumber ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teknik Resim:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.drawingNumber)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Teknik Resim:</span>
+        <span class="view-detail-value-mono">${esc(workPackage.drawingNumber)}</span>
       </div>
       ` : ''}
       ${workPackage.material ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzeme:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.material)}</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Malzeme:</span>
+        <span class="view-detail-value">${esc(workPackage.material)}</span>
       </div>
       ` : ''}
     </div>
     ` : ''}
 
     ${additionalData.plan || workPackage.planName ? `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Plan Bilgileri</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Adı:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 500;">${esc((additionalData.plan && additionalData.plan.name) || workPackage.planName)}</span>
+    <div class="view-card">
+      <h3 class="view-section-title">Plan Bilgileri</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Plan Adı:</span>
+        <span class="view-detail-value-medium">${esc((additionalData.plan && additionalData.plan.name) || workPackage.planName)}</span>
       </div>
       ${additionalData.plan && additionalData.plan.id ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan ID:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(additionalData.plan.id)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Plan ID:</span>
+        <span class="view-detail-value-mono">${esc(additionalData.plan.id)}</span>
       </div>
       ` : ''}
       ${additionalData.plan && additionalData.plan.description ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Açıklaması:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(additionalData.plan.description)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Plan Açıklaması:</span>
+        <span class="view-detail-value">${esc(additionalData.plan.description)}</span>
       </div>
       ` : ''}
       ${additionalData.plan && additionalData.plan.type ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Tipi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(additionalData.plan.type)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Plan Tipi:</span>
+        <span class="view-detail-value">${esc(additionalData.plan.type)}</span>
       </div>
       ` : ''}
       ${additionalData.plan && (additionalData.plan.nodes && additionalData.plan.nodes.length > 0) ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Operasyon:</span>
-        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600;">${additionalData.plan.nodes.length} operasyon</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Toplam Operasyon:</span>
+        <span class="view-detail-value-bold">${additionalData.plan.nodes.length} operasyon</span>
       </div>
       ` : ''}
       ${additionalData.plan && additionalData.plan.estimatedDuration ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Süre:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${additionalData.plan.estimatedDuration} dakika</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Tahmini Süre:</span>
+        <span class="view-detail-value">${additionalData.plan.estimatedDuration} dakika</span>
       </div>
       ` : ''}
       ${additionalData.plan && additionalData.plan.createdAt ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Tarihi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(additionalData.plan.createdAt)}</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Plan Tarihi:</span>
+        <span class="view-detail-value">${formatTime(additionalData.plan.createdAt)}</span>
       </div>
       ` : ''}
     </div>
     ` : ''}
 
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Operasyon & Atama</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Operasyon:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.nodeName || workPackage.operationName || '—')}</span>
+    <div class="view-card">
+      <h3 class="view-section-title">Operasyon & Atama</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Operasyon:</span>
+        <span class="view-detail-value">${esc(workPackage.nodeName || workPackage.operationName || '—')}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İşçi:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.workerName || '—')}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">İşçi:</span>
+        <span class="view-detail-value">${esc(workPackage.workerName || '—')}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">İstasyon:</span>
+        <span class="view-detail-value">
           ${esc(workPackage.stationName || '—')}
           ${(workPackage.substationCode || workPackage.subStationCode) ? `<br><span style="font-size: 11px; color: #6b7280; font-weight: 500;">🔧 ${esc(workPackage.substationCode || workPackage.subStationCode)}</span>` : ''}
         </span>
@@ -4146,38 +4146,38 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
       </div>
     </div>
 
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Durum & Malzeme Hazırlığı</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${getStatusBadge(workPackage.status)}</span>
+    <div class="view-card">
+      <h3 class="view-section-title">Durum & Malzeme Hazırlığı</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Status:</span>
+        <span class="view-detail-value">${getStatusBadge(workPackage.status)}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzeme Hazırlığı:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${getMaterialBadge(workPackage.materialStatus)}</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Malzeme Hazırlığı:</span>
+        <span class="view-detail-value">${getMaterialBadge(workPackage.materialStatus)}</span>
       </div>
     </div>
 
-    <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Zaman Bilgileri</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Başlangıç:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.estimatedStartTime)}</span>
+    <div class="view-card-last">
+      <h3 class="view-section-title">Zaman Bilgileri</h3>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Tahmini Başlangıç:</span>
+        <span class="view-detail-value">${formatTime(workPackage.estimatedStartTime)}</span>
       </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Bitiş:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.estimatedEndTime)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Tahmini Bitiş:</span>
+        <span class="view-detail-value">${formatTime(workPackage.estimatedEndTime)}</span>
       </div>
       ${workPackage.startedAt ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Başlangıç:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.startedAt)}</span>
+      <div class="detail-item" class="view-detail-row">
+        <span class="detail-label" class="view-detail-label">Gerçek Başlangıç:</span>
+        <span class="view-detail-value">${formatTime(workPackage.startedAt)}</span>
       </div>
       ` : ''}
       ${workPackage.completedAt ? `
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Bitiş:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.completedAt)}</span>
+      <div class="detail-item" class="view-detail-row-last">
+        <span class="detail-label" class="view-detail-label">Gerçek Bitiş:</span>
+        <span class="view-detail-value">${formatTime(workPackage.completedAt)}</span>
       </div>
       ` : ''}
     </div>
@@ -4299,7 +4299,7 @@ function renderProductionResults(workPackage, escFn = (v) => v) {
       if (quantity <= 0) return '';
       return `
         <tr>
-          <td><span class="badge badge-${badgeColor}" style="font-size: 11px;">${category}</span></td>
+          <td><span class="badge badge-${badgeColor}" class="view-text-xs">${category}</span></td>
           <td>${escFn(code || '—')}</td>
           <td>${escFn(getMaterialName(code))}</td>
           <td class="is-number text-danger">${quantity} ${unitLabel}</td>
@@ -4315,7 +4315,7 @@ function renderProductionResults(workPackage, escFn = (v) => v) {
   // Defect quantity row (for finished product)
   const defectRow = hasDefect ? `
     <tr>
-      <td><span class="badge badge-danger" style="font-size: 11px;">Hatalı Çıktı</span></td>
+      <td><span class="badge badge-danger" class="view-text-xs">Hatalı Çıktı</span></td>
       <td>${escFn(workPackage.outputCode || '—')}</td>
       <td>${escFn(getMaterialName(workPackage.outputCode))}</td>
       <td class="is-number text-danger">${defectQty} ${unitLabel}</td>

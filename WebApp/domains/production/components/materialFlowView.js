@@ -16,8 +16,9 @@
 
 import { planDesignerState } from '../js/planDesigner.js';
 
-const FONT_STACK = `'Inter', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif`;
-const TEXT_STYLE = `font-size: 12px; font-weight: 400; font-family: ${FONT_STACK}; color: #111827`;
+// Constants moved to CSS (production.css) - kept for reference
+// const FONT_STACK = `'Inter', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif`;
+// const TEXT_STYLE = `font-size: 12px; font-weight: 400; font-family: ${FONT_STACK}; color: #111827`;
 const ARROW_SPACING = 28;
 const NODE_STEP = 80;
 const CAPSULE_GAP = 20;
@@ -276,7 +277,7 @@ export function renderMaterialFlow() {
   })));
   
   if (!nodes.length) {
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280; font-size: 14px;">Plan tasarladıktan sonra malzeme akışı burada görünecektir</div>';
+    container.innerHTML = '<div class="mf-empty-state">Plan tasarladıktan sonra malzeme akışı burada görünecektir</div>';
     return;
   }
 
@@ -286,7 +287,7 @@ export function renderMaterialFlow() {
     container.innerHTML = html;
   } catch (err) {
     console.error('❌ Material flow rendering failed:', err);
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #ef4444; font-size: 14px;">Malzeme akışı görselleştirilemedi</div>';
+    container.innerHTML = '<div class="mf-error-state">Malzeme akışı görselleştirilemedi</div>';
   }
 }
 
@@ -358,9 +359,9 @@ function renderFlow(model) {
   const flowWidth = Math.max(left, 120);
   const containerHeight = Math.max(80, maxHeight + 10);
   const inner = segments.join('');
-  return `<div style="width: 100%; font-family: ${FONT_STACK}; color: #111827; font-size: 12px;">
-    <div style="position: relative; width: 100%; min-height: ${containerHeight}px; height: ${containerHeight}px;">
-      <div style="position: absolute; left: 50%; top: 50%; transform: translate(-${flowWidth / 2}px, -${containerHeight / 2}px); width: ${flowWidth}px; height: ${containerHeight}px;">
+  return `<div class="material-flow-wrapper">
+    <div class="material-flow-container" style="min-height: ${containerHeight}px; height: ${containerHeight}px;">
+      <div class="material-flow-inner" style="transform: translate(-${flowWidth / 2}px, -${containerHeight / 2}px); width: ${flowWidth}px; height: ${containerHeight}px;">
         ${inner}
       </div>
     </div>
@@ -372,7 +373,7 @@ function renderFlow(model) {
 // branches: Array< Array<{rawInputs:string[], interInputs:string[], isStart?:boolean}> >
 function renderCapsule(branches, left) {
   let html = '';
-  html += `<div style="padding: 2.50px; left: ${left}px; top: 50%; transform: translateY(-50%); position: absolute; border-radius: 5px; outline: 1px black solid; outline-offset: -1px; box-shadow: 0.5px 0.5px 2px rgba(0, 0, 0, 0.1); flex-direction: column; justify-content: center; align-items: flex-end; gap: 9px; display: flex;">`;
+  html += `<div class="mf-capsule" style="left: ${left}px;">`;
 
   branches.forEach((boxes) => {
     if (!boxes.length) return;
@@ -383,7 +384,7 @@ function renderCapsule(branches, left) {
       rowPieces.push(renderInlineArrow());
       rowPieces.push(renderInlineBox(box, false));
     });
-    html += `<div style="padding: 2.50px; border-radius: 5px; outline: 1px black solid; outline-offset: -1px; justify-content: flex-start; align-items: center; gap: 6px; display: flex;">${rowPieces.join('')}</div>`;
+    html += `<div class="mf-capsule-row">${rowPieces.join('')}</div>`;
   });
 
   html += '</div>';
@@ -413,60 +414,57 @@ function measureBlockHeight(block) {
 }
 
 function renderArrow(left) {
-  return `<div style="position: absolute; left: ${left}px; top: 50%; transform: translateY(-50%); width: ${ARROW_SPACING}px; height: 12px; display: flex; align-items: center; justify-content: center">
-    <span style="font-size: 14px; font-family: ${FONT_STACK}; color: #111827;">&#8594;</span>
+  return `<div class="mf-arrow" style="left: ${left}px;">
+    <span class="mf-arrow-symbol">&#8594;</span>
   </div>`;
 }
 
 function renderInlineArrow() {
-  return `<div style="display: flex; align-items: center; justify-content: center; padding: 0 4px; font-size: 14px; font-family: ${FONT_STACK}; color: #111827; height: 100%;">&#8594;</div>`;
+  return `<div class="mf-inline-arrow">&#8594;</div>`;
 }
 
 // ----- Box renderers -----
 
 function renderNodeBox(materials, isStart, isEnd, left, top) {
-  const styleParts = [
-    'width: 66px', 'padding: 2.50px', `left: ${left}px`, 'top: 50%', 'transform: translateY(-50%)', 'position: absolute',
-    'flex-direction: column', 'justify-content: flex-start', 'align-items: flex-start', 'gap: 4px', 'display: flex'
-  ];
-  if (isStart) styleParts.push('border-radius: 5px', 'outline: 2px black solid', 'outline-offset: -2px');
-  else if (isEnd) styleParts.push('background: #3FED62', 'outline: 2px black solid', 'outline-offset: -2px');
-  else styleParts.push('border-radius: 5px', 'outline: 1px black solid', 'outline-offset: -1px');
+  let boxClass = 'mf-node-box';
+  if (isStart) boxClass += ' mf-node-start';
+  else if (isEnd) boxClass += ' mf-node-end';
+  else boxClass += ' mf-node-default';
 
   let inner = '';
 
   // Inputs: raw black first, then intermediate grey
   (materials.rawInputs || []).forEach(tok => {
-    inner += `<div style="${TEXT_STYLE}; word-wrap: break-word">${escapeHtml(tok)}</div>`;
+    inner += `<div class="mf-text">${escapeHtml(tok)}</div>`;
   });
   (materials.interInputs || []).forEach(tok => {
-    inner += `<div style="padding-left: 1.25px; padding-right: 1.25px; background: #BCB7B7; border-radius: 2.50px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">` +
-             `<div style="${TEXT_STYLE}; word-wrap: break-word">${escapeHtml(tok)}</div>` +
+    inner += `<div class="mf-badge-intermediate">` +
+             `<div class="mf-text">${escapeHtml(tok)}</div>` +
              `</div>`;
   });
 
   // Outputs: only for final green box
   (materials.outputs || []).forEach(tok => {
-    inner += `<div style="${TEXT_STYLE}; word-wrap: break-word">${escapeHtml(tok)}</div>`;
+    inner += `<div class="mf-text">${escapeHtml(tok)}</div>`;
   });
 
-  return `<div style="${styleParts.join('; ')}">${inner}</div>`;
+  return `<div class="${boxClass}" style="left: ${left}px;">${inner}</div>`;
 }
 
 function renderInlineBox(box, isStart) {
-  const styleParts = ['width: 66px', 'padding: 2.50px', 'flex-direction: column', 'justify-content: flex-start', 'align-items: flex-start', 'gap: 4px', 'display: inline-flex'];
-  if (isStart) styleParts.push('border-radius: 5px', 'outline: 2px black solid', 'outline-offset: -2px');
-  else styleParts.push('border-radius: 5px', 'outline: 1px black solid', 'outline-offset: -1px');
+  let boxClass = 'mf-node-box-inline';
+  if (isStart) boxClass += ' mf-node-start';
+  else boxClass += ' mf-node-default';
 
   let inner = '';
   // raw first then intermediate
   (box.rawInputs || []).forEach(tok => {
-    inner += `<div style="${TEXT_STYLE}; word-wrap: break-word">${escapeHtml(tok)}</div>`;
+    inner += `<div class="mf-text">${escapeHtml(tok)}</div>`;
   });
   (box.interInputs || []).forEach(tok => {
-    inner += `<div style="padding-left: 1.25px; padding-right: 1.25px; background: #BCB7B7; border-radius: 2.50px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">` +
-             `<div style="${TEXT_STYLE}; white-space: nowrap;">${escapeHtml(tok)}</div>` +
+    inner += `<div class="mf-badge-intermediate">` +
+             `<div class="mf-text mf-text-nowrap">${escapeHtml(tok)}</div>` +
              `</div>`;
   });
-  return `<div style="${styleParts.join('; ')}">${inner}</div>`;
+  return `<div class="${boxClass}">${inner}</div>`;
 }

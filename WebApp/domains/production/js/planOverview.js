@@ -41,7 +41,7 @@ function renderProductionPlans(plans) {
   const count = document.getElementById('production-count')
   if (!body) return
   if (!plans || plans.length === 0) {
-    body.innerHTML = '<tr><td colspan="11" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="11" class="po-empty-td">No production plans yet</td></tr>'
   } else {
     body.innerHTML = plans.map(p => {
       const fullPlanId = (p.id || '—').toString()
@@ -82,20 +82,20 @@ function renderProductionPlans(plans) {
       }
       
       // Action buttons based on status
-      const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>`;
+      const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" class="po-btn">View</button>`;
       
       return `<tr data-status="${status}">
         <td>${planId}</td>
         <td>${name}</td>
         <td>${order}</td>
         <td>${steps}</td>
-        <td style="font-size: 12px;" title="${tooltipText}">${throughputDisplay}</td>
-        <td style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${tooltipText}">${bottleneckDisplay}</td>
+        <td class="po-text-12" title="${tooltipText}">${throughputDisplay}</td>
+        <td class="po-text-ellipsis" title="${tooltipText}">${bottleneckDisplay}</td>
         <td class="metadata-column hidden">${created}</td>
         <td class="metadata-column hidden">${createdBy}</td>
         <td class="metadata-column hidden">${updated}</td>
         <td class="metadata-column hidden">${updatedBy}</td>
-        <td style="text-align:right;">
+        <td class="po-td-right">
           ${viewBtn}
         </td>
       </tr>`
@@ -109,7 +109,7 @@ function renderTemplatesList(templates) {
   const count = document.getElementById('templates-count')
   if (!body) return
   if (!templates || templates.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="9" class="po-empty-td">No templates yet</td></tr>'
   } else {
     body.innerHTML = templates.map(t => {
       const fullTemplateId = (t.id || '—').toString()
@@ -132,9 +132,9 @@ function renderTemplatesList(templates) {
         <td class="metadata-column hidden">${createdBy}</td>
         <td class="metadata-column hidden">${updated}</td>
         <td class="metadata-column hidden">${updatedBy}</td>
-        <td style="text-align:right;">
-          <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px; margin-right:4px;">Edit</button>
-          <button onclick="deleteTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid #dc2626; background:white; color:#dc2626; border-radius:4px; cursor:pointer; font-size:12px;">Delete</button>
+        <td class="po-td-right">
+          <button onclick="editTemplateById('${t.id || ''}')" class="po-btn-mr">Edit</button>
+          <button onclick="deleteTemplateById('${t.id || ''}')" class="po-btn-danger">Delete</button>
         </td>
       </tr>`
     }).join('')

@@ -27,10 +27,10 @@ function renderView(viewId) {
     case 'production-dashboard':
       // Load production analytics dashboard as iframe
       content = `
-        <div style="width: 100%; height: 100vh; overflow: hidden;">
+        <div class="main-container-vh">
           <iframe 
             src="/pages/mes-production-dashboard-tab.html" 
-            style="width: 100%; height: 100%; border: none;"
+            class="main-iframe-full"
             title="Production Analytics Dashboard"
           ></iframe>
         </div>
@@ -1105,12 +1105,12 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   
   // Add delete button that appears on hover
   block.innerHTML = `
-    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px; position:relative; width:100%; height:100%;">
+    <div class="main-cell-content">
       <button class="block-delete-btn" onclick="event.stopPropagation(); deleteScheduleBlockDirect(this.closest('[data-block-info]'))" 
-              style="position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:rgba(239,68,68,0.9); color:white; border-radius:2px; cursor:pointer; font-size:10px; line-height:1; display:none; z-index:10;">×</button>
-      <div style="font-size:9px;">${dispStart}</div>
-      <div style="font-size:9px;">-</div>
-      <div style="font-size:9px;">${dispEnd}</div>
+              class="main-cell-close-btn">×</button>
+      <div class="main-text-9">${dispStart}</div>
+      <div class="main-text-9">-</div>
+      <div class="main-text-9">${dispEnd}</div>
     </div>`;
   
   // Show delete button on hover
@@ -1178,12 +1178,12 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
   
   // Update block with delete button
   blockElement.innerHTML = `
-    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px; position:relative; width:100%; height:100%;">
+    <div class="main-cell-content">
       <button class="block-delete-btn" onclick="event.stopPropagation(); deleteScheduleBlockDirect(this.closest('[data-block-info]'))" 
-              style="position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:rgba(239,68,68,0.9); color:white; border-radius:2px; cursor:pointer; font-size:10px; line-height:1; display:none; z-index:10;">×</button>
-      <div style="font-size:9px;">${dispStart2}</div>
-      <div style="font-size:9px;">-</div>
-      <div style="font-size:9px;">${dispEnd2}</div>
+              class="main-cell-close-btn">×</button>
+      <div class="main-text-9">${dispStart2}</div>
+      <div class="main-text-9">-</div>
+      <div class="main-text-9">${dispEnd2}</div>
     </div>`;
   
   // Re-attach hover listeners for delete button

@@ -19,7 +19,7 @@ export async function initHolidaysUI() {
     renderHolidaysCalendar(container);
   } catch (error) {
     console.error('Holidays load error:', error);
-    container.innerHTML = '<div style="color:#ef4444;">Tatiller yüklenemedi</div>';
+    container.innerHTML = '<div class="hl-text-error">Tatiller yüklenemedi</div>';
   }
 }
 
@@ -57,22 +57,22 @@ function renderHolidaysCalendar(container) {
   
   // Generate calendar grid
   let html = `
-    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px;">
+    <div class="hl-grid-6col">
   `;
   
   MONTHS.forEach((monthName, monthIndex) => {
     const monthHolidays = holidaysByMonth[monthIndex] || [];
     
     html += `
-      <div class="month-card" style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 120px;">
-        <div style="font-weight: 600; font-size: 13px; color: var(--foreground); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
+      <div class="month-card" class="hl-card">
+        <div class="hl-section-title">
           ${monthName} ${currentYear}
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="hl-flex-col">
     `;
     
     if (monthHolidays.length === 0) {
-      html += `<div style="font-size: 11px; color: var(--muted-foreground); font-style: italic;">Tatil yok</div>`;
+      html += `<div class="hl-day-italic">Tatil yok</div>`;
     } else {
       monthHolidays.forEach(holiday => {
         const startDate = new Date(holiday.startDate);
@@ -85,9 +85,9 @@ function renderHolidaysCalendar(container) {
         const dateRange = isSameDay ? startDay : `${startDay}↔${endDay}`;
         
         html += `
-          <div class="holiday-item" onclick="editHoliday('${holiday.id}')" style="display: flex; flex-direction: column; padding: 6px 8px; background: #f9fafb; border-radius: 4px; font-size: 11px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
-            <span style="font-weight: 600; color: var(--foreground); margin-bottom: 2px;">${dateRange}</span>
-            <span style="color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(holiday.name)}">${escapeHtml(holiday.name)}</span>
+          <div class="holiday-item" onclick="editHoliday('${holiday.id}')" class="hl-day-cell" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
+            <span class="hl-day-name">${dateRange}</span>
+            <span class="hl-day-note" title="${escapeHtml(holiday.name)}">${escapeHtml(holiday.name)}</span>
           </div>
         `;
       });
@@ -109,32 +109,32 @@ export function openHolidayModal(holidayId = null) {
   const holiday = holidayId ? holidaysState.find(h => h.id === holidayId) : null;
   
   const modalHtml = `
-    <div id="holiday-modal" style="display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;" onclick="if(event.target.id==='holiday-modal') closeHolidayModal()">
-      <div style="background: white; border-radius: 8px; padding: 24px; min-width: 400px; max-width: 500px;" onclick="event.stopPropagation()">
-        <h3 style="margin: 0 0 20px; font-size: 18px; font-weight: 600;">${holiday ? 'Tatil Güncelle' : 'Yeni Tatil Ekle'}</h3>
+    <div id="holiday-modal" class="hl-modal-overlay" onclick="if(event.target.id==='holiday-modal') closeHolidayModal()">
+      <div class="hl-modal" onclick="event.stopPropagation()">
+        <h3 class="hl-title">${holiday ? 'Tatil Güncelle' : 'Yeni Tatil Ekle'}</h3>
         
         <form id="holiday-form" onsubmit="saveHoliday(event, '${holidayId || ''}')">
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">Tatil Adı</label>
-            <input type="text" id="holiday-name" value="${holiday ? escapeHtml(holiday.name) : ''}" required placeholder="Örn: Ramazan Bayramı" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;" />
+          <div class="pm-mb-16">
+            <label class="hl-label">Tatil Adı</label>
+            <input type="text" id="holiday-name" value="${holiday ? escapeHtml(holiday.name) : ''}" required placeholder="Örn: Ramazan Bayramı" class="hl-input" />
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div class="hl-grid-2col">
             <div>
-              <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">Başlangıç</label>
-              <input type="datetime-local" id="holiday-start" value="${holiday && holiday.startDate ? holiday.startDate.substring(0, 16) : ''}" required style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;" />
+              <label class="hl-label">Başlangıç</label>
+              <input type="datetime-local" id="holiday-start" value="${holiday && holiday.startDate ? holiday.startDate.substring(0, 16) : ''}" required class="hl-input" />
             </div>
             <div>
-              <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">Bitiş</label>
-              <input type="datetime-local" id="holiday-end" value="${holiday && holiday.endDate ? holiday.endDate.substring(0, 16) : ''}" required style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;" />
+              <label class="hl-label">Bitiş</label>
+              <input type="datetime-local" id="holiday-end" value="${holiday && holiday.endDate ? holiday.endDate.substring(0, 16) : ''}" required class="hl-input" />
             </div>
           </div>
           
-          <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center;">
+          <div class="hl-flex-between">
             <button type="button" onclick="event.stopPropagation(); deleteHolidayFromModal('${holidayId || ''}')" style="padding: 8px 16px; background: white; color: #ef4444; border: 1px solid #ef4444; border-radius: 6px; font-weight: 500; cursor: pointer; ${holidayId ? '' : 'display: none;'}">Sil</button>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" onclick="closeHolidayModal()" style="padding: 8px 16px; background: white; color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer;">İptal</button>
-              <button type="submit" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">${holiday ? 'Güncelle' : 'Ekle'}</button>
+            <div class="hl-flex-gap">
+              <button type="button" onclick="closeHolidayModal()" class="hl-btn-cancel">İptal</button>
+              <button type="submit" class="hl-btn-primary">${holiday ? 'Güncelle' : 'Ekle'}</button>
             </div>
           </div>
         </form>

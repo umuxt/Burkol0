@@ -251,9 +251,8 @@ export function ProductionDashboard() {
                 {workOrders.map((workOrder) => (
                   <TableRow 
                     key={workOrder.id}
-                    className={selectedWorkOrderId === workOrder.id ? 'bg-blue-50' : ''}
+                    className={`cursor-pointer ${selectedWorkOrderId === workOrder.id ? 'bg-blue-50' : ''}`}
                     onClick={() => setSelectedWorkOrderId(workOrder.id)}
-                    style={{ cursor: 'pointer' }}
                   >
                     <TableCell className="font-medium">
                       <div>

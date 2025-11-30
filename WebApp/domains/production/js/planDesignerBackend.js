@@ -43,12 +43,12 @@ function rebuildMaterialRowsFromNode(node) {
     const buildRow = (rm, idx) => {
       // Check both isDerived (from DB) and derivedFrom (from runtime)
       const isDerived = !!(rm && (rm.isDerived || rm.derivedFrom))
-      const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
+      const badge = isDerived ? '<span class="pdb-badge-info">auto</span>' : ''
       const displayInput = isDerived
-        ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
-        : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown(${idx})" />`
+        ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" class="pdb-input-disabled" />${badge}`
+        : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" class="pdb-input-select" onclick="openMaterialDropdown(${idx})" />`
       const dropdown = isDerived ? '' : (
-        `<div id="edit-material-dropdown-${idx}" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">
+        `<div id="edit-material-dropdown-${idx}" class="pdb-dropdown">
            <div style=\"padding:6px; border-bottom:1px solid var(--border);\"><input id=\"edit-material-search-${idx}\" type=\"text\" placeholder=\"Ara: kod, isim, tedarikçi\" oninput=\"filterMaterialDropdown(${idx})\" style=\"width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;\" /></div>
            <div id=\"edit-material-list-${idx}\" style=\"max-height:220px; overflow:auto; font-size:13px;\"></div>
          </div>`)
@@ -101,10 +101,10 @@ export async function loadOperationsToolboxBackend() {
   const fullscreenListContainer = document.getElementById('fullscreen-operations-list')
   
   if (listContainer) {
-    listContainer.innerHTML = '<div style="padding:6px;color:#888;">Loading operations...</div>'
+    listContainer.innerHTML = '<div class="pdb-muted">Loading operations...</div>'
   }
   if (fullscreenListContainer) {
-    fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#888;">Loading operations...</div>'
+    fullscreenListContainer.innerHTML = '<div class="pdb-muted">Loading operations...</div>'
   }
   
   try {
@@ -115,10 +115,10 @@ export async function loadOperationsToolboxBackend() {
     
     if (!_opsCache.length) {
       if (listContainer) {
-        listContainer.innerHTML = '<div style="padding:6px;color:#666;">No operations defined yet. Add from Operations page.</div>'
+        listContainer.innerHTML = '<div class="pdb-muted">No operations defined yet. Add from Operations page.</div>'
       }
       if (fullscreenListContainer) {
-        fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#666;">No operations defined yet. Add from Operations page.</div>'
+        fullscreenListContainer.innerHTML = '<div class="pdb-muted">No operations defined yet. Add from Operations page.</div>'
       }
       return
     }
@@ -126,24 +126,24 @@ export async function loadOperationsToolboxBackend() {
     // Normal operations list
     if (listContainer) {
       listContainer.innerHTML = _opsCache.map(op =>
-        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" class="pdb-draggable-item-sm" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
       ).join('')
     }
     
     // Fullscreen operations list
     if (fullscreenListContainer) {
       fullscreenListContainer.innerHTML = _opsCache.map(op =>
-        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" class="pdb-draggable-item" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
       ).join('')
     }
     
   } catch (e) {
     console.error('loadOperationsToolboxBackend error', e)
     if (listContainer) {
-      listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>'
+      listContainer.innerHTML = '<div class="pdb-error">Failed to load operations</div>'
     }
     if (fullscreenListContainer) {
-      fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#ef4444;">Failed to load operations</div>'
+      fullscreenListContainer.innerHTML = '<div class="pdb-error">Failed to load operations</div>'
     }
   }
 }
@@ -411,23 +411,23 @@ export async function editNodeBackend(nodeId) {
   const effectiveTimeDisplay = showEffectiveTime
     ? `<div style="font-size: 12px; color: ${effectiveTime < nominalTime ? '#059669' : '#dc2626'}; margin-top: 4px;">
         Effective time: ${effectiveTime.toFixed(1)} min 
-        <span style="font-weight: 500;">(${effectiveTime < nominalTime ? '↓' : '↑'} ${Math.abs(((nominalTime - effectiveTime) / nominalTime * 100)).toFixed(1)}%)</span>
+        <span class="font-weight-500">(${effectiveTime < nominalTime ? '↓' : '↑'} ${Math.abs(((nominalTime - effectiveTime) / nominalTime * 100)).toFixed(1)}%)</span>
        </div>`
     : '';
 
   const formContent =
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.nominalTime || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" />' + effectiveTimeDisplay + '</div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Verimlilik Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(opsiyonel)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Boş bırakın (operasyon varsayılanı: ' + Math.round(operationDefaultEfficiency * 100) + '% kullanılır)" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" data-operation-efficiency="' + operationDefaultEfficiency + '" /><div id="effective-time-preview-backend" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + initialEffectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Bu node için özel verimlilik ayarlayın. Boş ise operasyonun varsayılan verimlilik değeri (' + Math.round(operationDefaultEfficiency * 100) + '%) kullanılır.</div></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" class="pdb-input" /></div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.nominalTime || 0) + '" min="1" class="pdb-input" oninput="updateEffectiveTimePreviewBackend()" />' + effectiveTimeDisplay + '</div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Verimlilik Override (%) <span class="pd-subtitle-normal">(opsiyonel)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Boş bırakın (operasyon varsayılanı: ' + Math.round(operationDefaultEfficiency * 100) + '% kullanılır)" class="pdb-input" oninput="updateEffectiveTimePreviewBackend()" data-operation-efficiency="' + operationDefaultEfficiency + '" /><div id="effective-time-preview-backend" class="pd-preview-text">Effective Time: ' + initialEffectiveTime + ' min</div><div class="pd-helper-text-sm">Bu node için özel verimlilik ayarlayın. Boş ise operasyonun varsayılan verimlilik değeri (' + Math.round(operationDefaultEfficiency * 100) + '%) kullanılır.</div></div>' +
     generateMultiStationSelector(node, compatibleStations) +
-    '<div style="margin-bottom: 16px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
-      '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Select how worker will be assigned to this operation</div>' +
+    '<div class="view-mb-16"><label class="pdb-label">Worker Assignment</label>' +
+      '<div class="pd-helper-text">Select how worker will be assigned to this operation</div>' +
       `<label style="margin-right:12px; font-size:13px;"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} onchange="toggleWorkerDropdown()"> Auto-assign (at launch)</label>` +
       `<label style="font-size:13px;"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} onchange="toggleWorkerDropdown()"> Manual-assign (select now)</label>` +
       `<div id="manual-worker-select" style="margin-top: 12px; display: ${selectedAssignMode==='manual'?'block':'none'};">` +
-        '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Select Worker <span style="color: #ef4444;">*</span></label>' +
-        '<select id="edit-worker" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;"><option value="">-- Select a worker --</option></select>' +
-        '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Only workers with matching skills are shown</div>' +
+        '<label class="pdb-label">Select Worker <span class="text-danger">*</span></label>' +
+        '<select id="edit-worker" class="pdb-select-full"><option value="">-- Select a worker --</option></select>' +
+        '<div class="pd-helper-text-sm">Only workers with matching skills are shown</div>' +
       '</div>' +
     '</div>' +
     (function(){
@@ -435,47 +435,47 @@ export async function editNodeBackend(nodeId) {
       const buildRow = (rm, idx) => {
         // Check both isDerived (from DB) and derivedFrom (from runtime)
         const isDerived = !!(rm && (rm.isDerived || rm.derivedFrom))
-        const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
+        const badge = isDerived ? '<span class="pdb-badge-info">auto</span>' : ''
         const displayInput = isDerived
-          ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
-          : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown(${idx})" />`
+          ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" class="pdb-input-disabled" />${badge}`
+          : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" class="pdb-input-select" onclick="openMaterialDropdown(${idx})" />`
         const dropdown = isDerived
           ? ''
-          : `<div id="edit-material-dropdown-${idx}" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">
-              <div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-${idx}" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown(${idx})" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>
-              <div id="edit-material-list-${idx}" style="max-height:220px; overflow:auto; font-size:13px;"></div>
+          : `<div id="edit-material-dropdown-${idx}" class="pdb-dropdown">
+              <div class="pdb-header-cell"><input id="edit-material-search-${idx}" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown(${idx})" class="pdb-input-sm" /></div>
+              <div id="edit-material-list-${idx}" class="pdb-dropdown-scroll"></div>
             </div>`
         const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : ''} />`
-        const removeBtn = isDerived ? '' : `<button type="button" onclick="removeMaterialRow(${idx})" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>`
+        const removeBtn = isDerived ? '' : `<button type="button" onclick="removeMaterialRow(${idx})" title="Kaldır" class="pdb-btn-delete">-</button>`
         return (
-          `<div class="material-row" data-row-index="${idx}" ${isDerived?'data-derived="1"':''} style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">` +
-            '<div style="position:relative; flex: 3;">' +
+          `<div class="material-row" data-row-index="${idx}" ${isDerived?'data-derived="1"':''} class="pdb-flex-row">` +
+            '<div class="pdb-flex-3-rel">' +
               `<input type="hidden" id="edit-material-id-${idx}" value="${rm?.materialCode ?? ''}" />` +
               `<input type="hidden" id="edit-material-name-${idx}" value="${escapeHtml(rm?.name ?? '')}" />` +
               displayInput +
               dropdown +
             '</div>' +
-            '<div style="flex:2;">' +
+            '<div class="pdb-flex-2">' +
               qtyInput +
             '</div>' +
-            '<div style="flex:1;">' +
-              `<input id="edit-material-unit-${idx}" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="${rm?.unit ?? ''}" />` +
+            '<div class="pdb-flex-1">' +
+              `<input id="edit-material-unit-${idx}" type="text" readonly placeholder="Unit" class="pdb-input-readonly" value="${rm?.unit ?? ''}" />` +
             '</div>' +
-            '<div style="flex:0; display:flex; align-items:center;">' +
+            '<div class="pdb-flex-center">' +
               removeBtn +
             '</div>' +
           '</div>'
         )
       }
       const rowsHtml = (rows.length ? rows : [null]).map((rm, i)=>buildRow(rm, i)).join('')
-      return '<div style="margin-bottom: 16px;">' +
-        '<label style="display:block; margin-bottom: 4px; font-weight: 500;">Raw Material</label>' +
+      return '<div class="view-mb-16">' +
+        '<label class="pdb-label">Raw Material</label>' +
         '<div id="edit-materials-rows">' + rowsHtml + '</div>' +
-        '<div><button type="button" onclick="addMaterialRow()" style="margin-top:4px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:#f3f4f6;">+ Add Material</button></div>' +
+        '<div><button type="button" onclick="addMaterialRow()" class="pd-btn-add-material">+ Add Material</button></div>' +
       '</div>'
     })() +
     '</div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div id="required-skills-display" style="font-size: 12px; color: var(--muted-foreground);">' + (Array.isArray(node.skills) ? node.skills.map(escapeHtml).join(', ') : 'None') + '</div></div>'
+    '<div class="view-mb-16"><label class="pdb-label">Required Skills</label><div id="required-skills-display" class="pd-skills-display">' + (Array.isArray(node.skills) ? node.skills.map(escapeHtml).join(', ') : 'None') + '</div></div>'
 
   const formEl = document.getElementById('node-edit-form')
   if (formEl) formEl.innerHTML = formContent
@@ -975,7 +975,7 @@ export async function openMaterialDropdown(rowIdx) {
       } catch (error) {
         console.error('Failed to load materials:', error)
         _materialsCacheFull = []
-        list.innerHTML = '<div style="padding:8px; color:#ef4444;">Failed to load materials. Please try again.</div>'
+        list.innerHTML = '<div class="pdb-error">Failed to load materials. Please try again.</div>'
         dd.style.display = 'block'
         return
       }
@@ -990,7 +990,7 @@ export async function openMaterialDropdown(rowIdx) {
     // Try to show some feedback to user
     const list = document.getElementById('edit-material-list-' + rowIdx)
     if (list) {
-      list.innerHTML = '<div style="padding:8px; color:#ef4444;">Error opening materials dropdown</div>'
+      list.innerHTML = '<div class="pdb-error">Error opening materials dropdown</div>'
     }
   }
 }
@@ -1013,7 +1013,7 @@ function buildMaterialList(query, rowIdx) {
   
   if (!_materialsCacheFull || _materialsCacheFull.length === 0) {
     console.warn('No materials in cache')
-    list.innerHTML = '<div style="padding:8px; color:#ef4444;">No materials loaded</div>'
+    list.innerHTML = '<div class="pdb-error">No materials loaded</div>'
     return
   }
   
@@ -1039,8 +1039,8 @@ function buildMaterialList(query, rowIdx) {
   list.innerHTML = items.map(m => {
     const label = formatMaterialLabel(m)
     const id = escapeHtml(m.id || m.code || m.name)
-    return `<div onclick="selectMaterialFromDropdown('${id}', ${rowIdx})" style="padding:6px 8px; cursor:pointer; border-bottom:1px solid var(--border); transition: background-color 0.15s ease;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">${escapeHtml(label)}</div>`
-  }).join('') || '<div style="padding:8px; color:#6b7280;">No materials found</div>'
+    return `<div onclick="selectMaterialFromDropdown('${id}', ${rowIdx})" class="pdb-dropdown-item" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">${escapeHtml(label)}</div>`
+  }).join('') || '<div class="pdb-muted">No materials found</div>'
   
   console.log('Material list HTML set, length:', list.innerHTML.length)
   console.log(`Generated ${items.length} material items for dropdown`)
@@ -1130,24 +1130,24 @@ export function addMaterialRow() {
   if (!container) return
   const idx = container.querySelectorAll('.material-row').length
   const html = (
-    '<div class="material-row" data-row-index="'+idx+'" style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
-      '<div style="position:relative; flex: 3;">' +
+    '<div class="material-row" data-row-index="'+idx+'" class="pdb-flex-row">' +
+      '<div class="pdb-flex-3-rel">' +
         '<input type="hidden" id="edit-material-id-'+idx+'" value="" />' +
         '<input type="hidden" id="edit-material-name-'+idx+'" value="" />' +
-        '<input id="edit-material-display-'+idx+'" type="text" readonly placeholder="Select material" value="" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown('+idx+')" />' +
-        '<div id="edit-material-dropdown-'+idx+'" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">' +
-          '<div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-'+idx+'" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown('+idx+')" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>' +
-          '<div id="edit-material-list-'+idx+'" style="max-height:220px; overflow:auto; font-size:13px;"></div>' +
+        '<input id="edit-material-display-'+idx+'" type="text" readonly placeholder="Select material" value="" class="pdb-input-select" onclick="openMaterialDropdown('+idx+')" />' +
+        '<div id="edit-material-dropdown-'+idx+'" class="pdb-dropdown">' +
+          '<div class="pdb-header-cell"><input id="edit-material-search-'+idx+'" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown('+idx+')" class="pdb-input-sm" /></div>' +
+          '<div id="edit-material-list-'+idx+'" class="pdb-dropdown-scroll"></div>' +
         '</div>' +
       '</div>' +
-      '<div style="flex:2;">' +
-        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="" />' +
+      '<div class="pdb-flex-2">' +
+        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" class="pdb-select-full" value="" />' +
       '</div>' +
-      '<div style="flex:1;">' +
-        '<input id="edit-material-unit-'+idx+'" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="" />' +
+      '<div class="pdb-flex-1">' +
+        '<input id="edit-material-unit-'+idx+'" type="text" readonly placeholder="Unit" class="pdb-input-readonly" value="" />' +
       '</div>' +
-      '<div style="flex:0; display:flex; align-items:center;">' +
-        '<button type="button" onclick="removeMaterialRow('+idx+')" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>' +
+      '<div class="pdb-flex-center">' +
+        '<button type="button" onclick="removeMaterialRow('+idx+')" title="Kaldır" class="pdb-btn-delete">-</button>' +
       '</div>' +
     '</div>'
   )
@@ -1237,34 +1237,34 @@ function generateMultiStationSelector(node, compatibleStations) {
   
   // Build selected stations list
   const selectedStationsHtml = selectedStations.length > 0 
-    ? '<div style="margin-bottom: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: #f9fafb;">' +
-        '<div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; font-weight: 500; text-transform: uppercase;">Selected Stations (Priority Order)</div>' +
+    ? '<div class="pdb-alert-muted">' +
+        '<div class="pdb-station-label">Selected Stations (Priority Order)</div>' +
         selectedStations
           .sort((a, b) => a.priority - b.priority)
           .map(station => {
             const stId = station.stationId || station.id;  // Support both for backward compatibility
-            return '<div style="display: flex; align-items: center; padding: 8px; background: white; border-radius: 4px; margin-bottom: 4px; border: 1px solid #e5e7eb;">' +
-              '<span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; font-size: 12px; font-weight: 600; margin-right: 8px;">' + station.priority + '</span>' +
-              '<span style="flex: 1; font-weight: 500; font-size: 13px;">' + escapeHtml(stId) + ' – ' + escapeHtml(station.name) + '</span>' +
+            return '<div class="pdb-item-row">' +
+              '<span class="pdb-number-badge">' + station.priority + '</span>' +
+              '<span class="pdb-station-name">' + escapeHtml(stId) + ' – ' + escapeHtml(station.name) + '</span>' +
               '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(stId) + '\')" ' +
-                'style="padding: 4px 8px; background: #fee; color: #c00; border: 1px solid #fcc; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">' +
+                'class="pdb-btn-remove">' +
                 'Remove' +
               '</button>' +
             '</div>';
           }).join('') +
       '</div>'
-    : '<div style="margin-bottom: 12px; padding: 12px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; font-size: 13px; color: #92400e;">' +
+    : '<div class="pdb-alert-warning">' +
         '⚠️ No stations selected. Please add at least one station below.' +
       '</div>';
 
-  return '<div style="margin-bottom: 16px;">' +
-    '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Work Stations * <span style="font-size: 11px; color: #6b7280; font-weight: 400;">(Priority order)</span></label>' +
+  return '<div class="view-mb-16">' +
+    '<label class="pdb-label">Work Stations * <span class="pdb-label-hint">(Priority order)</span></label>' +
     selectedStationsHtml +
-    '<div class="custom-dropdown" style="position: relative;">' +
+    '<div class="custom-dropdown" class="position-relative">' +
       '<div id="station-selector-button" onclick="toggleStationDropdown()" ' +
         'style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer; ' +
         'display: flex; align-items: center; justify-content: space-between; min-height: 40px;">' +
-        '<span id="station-selector-text" style="color: #6b7280;">Select station to add...</span>' +
+        '<span id="station-selector-text" class="text-muted-sm">Select station to add...</span>' +
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
           '<path d="M6 9l6 6 6-6"></path>' +
         '</svg>' +
@@ -1273,7 +1273,7 @@ function generateMultiStationSelector(node, compatibleStations) {
         'border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); ' +
         'max-height: 250px; overflow-y: auto; z-index: 1000; display: none;">' +
         (compatibleStations.length === 0 ? 
-          '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No compatible stations</div>' :
+          '<div class="pdb-empty-italic">No compatible stations</div>' :
           compatibleStations.map(s => {
             const displayName = `${s.id} – ${s.name}`;
             const alreadySelected = selectedStations.some(ss => (ss.stationId || ss.id) === s.id);
@@ -1281,16 +1281,16 @@ function generateMultiStationSelector(node, compatibleStations) {
               'onclick="selectStationFromDropdown(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')" ' +
               'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; ' +
               'background: white; transition: all 0.2s; ' + (alreadySelected ? 'opacity: 0.4; pointer-events: none;' : '') + '">' +
-              '<div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; flex-shrink: 0;"></div>' +
-              '<span style="flex: 1; font-weight: 500;">' + escapeHtml(displayName) + '</span>' +
-              (alreadySelected ? '<span style="font-size: 11px; color: #10b981;">✓</span>' : '') +
+              '<div class="pdb-indicator-dot"></div>' +
+              '<span class="pdb-item-name">' + escapeHtml(displayName) + '</span>' +
+              (alreadySelected ? '<span class="pdb-check-icon">✓</span>' : '') +
               '</div>';
           }).join('')
         ) +
       '</div>' +
     '</div>' +
     '<button type="button" onclick="addSelectedStation()" ' +
-      'style="margin-top: 8px; padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; width: 100%;">' +
+      'class="pdb-btn-primary-full">' +
       '+ Add Selected Station' +
     '</button>' +
     '</div>';
@@ -1841,7 +1841,7 @@ window.openOutputTemplateDropdown = async function() {
   
   try {
     // Show loading
-    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 11px;">Loading templates...</div>';
+    listContainer.innerHTML = '<div class="pdb-empty-sm">Loading templates...</div>';
     dropdown.style.display = 'block';
     currentTemplateDropdownVisible = true;
     
@@ -1873,9 +1873,9 @@ window.openOutputTemplateDropdown = async function() {
       
       if (availableTemplates.length === 0) {
         listContainer.innerHTML = `
-          <div style="padding: 16px 12px; text-align: center;">
-            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 8px;">No matching templates</div>
-            <div style="font-size: 10px; color: var(--muted-foreground); line-height: 1.4;">
+          <div class="pdb-empty-center">
+            <div class="pdb-no-templates">No matching templates</div>
+            <div class="pdb-helper-text-sm">
               No output codes found that use the predecessor material(s):<br/>
               <strong>${predecessorMaterials.join(', ')}</strong>
             </div>
@@ -1888,7 +1888,7 @@ window.openOutputTemplateDropdown = async function() {
     availableOutputTemplates = availableTemplates;
     
     if (availableOutputTemplates.length === 0) {
-      listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 11px;">No templates available for this operation</div>';
+      listContainer.innerHTML = '<div class="pdb-empty-sm">No templates available for this operation</div>';
       return;
     }
     
@@ -1916,7 +1916,7 @@ window.openOutputTemplateDropdown = async function() {
     
   } catch (error) {
     console.error('Error loading output templates:', error);
-    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444; font-size: 11px;">Error loading templates</div>';
+    listContainer.innerHTML = '<div class="pdb-error-center-sm">Error loading templates</div>';
   }
 };
 
@@ -2167,9 +2167,9 @@ function initializeOutputSelectionUI(node) {
       
       // Add new banner at the top
       container.insertAdjacentHTML('afterbegin',
-        '<div class="template-lock-banner" style="background:#dcfce7; color:#166534; padding:8px; border-radius:4px; margin-bottom:12px; font-weight:500;">' +
+        '<div class="template-lock-banner" class="pdb-alert-success">' +
           '🔒 Output code locked from template: <strong>' + node._templateCode + '</strong><br>' +
-          '<span style="font-size:0.9em; opacity:0.8;">To change output code, modify materials or station first (this will unlock template)</span>' +
+          '<span class="pdb-hint-small">To change output code, modify materials or station first (this will unlock template)</span>' +
         '</div>'
       );
     }
@@ -2283,7 +2283,7 @@ function initializeOutputSelectionUI(node) {
       const container = document.getElementById('output-selection-container');
       if (container) {
         container.insertAdjacentHTML('afterbegin',
-          '<div class="template-lock-banner" style="background:#dcfce7; color:#166534; padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;">' +
+          '<div class="template-lock-banner" class="pdb-alert-success-lg">' +
             '🔒 Output code locked from template: <strong>' + node._templateCode + '</strong>' +
           '</div>'
         );
@@ -2343,7 +2343,7 @@ window.openOutputSelectionDropdown = async function() {
     const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull);
     
     // Show loading
-    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 12px;">Loading...</div>';
+    listContainer.innerHTML = '<div class="pdb-empty">Loading...</div>';
     dropdown.style.display = 'block';
     
     // Fetch existing outputs with this prefix
@@ -2359,7 +2359,7 @@ window.openOutputSelectionDropdown = async function() {
     const outputs = await response.json();
     
     if (outputs.length === 0) {
-      listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 12px;">No existing outputs found</div>';
+      listContainer.innerHTML = '<div class="pdb-empty">No existing outputs found</div>';
       listContainer.style.display = 'block';
       return;
     }
@@ -2367,17 +2367,17 @@ window.openOutputSelectionDropdown = async function() {
     // Render output list
     listContainer.innerHTML = outputs.map(o => `
       <div onclick="selectExistingOutput('${o.code}', '${o.name.replace(/'/g, "\\'")}', '${o.unit}', ${o.id})" 
-           style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s; font-size: 12px;"
+           class="pdb-dropdown-item-alt"
            onmouseover="this.style.background='rgb(249, 250, 251)'" 
            onmouseout="this.style.background='white'">
-        <span style="font-weight: 600;">${o.code}</span> · <span>${o.name}</span> · <span style="color: var(--muted-foreground);">${o.unit}</span>
+        <span class="font-weight-600">${o.code}</span> · <span>${o.name}</span> · <span class="text-muted">${o.unit}</span>
       </div>
     `).join('');
     listContainer.style.display = 'block';
     
   } catch (error) {
     console.error('Error loading outputs:', error);
-    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444; font-size: 12px;">Error loading outputs</div>';
+    listContainer.innerHTML = '<div class="pdb-error-center">Error loading outputs</div>';
     listContainer.style.display = 'block';
   }
 };

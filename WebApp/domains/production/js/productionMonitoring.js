@@ -22,10 +22,10 @@ export async function showEnhancedProductionMonitoring(workOrderCode, plan, cont
 
   // Show loading state
   container.innerHTML = `
-    <div style="font-weight:600; font-size:14px; margin-bottom:12px;">
+    <div class="pm-title-12">
       🎯 Üretim İzleme
     </div>
-    <div style="text-align: center; padding: 20px; color: #6b7280;">
+    <div class="pm-empty">
       <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
     </div>
   `;
@@ -66,8 +66,8 @@ export async function showEnhancedProductionMonitoring(workOrderCode, plan, cont
   } catch (error) {
     console.error('Failed to load production monitoring:', error);
     container.innerHTML = `
-      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">🎯 Üretim İzleme</div>
-      <div style="text-align: center; padding: 20px; color: #ef4444;">
+      <div class="pm-title">🎯 Üretim İzleme</div>
+      <div class="pm-error">
         <i class="fa-solid fa-exclamation-triangle"></i> Yüklenemedi: ${escapeHtml(error.message)}
       </div>
     `;
@@ -128,62 +128,62 @@ function renderEnhancedMonitoringUI(workOrderCode, plan, planDetails, assignment
 
   // Build UI
   return `
-    <div style="font-weight:600; font-size:14px; margin-bottom:12px; display: flex; align-items: center; gap: 8px;">
+    <div class="pm-title-flex">
       <span>🎯 Üretim İzleme</span>
-      ${plan?.status === 'production' ? '<span style="font-size:10px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:8px; font-weight:600;">CANLI</span>' : ''}
+      ${plan?.status === 'production' ? '<span class="pm-badge-success">CANLI</span>' : ''}
     </div>
 
     <!-- Progress Overview -->
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
-      <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: #374151;">📊 İlerleme Durumu</div>
+    <div class="pm-card">
+      <div class="pm-section-title">📊 İlerleme Durumu</div>
       
       <!-- Progress Bar -->
-      <div style="margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span style="font-size: 11px; color: #6b7280;">Tamamlanan Operasyonlar</span>
-          <span style="font-size: 11px; font-weight: 600; color: #374151;">${completedNodes}/${totalNodes} (${progressPercent}%)</span>
+      <div class="pm-mb-12">
+        <div class="pm-flex-between">
+          <span class="pm-label">Tamamlanan Operasyonlar</span>
+          <span class="pm-value-bold">${completedNodes}/${totalNodes} (${progressPercent}%)</span>
         </div>
-        <div style="width: 100%; height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden;">
+        <div class="pm-progress">
           <div style="width: ${progressPercent}%; height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease;"></div>
         </div>
       </div>
 
       <!-- Status Breakdown -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; font-size: 11px;">
+      <div class="pm-grid-stats">
         ${inProgressNodes > 0 ? `
-          <div style="padding: 6px; background: #dbeafe; border-radius: 4px; text-align: center;">
-            <div style="font-weight: 600; color: #1e40af;">${inProgressNodes}</div>
-            <div style="color: #3b82f6;">Devam Eden</div>
+          <div class="pm-status-cell-blue">
+            <div class="pm-text-bold-blue">${inProgressNodes}</div>
+            <div class="pm-text-blue">Devam Eden</div>
           </div>
         ` : ''}
         ${pendingNodes > 0 ? `
-          <div style="padding: 6px; background: #fef3c7; border-radius: 4px; text-align: center;">
-            <div style="font-weight: 600; color: #92400e;">${pendingNodes}</div>
-            <div style="color: #f59e0b;">Bekleyen</div>
+          <div class="pm-status-cell-amber">
+            <div class="pm-text-bold-amber">${pendingNodes}</div>
+            <div class="pm-text-amber">Bekleyen</div>
           </div>
         ` : ''}
         ${queuedNodes > 0 ? `
-          <div style="padding: 6px; background: #f3f4f6; border-radius: 4px; text-align: center;">
-            <div style="font-weight: 600; color: #374151;">${queuedNodes}</div>
-            <div style="color: #6b7280;">Sırada</div>
+          <div class="pm-status-cell-gray">
+            <div class="pm-text-bold-gray">${queuedNodes}</div>
+            <div class="pm-text-gray">Sırada</div>
           </div>
         ` : ''}
         ${cancelledNodes > 0 ? `
-          <div style="padding: 6px; background: #fee2e2; border-radius: 4px; text-align: center;">
-            <div style="font-weight: 600; color: #991b1b;">${cancelledNodes}</div>
-            <div style="color: #dc2626;">İptal</div>
+          <div class="pm-status-cell-red">
+            <div class="pm-text-bold-red">${cancelledNodes}</div>
+            <div class="pm-text-red">İptal</div>
           </div>
         ` : ''}
       </div>
 
       <!-- Time Estimates -->
       ${timeRemaining !== null ? `
-        <div style="margin-top: 12px; padding: 8px; background: #eff6ff; border-radius: 4px; border-left: 3px solid #3b82f6;">
-          <div style="font-size: 11px; color: #1e40af; font-weight: 600;">
+        <div class="pm-info-blue">
+          <div class="pm-text-blue-bold">
             ⏱️ Tahmini Kalan Süre: ${formatDuration(timeRemaining)}
           </div>
           ${maxEnd ? `
-            <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">
+            <div class="pm-value-sm">
               Tahmini Bitiş: ${maxEnd.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
             </div>
           ` : ''}
@@ -193,27 +193,27 @@ function renderEnhancedMonitoringUI(workOrderCode, plan, planDetails, assignment
 
     <!-- Material Summary -->
     ${Object.keys(materialInputs).length > 0 || Object.keys(materialOutputs).length > 0 ? `
-      <div style="margin-bottom: 16px; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-        <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: #374151;">📦 Malzeme Özeti</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div class="pm-card-sm">
+        <div class="pm-section-title">📦 Malzeme Özeti</div>
+        <div class="pm-grid-2col">
           <div>
-            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Giriş Malzemeleri:</div>
-            <div style="font-size: 11px; color: #111827;">
+            <div class="pm-label">Giriş Malzemeleri:</div>
+            <div class="pm-value">
               ${Object.entries(materialInputs).length > 0 
                 ? Object.entries(materialInputs).map(([code, qty]) => 
                     `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
                   ).join('')
-                : '<span style="color: #9ca3af;">Yok</span>'}
+                : '<span class="pm-text-muted">Yok</span>'}
             </div>
           </div>
           <div>
-            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Çıkış Ürünleri:</div>
-            <div style="font-size: 11px; color: #111827;">
+            <div class="pm-label">Çıkış Ürünleri:</div>
+            <div class="pm-value">
               ${Object.entries(materialOutputs).length > 0
                 ? Object.entries(materialOutputs).map(([code, qty]) => 
                     `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
                   ).join('')
-                : '<span style="color: #9ca3af;">Yok</span>'}
+                : '<span class="pm-text-muted">Yok</span>'}
             </div>
           </div>
         </div>
@@ -221,25 +221,25 @@ function renderEnhancedMonitoringUI(workOrderCode, plan, planDetails, assignment
     ` : ''}
 
     <!-- Assignments Table -->
-    <div style="margin-bottom: 16px;">
-      <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: #374151;">
+    <div class="pm-mb-16">
+      <div class="pm-section-title">
         📋 Work Packages (${assignments.length})
       </div>
       ${assignments.length === 0 ? `
-        <div style="text-align: center; padding: 20px; color: #6b7280; background: #f9fafb; border-radius: 4px;">
+        <div class="pm-empty-box">
           <i class="fa-solid fa-info-circle"></i> Bu work order için henüz assignment oluşturulmamış
         </div>
       ` : `
-        <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        <div class="pm-scroll-x">
+          <table class="pm-table">
             <thead>
-              <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Operasyon</th>
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İşçi</th>
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İstasyon</th>
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Durum</th>
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Sıra</th>
-                <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Zaman</th>
+              <tr class="pm-tr-header">
+                <th class="pm-th">Operasyon</th>
+                <th class="pm-th">İşçi</th>
+                <th class="pm-th">İstasyon</th>
+                <th class="pm-th">Durum</th>
+                <th class="pm-th">Sıra</th>
+                <th class="pm-th">Zaman</th>
               </tr>
             </thead>
             <tbody id="monitoring-assignments-tbody">
@@ -292,16 +292,16 @@ function renderAssignmentRows(assignments, esc) {
     }
 
     return `
-      <tr style="border-bottom: 1px solid #f3f4f6;" data-assignment-id="${esc(a.assignmentId || a.id)}">
-        <td style="padding: 6px 8px;">${esc(a.operationName || a.nodeName || '-')}</td>
-        <td style="padding: 6px 8px;">${esc(a.workerName || '-')}</td>
-        <td style="padding: 6px 8px;">
+      <tr class="pm-tr-row" data-assignment-id="${esc(a.assignmentId || a.id)}">
+        <td class="pm-td">${esc(a.operationName || a.nodeName || '-')}</td>
+        <td class="pm-td">${esc(a.workerName || '-')}</td>
+        <td class="pm-td">
           ${esc(a.stationName || '-')}
-          ${(a.substationCode || a.subStationCode) ? `<br><span style="font-size: 10px; color: #6b7280; font-weight: 500;">🔧 ${esc(a.substationCode || a.subStationCode)}</span>` : ''}
+          ${(a.substationCode || a.subStationCode) ? `<br><span class="pm-value-sm">🔧 ${esc(a.substationCode || a.subStationCode)}</span>` : ''}
         </td>
-        <td style="padding: 6px 8px;">${getStatusBadge(a.status)}</td>
-        <td style="padding: 6px 8px; text-align: center;">${a.sequenceNumber || '-'}</td>
-        <td style="padding: 6px 8px;">${timeDisplay}</td>
+        <td class="pm-td">${getStatusBadge(a.status)}</td>
+        <td class="pm-th-center">${a.sequenceNumber || '-'}</td>
+        <td class="pm-td">${timeDisplay}</td>
       </tr>
     `;
   }).join('');
@@ -359,12 +359,12 @@ function detectBottlenecks(assignments) {
   if (warnings.length === 0) return '';
 
   return `
-    <div style="margin-bottom: 16px; padding: 10px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b;">
-      <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; color: #92400e;">
+    <div class="pm-card-warning">
+      <div class="pm-section-title-warning">
         ⚠️ Potansiyel Sorunlar Tespit Edildi
       </div>
       ${warnings.map(w => `
-        <div style="font-size: 11px; color: #78350f; margin-bottom: 4px;">
+        <div class="pm-label-warning">
           • ${escapeHtml(w.message)}
         </div>
       `).join('')}
