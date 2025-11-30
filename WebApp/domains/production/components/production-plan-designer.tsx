@@ -43,9 +43,9 @@ import {
   TableHeader,
   TableRow,
 } from "../../../shared/components/ui/table";
-import { toast } from "sonner";
+import { showSuccessToast, showErrorToast, showInfoToast } from "../../../shared/components/MESToast.js";
 import { useMES, WorkOrderOperation } from "../../../src/contexts/MESContext";
-import { useMaterials } from "../../../hooks/useFirebaseMaterials.js";
+import { useMaterials } from "../../materials/hooks/useMaterials.js";
 
 interface Material {
   id: string;
@@ -89,11 +89,8 @@ const mockOrders: Order[] = [
 export function ProductionPlanDesigner() {
   const { operations, workers, stations, getAvailableWorkers, addWorkOrder } = useMES();
   
-  // Load raw materials from Firebase with proper filtering
-  const { materials: allMaterials, loading: materialsLoading } = useMaterials({
-    status: 'Aktif',
-    category: 'Ham madde'
-  });
+  // Load raw materials from backend
+  const { materials: allMaterials, loading: materialsLoading } = useMaterials(true);
   
   const [selectedOrder, setSelectedOrder] = useState<string>("");
   const [nodes, setNodes] = useState<OperationNode[]>([]);
@@ -191,7 +188,7 @@ export function ProductionPlanDesigner() {
 
       setNodes((prev) => [...prev, newNode]);
       setDraggedNodeType(null);
-      toast.success(`${operation.name} operasyonu eklendi`);
+      showSuccessToast(`${operation.name} operasyonu eklendi`);
     },
     [draggedNodeType, snapToGrid, gridSize, operations, stations]
   );
@@ -211,7 +208,7 @@ export function ProductionPlanDesigner() {
               : n
           )
         );
-        toast.success("Operasyonlar bağlandı");
+        showSuccessToast("Operasyonlar bağlandı");
       }
       setConnectingFrom(null);
     }
@@ -232,7 +229,7 @@ export function ProductionPlanDesigner() {
           connections: n.connections.filter((c) => c !== nodeId),
         }));
     });
-    toast.success("Operasyon silindi");
+    showSuccessToast("Operasyon silindi");
   };
 
   const handleUpdateNode = () => {
@@ -241,39 +238,39 @@ export function ProductionPlanDesigner() {
       prev.map((n) => (n.id === selectedNode.id ? selectedNode : n))
     );
     setEditDialogOpen(false);
-    toast.success("Operasyon güncellendi");
+    showSuccessToast("Operasyon güncellendi");
   };
 
   const handleSavePlan = () => {
     if (nodes.length === 0) {
-      toast.error("Plan boş olamaz. En az bir operasyon ekleyin.");
+      showErrorToast("Plan boş olamaz. En az bir operasyon ekleyin.");
       return;
     }
     if (!planName) {
-      toast.error("Lütfen plan adı girin.");
+      showErrorToast("Lütfen plan adı girin.");
       return;
     }
-    toast.success("Plan taslak olarak kaydedildi");
+    showSuccessToast("Plan taslak olarak kaydedildi");
   };
 
   const handlePublishPlan = () => {
     if (nodes.length === 0) {
-      toast.error("Plan boş olamaz. En az bir operasyon ekleyin.");
+      showErrorToast("Plan boş olamaz. En az bir operasyon ekleyin.");
       return;
     }
     if (!selectedOrder) {
-      toast.error("Lütfen bir sipariş seçin.");
+      showErrorToast("Lütfen bir sipariş seçin.");
       return;
     }
     if (!planName) {
-      toast.error("Lütfen plan adı girin.");
+      showErrorToast("Lütfen plan adı girin.");
       return;
     }
 
     // Check if all operations have assigned workers
     const unassignedOps = nodes.filter((n) => !n.assignedWorkerId);
     if (unassignedOps.length > 0) {
-      toast.error(`${unassignedOps.length} operasyona işçi ataması yapılmamış. Lütfen tüm operasyonlara işçi atayın.`);
+      showErrorToast(`${unassignedOps.length} operasyona işçi ataması yapılmamış. Lütfen tüm operasyonlara işçi atayın.`);
       return;
     }
 
@@ -333,7 +330,7 @@ export function ProductionPlanDesigner() {
     setPlanDescription("");
     setSelectedOrder("");
     
-    toast.success("Plan yayınlandı ve work order oluşturuldu! Dashboard'da görüntüleyebilirsiniz.");
+    showSuccessToast("Plan yayınlandı ve work order oluşturuldu! Dashboard'da görüntüleyebilirsiniz.");
   };
 
   const handlePublishPlanForce = () => {
@@ -389,15 +386,15 @@ export function ProductionPlanDesigner() {
     setPlanDescription("");
     setSelectedOrder("");
     
-    toast.success("Plan yayınlandı ve work order oluşturuldu! Dashboard'da görüntüleyebilirsiniz.");
+    showSuccessToast("Plan yayınlandı ve work order oluşturuldu! Dashboard'da görüntüleyebilirsiniz.");
   };
 
   const handleSaveTemplate = () => {
     if (nodes.length === 0) {
-      toast.error("Plan boş olamaz. En az bir operasyon ekleyin.");
+      showErrorToast("Plan boş olamaz. En az bir operasyon ekleyin.");
       return;
     }
-    toast.success("Şablon kütüphanesine kaydedildi");
+    showSuccessToast("Şablon kütüphanesine kaydedildi");
   };
 
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string, isDragHandle = false) => {
@@ -622,9 +619,9 @@ export function ProductionPlanDesigner() {
                   onClick={() => {
                     if (connectingFrom) {
                       setConnectingFrom(null);
-                      toast.info("Bağlantı modu iptal edildi");
+                      showInfoToast("Bağlantı modu iptal edildi");
                     } else {
-                      toast.info("Bağlanacak ilk operasyona tıklayın");
+                      showInfoToast("Bağlanacak ilk operasyona tıklayın");
                     }
                   }}
                 >
@@ -762,7 +759,7 @@ export function ProductionPlanDesigner() {
                       handleNodeClick(node);
                     } else if (!connectingFrom && !draggingNode) {
                       setConnectingFrom(node.id);
-                      toast.info("Bağlanacak hedef operasyona tıklayın");
+                      showInfoToast("Bağlanacak hedef operasyona tıklayın");
                     }
                   }}
                   onDoubleClick={() => handleNodeDoubleClick(node)}

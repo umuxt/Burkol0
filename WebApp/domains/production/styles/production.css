@@ -1,10 +1,7 @@
 /* REFACTORED PRODUCTION.CSS */
-
-
 /* ====================================================================== */
 /* === BASE & RESET === */
 /* ====================================================================== */
-
 /* Extracted from production.html <style> */
 /* Custom CSS variables for design system */
 :root {
@@ -43,11 +40,9 @@ body {
   line-height: 1.5;
 }
 
-
 /* ====================================================================== */
 /* === LAYOUT === */
 /* ====================================================================== */
-
 /* Workers Container Styles */
 .workers-container {
   display: flex;
@@ -222,11 +217,6 @@ body {
 /* Priority Badges - Fallback (#2+) Gray */
 .relation-row.priority-fallback {
   border-left: 4px solid #9ca3af !important;
-}
-
-/* Canvas Grid Background */
-.plan-canvas-grid {
-  background-image: radial-gradient(circle, hsl(var(--muted-foreground) / 0.2) 1px, transparent 1px);
 }
 
 /* ==========================================================================
@@ -680,35 +670,6 @@ body {
   gap: 12px;
 }
 
-.skills-add-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 6px;
-}
-
-.skills-grid-container {
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 8px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0px, 1fr));
-  gap: 6px;
-}
-
-.substations-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.substation-add-row {
-  margin-top: 3px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 /* Checkbox Label for operations */
 .checkbox-label-row {
   display: flex;
@@ -836,40 +797,6 @@ body {
   gap: 8px;
 }
 
-.view-flex-gap-8-center {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.view-flex-between-start {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  margin-bottom: 4px;
-}
-
-.view-flex-center-mb-0 {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0;
-}
-
-.view-flex-clickable {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.view-flex-clickable-13 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
 .view-flex-main {
   display: flex;
   gap: 20px;
@@ -883,13 +810,6 @@ body {
   grid-template-columns: 60px repeat(7, 1fr);
   background: var(--muted);
   border-bottom: 1px solid var(--border);
-}
-
-.view-grid-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 16px;
 }
 
 /* Grid Layouts */
@@ -1166,20 +1086,9 @@ body {
   gap: 6px;
 }
 
-.pdb-dropdown-item-flex {
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
 /* ====================================================================== */
 /* === COMPONENTS: CARDS === */
 /* ====================================================================== */
-
 /* Modern Card Component */
 .card {
   background: var(--card);
@@ -1210,52 +1119,6 @@ body {
 
 .card-content {
   padding: 24px;
-}
-
-/* KPI Cards */
-.kpi-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  position: relative;
-  overflow: hidden;
-}
-
-.kpi-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
-  pointer-events: none;
-}
-
-.kpi-card-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.kpi-card-warning {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-}
-
-.kpi-card-info {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-}
-
-.kpi-card-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-}
-
-.kpi-card .card-title {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.9;
-}
-
-.kpi-card .card-description {
-  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Card title icons */
@@ -1406,26 +1269,6 @@ body {
   border-radius: 4px;
 }
 
-/* Upcoming Task Card */
-.upcoming-task-card {
-  padding: 10px;
-  background: rgb(249, 250, 251);
-  border-radius: 4px;
-}
-
-/* Substation Card */
-.substation-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
-}
-
 /* Task Card with border variants */
 .task-card-pending {
   padding: 10px;
@@ -1521,11 +1364,9 @@ body {
   min-height: 120px;
 }
 
-
 /* ====================================================================== */
 /* === COMPONENTS: BUTTONS === */
 /* ====================================================================== */
-
 .mes-tab-button {
   padding: 2px 8px;
   font-size: 12px;
@@ -2043,16 +1884,6 @@ body {
   font-size: 12px;
 }
 
-.btn-substation-delete {
-  padding: 1px 2px;
-  border: 1px solid #ef4444;
-  background: white;
-  color: #ef4444;
-  border-radius: 4px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
 .btn-add-substation {
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -2143,15 +1974,6 @@ body {
   border-radius: 4px;
   background: white;
   color: rgb(220, 38, 38);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.view-btn-outline-sm {
-  padding: 6px 12px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
 }
@@ -2356,16 +2178,6 @@ body {
   cursor: pointer;
 }
 
-.hl-btn-delete {
-  padding: 8px 16px;
-  background: white;
-  color: #ef4444;
-  border: 1px solid #ef4444;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
 .main-cell-close-btn {
   position: absolute;
   top: 1px;
@@ -2421,19 +2233,9 @@ body {
   background: #f3f4f6;
 }
 
-.pdb-station-btn {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-}
-
-
 /* ====================================================================== */
 /* === COMPONENTS: BADGES === */
 /* ====================================================================== */
-
 /* Badge Component */
 .badge {
   display: inline-flex;
@@ -2451,11 +2253,6 @@ body {
 .badge-default {
   background: var(--primary);
   color: var(--primary-foreground);
-}
-
-.badge-secondary {
-  background: var(--secondary);
-  color: var(--secondary-foreground);
 }
 
 .badge-outline {
@@ -2485,38 +2282,6 @@ body {
   color: white;
   font-size: 10px;
   border-radius: 10px;
-}
-
-/* Badge Pill Styles (rounded pill variant) */
-.badge-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1;
-}
-
-.badge-pill.badge-success {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.badge-pill.badge-warning {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badge-pill.badge-default {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.badge-pill.badge-outline {
-  background: transparent;
-  border: 1px solid #d1d5db;
-  color: #6b7280;
 }
 
 .priority-badge.priority-primary {
@@ -2612,11 +2377,6 @@ body {
 
 .status-badge-inactive {
   background: rgb(156, 163, 175);
-  color: white;
-}
-
-.status-badge-info {
-  background: rgb(59, 130, 246);
   color: white;
 }
 
@@ -2874,11 +2634,9 @@ body {
   margin-left: 4px;
 }
 
-
 /* ====================================================================== */
 /* === COMPONENTS: FORMS & INPUTS === */
 /* ====================================================================== */
-
 .mes-filter-controls[data-nowrap="true"] > .mes-filter-input {
   flex: 1 1 auto;
   min-width: 200px;
@@ -3002,13 +2760,6 @@ select.mes-filter-input.is-compact {
   font-weight: 600;
   color: #374151;
   border: 1px solid #d1d5db;
-}
-
-/* Form builder icons */
-.form-field-type i {
-  margin-right: 8px;
-  width: 16px;
-  text-align: center;
 }
 
 .detail-label {
@@ -3239,11 +2990,6 @@ select.mes-filter-input.is-compact {
   margin-bottom: 4px;
 }
 
-/* Filter Panel Styles */
-.filter-label-value {
-  flex: 1;
-}
-
 .skill-info-label {
   font-size: 11px;
   color: rgb(107, 114, 128);
@@ -3267,24 +3013,6 @@ select.mes-filter-input.is-compact {
   gap: 8px;
   padding: 4px;
   cursor: pointer;
-  font-size: 12px;
-}
-
-/* Form Input */
-.form-input-skill {
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.input-substation-count {
-  display: none;
-  width: 80px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
   font-size: 12px;
 }
 
@@ -3425,16 +3153,6 @@ select.mes-filter-input.is-compact {
   font-size: 12px;
   margin: 0;
   min-width: 48px;
-}
-
-/* Form Inputs */
-.view-input-mini {
-  height: 28px;
-  width: 100%;
-  padding: 2px 4px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 11px;
 }
 
 /* Input Variants */
@@ -3616,11 +3334,9 @@ select.mes-filter-input.is-compact {
   font-weight: 400;
 }
 
-
 /* ====================================================================== */
 /* === COMPONENTS: MODALS === */
 /* ====================================================================== */
-
 /* Modal styles */
 #node-edit-modal {
   backdrop-filter: blur(4px);
@@ -3761,14 +3477,6 @@ select.mes-filter-input.is-compact {
   justify-content: center;
 }
 
-.view-modal-sm {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  max-width: 400px;
-  width: 90%;
-}
-
 /* Modal Styles */
 .view-modal-overlay-fixed {
   display: none;
@@ -3881,11 +3589,9 @@ select.mes-filter-input.is-compact {
   max-width: 500px;
 }
 
-
 /* ====================================================================== */
 /* === COMPONENTS: TABLES === */
 /* ====================================================================== */
-
 .workers-table-panel {
   flex: 1 1 0%;
   min-width: 300px;
@@ -4005,23 +3711,6 @@ select.mes-filter-input.is-compact {
   background: var(--muted);
 }
 
-/* Stations Table Styles - From materials.css */
-.materials-table {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 2rem;
-}
-
-.materials-table {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  overflow: hidden;
-  margin-bottom: 2rem;
-}
-
 #station-dropdown-list::-webkit-scrollbar-track {
   background: #f1f5f9;
   border-radius: 3px;
@@ -4038,10 +3727,6 @@ select.mes-filter-input.is-compact {
 
 .nav-item-icon i.fa-industry {
   color: #6b7280;
-}
-
-.prerequisites-icons i.fa-industry {
-  color: #ef4444;
 }
 
 .fa-exclamation-triangle {
@@ -4190,11 +3875,9 @@ select.mes-filter-input.is-compact {
   text-align: right;
 }
 
-
 /* ====================================================================== */
 /* === COMPONENTS: TABS === */
 /* ====================================================================== */
-
 .mes-tab-count {
   color: var(--muted-foreground, rgb(107, 114, 128));
   font-size: 11px;
@@ -4236,26 +3919,6 @@ select.mes-filter-input.is-compact {
   background: var(--primary);
 }
 
-/* Tab Styles */
-.materials-tabs {
-  display: flex;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-  padding: 0;
-  margin: 0;
-  overflow-x: auto;
-}
-
-/* Tab Styles */
-.materials-tabs {
-  display: flex;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-  padding: 0;
-  margin: 0;
-  overflow-x: auto;
-}
-
 .tab-count {
   background: #e5e7eb;
   color: #6b7280;
@@ -4276,16 +3939,9 @@ select.mes-filter-input.is-compact {
   font-size: 14px;
 }
 
-/* Settings modal icons */
-.settings-tab i {
-  margin-right: 6px;
-}
-
-
 /* ====================================================================== */
 /* === DOMAIN: MES CORE === */
 /* ====================================================================== */
-
 /* ==========================================================================
    MES Filter Toolkit
    ========================================================================== */
@@ -4504,11 +4160,9 @@ select.mes-filter-input.is-compact {
   font-size: 12px;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: PLAN DESIGNER (PD/PDB) === */
 /* ====================================================================== */
-
 /* Plan Designer specific styles */
 .canvas-node {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -4976,11 +4630,9 @@ select.mes-filter-input.is-compact {
   opacity: 0.8;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: WORKERS & SKILLS === */
 /* ====================================================================== */
-
 .worker-detail-panel {
   flex: 1 1 0%;
   min-width: 400px;
@@ -5144,11 +4796,9 @@ select.mes-filter-input.is-compact {
   display: inline-block;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: VIEWS === */
 /* ====================================================================== */
-
 .view-detail-value {
   flex: 1 1 0%;
   font-size: 12px;
@@ -5188,10 +4838,6 @@ select.mes-filter-input.is-compact {
 
 .view-mb-12 {
   margin-bottom: 12px;
-}
-
-.view-mb-8 {
-  margin-bottom: 8px;
 }
 
 .view-p-16 {
@@ -5631,11 +5277,9 @@ select.mes-filter-input.is-compact {
   border-right: 1px solid var(--border);
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: MATERIAL FLOW === */
 /* ====================================================================== */
-
 .material-flow-inner {
   position: absolute;
   left: 50%;
@@ -5730,11 +5374,9 @@ select.mes-filter-input.is-compact {
   gap: 9px;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: ENTITY RELATIONS === */
 /* ====================================================================== */
-
 /* ============================================================================
    ENTITY RELATIONS STYLES (merged from entityRelations.css)
    ============================================================================
@@ -5805,11 +5447,9 @@ select.mes-filter-input.is-compact {
   margin-left: 8px;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: HOLIDAYS === */
 /* ====================================================================== */
-
 .hl-title {
   margin: 0 0 20px;
   font-size: 18px;
@@ -5859,11 +5499,9 @@ select.mes-filter-input.is-compact {
   color: #ef4444;
 }
 
-
 /* ====================================================================== */
 /* === DOMAIN: MONITORING === */
 /* ====================================================================== */
-
 /* Info Box Styles */
 .pm-info-blue {
   margin-top: 12px;
@@ -6041,11 +5679,9 @@ select.mes-filter-input.is-compact {
   color: #dc2626;
 }
 
-
 /* ====================================================================== */
 /* === ANIMATIONS === */
 /* ====================================================================== */
-
 /* Toast animations */
 @keyframes slideInRight {
   from {
@@ -6100,11 +5736,9 @@ select.mes-filter-input.is-compact {
   }
 }
 
-
 /* ====================================================================== */
 /* === RESPONSIVE (MEDIA QUERIES) === */
 /* ====================================================================== */
-
 /* Responsive */
 @media (max-width: 1024px) {
   .grid-cols-4 {
@@ -6297,11 +5931,9 @@ select.mes-filter-input.is-compact {
   }
 }
 
-
 /* ====================================================================== */
 /* === UTILITIES === */
 /* ====================================================================== */
-
 .text-center {
   text-align: center;
 }
@@ -6552,10 +6184,6 @@ select.mes-filter-input.is-compact {
   font-size: 14px;
 }
 
-.prerequisites-icons i.fa-hard-hat {
-  color: #ef4444;
-}
-
 .fa-clipboard-list {
   color: #3b82f6;
 }
@@ -6640,11 +6268,6 @@ select.mes-filter-input.is-compact {
   color: rgb(107, 114, 128);
 }
 
-.text-muted-xs {
-  font-size: 10px;
-  color: rgb(107, 114, 128);
-}
-
 .text-primary {
   font-size: 12px;
   color: rgb(17, 24, 39);
@@ -6698,8 +6321,6 @@ select.mes-filter-input.is-compact {
 
 .icon-16 { width: 16px; height: 16px; }
 
-.icon-24 { width: 24px; height: 24px; }
-
 .icon-blue { color: rgb(59, 130, 246); }
 
 .icon-muted { color: rgb(107, 114, 128); }
@@ -6746,16 +6367,6 @@ select.mes-filter-input.is-compact {
   width: 12px;
   height: 12px;
   color: rgb(107, 114, 128);
-}
-
-/* Empty Dashed Box */
-.empty-dashed-box {
-  padding: 12px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--muted-foreground);
-  text-align: center;
 }
 
 /* Inline Icon */
@@ -6885,11 +6496,9 @@ select.mes-filter-input.is-compact {
   white-space: nowrap;
 }
 
-
 /* ====================================================================== */
 /* === OTHER / UNCATEGORIZED === */
 /* ====================================================================== */
-
 /* Progress Bar Component */
 .progress {
   position: relative;
@@ -6898,13 +6507,6 @@ select.mes-filter-input.is-compact {
   background: var(--secondary);
   border-radius: 4px;
   overflow: hidden;
-}
-
-.progress-indicator {
-  height: 100%;
-  background: var(--primary);
-  border-radius: 4px;
-  transition: width 0.3s ease;
 }
 
 .connection-line {
@@ -6949,37 +6551,9 @@ select.mes-filter-input.is-compact {
   color: var(--primary-foreground);
 }
 
-/* Status Colors */
-.status-planned { color: #6b7280; }
-
 .status-in-progress { color: #3b82f6; }
 
-.status-on-hold { color: #f59e0b; }
-
 .status-completed { color: #10b981; }
-
-.kpi-value {
-  font-size: 36px;
-  font-weight: 700;
-  margin: 12px 0 8px 0;
-  line-height: 1;
-}
-
-.kpi-change {
-  font-size: 12px;
-  opacity: 0.9;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.kpi-icon {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  font-size: 24px;
-  opacity: 0.3;
-}
 
 /* Real-time indicators */
 .status-indicator {
@@ -7001,33 +6575,6 @@ select.mes-filter-input.is-compact {
 
 .status-busy {
   background: #f59e0b;
-}
-
-.status-offline {
-  background: #ef4444;
-}
-
-/* Enhanced progress bar */
-.progress-enhanced {
-  height: 10px;
-  background: #e5e7eb;
-  border-radius: 9999px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-}
-
-/* Drag and drop visual feedback */
-.drag-over {
-  border: 2px dashed #3b82f6 !important;
-  background: #eff6ff !important;
-}
-
-.drag-placeholder {
-  height: 2px;
-  background: #3b82f6;
-  margin: 2px 0;
-  border-radius: 1px;
-  opacity: 0.8;
 }
 
 #station-dropdown-list {
@@ -7052,30 +6599,9 @@ select.mes-filter-input.is-compact {
   width: 6px;
 }
 
-/* Prerequisites icons in work packages */
-.prerequisites-icons i {
-  margin: 0 2px;
-}
-
-.prerequisites-icons i.fa-clock {
-  color: #f59e0b;
-}
-
-.prerequisites-icons i.fa-boxes-stacked {
-  color: #ef4444;
-}
-
-.prerequisites-icons i.fa-check-circle {
-  color: #10b981;
-}
-
 /* Additional Font Awesome icons styling */
 .fa-spinner {
   animation: fa-spin 1s infinite linear;
-}
-
-.fa-save {
-  color: #10b981;
 }
 
 .fa-lightbulb {
@@ -7132,12 +6658,6 @@ span i {
 /* Node Drag Handle */
 .node-drag-handle {
   background: repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 0, transparent 3px);
-}
-
-/* Worker Panel - Package Progress Bar */
-.package-progress-bar {
-  width: 100%;
-  transition: width 0.3s ease;
 }
 
 /* ==========================================================================
@@ -7339,10 +6859,6 @@ span i {
   color: rgb(75, 85, 99);
 }
 
-.operation-value-sm {
-  font-size: 0.9em;
-}
-
 /* Section Title - Bold heading with bottom border */
 .section-title-bordered {
   margin: 0 0 12px;
@@ -7534,11 +7050,6 @@ span i {
   background: var(--border);
 }
 
-.task-summary-pending {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
 .task-summary-active {
   background: #d1fae5;
   color: #065f46;
@@ -7561,61 +7072,6 @@ span i {
 
 .mb-8 {
   margin-bottom: 8px;
-}
-
-.assignment-status-pending {
-  background: #f59e0b;
-}
-
-.assignment-status-in-progress {
-  background: #3b82f6;
-}
-
-.assignment-status-completed {
-  background: #10b981;
-}
-
-.assignment-status-cancelled {
-  background: #ef4444;
-}
-
-.assignment-status-default {
-  background: #6b7280;
-}
-
-.task-status-pending {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.task-status-ready {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.task-status-blocked {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.task-status-in_progress {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.task-status-paused {
-  background: #fed7aa;
-  color: #92400e;
-}
-
-.task-status-completed {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.task-status-default {
-  background: #f3f4f6;
-  color: #6b7280;
 }
 
 /* Prerequisite Icons */
@@ -7776,25 +7232,6 @@ span i {
   margin-bottom: 6px;
 }
 
-/* Section Header Row */
-.section-header-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  border-bottom: 1px solid rgb(229, 231, 235);
-  padding-bottom: 6px;
-}
-
-.section-title-inline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgb(17, 24, 39);
-}
-
 .upcoming-task-header {
   display: flex;
   align-items: center;
@@ -7846,13 +7283,6 @@ span i {
   text-align: center;
 }
 
-.substation-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
 .substation-code {
   font-family: monospace;
   font-size: 12px;
@@ -7868,36 +7298,6 @@ span i {
 .substation-actions {
   display: flex;
   gap: 8px;
-}
-
-/* Substations Section */
-.substations-section {
-  margin-bottom: 4px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-
-.substations-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 3px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-}
-
-.substations-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgb(17, 24, 39);
-}
-
-.substations-list {
-  display: grid;
-  gap: 4px;
 }
 
 /* Margin Left Helper */
