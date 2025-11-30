@@ -16,8 +16,8 @@
 @import './components/advanced-price-rules.css';
 @import './components/migration.css';
 
-/* 3. Materials Page Styles */
-@import './materials.css';
+/* 3. Domain Styles */
+@import '../../domains/materials/styles/materials.css';
 
 /* 4. Utility Classes (Last - highest specificity) */
 @import './utils/utilities.css';

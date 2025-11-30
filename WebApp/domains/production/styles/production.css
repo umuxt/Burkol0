@@ -1993,3 +1993,191 @@ span i {
   }
 }
 
+/* ============================================================================
+   ENTITY RELATIONS STYLES (merged from entityRelations.css)
+   ============================================================================
+   Polymorphic entity relations UI styles
+   - Priority badges (green #1, gray #2+)
+   - Drag-drop visual feedback
+   - Relation cards
+*/
+
+/* Entity Relation Section */
+.entity-relation-section {
+  background: white;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.entity-relation-section .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.entity-relation-section .section-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+  margin: 0;
+}
+
+.entity-relation-section .section-description {
+  background: var(--muted, #f9fafb);
+  border-left: 3px solid var(--primary, #3b82f6);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+}
+
+.entity-relation-section .section-description p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.entity-relation-section .section-description strong {
+  color: var(--foreground, #111827);
+}
+
+.entity-relation-section .section-description em {
+  color: var(--muted-foreground, #9ca3af);
+  font-size: 12px;
+}
+
+/* Relations List */
+.relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.relation-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.relation-row:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Priority Badges - Primary (#1) Green */
+.relation-row.priority-primary {
+  border-left: 4px solid #10b981 !important;
+  background: linear-gradient(to right, #f0fdf4, #ffffff) !important;
+}
+
+.relation-row.priority-primary:hover {
+  background: linear-gradient(to right, #dcfce7, #ffffff) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15) !important;
+}
+
+.priority-badge.priority-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+/* Priority Badges - Fallback (#2+) Gray */
+.relation-row.priority-fallback {
+  border-left: 4px solid #9ca3af !important;
+}
+
+.priority-badge.priority-fallback {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Relation Info */
+.relation-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.relation-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+}
+
+.relation-details {
+  font-size: 13px;
+  color: var(--muted-foreground, #6b7280);
+  margin-left: 8px;
+}
+
+/* Action Buttons */
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: var(--muted, #f3f4f6);
+}
+
+.btn-delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Entity Relations Responsive */
+@media (max-width: 768px) {
+  .entity-relation-section {
+    padding: 16px;
+  }
+
+  .relation-row {
+    padding: 12px;
+  }
+
+  .relation-name {
+    font-size: 14px;
+  }
+
+  .relation-details {
+    font-size: 12px;
+  }
+}
+
