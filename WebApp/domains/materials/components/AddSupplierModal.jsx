@@ -521,100 +521,57 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
     <>
       <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          background: 'white'
-        }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+        <div className="modal-header-flex">
+          <h2 className="supplier-section-title-xl">
             Yeni Tedarikçi Ekle
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex-center-gap-8">
             <button 
               type="submit" 
               form="add-supplier-form" 
-              style={{
-                padding: '8px 16px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
+              className="btn-save-primary"
               title="Kaydet"
             >
               💾 Kaydet
             </button>
             <button 
               onClick={handleClose}
-              style={{
-                padding: '8px',
-                background: 'transparent',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                color: '#6b7280'
-              }}
+              className="btn-close-modal"
             >
               ×
             </button>
           </div>
         </div>
         
-        <div style={{ 
-          padding: '16px 20px', 
-          background: '#f9fafb',
-          maxHeight: '80vh',
-          overflowY: 'auto'
-        }}>
+        <div className="modal-body-bg">
           <form id="add-supplier-form" onSubmit={handleSubmit}>
             {/* Temel Firma Bilgileri */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="supplier-section-card-mb">
+              <h3 className="supplier-section-header">
                 Temel Firma Bilgileri
               </h3>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Tedarikçi Kodu:
                 </span>
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   <input
                     type="text"
                     name="code"
                     value={formData.code || ''}
                     onChange={handleInputChange}
                     placeholder={nextCode}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="input-full"
                   />
-                  <small style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginTop: '2px' }}>
+                  <small className="text-hint-xs-block">
                     Boş bırakılırsa otomatik olarak {nextCode} atanacak
                   </small>
                 </div>
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Firma Adı *:
                 </span>
                 <input
@@ -624,19 +581,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   onChange={handleInputChange}
                   placeholder="Firma adı"
                   required
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Tedarikçi Tipi *:
                 </span>
                 <select
@@ -644,14 +594,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.supplierType || ''}
                   onChange={handleInputChange}
                   required
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 >
                   <option value="">Tedarikçi tipi seçin</option>
                   <option value="manufacturer">Üretici</option>
@@ -663,8 +606,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 </select>
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   İş Kayıt No:
                 </span>
                 <input
@@ -673,32 +616,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.businessRegistrationNumber || ''}
                   onChange={handleInputChange}
                   placeholder="İş kayıt numarası"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
             </div>
 
             {/* İletişim Bilgileri */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="supplier-section-card-mb">
+              <h3 className="supplier-section-header">
                 İletişim Bilgileri
               </h3>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Yetkili Kişi *:
                 </span>
                 <input
@@ -708,19 +638,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   onChange={handleInputChange}
                   placeholder="Yetkili kişi"
                   required
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Acil Durum Kişi:
                 </span>
                 <input
@@ -729,19 +652,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.emergencyContact || ''}
                   onChange={handleInputChange}
                   placeholder="Acil durum kişisi"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Telefon 1 *:
                 </span>
                 <input
@@ -751,19 +667,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   onChange={handleInputChange}
                   placeholder="Telefon numarası"
                   required
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Telefon 2:
                 </span>
                 <input
@@ -772,19 +681,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.phone2 || ''}
                   onChange={handleInputChange}
                   placeholder="İkinci telefon"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Acil Telefon:
                 </span>
                 <input
@@ -793,19 +695,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.emergencyPhone || ''}
                   onChange={handleInputChange}
                   placeholder="Acil telefon"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Faks:
                 </span>
                 <input
@@ -814,19 +709,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.fax || ''}
                   onChange={handleInputChange}
                   placeholder="Faks numarası"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   E-posta 1 *:
                 </span>
                 <input
@@ -836,19 +724,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   onChange={handleInputChange}
                   placeholder="E-posta adresi"
                   required
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   E-posta 2:
                 </span>
                 <input
@@ -857,19 +738,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.email2 || ''}
                   onChange={handleInputChange}
                   placeholder="İkinci e-posta"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Web Sitesi:
                 </span>
                 <input
@@ -878,33 +752,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   value={formData.website || ''}
                   onChange={handleInputChange}
                   placeholder="Web sitesi"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 />
               </div>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-120">
                   Tercih İletişim:
                 </span>
                 <select
                   name="preferredCommunication"
                   value={formData.preferredCommunication || ''}
                   onChange={handleInputChange}
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white'
-                  }}
+                  className="modal-input"
                 >
                   <option value="email">E-posta</option>
                   <option value="phone">Telefon</option>
@@ -915,20 +775,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Adres ve Mali Bilgiler - Üst Bölüm */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div className="supplier-grid-2-mb">
               {/* Adres Bilgileri */}
-              <div style={{ 
-                padding: '12px', 
-                background: 'white', 
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+              <div className="supplier-section-card">
+                <h3 className="supplier-section-header">
                   Adres Bilgileri
                 </h3>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px', marginTop: '2px' }}>
+                <div className="detail-item" className="supplier-detail-row-start">
+                  <span className="detail-label" className="supplier-detail-label-80-mt">
                     Adres:
                   </span>
                   <textarea
@@ -937,20 +792,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     onChange={handleInputChange}
                     placeholder="Adres"
                     rows="2"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white',
-                      resize: 'vertical'
-                    }}
+                    className="modal-input-textarea"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Şehir:
                   </span>
                   <input
@@ -959,19 +806,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.city || ''}
                     onChange={handleInputChange}
                     placeholder="Şehir"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     İlçe:
                   </span>
                   <input
@@ -980,19 +820,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.state || ''}
                     onChange={handleInputChange}
                     placeholder="İlçe/Bölge"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Posta Kodu:
                   </span>
                   <input
@@ -1001,33 +834,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.postalCode || ''}
                     onChange={handleInputChange}
                     placeholder="Posta kodu"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Ülke:
                   </span>
                   <select
                     name="country"
                     value={formData.country || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="Türkiye">Türkiye</option>
                     <option value="Almanya">Almanya</option>
@@ -1043,18 +862,13 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               </div>
 
               {/* Mali Bilgiler */}
-              <div style={{ 
-                padding: '12px', 
-                background: 'white', 
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+              <div className="supplier-section-card">
+                <h3 className="supplier-section-header">
                   Mali Bilgiler
                 </h3>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Vergi No:
                   </span>
                   <input
@@ -1063,19 +877,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.taxNumber || ''}
                     onChange={handleInputChange}
                     placeholder="Vergi numarası"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Vergi Dairesi:
                   </span>
                   <input
@@ -1084,33 +891,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.taxOffice || ''}
                     onChange={handleInputChange}
                     placeholder="Vergi dairesi"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Para Birimi:
                   </span>
                   <select
                     name="currency"
                     value={formData.currency || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="TRY">TRY</option>
                     <option value="USD">USD</option>
@@ -1119,8 +912,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Kredi Limiti:
                   </span>
                   <input
@@ -1131,33 +924,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     placeholder="Kredi limiti"
                     min="0"
                     step="0.01"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Kredi Notu:
                   </span>
                   <select
                     name="creditRating"
                     value={formData.creditRating || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="">Seçin</option>
                     <option value="A">A - Mükemmel</option>
@@ -1168,8 +947,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Yıllık Ciro:
                   </span>
                   <input
@@ -1179,48 +958,29 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     onChange={handleInputChange}
                     placeholder="Yıllık ciro"
                     min="0"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
               </div>
             </div>
 
             {/* Ödeme ve Operasyonel Bilgiler - Orta Bölüm */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div className="supplier-grid-2-mb">
               {/* Ödeme Bilgileri */}
-              <div style={{ 
-                padding: '12px', 
-                background: 'white', 
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+              <div className="supplier-section-card">
+                <h3 className="supplier-section-header">
                   Ödeme Bilgileri
                 </h3>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Ödeme Koşul:
                   </span>
                   <select
                     name="paymentTerms"
                     value={formData.paymentTerms || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="">Seçin</option>
                     <option value="Peşin">Peşin</option>
@@ -1233,22 +993,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Ödeme Yöntem:
                   </span>
                   <select
                     name="paymentMethod"
                     value={formData.paymentMethod || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="">Seçin</option>
                     <option value="bank_transfer">Havale/EFT</option>
@@ -1260,8 +1013,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Banka:
                   </span>
                   <input
@@ -1270,19 +1023,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.bankName || ''}
                     onChange={handleInputChange}
                     placeholder="Banka adı"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Hesap No:
                   </span>
                   <input
@@ -1291,19 +1037,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.bankAccount || ''}
                     onChange={handleInputChange}
                     placeholder="Hesap numarası"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     IBAN:
                   </span>
                   <input
@@ -1312,31 +1051,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.iban || ''}
                     onChange={handleInputChange}
                     placeholder="IBAN"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
               </div>
 
               {/* Operasyonel Bilgiler */}
-              <div style={{ 
-                padding: '12px', 
-                background: 'white', 
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+              <div className="supplier-section-card">
+                <h3 className="supplier-section-header">
                   Operasyonel Bilgiler
                 </h3>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Teslimat:
                   </span>
                   <input
@@ -1345,19 +1072,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.deliveryCapability || ''}
                     onChange={handleInputChange}
                     placeholder="Teslimat kapasitesi"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Tedarik Süresi:
                   </span>
                   <input
@@ -1367,19 +1087,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     onChange={handleInputChange}
                     placeholder="Tedarik süresi (gün)"
                     min="0"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Min. Sipariş:
                   </span>
                   <input
@@ -1388,33 +1101,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.minimumOrderQuantity || ''}
                     onChange={handleInputChange}
                     placeholder="Minimum sipariş miktarı"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-80">
                     Sertifika:
                   </span>
                   <select
                     name="qualityCertification"
                     value={formData.qualityCertification || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="">Seçin</option>
                     <option value="ISO_9001">ISO 9001</option>
@@ -1430,20 +1129,14 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Şirket Bilgileri - Alt Bölüm */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="supplier-section-card-mb">
+              <h3 className="supplier-section-header">
                 Şirket Bilgileri
               </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+              <div className="grid-4">
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-100">
                     Kuruluş Yılı:
                   </span>
                   <input
@@ -1454,33 +1147,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     placeholder="Kuruluş yılı"
                     min="1900"
                     max="2025"
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   />
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-100">
                     Çalışan Sayısı:
                   </span>
                   <select
                     name="employeeCount"
                     value={formData.employeeCount || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="">Seçin</option>
                     <option value="1-10">1-10 kişi</option>
@@ -1492,22 +1171,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-100">
                     Risk Seviyesi:
                   </span>
                   <select
                     name="riskLevel"
                     value={formData.riskLevel || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="low">Düşük Risk</option>
                     <option value="medium">Orta Risk</option>
@@ -1515,22 +1187,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-100">
                     Uyumluluk:
                   </span>
                   <select
                     name="complianceStatus"
                     value={formData.complianceStatus || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
+                    className="modal-input"
                   >
                     <option value="pending">Beklemede</option>
                     <option value="approved">Onaylandı</option>
@@ -1540,24 +1205,16 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 </div>
               </div>
               
-              <div style={{ marginTop: '8px' }}>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+              <div className="mt-8">
+                <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-100">
                     Durum:
                   </span>
                   <select
                     name="status"
                     value={formData.status || ''}
                     onChange={handleInputChange}
-                    style={{
-                      flex: 1,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white',
-                      maxWidth: '200px'
-                    }}
+                    className="modal-input-max200"
                   >
                     <option value="Aktif">Aktif</option>
                     <option value="Pasif">Pasif</option>
@@ -1569,32 +1226,18 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Tedarik Edilen Malzemeler */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="supplier-section-card-mb">
+              <h3 className="supplier-section-header">
                 Tedarik Edilen Malzemeler
               </h3>
 
               {/* Material Mode Toggle */}
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="mb-12">
+                <div className="flex-gap-8-mb-8">
                   <button
                     type="button"
                     onClick={handleOpenMaterialPopup}
-                    style={{
-                      padding: '6px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer'
-                    }}
+                    className="btn-outline-sm"
                   >
                     Mevcut Malzemelerden Ekle
                   </button>
@@ -1631,8 +1274,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               {/* New Material Mode */}
               {materialMode === 'new' && (
                 <div>
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Malzeme Adı:
                     </span>
                     <input
@@ -1641,33 +1284,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.name}
                       onChange={handleNewMaterialChange}
                       placeholder="Malzeme adını girin"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Tip:
                     </span>
                     <select
                       name="type"
                       value={newMaterial.type}
                       onChange={handleNewMaterialChange}
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     >
                       <option value="">Tip seçin</option>
                       {materialTypes.map(type => (
@@ -1676,22 +1305,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     </select>
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Kategori:
                     </span>
                     <select
                       name="category"
                       value={showNewCategory ? 'new-category' : newMaterial.category}
                       onChange={handleCategoryChange}
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     >
                       <option value="">Kategori seçin</option>
                       {materialCategories.map(category => (
@@ -1705,8 +1327,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
                   {/* Custom Category Input - Show when "new category" is selected */}
                   {showNewCategory && (
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                    <div className="detail-item" className="supplier-detail-row">
+                      <span className="detail-label" className="supplier-detail-label-100">
                         Yeni Kategori:
                       </span>
                       <input
@@ -1714,34 +1336,20 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         placeholder="Yeni kategori adını girin"
-                        style={{
-                          flex: 1,
-                          padding: '6px 8px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          background: 'white'
-                        }}
+                        className="modal-input"
                       />
                     </div>
                   )}
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Birim:
                     </span>
                     <select
                       name="unit"
                       value={newMaterial.unit}
                       onChange={handleNewMaterialChange}
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     >
                       <option value="">Birim seçin</option>
                       <option value="kg">Kilogram (kg)</option>
@@ -1757,8 +1365,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     </select>
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Kod:
                     </span>
                     <input
@@ -1767,19 +1375,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.code || nextMaterialCode}
                       onChange={handleNewMaterialChange}
                       placeholder={`Otomatik kod: ${nextMaterialCode}`}
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px', marginTop: '6px' }}>
+                  <div className="detail-item" className="supplier-detail-row-start">
+                    <span className="detail-label" className="supplier-detail-label-100-mt">
                       Açıklama:
                     </span>
                     <textarea
@@ -1788,20 +1389,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       onChange={handleNewMaterialChange}
                       placeholder="Malzeme açıklaması (opsiyonel)"
                       rows="2"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white',
-                        resize: 'vertical'
-                      }}
+                      className="modal-input-textarea"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Minimum Stok:
                     </span>
                     <input
@@ -1810,19 +1403,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.reorderPoint}
                       onChange={handleNewMaterialChange}
                       placeholder="Minimum stok seviyesi"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Mevcut Stok:
                     </span>
                     <input
@@ -1831,19 +1417,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.stockLevel}
                       onChange={handleNewMaterialChange}
                       placeholder="Şu anki stok miktarı"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Maliyet Fiyatı:
                     </span>
                     <input
@@ -1853,19 +1432,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.costPrice}
                       onChange={handleNewMaterialChange}
                       placeholder="Maliyet fiyatı (TRY)"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Satış Fiyatı:
                     </span>
                     <input
@@ -1875,52 +1447,30 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       value={newMaterial.sellPrice}
                       onChange={handleNewMaterialChange}
                       placeholder="Satış fiyatı (TRY)"
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     />
                   </div>
 
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="detail-item" className="supplier-detail-row">
+                    <span className="detail-label" className="supplier-detail-label-100">
                       Durum:
                     </span>
                     <select
                       name="status"
                       value={newMaterial.status}
                       onChange={handleNewMaterialChange}
-                      style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
+                      className="modal-input"
                     >
                       <option value="Aktif">Aktif</option>
                       <option value="Pasif">Pasif</option>
                     </select>
                   </div>
 
-                  <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                  <div className="text-right-mt-8">
                     <button
                       type="button"
                       onClick={handleAddNewMaterial}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#10b981',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-success-sm"
                     >
                       Malzeme Ekle
                     </button>
@@ -1930,46 +1480,26 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
               {/* Selected Materials */}
               {selectedMaterials.length > 0 && (
-                <div style={{ marginTop: '12px' }}>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
+                <div className="mt-12">
+                  <h4 className="section-title-sm">
                     Seçilen Malzemeler ({selectedMaterials.length})
                   </h4>
-                  <div style={{ 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px',
-                    maxHeight: '120px',
-                    overflowY: 'auto'
-                  }}>
+                  <div className="selected-materials-list">
                     {selectedMaterials.map(material => (
                       <div
                         key={material.id}
-                        style={{
-                          padding: '6px 12px',
-                          borderBottom: '1px solid #f3f4f6',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          fontSize: '12px'
-                        }}
+                        className="material-item-row"
                       >
                         <div>
-                          <div style={{ fontWeight: '600', color: '#111827' }}>{material.name}</div>
-                          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                          <div className="font-semibold-dark">{material.name}</div>
+                          <div className="text-muted-sm">
                             {getCategoryName(material.category)} • {material.unit}
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleMaterialRemove(material.id)}
-                          style={{
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            padding: '2px 6px',
-                            fontSize: '11px',
-                            cursor: 'pointer'
-                          }}
+                          className="btn-remove-sm"
                         >
                           Kaldır
                         </button>
@@ -1981,33 +1511,19 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Ek Bilgiler */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="supplier-section-card-mb">
+              <h3 className="supplier-section-header">
                 Ek Bilgiler
               </h3>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row-start">
                 <textarea
                   name="notes"
                   value={formData.notes || ''}
                   onChange={handleInputChange}
                   placeholder="Notlar ve açıklamalar"
                   rows="3"
-                  style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    background: 'white',
-                    resize: 'vertical'
-                  }}
+                  className="modal-input-textarea"
                 />
               </div>
             </div>
@@ -2018,89 +1534,42 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
     {/* Material Selection Popup */}
     {showMaterialPopup && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1001
-      }}>
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          padding: '20px',
-          maxWidth: '600px',
-          maxHeight: '80vh',
-          width: '90%',
-          overflowY: 'auto',
-          position: 'relative'
-        }}>
+      <div className="popup-overlay">
+        <div className="popup-content">
           {/* Popup Header */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '16px',
-            borderBottom: '1px solid #e5e7eb',
-            paddingBottom: '12px'
-          }}>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+          <div className="popup-header">
+            <h3 className="supplier-section-title-lg">
               Mevcut Malzemelerden Seç
             </h3>
             <button
               type="button"
               onClick={() => setShowMaterialPopup(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '20px',
-                cursor: 'pointer',
-                color: '#6b7280',
-                padding: '4px'
-              }}
+              className="popup-close-btn"
             >
               ×
             </button>
           </div>
 
           {/* Search Input */}
-          <div style={{ marginBottom: '12px' }}>
+          <div className="mb-12">
             <input
               type="text"
               value={materialSearchTerm}
               onChange={(e) => setMaterialSearchTerm(e.target.value)}
               placeholder="Malzeme adı, kodu veya kategorisi ile ara..."
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '14px',
-                background: 'white'
-              }}
+              className="search-input-lg"
             />
           </div>
 
           {/* Materials List */}
           {materialsLoading ? (
-            <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+            <div className="empty-state-content">
               Malzemeler yükleniyor...
             </div>
           ) : (
-            <div style={{ 
-              maxHeight: '400px', 
-              overflowY: 'auto', 
-              border: '1px solid #e5e7eb', 
-              borderRadius: '4px',
-              marginBottom: '16px'
-            }}>
+            <div className="scrollable-list">
               {filteredMaterials.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                <div className="empty-state-content">
                   {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Henüz malzeme bulunmuyor'}
                 </div>
               ) : (
@@ -2127,13 +1596,13 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                       }
                     }}
                   >
-                    <div style={{ fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                    <div className="label-bold-mb">
                       {material.name}
                       {selectedMaterials.find(m => m.id === material.id) && (
-                        <span style={{ color: '#10b981', marginLeft: '8px' }}>✓ Seçildi</span>
+                        <span className="text-success-ml">✓ Seçildi</span>
                       )}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                    <div className="text-muted-xs">
                       {material.code && `Kod: ${material.code} • `}
                       {material.category && `Kategori: ${getCategoryName(material.category)} • `}
                       {material.unit && `Birim: ${material.unit}`}
@@ -2146,57 +1615,29 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
           {/* Selected Materials Summary */}
           {selectedMaterials.length > 0 && (
-            <div style={{
-              background: '#f0f9ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: '4px',
-              padding: '12px',
-              marginBottom: '16px'
-            }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e40af', marginBottom: '8px' }}>
+            <div className="selected-summary-box">
+              <div className="text-blue-title">
                 Seçilen Malzemeler ({selectedMaterials.length})
               </div>
-              <div style={{ fontSize: '12px', color: '#1e40af' }}>
+              <div className="text-link-blue">
                 {selectedMaterials.map(m => m.name).join(', ')}
               </div>
             </div>
           )}
 
           {/* Popup Footer */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '8px',
-            borderTop: '1px solid #e5e7eb',
-            paddingTop: '12px'
-          }}>
+          <div className="popup-footer">
             <button
               type="button"
               onClick={() => setShowMaterialPopup(false)}
-              style={{
-                padding: '8px 16px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '14px',
-                background: 'white',
-                color: '#374151',
-                cursor: 'pointer'
-              }}
+              className="btn-cancel-sm"
             >
               İptal
             </button>
             <button
               type="button"
               onClick={() => setShowMaterialPopup(false)}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '14px',
-                background: '#3b82f6',
-                color: 'white',
-                cursor: 'pointer'
-              }}
+              className="btn-primary-sm"
             >
               Seçimi Tamamla ({selectedMaterials.length})
             </button>

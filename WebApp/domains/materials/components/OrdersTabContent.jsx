@@ -172,29 +172,12 @@ function OrdersTable({
     const config = emptyStateConfig[variant] || emptyStateConfig.pending
 
     return (
-      <div style={{
-        textAlign: 'center',
-        padding: '40px 20px',
-        color: '#6b7280'
-      }}>
-        <div style={{
-          fontSize: '48px',
-          marginBottom: '16px',
-          opacity: 0.5
-        }}>{config.icon}</div>
-        <h3 style={{
-          margin: '0 0 8px 0',
-          fontSize: '18px',
-          fontWeight: '600',
-          color: '#374151'
-        }}>
+      <div className="orders-empty-state-container">
+        <div className="orders-empty-icon">{config.icon}</div>
+        <h3 className="orders-empty-title">
           {config.title}
         </h3>
-        <p style={{
-          margin: '0',
-          fontSize: '14px',
-          color: '#6b7280'
-        }}>
+        <p className="orders-empty-message">
           {config.message}
         </p>
       </div>
@@ -230,16 +213,7 @@ function OrdersTable({
 
 
   const renderLineChips = (items = []) => (
-    <div style={{
-      display: 'inline-flex',
-      flexWrap: 'nowrap',
-      gap: '8px',
-      alignItems: 'flex-start',
-      whiteSpace: 'nowrap',
-      overflowX: 'auto',
-      maxWidth: '100%',
-      WebkitOverflowScrolling: 'touch'
-    }}>
+    <div className="line-chips-container">
       {items.map((item, index) => {
         // Format quantity - show decimal only if needed
         const qty = parseFloat(item.quantity || 0);
@@ -248,42 +222,21 @@ function OrdersTable({
         return (
           <div
             key={item.id || item.lineId || index}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              background: '#fff',
-              padding: '2px 4px',
-              fontSize: '11px',
-              color: '#475569',
-              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
-            }}
+            className="line-chip"
           >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>
+            <span className="line-chip-code">
               {item.item_code || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
             </span>
-            <span style={{ color: '#d1d5db' }}>|</span>
-            <span style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '10px', color: '#6b7280' }}>
+            <span className="text-border">|</span>
+            <span className="line-chip-material">
               {item.materialCode || '—'}
             </span>
-            <span style={{ color: '#d1d5db' }}>|</span>
-            <span style={{ fontWeight: 600 }}>
+            <span className="text-border">|</span>
+            <span className="line-chip-qty">
               {formattedQty} {item.unit || 'adet'}
             </span>
-            <span style={{ color: '#d1d5db' }}>|</span>
-            <span
-              style={{
-                fontSize: '9px',
-                fontWeight: 600,
-                color: '#0f172a',
-                background: '#e2e8f0',
-                padding: '1px 6px',
-                borderRadius: '999px',
-                whiteSpace: 'nowrap'
-              }}
-            >
+            <span className="text-border">|</span>
+            <span className="line-chip-status">
               {item.itemStatus || 'Onay Bekliyor'}
             </span>
           </div>
@@ -327,20 +280,20 @@ function OrdersTable({
       </div>
 
       {/* Table Container - Always visible */}
-      <div className="table-container" style={{ width: '100%' }}>
-        <table style={{ tableLayout: 'fixed', width: '100%' }}>
+      <div className="table-container w-full">
+        <table className="table-fixed-layout">
           <colgroup>{[
-            <col key="sel" style={{ width: '40px' }} />,
-            <col key="code" style={{ width: '120px' }} />,
-            <col key="supplier" style={{ width: '220px' }} />,
-              ...(variant !== 'completed' ? [<col key="delivery" style={{ width: '180px' }} />] : []),
-              <col key="items" style={{ width: 'auto' }} />,
-              <col key="total" style={{ width: '120px' }} />,
-              ...(variant !== 'completed' ? [<col key="status" style={{ width: '80px' }} />] : [])
+            <col key="sel" className="col-w-40" />,
+            <col key="code" className="col-w-120" />,
+            <col key="supplier" className="col-w-220" />,
+              ...(variant !== 'completed' ? [<col key="delivery" className="col-w-180" />] : []),
+              <col key="items" />,
+              <col key="total" className="col-w-120" />,
+              ...(variant !== 'completed' ? [<col key="status" className="col-w-80-nowrap" />] : [])
             ]}</colgroup>
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
+                <th className="col-w-40-center">
                   <input
                     type="checkbox"
                     onChange={(e) => {
@@ -351,40 +304,40 @@ function OrdersTable({
                     checked={Array.isArray(orders) && orders.length > 0 && orders.every(o => selectedOrderIds?.has?.(o.id))}
                   />
                 </th>
-                <th style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                <th className="col-w-120-nowrap">
                   <button type="button" onClick={() => handleSort('orderCode')} className="mes-sort-button">
                     Sipariş Kodu
                     <span className="mes-sort-icon">{getSortIndicator('orderCode')}</span>
                   </button>
                 </th>
-                <th style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
+                <th className="col-w-220">
                   <button type="button" onClick={() => handleSort('supplier')} className="mes-sort-button">
                     Tedarikçi
                     <span className="mes-sort-icon">{getSortIndicator('supplier')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '140px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
+                  <th className="col-w-140-180">
                     <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                       Teslimat Durumu
                       <span className="mes-sort-icon">{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
-                <th style={{ minWidth: '220px', whiteSpace: 'nowrap' }}>
+                <th className="col-w-220-nowrap">
                   <button type="button" onClick={() => handleSort('items')} className="mes-sort-button">
                     Sipariş Satırları
                     <span className="mes-sort-icon">{getSortIndicator('items')}</span>
                   </button>
                 </th>
-                <th style={{ width: '120px', minWidth: '90px', maxWidth: '120px', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                <th className="col-w-120-left">
                   <button type="button" onClick={() => handleSort('total')} className="mes-sort-button">
                     Tutar
                     <span className="mes-sort-icon">{getSortIndicator('total')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '80px', maxWidth: '80px', whiteSpace: 'nowrap' }}>
+                  <th className="col-w-80-nowrap">
                     <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                       Durum
                       <span className="mes-sort-icon">{getSortIndicator('status')}</span>
@@ -397,19 +350,10 @@ function OrdersTable({
               {/* Loading state */}
               {loading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px 20px',
-                    color: '#6b7280'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px'
-                    }}>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} className="table-state-cell">
+                    <div className="table-state-container">
                       <div className="spinner"></div>
-                      <p style={{ margin: 0, fontSize: '14px' }}>Siparişler yükleniyor...</p>
+                      <p className="text-subtitle">Siparişler yükleniyor...</p>
                     </div>
                   </td>
                 </tr>
@@ -418,22 +362,13 @@ function OrdersTable({
               {/* Error state */}
               {!loading && error && orders.length === 0 && (
                 <tr>
-                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px 20px'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px',
-                      color: '#dc2626'
-                    }}>
-                      <div style={{ fontSize: '48px', opacity: 0.5 }}>⚠️</div>
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} className="table-state-cell">
+                    <div className="table-state-container error">
+                      <div className="empty-state-icon">⚠️</div>
+                      <h3 className="title-lg">
                         Bağlantı Problemi
                       </h3>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                      <p className="text-sm-muted">
                         {error.includes('timeout') ? 
                           'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
                           `Siparişler yüklenirken hata oluştu: ${error}`
@@ -441,16 +376,7 @@ function OrdersTable({
                       </p>
                       <button 
                         onClick={() => window.location.reload()} 
-                        style={{
-                          marginTop: '8px',
-                          padding: '8px 16px',
-                          fontSize: '14px',
-                          backgroundColor: '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
+                        className="btn-reload"
                       >
                         Sayfayı Yenile
                       </button>
@@ -486,7 +412,7 @@ function OrdersTable({
                     className="mes-table-row"
                     onClick={() => onOrderClick && onOrderClick(order)}
                   >
-                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <td className="text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedOrderIds?.has?.(order.id) || false}
@@ -494,17 +420,17 @@ function OrdersTable({
                         onClick={(e) => e.stopPropagation()}
                       />
                     </td>
-                    <td style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                    <td className="col-w-120-nowrap">
                       <span className="mes-code-text">{order.orderCode || order.id}</span>
                     </td>
-                    <td style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
+                    <td className="col-w-220">
                       <span className="mes-code-text">{order.supplierCode || order.supplierId || ''}</span>
                       {(order.supplierCode || order.supplierId) && (order.supplierName) ? ' / ' : ''}
                       {order.supplierName || ''}
                     </td>
                     {variant !== 'completed' && (
-                      <td style={{ width: '180px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 600 }}>
+                      <td className="td-delivery">
+                        <div className="delivery-info">
                           {(() => {
                             // Debug: Order fields'ları kontrol et
                             console.log('🚚 Delivery debug for order:', order.id, {
@@ -543,14 +469,13 @@ function OrdersTable({
                             console.log('🚚 Final delivery status:', status, 'days:', daysRemaining)
 
                             return (
-                              <span style={{
-                                padding: '4px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                backgroundColor: getDeliveryStatusColor(status).bg,
-                                color: getDeliveryStatusColor(status).text
-                              }}>
+                              <span 
+                                className="delivery-status-badge-sm"
+                                style={{
+                                  backgroundColor: getDeliveryStatusColor(status).bg,
+                                  color: getDeliveryStatusColor(status).text
+                                }}
+                              >
                                 {getDeliveryStatusText(status, daysRemaining)}
                               </span>
                             )
@@ -558,16 +483,16 @@ function OrdersTable({
                         </div>
                       </td>
                     )}
-                    <td className="no-ellipsis" style={{ paddingTop: '4px', paddingBottom: '4px' }}>
+                    <td className="no-ellipsis td-py-4">
                       {items.length > 0 ? renderLineChips(items) : (
-                        <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Sipariş satırı yok</span>
+                        <span className="text-no-items">Sipariş satırı yok</span>
                       )}
                     </td>
-                    <td style={{ width: '120px', textAlign: 'left', fontWeight: 600, paddingTop: '4px', paddingBottom: '4px' }}>
+                    <td className="td-total">
                       {formatCurrency(relevantTotal || order.totalAmount)}
                     </td>
                     {variant !== 'completed' && (
-                      <td style={{ width: '80px', maxWidth: '80px', paddingTop: '4px', paddingBottom: '4px', whiteSpace: 'nowrap' }}>
+                      <td className="td-status">
                         {onUpdateOrderStatus ? (
                           <select
                             value={order.orderStatus}
@@ -591,16 +516,8 @@ function OrdersTable({
                                 console.log('    - values different:', e.target.value !== order.orderStatus)
                               }
                             }}
-                            style={{
-                              padding: '6px 10px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              border: '1px solid rgba(148, 163, 184, 0.6)',
-                              borderRadius: '10px',
-                              background: getStatusColor(order.orderStatus),
-                              color: '#fff',
-                              cursor: 'pointer'
-                            }}
+                            className="order-status-dropdown"
+                            style={{ background: getStatusColor(order.orderStatus) }}
                           >
                             {/* Note: "Teslim Edildi" removed from order-level dropdown - use item-level delivery for lot tracking */}
                             {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'İptal Edildi'].map(status => (
@@ -609,15 +526,8 @@ function OrdersTable({
                           </select>
                         ) : (
                           <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '4px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              color: 'white',
-                              backgroundColor: getStatusColor(order.orderStatus)
-                            }}
+                            className="order-status-span"
+                            style={{ backgroundColor: getStatusColor(order.orderStatus) }}
                           >
                             {order.orderStatus}
                           </span>
@@ -631,7 +541,7 @@ function OrdersTable({
               {/* Empty state */}
               {!loading && !error && visibleOrders && visibleOrders.length === 0 && (
                 <tr>
-                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ padding: 0, border: 'none' }}>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} className="p-0 border-none">
                     <EmptyState 
                       variant={variant} 
                       hasNoOrdersAtAll={false}
@@ -2314,66 +2224,38 @@ export default function OrdersTabContent() {
         {/* Right Panel - Order Details */}
         {selectedOrder && (
           <div className="order-detail-panel">
-            <div style={{
-              background: 'white',
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
+            <div className="order-detail-card">
               {/* Header */}
-              <div style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid #e5e7eb',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="order-detail-header">
+                <div className="flex-center-gap-12">
                   <button
                     onClick={handleCloseOrderDetail}
-                    style={{
-                      padding: '6px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
+                    className="btn-back-sm"
                     title="Detayları Kapat"
                   >
                     <ArrowLeft size={14} />
                   </button>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                  <h3 className="supplier-section-title-lg">
                     Sipariş Detayı
                   </h3>
                 </div>
               </div>
 
               {/* Content - Scrollable */}
-              <div className="order-detail-content" style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+              <div className="order-detail-content panel-content">
                 
                 {/* Sipariş Bilgileri */}
-                <div style={{ 
-                  marginBottom: '12px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e7e5e4',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '16px', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e7e5e4' }}>
+                <div className="order-info-section">
+                  <div className="order-info-grid-header">
                     <div>
-                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>SİPARİŞ KODU</div>
-                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
+                      <div className="form-label-muted">SİPARİŞ KODU</div>
+                      <div className="text-title-dark">
                         {selectedOrder.orderCode || selectedOrder.id}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>TEDARİKÇİ</div>
-                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
+                      <div className="form-label-muted">TEDARİKÇİ</div>
+                      <div className="text-title-dark">
                         {selectedOrder.supplierName}
                       </div>
                     </div>
@@ -2381,16 +2263,7 @@ export default function OrdersTabContent() {
                       value={selectedOrder.orderStatus || 'Onay Bekliyor'}
                       disabled={selectedOrderLoading || actionLoading}
                       onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        border: '1px solid #e7e5e4',
-                        borderRadius: '4px',
-                        background: 'white',
-                        color: '#0c0a09',
-                        cursor: 'pointer'
-                      }}
+                      className="order-status-select-sm"
                     >
                       {ORDER_STATUS_OPTIONS.map(status => (
                         <option key={status} value={status}>{status}</option>
@@ -2398,22 +2271,22 @@ export default function OrdersTabContent() {
                     </select>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <div className="order-info-grid-3">
                     <div>
-                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Oluşturulma</div>
-                      <div style={{ fontSize: '13px', color: '#0c0a09', fontWeight: '500' }}>
+                      <div className="form-label-muted">Oluşturulma</div>
+                      <div className="text-dark-medium">
                         {selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '-'}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Tahmini Teslim</div>
-                      <div style={{ fontSize: '13px', color: '#0c0a09', fontWeight: '500' }}>
+                      <div className="form-label-muted">Tahmini Teslim</div>
+                      <div className="text-dark-medium">
                         {selectedOrder.expectedDeliveryDate ? (new Date(selectedOrder.expectedDeliveryDate)).toLocaleDateString('tr-TR') : '-'}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Toplam Tutar</div>
-                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
+                      <div className="form-label-muted">Toplam Tutar</div>
+                      <div className="text-title-dark">
                         {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: selectedOrder.currency || 'TRY' }).format(selectedOrder.totalAmount || 0)}
                       </div>
                     </div>
@@ -2421,15 +2294,9 @@ export default function OrdersTabContent() {
                 </div>
 
                 {/* Teslimat & Not */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e7e5e4',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                  }}>
-                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase' }}>Teslimat Durumu</div>
+                <div className="order-info-grid-2">
+                  <div className="order-info-section">
+                    <div className="form-label-uppercase">Teslimat Durumu</div>
                     {(() => {
                       const today = new Date()
                       const deliveryDate = selectedOrder.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate) : null
@@ -2445,46 +2312,31 @@ export default function OrdersTabContent() {
                         else status = 'zamanında'
                       }
                       return (
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          backgroundColor: getDeliveryStatusColor(status).bg,
-                          color: getDeliveryStatusColor(status).text,
-                          display: 'inline-block'
-                        }}>
+                        <span 
+                          className="delivery-status-badge"
+                          style={{
+                            backgroundColor: getDeliveryStatusColor(status).bg,
+                            color: getDeliveryStatusColor(status).text
+                          }}
+                        >
                           {getDeliveryStatusText(status, daysRemaining)}
                         </span>
                       )
                     })()}
                   </div>
                   
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e7e5e4',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                  }}>
-                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase' }}>Not / Referans</div>
-                    <div style={{ fontSize: '12px', color: '#0c0a09', lineHeight: '1.5' }}>
+                  <div className="order-info-section">
+                    <div className="form-label-uppercase">Not / Referans</div>
+                    <div className="text-note-content">
                       {selectedOrder.notes || '-'}
                     </div>
                   </div>
                 </div>
 
                 {/* Tedarikçi Bilgileri */}
-                <div style={{ 
-                  marginBottom: '12px',
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e7e5e4',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', textTransform: 'uppercase' }}>Tedarikçi Bilgileri</div>
+                <div className="order-info-section">
+                  <div className="supplier-header-flex">
+                    <div className="section-label-uppercase">Tedarikçi Bilgileri</div>
                     <button
                       type="button"
                       onClick={() => {
@@ -2493,71 +2345,55 @@ export default function OrdersTabContent() {
                         const url = `materials.html#suppliers-tab&supplier-${encodeURIComponent(supplierId)}`
                         window.open(url, '_blank')
                       }}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid #e7e5e4',
-                        borderRadius: '4px',
-                        background: 'white',
-                        color: '#0c0a09',
-                        fontSize: '11px',
-                        fontWeight: '500',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-detail-link"
                     >
                       Detaya Git ↗
                     </button>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#78716c', fontWeight: '500' }}>Tedarikçi Kodu:</span>
-                      <span style={{ color: '#0c0a09', fontWeight: '600' }}>
+                  <div className="supplier-info-row">
+                    <div className="flex-center-gap-8">
+                      <span className="text-muted-medium">Tedarikçi Kodu:</span>
+                      <span className="text-dark-bold">
                         {selectedOrder.supplierId ? `T-${String(selectedOrder.supplierId).padStart(4, '0')}` : '-'}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#78716c', fontWeight: '500' }}>Tedarikçi Adı:</span>
-                      <span style={{ color: '#0c0a09', fontWeight: '600' }}>{selectedOrder.supplierName || '-'}</span>
+                    <div className="flex-center-gap-8">
+                      <span className="text-muted-medium">Tedarikçi Adı:</span>
+                      <span className="text-dark-bold">{selectedOrder.supplierName || '-'}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Sipariş Satırları */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e7e5e4',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '12px', textTransform: 'uppercase' }}>
+                <div className="order-info-section">
+                  <div className="section-label-uppercase-mb">
                     Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.item_count || 0})
                   </div>
                 {selectedOrderLoading ? (
-                  <p style={{ padding: '12px 0', color: '#6b7280' }}>Satırlar yükleniyor...</p>
+                  <p className="text-loading-gray">Satırlar yükleniyor...</p>
                 ) : selectedOrderError ? (
-                  <p style={{ color: '#dc2626', padding: '12px 0' }}>Satırlar yüklenemedi: {selectedOrderError}</p>
+                  <p className="text-error-red">Satırlar yüklenemedi: {selectedOrderError}</p>
                 ) : (selectedOrder.items && selectedOrder.items.length > 0) ? (
-                  <div className="table-container" style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <div className="table-container table-overflow-auto">
+                    <table className="table-full-collapse">
                       <thead>
                         <tr>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="supplier-th-bg">
                             Satır Kodu
                           </th>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="supplier-th-bg">
                             Malzeme Kodu
                           </th>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="supplier-th-bg">
                             Malzeme Adı
                           </th>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="supplier-th-bg">
                             Miktar
                           </th>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="supplier-th-bg">
                             Durum
                           </th>
-                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                          <th className="th-action-header">
                             İşlemler
                           </th>
                         </tr>
@@ -2578,28 +2414,28 @@ export default function OrdersTabContent() {
                               isUpdating: isItemUpdating
                             });
                             return (
-                              <tr key={itemId} style={{ background: '#fff' }}>
-                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                              <tr key={itemId} className="order-table-row">
+                                <td className="supplier-td-row">
                                   {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
                                 </td>
-                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                <td className="supplier-td-row">
                                   {item.materialCode || '—'}
                                 </td>
-                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                <td className="supplier-td-row">
                                   {item.materialName || '-'}
                                 </td>
-                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                <td className="supplier-td-row">
                                   {(() => {
                                     const qty = parseFloat(item.quantity) || 0;
                                     return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
                                   })()} {item.unit || 'adet'}
                                 </td>
-                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
-                                  <span style={{ fontSize: '10px', fontWeight: 600, color: '#0f172a', background: '#e2e8f0', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                <td className="supplier-td-row">
+                                  <span className="item-status-badge">
                                     {currentStatus}
                                   </span>
                                 </td>
-                                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                <td className="td-action-cell">
                                   <select
                                     value={currentStatus}
                                     disabled={isItemUpdating}
@@ -2639,7 +2475,7 @@ export default function OrdersTabContent() {
                     </table>
                   </div>
                 ) : (
-                  <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>
+                  <p className="text-muted-italic-only">Bu sipariş için kayıtlı kalem bulunamadı.</p>
                 )}
               </div>
             </div>
@@ -2679,50 +2515,30 @@ export default function OrdersTabContent() {
       {/* 📦 LOT TRACKING: Delivery Modal */}
       {deliveryModalOpen && deliveryModalItem && (
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999
-          }}
+          className="modal-overlay-center"
           onClick={() => !deliveryLoading && setDeliveryModalOpen(false)}
         >
           <div
-            style={{
-              background: 'white',
-              borderRadius: '8px',
-              padding: '24px',
-              maxWidth: '500px',
-              width: '90%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-            }}
+            className="modal-box"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px' }}>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+            <div className="modal-header-section">
+              <h2 className="modal-title">
                 📦 Malzeme Teslim Al
               </h2>
-              <div style={{ fontSize: '13px', color: '#6b7280' }}>
+              <div className="modal-subtitle">
                 <div><strong>Malzeme:</strong> {deliveryModalItem.item.materialName} ({deliveryModalItem.item.materialCode})</div>
                 <div><strong>Miktar:</strong> {(() => { const qty = parseFloat(deliveryModalItem.item.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {deliveryModalItem.item.unit || 'adet'}</div>
               </div>
             </div>
             
             {/* Form Fields */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="modal-form-fields">
               {/* Delivery Date */}
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Teslim Tarihi <span style={{ color: '#dc2626' }}>*</span>
+                <label className="supplier-label-block-sm">
+                  Teslim Tarihi <span className="text-required">*</span>
                 </label>
                 <input
                   type="date"
@@ -2732,7 +2548,7 @@ export default function OrdersTabContent() {
                   max={getLocalDateString()}
                   required
                   disabled={deliveryLoading}
-                  style={{ width: '100%' }}
+                  className="w-full"
                 />
               </div>
               
@@ -2741,8 +2557,8 @@ export default function OrdersTabContent() {
                 <>
                   {/* Supplier Lot Code */}
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                      Tedarikçi Lot/Batch Kodu <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    <label className="supplier-label-block-sm">
+                      Tedarikçi Lot/Batch Kodu <span className="text-xs-muted">(opsiyonel)</span>
                     </label>
                     <input
                       type="text"
@@ -2752,14 +2568,14 @@ export default function OrdersTabContent() {
                       onChange={(e) => setDeliveryFormData(prev => ({ ...prev, supplierLotCode: e.target.value }))}
                       maxLength={100}
                       disabled={deliveryLoading}
-                      style={{ width: '100%' }}
+                      className="w-full"
                     />
                   </div>
                   
                   {/* Manufacturing Date */}
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                      Üretim Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    <label className="supplier-label-block-sm">
+                      Üretim Tarihi <span className="text-xs-muted">(opsiyonel)</span>
                     </label>
                     <input
                       type="date"
@@ -2768,17 +2584,17 @@ export default function OrdersTabContent() {
                       onChange={(e) => setDeliveryFormData(prev => ({ ...prev, manufacturingDate: e.target.value }))}
                       max={getLocalDateString()}
                       disabled={deliveryLoading}
-                      style={{ width: '100%' }}
+                      className="w-full"
                     />
-                    <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                    <small className="text-hint-block">
                       Üretim tarihi bugünden ileri olamaz
                     </small>
                   </div>
                   
                   {/* Expiry Date */}
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                      Son Kullanma Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    <label className="supplier-label-block-sm">
+                      Son Kullanma Tarihi <span className="text-xs-muted">(opsiyonel)</span>
                     </label>
                     <input
                       type="date"
@@ -2787,52 +2603,44 @@ export default function OrdersTabContent() {
                       onChange={(e) => setDeliveryFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
                       min={getTomorrowDateString()}
                       disabled={deliveryLoading}
-                      style={{ width: '100%' }}
+                      className="w-full"
                     />
-                    <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                    <small className="text-hint-block">
                       Son kullanma tarihi bugünden sonra olmalıdır
                     </small>
                   </div>
                   
                   {/* Info Message */}
-                  <div style={{
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    fontSize: '12px',
-                    color: '#1e40af'
-                  }}>
+                  <div className="modal-info-box">
                     <strong>ℹ️ Bilgi:</strong> Lot numarası otomatik olarak oluşturulacaktır.<br />
-                    Format: <code style={{ background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
+                    Format: <code className="modal-info-code">LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
                   </div>
                 </>
               )}
               
               {/* Notes - Always visible */}
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Notlar <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                <label className="supplier-label-block-sm">
+                  Notlar <span className="text-xs-muted">(opsiyonel)</span>
                 </label>
                 <textarea
-                  className="mes-filter-input"
+                  className="mes-filter-input w-full textarea-resize-v"
                   placeholder="Teslimata dair ek notlar..."
                   value={deliveryFormData.notes}
                   onChange={(e) => setDeliveryFormData(prev => ({ ...prev, notes: e.target.value }))}
                   rows={3}
                   disabled={deliveryLoading}
-                  style={{ width: '100%', resize: 'vertical' }}
                 />
               </div>
             </div>
             
             {/* Action Buttons */}
-            <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+            <div className="modal-actions-footer">
               <button
                 className="mes-filter-button"
                 onClick={() => setDeliveryModalOpen(false)}
                 disabled={deliveryLoading}
-                style={{ padding: '8px 16px' }}
+                className="px-16-py-8"
               >
                 İptal
               </button>
@@ -2840,7 +2648,7 @@ export default function OrdersTabContent() {
                 className="mes-primary-action"
                 onClick={handleDeliverItem}
                 disabled={deliveryLoading || !deliveryFormData.actualDeliveryDate}
-                style={{ padding: '8px 16px' }}
+                className="px-16-py-8"
               >
                 {deliveryLoading ? '⏳ Kaydediliyor...' : '✅ Teslimi Kaydet'}
               </button>

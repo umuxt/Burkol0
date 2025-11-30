@@ -204,65 +204,31 @@ export default function AddMaterialModal({
 
   if (!isOpen) return null;
 
-  const inputStyle = {
-    flex: 1,
-    padding: '6px 8px',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    fontSize: '12px',
-    background: 'white'
-  };
-
-  const labelStyle = {
-    fontWeight: '600',
-    fontSize: '12px',
-    color: '#374151',
-    minWidth: '100px',
-    marginRight: '8px'
-  };
-
-  const sectionStyle = {
-    marginBottom: '16px',
-    padding: '12px',
-    background: 'white',
-    borderRadius: '6px',
-    border: '1px solid #e5e7eb'
-  };
-
-  const sectionTitleStyle = {
-    margin: '0 0 12px 0',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#111827',
-    borderBottom: '1px solid #e5e7eb',
-    paddingBottom: '6px'
-  };
-
   const formContent = (
     <form id="add-material-form" onSubmit={handleSubmit}>
       {/* Temel Malzeme Bilgileri */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Temel Malzeme Bilgileri</h3>
+      <div className="modal-section">
+        <h3 className="modal-section-title">Temel Malzeme Bilgileri</h3>
         
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={labelStyle}>Malzeme Kodu:</span>
-          <div style={{ flex: 1 }}>
+        <div className="supplier-detail-row">
+          <span className="modal-label">Malzeme Kodu:</span>
+          <div className="flex-1">
             <input
               type="text"
               name="code"
               value={formData.code || ''}
               onChange={handleInputChange}
               placeholder={nextCode}
-              style={inputStyle}
+              className="modal-input"
             />
-            <small style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginTop: '2px' }}>
+            <small className="text-hint-xs-block">
               Boş bırakılırsa otomatik olarak {nextCode} atanacak
             </small>
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={labelStyle}>Malzeme Adı *:</span>
+        <div className="supplier-detail-row">
+          <span className="modal-label">Malzeme Adı *:</span>
           <input
             type="text"
             name="name"
@@ -270,18 +236,18 @@ export default function AddMaterialModal({
             onChange={handleInputChange}
             placeholder="Malzeme adını girin"
             required
-            style={inputStyle}
+            className="modal-input"
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={labelStyle}>Tip *:</span>
+        <div className="supplier-detail-row">
+          <span className="modal-label">Tip *:</span>
           <select
             name="type"
             value={formData.type}
             onChange={handleInputChange}
             required
-            style={inputStyle}
+            className="modal-input"
           >
             <option value="">Tip seçin</option>
             {types.map(type => (
@@ -290,16 +256,16 @@ export default function AddMaterialModal({
           </select>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={labelStyle}>
+        <div className="supplier-detail-row">
+          <span className="modal-label">
             Kategori {['processed', 'scrap'].includes(formData.type) ? '' : '*'}:
           </span>
-          <div style={{ flex: 1 }}>
+          <div className="flex-1">
             <select
               value={showNewCategory ? 'new-category' : formData.category}
               onChange={handleCategoryChange}
               required={!['processed', 'scrap'].includes(formData.type)}
-              style={inputStyle}
+              className="modal-input"
             >
               <option value="">Kategori seçin</option>
               {categories.map(cat => (
@@ -315,20 +281,20 @@ export default function AddMaterialModal({
                 onChange={(e) => setNewCategory(e.target.value)}
                 placeholder="Yeni kategori adı"
                 required
-                style={{ ...inputStyle, marginTop: '6px' }}
+                className="modal-input-mt"
               />
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={labelStyle}>Birim *:</span>
+        <div className="supplier-detail-row">
+          <span className="modal-label">Birim *:</span>
           <select
             name="unit"
             value={formData.unit}
             onChange={handleInputChange}
             required
-            style={inputStyle}
+            className="modal-input"
           >
             <option value="">Birim seçin</option>
             <option value="kg">kg</option>
@@ -342,13 +308,13 @@ export default function AddMaterialModal({
       </div>
 
       {/* Stok ve Fiyat Bilgileri */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+      <div className="supplier-grid-2-mb">
         {/* Stok Bilgileri */}
-        <div style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>Stok Bilgileri</h3>
+        <div className="modal-section">
+          <h3 className="modal-section-title">Stok Bilgileri</h3>
           
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Stok Miktarı *:</span>
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Stok Miktarı *:</span>
             <input
               type="text"
               name="stock"
@@ -358,12 +324,12 @@ export default function AddMaterialModal({
               inputMode="decimal"
               pattern="[0-9]*\.?[0-9]*"
               required
-              style={inputStyle}
+              className="modal-input"
             />
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Reorder Point *:</span>
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Reorder Point *:</span>
             <input
               type="text"
               name="reorderPoint"
@@ -373,17 +339,17 @@ export default function AddMaterialModal({
               inputMode="decimal"
               pattern="[0-9]*\.?[0-9]*"
               required
-              style={inputStyle}
+              className="modal-input"
             />
           </div>
         </div>
 
         {/* Fiyat Bilgileri */}
-        <div style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>Fiyat Bilgileri</h3>
+        <div className="modal-section">
+          <h3 className="modal-section-title">Fiyat Bilgileri</h3>
           
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Maliyet Fiyatı:</span>
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Maliyet Fiyatı:</span>
             <input
               type="text"
               name="costPrice"
@@ -392,12 +358,12 @@ export default function AddMaterialModal({
               placeholder="0.00"
               inputMode="decimal"
               pattern="[0-9]*\.?[0-9]*"
-              style={inputStyle}
+              className="modal-input"
             />
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Satış Fiyatı:</span>
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Satış Fiyatı:</span>
             <input
               type="text"
               name="sellPrice"
@@ -406,24 +372,24 @@ export default function AddMaterialModal({
               placeholder="0.00"
               inputMode="decimal"
               pattern="[0-9]*\.?[0-9]*"
-              style={inputStyle}
+              className="modal-input"
             />
           </div>
         </div>
       </div>
 
       {/* Ek Bilgiler */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Ek Bilgiler</h3>
+      <div className="modal-section">
+        <h3 className="modal-section-title">Ek Bilgiler</h3>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Tedarikçi:</span>
+        <div className="supplier-grid-2">
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Tedarikçi:</span>
             <select
               name="supplier"
               value={formData.supplier}
               onChange={handleInputChange}
-              style={inputStyle}
+              className="modal-input"
             >
               <option value="">Tedarikçi seçin</option>
               {suppliers.map(supplier => (
@@ -434,13 +400,13 @@ export default function AddMaterialModal({
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ ...labelStyle, minWidth: '80px' }}>Durum:</span>
+          <div className="supplier-detail-row">
+            <span className="modal-label-80">Durum:</span>
             <select
               name="status"
               value={formData.status}
               onChange={handleInputChange}
-              style={inputStyle}
+              className="modal-input"
             >
               <option value="Aktif">Aktif</option>
               <option value="Pasif">Pasif</option>
@@ -448,15 +414,15 @@ export default function AddMaterialModal({
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-          <span style={{ ...labelStyle, marginTop: '6px' }}>Açıklama:</span>
+        <div className="supplier-detail-row-start">
+          <span className="modal-label-mt">Açıklama:</span>
           <textarea
             name="description"
             value={formData.description}
             onChange={handleInputChange}
             placeholder="Malzeme açıklaması"
             rows="2"
-            style={{ ...inputStyle, resize: 'vertical' }}
+            className="modal-input-textarea"
           />
         </div>
       </div>
@@ -465,69 +431,29 @@ export default function AddMaterialModal({
 
   if (isInline) {
     return (
-      <div style={{
-        position: 'absolute',
-        top: '100%',
-        right: 0,
-        marginTop: '8px',
-        background: '#f9fafb',
-        border: '1px solid #d1d5db',
-        borderRadius: '8px',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-        minWidth: '600px',
-        maxWidth: '700px',
-        maxHeight: 'calc(100vh - 200px)',
-        overflowY: 'auto',
-        zIndex: 9999
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          background: 'white',
-          borderRadius: '8px 8px 0 0'
-        }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+      <div className="modal-inline-container">
+        <div className="modal-header">
+          <h2 className="supplier-section-title-xl">
             Yeni Malzeme Ekle
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex-center-gap-8">
             <button 
               type="submit" 
               form="add-material-form" 
-              style={{
-                padding: '8px 16px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
+              className="btn-save-primary"
               title="Kaydet"
             >
               💾 Kaydet
             </button>
             <button 
               onClick={handleClose}
-              style={{
-                padding: '8px',
-                background: 'transparent',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                color: '#6b7280'
-              }}
+              className="btn-close-modal"
             >
               ×
             </button>
           </div>
         </div>
-        <div style={{ padding: '16px 20px' }}>
+        <div className="modal-body-inline">
           {formContent}
         </div>
       </div>
@@ -538,61 +464,25 @@ export default function AddMaterialModal({
     <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
       <div 
         onClick={(e) => e.stopPropagation()} 
-        style={{ 
-          maxWidth: '700px',
-          width: '90%',
-          background: '#f9fafb',
-          borderRadius: '8px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 2102
-        }}
+        className="modal-container"
       >
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          background: 'white',
-          borderRadius: '8px 8px 0 0'
-        }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+        <div className="modal-header">
+          <h2 className="supplier-section-title-xl">
             Yeni Malzeme Ekle
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex-center-gap-8">
             <button 
               type="submit" 
               form="add-material-form" 
-              style={{
-                padding: '8px 16px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
+              className="btn-save-primary"
               title="Kaydet"
             >
               💾 Kaydet
             </button>
             <button 
               onClick={handleClose}
-              style={{
-                padding: '8px',
-                background: 'transparent',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                color: '#6b7280'
-              }}
+              className="btn-close-modal"
             >
               ×
             </button>
@@ -600,11 +490,7 @@ export default function AddMaterialModal({
         </div>
         
         {/* Body */}
-        <div style={{ 
-          padding: '16px 20px',
-          overflowY: 'auto',
-          flex: 1
-        }}>
+        <div className="modal-body">
           {formContent}
         </div>
       </div>

@@ -176,21 +176,21 @@ export default function CategoryManagementModal({
                       </div>
                     )}
                     {usageMap[category.id]?.active?.count > 0 && (
-                      <div className="category-usage-warning" style={{ marginTop: 6, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: 8 }}>
-                        <div style={{ color: '#9a3412', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                      <div className="category-usage-warning">
+                        <div className="category-usage-title">
                           Kullanımda olan kategoriler kaldırılamaz.
                         </div>
-                        <div style={{ color: '#7c2d12', fontSize: 12, marginBottom: 6 }}>
+                        <div className="category-usage-text">
                           {usageMap[category.id].active.materials.slice(0, 2).map(m => `${m.code} ${m.name}`).join(' ve ')} malzemesi hala bu kategoriyi kullanıyor.
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <div className="category-usage-buttons">
                           {usageMap[category.id].active.materials.slice(0, 6).map(m => (
                             <button 
                               key={m.id}
                               type="button"
                               onClick={() => onOpenMaterialByCode && onOpenMaterialByCode(m.code)}
                               title={`${m.code} detayını aç`}
-                              style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid #d1d5db', background: 'white', color: '#374151', cursor: 'pointer' }}
+                              className="category-material-btn"
                             >
                               {m.code} ℹ️
                             </button>

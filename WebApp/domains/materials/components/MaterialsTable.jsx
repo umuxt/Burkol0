@@ -58,11 +58,11 @@ export default function MaterialsTable({
 
   const getSortIcon = (field) => {
     if (sortField !== field) {
-      return <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>;
+      return <span className="sort-icon-inactive">↕</span>;
     }
     return sortDirection === 'asc' 
-      ? <span style={{ fontSize: '12px', opacity: 1 }}>↑</span>
-      : <span style={{ fontSize: '12px', opacity: 1 }}>↓</span>;
+      ? <span className="text-xs-full">↑</span>
+      : <span className="text-xs-full">↓</span>;
   };
 
   // Helper function to get category name
@@ -164,7 +164,7 @@ export default function MaterialsTable({
         <table>
           <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center' }}>
+              <th className="col-w-40-center">
                 <input
                   type="checkbox"
                   checked={sortedMaterials.length > 0 && selectedMaterials.size === sortedMaterials.length}
@@ -172,7 +172,7 @@ export default function MaterialsTable({
                   title="Tümünü seç"
                 />
               </th>
-              <th style={{ width: '120px', whiteSpace: 'nowrap' }}>
+              <th className="col-w-120-nowrap-only">
                 <button 
                   type="button"
                   onClick={() => handleSort('code')}
@@ -181,7 +181,7 @@ export default function MaterialsTable({
                   Malzeme Kodu<span className="mes-sort-icon">{getSortIcon('code')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+              <th className="col-min-160">
                 <button 
                   type="button"
                   onClick={() => handleSort('name')}
@@ -190,7 +190,7 @@ export default function MaterialsTable({
                   Ad<span className="mes-sort-icon">{getSortIcon('name')}</span>
                 </button>
               </th>
-              <th style={{ width: '120px', whiteSpace: 'nowrap' }}>
+              <th className="col-w-120-nowrap-only">
                 <button 
                   type="button"
                   onClick={() => handleSort('type')}
@@ -199,8 +199,8 @@ export default function MaterialsTable({
                   Tip<span className="mes-sort-icon">{getSortIcon('type')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <th className="col-min-160">
+                <div className="flex-center-gap-8">
                   <button 
                     type="button"
                     onClick={() => handleSort('category')}
@@ -212,20 +212,13 @@ export default function MaterialsTable({
                     type="button"
                     onClick={() => onCategoryManage && onCategoryManage()}
                     title="Kategori yönetimi"
-                    style={{
-                      padding: '0px 3px',
-                      border: '1px solid var(--border)',
-                      background: 'white',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
+                    className="btn-manage-sm"
                   >
                     Manage
                   </button>
                 </div>
               </th>
-              <th style={{ width: '90px', whiteSpace: 'nowrap' }}>
+              <th className="col-w-90-nowrap">
                 <button 
                   type="button"
                   onClick={() => handleSort('unit')}
@@ -234,7 +227,7 @@ export default function MaterialsTable({
                   Birim<span className="mes-sort-icon">{getSortIcon('unit')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+              <th className="col-min-120-nowrap">
                 <button 
                   type="button"
                   onClick={() => handleSort('stock')}
@@ -243,26 +236,17 @@ export default function MaterialsTable({
                   Stok Durumu<span className="mes-sort-icon">{getSortIcon('stock')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '80px', textAlign: 'center' }}></th>
+              <th className="col-w-80-center"></th>
             </tr>
           </thead>
           <tbody>
             {/* Loading state */}
             {loading && materials.length === 0 && (
               <tr>
-                <td colSpan="8" style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 20px',
-                  color: '#6b7280'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
+                <td colSpan="8" className="table-state-cell">
+                  <div className="table-state-container">
                     <div className="spinner"></div>
-                    <p style={{ margin: 0, fontSize: '14px' }}>Malzemeler yükleniyor...</p>
+                    <p className="text-subtitle">Malzemeler yükleniyor...</p>
                   </div>
                 </td>
               </tr>
@@ -271,33 +255,19 @@ export default function MaterialsTable({
             {/* Error state */}
             {!loading && error && materials.length === 0 && (
               <tr>
-                <td colSpan="8" style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 20px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px',
-                    color: '#dc2626'
-                  }}>
-                    <div style={{ fontSize: '48px', opacity: 0.5 }}>⚠️</div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                <td colSpan="8" className="table-state-cell">
+                  <div className="table-state-container error">
+                    <div className="empty-state-icon">⚠️</div>
+                    <h3 className="title-lg">
                       Veriler yüklenemedi
                     </h3>
-                    <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                    <p className="text-sm-muted">
                       {error}
                     </p>
                     {onAddMaterial && (
                       <button 
-                        className="mes-primary-action"
+                        className="mes-primary-action btn-add-first"
                         onClick={() => onAddMaterial()}
-                        style={{
-                          marginTop: '8px',
-                          padding: '8px 16px',
-                          fontSize: '14px'
-                        }}
                       >
                         Yine de Yeni Malzeme Ekle
                       </button>
@@ -319,7 +289,7 @@ export default function MaterialsTable({
                   }
                 }}
               >
-                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                <td className="text-center" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selectedMaterials.has(material.id)}
@@ -346,36 +316,12 @@ export default function MaterialsTable({
                     available={material.available || material.stock}
                   />
                 </td>
-                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                <td className="td-actions-center">
                   <button
+                    className="btn-table-icon"
                     onClick={(e) => {
                       e.stopPropagation();
                       onOrderClick && onOrderClick(material);
-                    }}
-                    style={{
-                      padding: '2px',
-                      border: 'none',
-                      borderRadius: '3px',
-                      background: 'transparent',
-                      color: '#374151',
-                      fontSize: '10px',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '16px',
-                      height: '16px',
-                      lineHeight: 1,
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = 'scale(1.1)';
-                      e.target.style.background = '#f3f4f6';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = 'scale(1)';
-                      e.target.style.background = 'transparent';
                     }}
                     title={`${material.name} için sipariş ver`}
                   >
@@ -386,36 +332,11 @@ export default function MaterialsTable({
                     </svg>
                   </button>
                   <button
+                    className="btn-table-icon ml-5"
                     onClick={(e) => {
                       e.stopPropagation();
                       console.log('Shipment button clicked for material:', material.name);
                       onShipmentClick && onShipmentClick(material, e);
-                    }}
-                    style={{
-                      padding: '2px',
-                      border: 'none',
-                      borderRadius: '3px',
-                      background: 'transparent',
-                      color: '#374151',
-                      fontSize: '10px',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '16px',
-                      height: '16px',
-                      lineHeight: 1,
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0,
-                      marginLeft: '5px' // Add some spacing
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = 'scale(1.1)';
-                      e.target.style.background = '#f3f4f6';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = 'scale(1)';
-                      e.target.style.background = 'transparent';
                     }}
                     title={`${material.name} için sevkiyat oluştur`}
                   >
@@ -428,25 +349,16 @@ export default function MaterialsTable({
             {/* Empty state */}
             {!loading && !error && sortedMaterials.length === 0 && (
               <tr>
-                <td colSpan="8" style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 20px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px',
-                    color: '#6b7280'
-                  }}>
-                    <div style={{ fontSize: '48px', opacity: 0.5 }}>📦</div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#374151' }}>
+                <td colSpan="8" className="table-state-cell">
+                  <div className="table-state-container">
+                    <div className="empty-state-icon">📦</div>
+                    <h3 className="title-lg-gray">
                       {activeTab === 'all' 
                         ? 'Henüz malzeme bulunmuyor' 
                         : `Bu tipte malzeme bulunmuyor`
                       }
                     </h3>
-                    <p style={{ margin: 0, fontSize: '14px' }}>
+                    <p className="text-subtitle">
                       {activeTab === 'all' 
                         ? 'İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.' 
                         : `${tabs.find(t => t.id === activeTab)?.label} tipinde henüz malzeme yok.`
@@ -454,13 +366,8 @@ export default function MaterialsTable({
                     </p>
                     {activeTab === 'all' && onAddMaterial && (
                       <button 
-                        className="mes-primary-action"
+                        className="mes-primary-action btn-add-first"
                         onClick={() => onAddMaterial()}
-                        style={{
-                          marginTop: '8px',
-                          padding: '8px 16px',
-                          fontSize: '14px'
-                        }}
                       >
                         + İlk Malzemeyi Ekle
                       </button>

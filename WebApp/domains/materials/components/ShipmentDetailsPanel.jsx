@@ -269,11 +269,11 @@ export default function ShipmentDetailsPanel({
         borderRadius: '6px',
         border: '1px solid rgb(229, 231, 235)'
       }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px' }}>
+        <h3 className="supplier-section-header-rgb">
           Durum Güncelle
         </h3>
         
-        <div style={{ marginBottom: '12px' }}>
+        <div className="mb-12">
           <input
             type="text"
             placeholder="Durum notu (opsiyonel)"
@@ -371,7 +371,7 @@ export default function ShipmentDetailsPanel({
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="flex-center-gap-12">
             <button
               onClick={onClose}
               style={{
@@ -387,13 +387,13 @@ export default function ShipmentDetailsPanel({
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+            <h3 className="supplier-section-title-lg">
               Sevkiyat Detayı
             </h3>
           </div>
           
           {/* Header Actions */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="flex-gap-8">
             {!isEditing && currentShipment.status !== 'delivered' ? (
               <button 
                 onClick={handleEditToggle}
@@ -434,7 +434,7 @@ export default function ShipmentDetailsPanel({
         </div>
 
         {/* Content - Scrollable */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+        <div className="panel-content">
           
           {/* Sevkiyat Bilgileri */}
           <div style={{ 
@@ -444,13 +444,13 @@ export default function ShipmentDetailsPanel({
             borderRadius: '6px',
             border: '1px solid rgb(229, 231, 235)'
           }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px' }}>
+            <h3 className="supplier-section-header-rgb">
               Sevkiyat Bilgileri
             </h3>
             
             {/* Shipment Code */}
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Sevkiyat Kodu:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', fontWeight: '600' }}>
@@ -460,11 +460,11 @@ export default function ShipmentDetailsPanel({
 
             {/* Customer Name */}
             {(currentShipment.customerName || currentShipment.customerCompany) && (
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-rgb-120">
                     Müşteri:
                   </span>
-                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
+                  <span className="text-sm-dark">
                     {currentShipment.customerName}{currentShipment.customerCompany && currentShipment.customerName ? ` - ${currentShipment.customerCompany}` : currentShipment.customerCompany}
                   </span>
               </div>
@@ -472,16 +472,16 @@ export default function ShipmentDetailsPanel({
 
             {/* Delivery Address */}
             {currentShipment.deliveryAddress && (
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+              <div className="detail-item" className="supplier-detail-row">
+                  <span className="detail-label" className="supplier-detail-label-rgb-120">
                     Teslimat Adresi:
                   </span>
-                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{currentShipment.deliveryAddress}</span>
+                  <span className="text-sm-dark">{currentShipment.deliveryAddress}</span>
               </div>
             )}
 
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Durum:
                 </span>
                 <span className="mes-tag" style={{ 
@@ -493,8 +493,8 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Kalem Sayısı:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -503,18 +503,18 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Oluşturma Tarihi:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{formatDate(currentShipment.createdAt)}</span>
+                <span className="text-sm-dark">{formatDate(currentShipment.createdAt)}</span>
             </div>
 
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '0px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Son Güncelleme:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{formatDate(currentShipment.updatedAt)}</span>
+                <span className="text-sm-dark">{formatDate(currentShipment.updatedAt)}</span>
             </div>
           </div>
 
@@ -564,7 +564,7 @@ export default function ShipmentDetailsPanel({
                 borderRadius: '6px',
                 border: '1px solid #bfdbfe'
               }}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <div className="flex-gap-8-mb-8">
                   <select
                     value={newItem.materialCode}
                     onChange={(e) => setNewItem({ ...newItem, materialCode: e.target.value })}
@@ -603,7 +603,7 @@ export default function ShipmentDetailsPanel({
                     }}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="flex-gap-8">
                   <input
                     type="text"
                     placeholder="Not (opsiyonel)"
@@ -676,7 +676,7 @@ export default function ShipmentDetailsPanel({
                 </div>
               )
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="flex-col-gap-8">
                 {shipmentItems.map((item, index) => (
                   <div 
                     key={item.id || index}
@@ -688,12 +688,12 @@ export default function ShipmentDetailsPanel({
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
+                      <div className="flex-1">
                         <div style={{ fontWeight: '500', fontSize: '13px', color: '#111827', marginBottom: '2px' }}>
                           {item.materialCode}
                         </div>
                         {item.materialName && (
-                          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                          <div className="text-muted-sm">
                             {item.materialName}
                           </div>
                         )}
@@ -703,7 +703,7 @@ export default function ShipmentDetailsPanel({
                           </div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="flex-center-gap-12">
                         <div style={{ textAlign: 'right' }}>
                           <span style={{ fontWeight: '600', fontSize: '14px', color: '#3b82f6' }}>
                             {item.quantity}
@@ -777,8 +777,8 @@ export default function ShipmentDetailsPanel({
             </h3>
             
             {/* Work Order */}
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="flex-center-mb-12">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   İş Emri Kodu:
                 </span>
                 {isEditing ? (
@@ -799,15 +799,15 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
-                    {currentShipment.workOrderCode || <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  <span className="text-sm-dark">
+                    {currentShipment.workOrderCode || <span className="text-muted-italic">-</span>}
                   </span>
                 )}
             </div>
 
             {/* Quote */}
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="flex-center-mb-12">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Teklif ID:
                 </span>
                 {isEditing ? (
@@ -828,15 +828,15 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
-                    {currentShipment.quoteId ? `#${currentShipment.quoteId}` : <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  <span className="text-sm-dark">
+                    {currentShipment.quoteId ? `#${currentShipment.quoteId}` : <span className="text-muted-italic">-</span>}
                   </span>
                 )}
             </div>
 
             {/* Plan */}
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+            <div className="detail-item" className="supplier-detail-row">
+                <span className="detail-label" className="supplier-detail-label-rgb-120">
                   Plan ID:
                 </span>
                 {isEditing ? (
@@ -857,8 +857,8 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
-                    {currentShipment.planId || <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  <span className="text-sm-dark">
+                    {currentShipment.planId || <span className="text-muted-italic">-</span>}
                   </span>
                 )}
             </div>
@@ -872,7 +872,7 @@ export default function ShipmentDetailsPanel({
             borderRadius: '6px',
             border: '1px solid rgb(229, 231, 235)'
           }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px' }}>
+            <h3 className="supplier-section-header-rgb">
               Açıklama / Not
             </h3>
             <div style={{ 

@@ -283,7 +283,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         <div 
           id="supplierTypes-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -312,8 +312,8 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                     checked={filters.supplierTypes?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('supplierTypes', option)}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{option}</span>
-                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getSupplierTypeCount(option)})</span>
+                  <span className="flex-1-0">{option}</span>
+                  <span className="text-muted-var">({getSupplierTypeCount(option)})</span>
                 </label>
               ))}
             </div>
@@ -336,7 +336,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         <div 
           id="countries-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -365,8 +365,8 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                     checked={filters.countries?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('countries', option)}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{option}</span>
-                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getCountryCount(option)})</span>
+                  <span className="flex-1-0">{option}</span>
+                  <span className="text-muted-var">({getCountryCount(option)})</span>
                 </label>
               ))}
             </div>
@@ -389,7 +389,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         <div 
           id="creditRating-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -418,8 +418,8 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                     checked={filters.creditRating?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('creditRating', option)}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{option}</span>
-                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getCreditRatingCount(option)})</span>
+                  <span className="flex-1-0">{option}</span>
+                  <span className="text-muted-var">({getCreditRatingCount(option)})</span>
                 </label>
               ))}
             </div>
@@ -442,7 +442,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         <div 
           id="paymentTerms-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -471,8 +471,8 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                     checked={filters.paymentTerms?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('paymentTerms', option)}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{option}</span>
-                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getPaymentTermsCount(option)})</span>
+                  <span className="flex-1-0">{option}</span>
+                  <span className="text-muted-var">({getPaymentTermsCount(option)})</span>
                 </label>
               ))}
             </div>
@@ -495,7 +495,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         <div 
           id="deliveryTime-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -524,8 +524,8 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                     checked={filters.deliveryTime?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('deliveryTime', option)}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{option}</span>
-                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getDeliveryTimeCount(option)})</span>
+                  <span className="flex-1-0">{option}</span>
+                  <span className="text-muted-var">({getDeliveryTimeCount(option)})</span>
                 </label>
               ))}
             </div>

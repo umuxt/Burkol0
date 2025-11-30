@@ -622,42 +622,20 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{
-          padding: '10px 14px',
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '600' }}>
+        <div className="compact-modal-header">
+          <h2 className="compact-modal-title">
             {deliveredRecordMode ? 'Doğrudan Sipariş Kaydı' : 'Yeni Sipariş Oluştur'}
           </h2>
           <button
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '18px',
-              cursor: 'pointer',
-              padding: '0',
-              width: '24px',
-              height: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
+            className="compact-modal-close"
           >
             ×
           </button>
         </div>
 
         {/* Steps Indicator */}
-        <div style={{
-          padding: '6px 14px',
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'center'
-        }}>
+        <div className="compact-modal-steps">
           {[1, 2, 3].map(step => (
             <div key={step} style={{
               display: 'flex',
@@ -700,43 +678,27 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
         {/* Content */}
         <div 
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '14px'
-          }}
+          className="modal-content-scroll"
           onClick={() => { setSupplierDropdownOpen(false); setStatusDropdownOpen(false); }}
         >
           {/* Step 1: Supplier Selection */}
           {currentStep === 1 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Tedarikçi Seçimi</h3>
+              <h3 className="mt-0-mb-12">Tedarikçi Seçimi</h3>
               
               {suppliersLoading ? (
                 <p>Tedarikçiler yükleniyor...</p>
               ) : filteredSuppliers && filteredSuppliers.length === 0 ? (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#fef3c7',
-                  border: '1px solid #fbbf24',
-                  borderRadius: '8px',
-                  color: '#92400e'
-                }}>
-                  <p style={{ margin: 0, fontWeight: '600' }}>⚠️ Tedarikçi Bulunamadı</p>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                <div className="warning-box">
+                  <p className="m-0-semibold">⚠️ Tedarikçi Bulunamadı</p>
+                  <p className="mt-8 text-sm">
                     Bu malzemeyi tedarik eden bir tedarikçi bulunmuyor. Lütfen önce tedarikçi detaylarına malzeme ekleyin.
                   </p>
                 </div>
               ) : (
                 <div>
-                  <div style={{ marginBottom: '12px', position: 'relative', zIndex: 30 }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '4px', 
-                      fontSize: '13px', 
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
+                  <div className="mb-12 pos-relative-z30">
+                    <label className="order-form-label">
                       Tedarikçi *
                     </label>
                     <button
@@ -760,20 +722,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       <ChevronDown size={14} />
                     </button>
                     {supplierDropdownOpen && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        backgroundColor: 'white',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflow: 'auto',
-                        marginTop: '4px'
-                      }}>
+                      <div className="order-dropdown-menu">
                         {filteredSuppliers?.map(supplier => (
                           <div
                             key={supplier.id}
@@ -793,58 +742,22 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     )}
                   </div>
 
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: '12px',
-                    marginTop: '16px'
-                  }}>
+                  <div className="grid-2-gap-12 mt-16">
                     {!deliveredRecordMode && (
-                    <div style={{ position: 'relative', zIndex: 20 }}>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '4px', 
-                        fontSize: '13px', 
-                        fontWeight: '600',
-                        color: '#374151'
-                      }}>
+                    <div className="pos-relative-z20">
+                      <label className="order-form-label">
                         Sipariş Durumu
                       </label>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setStatusDropdownOpen(!statusDropdownOpen); setSupplierDropdownOpen(false); }}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          backgroundColor: 'white',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          color: '#1f2937'
-                        }}
+                        className="order-dropdown-btn"
                       >
                         <span>{formData.orderStatus}</span>
                         <ChevronDown size={14} />
                       </button>
                       {statusDropdownOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          backgroundColor: 'white',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          zIndex: 1000,
-                          maxHeight: '200px',
-                          overflow: 'auto',
-                          marginTop: '4px'
-                        }}>
+                        <div className="order-dropdown-menu">
                           {['Taslak', 'Onay Bekliyor', 'Onaylandı'].map(status => (
                             <div
                               key={status}
@@ -866,14 +779,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     )}
 
                     {!deliveredRecordMode && (
-                    <div style={{ zIndex: 10 }}>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '4px', 
-                        fontSize: '13px', 
-                        fontWeight: '600',
-                        color: '#374151'
-                      }}>
+                    <div className="z-10">
+                      <label className="order-form-label">
                         Beklenen Teslimat Tarihi
                       </label>
                       <input
@@ -892,14 +799,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                     )}
                   </div>
 
-                  <div style={{ marginTop: '12px' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '4px', 
-                      fontSize: '13px', 
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
+                  <div className="mt-12">
+                    <label className="order-form-label">
                       Notlar
                     </label>
                     <textarea
@@ -925,103 +826,67 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {/* Step 2: Material Order Details */}
           {currentStep === 2 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Sipariş Detayları</h3>
+              <h3 className="mt-0-mb-12">Sipariş Detayları</h3>
               
               {/* Selected Materials */}
               <div>
-                <h4 style={{ marginBottom: '8px' }}>Seçilen Malzemeler</h4>
+                <h4 className="mb-8">Seçilen Malzemeler</h4>
                 {selectedMaterials.length === 0 ? (
-                  <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                  <p className="text-muted-italic-only">
                     Henüz malzeme eklenmemiş.
                   </p>
                 ) : (
-                  <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px'
-                  }}>
+                  <div className="bordered-list">
                     {selectedMaterials.map((material, index) => (
                       <div
                         key={material.lineId}
-                        style={{
-                          padding: '12px',
-                          borderBottom: index < selectedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none'
-                        }}
+                        className="order-item-card"
                       >
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: '2fr 1fr 1fr 40px',
-                          gap: '8px',
-                          alignItems: 'center'
-                        }}>
+                        <div className="order-item-grid">
                           <div>
-                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '500', marginBottom: '2px' }}>
+                            <div className="line-id-badge">
                               {material.lineId}
                             </div>
-                          <div style={{ fontWeight: '500', fontSize: '14px' }}>
+                          <div className="font-medium-14">
                             {material.materialName}
                           </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          <div className="text-muted-xs">
                             {material.materialCode}
                           </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          <div className="text-muted-xs">
                             Durum: {material.itemStatus}
                           </div>
                         </div>
                           <div>
-                            <label style={{ fontSize: '11px', color: '#6b7280' }}>Miktar *</label>
+                            <label className="text-muted-sm">Miktar *</label>
                             <input
                             type="number"
                             min="1"
                             value={material.quantity}
                             onChange={(e) => updateMaterial(material.lineId, 'quantity', e.target.value)}
                             autoFocus={index === 0} // First material gets auto focus
-                              style={{
-                                width: '100%',
-                                padding: '4px 6px',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                fontSize: '12px'
-                              }}
+                              className="order-item-input"
                             />
                           </div>
                           <div>
-                            <label style={{ fontSize: '11px', color: '#6b7280' }}>Birim Fiyat</label>
+                            <label className="text-muted-sm">Birim Fiyat</label>
                             <input
                             type="number"
                             min="0"
                             step="0.01"
                             value={material.unitPrice}
                             onChange={(e) => updateMaterial(material.lineId, 'unitPrice', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '4px 6px',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                fontSize: '12px'
-                              }}
+                              className="order-item-input"
                             />
                           </div>
                           <button
                           onClick={() => removeMaterial(material.lineId)}
-                          style={{
-                              background: '#ef4444',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px'
-                            }}
+                          className="btn-remove-item"
                           >
                             ×
                           </button>
                         </div>
-                        <div style={{
-                          marginTop: '4px',
-                          textAlign: 'right',
-                          fontSize: '13px',
-                          fontWeight: '600'
-                        }}>
+                        <div className="order-item-total">
                           Toplam: {formatCurrency(material.quantity * material.unitPrice)}
                         </div>
                       </div>
@@ -1031,110 +896,55 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
               </div>
 
               {/* Available Materials Section */}
-              <div style={{ marginTop: '16px' }}>
-                <h4 style={{ marginBottom: '8px' }}>Kullanılabilir Malzemeler</h4>
+              <div className="mt-16">
+                <h4 className="mb-8">Kullanılabilir Malzemeler</h4>
                 {supplierMaterialsLoading ? (
-                  <div style={{ 
-                    padding: '12px', 
-                    textAlign: 'center', 
-                    color: '#6b7280',
-                    fontStyle: 'italic'
-                  }}>
+                  <div className="cell-center-gray text-muted-italic-only">
                     Malzemeler yükleniyor...
                   </div>
                 ) : supplierMaterialsError ? (
-                  <div style={{
-                    padding: '12px',
-                    backgroundColor: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    borderRadius: '6px',
-                    color: '#dc2626'
-                  }}>
-                    <p style={{ margin: 0, fontWeight: '600' }}>⚠️ Hata</p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>{supplierMaterialsError}</p>
+                  <div className="error-box">
+                    <p className="m-0-semibold">⚠️ Hata</p>
+                    <p className="mt-4 text-xs">{supplierMaterialsError}</p>
                   </div>
                 ) : availableMaterials.length === 0 ? (
-                  <div style={{
-                    padding: '12px',
-                    backgroundColor: '#fef3c7',
-                    border: '1px solid #fbbf24',
-                    borderRadius: '6px',
-                    color: '#92400e',
-                    textAlign: 'center'
-                  }}>
-                    <p style={{ margin: 0, fontWeight: '600' }}>📦 Malzeme Bulunamadı</p>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
+                  <div className="warning-box-center">
+                    <p className="m-0-semibold">📦 Malzeme Bulunamadı</p>
+                    <p className="mt-8 text-xs">
                       Bu tedarikçi için tanımlanmış aktif malzeme bulunmuyor.
                     </p>
                   </div>
                 ) : (
-                  <div style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    maxHeight: '300px',
-                    overflow: 'auto'
-                  }}>
+                  <div className="bordered-list-scroll">
                     {availableMaterials.map((material, index) => {
                       return (
                         <div
                           key={`${material.id || material.code}-${index}`}
-                          style={{
-                            padding: '8px 12px',
-                            borderBottom: index < availableMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
-                            backgroundColor: 'white'
-                          }}
+                          className="material-list-item"
                         >
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ 
-                                fontWeight: '500', 
-                                fontSize: '13px',
-                                marginBottom: '2px'
-                              }}>
+                          <div className="flex-between-center">
+                            <div className="flex-1">
+                              <div className="font-medium-name">
                                 {material.name}
                               </div>
-                              <div style={{ 
-                                fontSize: '11px', 
-                                color: '#6b7280',
-                                marginBottom: '1px'
-                              }}>
+                              <div className="text-muted-11">
                                 Kod: {material.code}
                               </div>
                               {material.category && (
-                                <div style={{ 
-                                  fontSize: '11px', 
-                                  color: '#6b7280',
-                                  marginBottom: '1px'
-                                }}>
+                                <div className="text-muted-11">
                                   Kategori: {material.category}
                                 </div>
                               )}
                               {material.unit && (
-                                <div style={{ 
-                                  fontSize: '11px', 
-                                  color: '#6b7280'
-                                }}>
+                                <div className="text-muted-11-last">
                                   Birim: {material.unit}
                                 </div>
                               )}
                             </div>
-                            <div style={{ marginLeft: '12px', textAlign: 'right' }}>
+                            <div className="ml-12-text-right">
                               <button
                                 onClick={() => addMaterial(material)}
-                                style={{
-                                  padding: '4px 8px',
-                                  backgroundColor: '#3b82f6',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  cursor: 'pointer',
-                                  fontWeight: '600'
-                                }}
+                                className="btn-add-item"
                               >
                                 Ekle
                               </button>
@@ -1152,16 +962,12 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {/* Step 3: Summary */}
           {currentStep === 3 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Sipariş Özeti</h3>
+              <h3 className="mt-0-mb-12">Sipariş Özeti</h3>
               
-              <div style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: '6px',
-                padding: '16px'
-              }}>
-                <div style={{ marginBottom: '16px' }}>
-                  <h4 style={{ marginBottom: '8px' }}>Sipariş Bilgileri</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div className="order-summary-card">
+                <div className="mb-16">
+                  <h4 className="mb-8">Sipariş Bilgileri</h4>
+                  <div className="grid-2-gap-8">
                     <div>
                       <strong>Tedarikçi:</strong> {formData.supplierName}
                     </div>
@@ -1172,42 +978,34 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       <strong>Beklenen Teslimat:</strong> {formData.expectedDeliveryDate || 'Belirtilmemiş'}
                     </div>
                     <div>
-                      <strong>Toplam Tutar:</strong> <span style={{ color: '#059669', fontWeight: '600' }}>{formatCurrency(totalAmount)}</span>
+                      <strong>Toplam Tutar:</strong> <span className="order-total">{formatCurrency(totalAmount)}</span>
                     </div>
                   </div>
                   {formData.notes && (
-                    <div style={{ marginTop: '8px' }}>
+                    <div className="mt-8">
                       <strong>Notlar:</strong> {formData.notes}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <h4 style={{ marginBottom: '8px' }}>Sipariş Satırları ({selectedMaterials.length})</h4>
+                  <h4 className="mb-8">Sipariş Satırları ({selectedMaterials.length})</h4>
                   {selectedMaterials.map((material, index) => (
                     <div
                       key={material.lineId}
-                      style={{
-                        padding: '8px',
-                        background: '#f8f9fa',
-                        borderRadius: '4px',
-                        marginBottom: index < selectedMaterials.length - 1 ? '6px' : '0',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
+                      className="summary-item"
                     >
                       <div>
-                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '500' }}>{material.lineId}</div>
-                        <div style={{ fontWeight: '500', fontSize: '13px' }}>{material.materialName}</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        <div className="line-id-badge-sm">{material.lineId}</div>
+                        <div className="font-medium-13">{material.materialName}</div>
+                        <div className="text-muted-sm">
                           {material.materialCode} • {(() => { const qty = parseFloat(material.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {material.unit || 'adet'} × {formatCurrency(material.unitPrice)}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        <div className="text-muted-sm">
                           Durum: {material.itemStatus}
                         </div>
                       </div>
-                      <div style={{ fontWeight: '500', fontSize: '13px' }}>
+                      <div className="font-medium-13">
                         {formatCurrency(material.quantity * material.unitPrice)}
                       </div>
                     </div>
@@ -1219,13 +1017,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: '16px 24px',
-          borderTop: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+        <div className="modal-footer-actions">
           <div>
             {currentStep > 1 && (
               <button
@@ -1244,7 +1036,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="flex-gap-12">
             <button
               onClick={onClose}
               style={{

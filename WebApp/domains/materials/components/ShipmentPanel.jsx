@@ -182,8 +182,8 @@ export default function ShipmentPanel() {
                     <th style={{ minWidth: '120px', textAlign: 'left' }}>Sevkiyat Kodu</th>
                     <th style={{ width: '70px', textAlign: 'center' }}>Kalem Adedi</th>
                     <th style={{ minWidth: '280px', textAlign: 'left' }}>Sevkiyat Kalemleri</th>
-                    <th style={{ minWidth: '140px', textAlign: 'left' }}>Müşteri/İş Emri</th>
-                    <th style={{ minWidth: '140px', textAlign: 'left' }}>Tarih</th>
+                    <th className="col-min-140-left">Müşteri/İş Emri</th>
+                    <th className="col-min-140-left">Tarih</th>
                     <th style={{ width: '120px', textAlign: 'left' }}>Durum</th>
                   </tr>
                 </thead>
@@ -193,7 +193,7 @@ export default function ShipmentPanel() {
                        <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center' }}>
                          <div className="loading-spinner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                            <div className="spinner"></div>
-                           <span style={{ color: '#6b7280' }}>Yükleniyor...</span>
+                           <span className="text-muted">Yükleniyor...</span>
                          </div>
                        </td>
                      </tr>
@@ -223,11 +223,11 @@ export default function ShipmentPanel() {
                        style={{ cursor: 'pointer' }}
                      >
                         <td>
-                           <span className="mes-code-text" style={{ fontWeight: '600' }}>
+                           <span className="mes-code-text" className="font-semibold-only">
                              {shipment.shipmentCode || `SHP-${shipment.id}`}
                            </span>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="text-center">
                            <span style={{ 
                              display: 'inline-flex', 
                              alignItems: 'center', 
@@ -266,12 +266,12 @@ export default function ShipmentPanel() {
                                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#1d4ed8' }}>
                                      {itemSeq}
                                    </span>
-                                   <span style={{ color: '#d1d5db' }}>|</span>
+                                   <span className="text-border">|</span>
                                    <span style={{ fontWeight: '600', fontFamily: 'monospace', fontSize: '10px', color: '#6b7280' }}>
                                      {item.materialCode || item.productCode || '-'}
                                    </span>
-                                   <span style={{ color: '#d1d5db' }}>|</span>
-                                   <span style={{ fontWeight: '600' }}>
+                                   <span className="text-border">|</span>
+                                   <span className="font-semibold-only">
                                      {(() => {
                                        const qty = parseFloat(item.quantity) || 0;
                                        return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
@@ -298,22 +298,22 @@ export default function ShipmentPanel() {
                         </td>
                         <td>
                            {shipment.customerName || shipment.customerCompany ? (
-                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                               <span style={{ fontWeight: '500' }}>{shipment.customerName || shipment.customerCompany}</span>
+                             <div className="flex-col">
+                               <span className="font-medium">{shipment.customerName || shipment.customerCompany}</span>
                                {shipment.workOrderCode && (
-                                 <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                                 <span className="text-muted-sm">
                                    İş Emri: {shipment.workOrderCode}
                                  </span>
                                )}
                              </div>
                            ) : shipment.workOrderCode ? (
-                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                               <span style={{ fontSize: '11px', color: '#6b7280' }}>İş Emri</span>
+                             <div className="flex-col">
+                               <span className="text-muted-sm">İş Emri</span>
                                <span>{shipment.workOrderCode}</span>
                              </div>
                            ) : shipment.quoteId ? (
-                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                               <span style={{ fontSize: '11px', color: '#6b7280' }}>Teklif</span>
+                             <div className="flex-col">
+                               <span className="text-muted-sm">Teklif</span>
                                <span>#{shipment.quoteId}</span>
                              </div>
                            ) : (

@@ -246,114 +246,44 @@ export default function CreateShipmentModal({
 
   return (
     <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000
-      }}
+      className="modal-overlay-fixed"
       onClick={() => { closeAllDropdowns(); onClose(); }}
     >
       <div 
         ref={modalRef}
         onClick={(e) => { e.stopPropagation(); closeAllDropdowns(); }}
-        style={{
-          backgroundColor: 'var(--card-bg, #ffffff)',
-          borderRadius: '12px',
-          width: '480px',
-          maxWidth: '95vw',
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.2)'
-        }}
+        className="shipment-modal-container"
       >
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '16px 20px',
-          borderBottom: '1px solid var(--border, #e5e7eb)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              backgroundColor: 'var(--primary-light, #dbeafe)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Truck size={18} style={{ color: 'var(--primary, #3b82f6)' }} />
+        <div className="shipment-modal-header">
+          <div className="flex-center-gap-10">
+            <div className="shipment-header-icon">
+              <Truck size={18} className="text-primary-var" />
             </div>
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#111827' }}>
+            <h2 className="shipment-modal-title">
               Yeni Sevkiyat
             </h2>
           </div>
           <button
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '6px',
-              borderRadius: '6px',
-              display: 'flex',
-              color: '#9ca3af'
-            }}
+            className="shipment-close-btn"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Steps Indicator */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '16px 20px',
-          backgroundColor: 'var(--muted-bg, #f9fafb)',
-          borderBottom: '1px solid var(--border, #e5e7eb)'
-        }}>
+        <div className="shipment-steps-container">
           {steps.map((step, idx) => (
             <React.Fragment key={step.num}>
               {idx > 0 && (
-                <div style={{
-                  width: '24px',
-                  height: '2px',
-                  backgroundColor: currentStep > step.num - 1 ? 'var(--primary, #3b82f6)' : 'var(--border, #d1d5db)'
-                }} />
+                <div className={`step-connector ${currentStep > step.num - 1 ? 'active' : 'inactive'}`} />
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  backgroundColor: currentStep >= step.num ? 'var(--primary, #3b82f6)' : 'var(--muted, #e5e7eb)',
-                  color: currentStep >= step.num ? '#fff' : '#9ca3af',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}>
+              <div className="flex-center-gap-6">
+                <div className={`step-circle ${currentStep >= step.num ? 'active' : 'inactive'}`}>
                   {currentStep > step.num ? <Check size={14} /> : step.num}
                 </div>
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: currentStep >= step.num ? '#111827' : '#9ca3af'
-                }}>
+                <span className={`step-label ${currentStep >= step.num ? 'active' : 'inactive'}`}>
                   {step.label}
                 </span>
               </div>
@@ -362,21 +292,10 @@ export default function CreateShipmentModal({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+        <div className="panel-content">
           {/* Error */}
           {error && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: 'var(--error-bg, #fef2f2)',
-              border: '1px solid var(--error-border, #fecaca)',
-              borderRadius: '8px',
-              padding: '10px 14px',
-              marginBottom: '16px',
-              color: 'var(--error, #dc2626)',
-              fontSize: '12px'
-            }}>
+            <div className="error-banner">
               <AlertCircle size={14} />
               {error}
             </div>
@@ -384,16 +303,9 @@ export default function CreateShipmentModal({
 
           {/* Loading */}
           {dataLoading && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: '10px', 
-              padding: '40px',
-              color: '#6b7280'
-            }}>
-              <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: '13px' }}>Veriler yükleniyor...</span>
+            <div className="loading-center">
+              <Loader2 size={18} className="spin-animation" />
+              <span className="text-13">Veriler yükleniyor...</span>
             </div>
           )}
 
@@ -402,45 +314,32 @@ export default function CreateShipmentModal({
               {/* ===== STEP 1: Sevkiyat Bilgileri ===== */}
               {currentStep === 1 && (
                 <div>
-                  <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#6b7280' }}>
+                  <p className="text-xs-light-mb">
                     Sevkiyat için temel bilgileri girin. Bu alanlar opsiyoneldir.
                   </p>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="grid-2-gap-12">
                     {/* Row 1: İş Emri | Teklif */}
                     {/* Work Order */}
-                    <div style={{ position: 'relative', zIndex: 30 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-z30">
+                      <label className="supplier-label-block">
                         İş Emri
                       </label>
                       <button
                         type="button"
                         className="mes-filter-select"
                         onClick={(e) => { e.stopPropagation(); setWorkOrderDropdownOpen(!workOrderDropdownOpen); setQuoteDropdownOpen(false); }}
-                        style={{ width: '100%', justifyContent: 'space-between' }}
+                        className="full-justify-between"
                       >
-                        <span style={{ color: headerData.workOrderCode ? '#1f2937' : '#9ca3af' }}>
+                        <span className={`text-conditional ${!headerData.workOrderCode ? 'placeholder' : ''}`}>
                           {headerData.workOrderCode || 'Seçin...'}
                         </span>
                         <ChevronDown size={14} />
                       </button>
                       {workOrderDropdownOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          backgroundColor: 'white',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          zIndex: 9999,
-                          maxHeight: '180px',
-                          overflow: 'auto',
-                          marginTop: '4px'
-                        }}>
+                        <div className="dropdown-menu-popup">
                           <div 
-                            style={{ padding: '8px 12px', cursor: 'pointer', color: '#6b7280', fontStyle: 'italic', fontSize: '12px' }}
+                            className="dropdown-item-muted"
                             onClick={() => { setHeaderData(prev => ({ ...prev, workOrderCode: '' })); setWorkOrderDropdownOpen(false); }}
                           >
                             Seçimi temizle
@@ -448,7 +347,7 @@ export default function CreateShipmentModal({
                           {workOrders.map(wo => (
                             <div
                               key={wo.code}
-                              style={{ padding: '8px 12px', cursor: 'pointer', borderTop: '1px solid #e5e7eb', fontSize: '13px', color: '#1f2937' }}
+                              className="dropdown-item-action"
                               onClick={() => { setHeaderData(prev => ({ ...prev, workOrderCode: wo.code })); setWorkOrderDropdownOpen(false); }}
                             >
                               {wo.label || wo.code}
@@ -459,38 +358,25 @@ export default function CreateShipmentModal({
                     </div>
 
                     {/* Quote */}
-                    <div style={{ position: 'relative', zIndex: 30 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-z30">
+                      <label className="supplier-label-block">
                         Teklif
                       </label>
                       <button
                         type="button"
                         className="mes-filter-select"
                         onClick={(e) => { e.stopPropagation(); setQuoteDropdownOpen(!quoteDropdownOpen); setWorkOrderDropdownOpen(false); }}
-                        style={{ width: '100%', justifyContent: 'space-between' }}
+                        className="full-justify-between"
                       >
-                        <span style={{ color: headerData.quoteId ? '#1f2937' : '#9ca3af' }}>
+                        <span className={`text-conditional ${!headerData.quoteId ? 'placeholder' : ''}`}>
                           {headerData.quoteId || 'Seçin...'}
                         </span>
                         <ChevronDown size={14} />
                       </button>
                       {quoteDropdownOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          backgroundColor: 'white',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          zIndex: 9999,
-                          maxHeight: '180px',
-                          overflow: 'auto',
-                          marginTop: '4px'
-                        }}>
+                        <div className="dropdown-menu-popup">
                           <div 
-                            style={{ padding: '8px 12px', cursor: 'pointer', color: '#6b7280', fontStyle: 'italic', fontSize: '12px' }}
+                            className="dropdown-item-muted"
                             onClick={() => { setHeaderData(prev => ({ ...prev, quoteId: '' })); setQuoteDropdownOpen(false); }}
                           >
                             Seçimi temizle
@@ -498,7 +384,7 @@ export default function CreateShipmentModal({
                           {quotes.map(q => (
                             <div
                               key={q.id}
-                              style={{ padding: '8px 12px', cursor: 'pointer', borderTop: '1px solid #e5e7eb', fontSize: '13px', color: '#1f2937' }}
+                              className="dropdown-item-action"
                               onClick={() => { setHeaderData(prev => ({ ...prev, quoteId: q.id })); setQuoteDropdownOpen(false); }}
                             >
                               {q.label || `#${q.id}`}
@@ -510,8 +396,8 @@ export default function CreateShipmentModal({
 
                     {/* Row 2: Müşteri Adı | Firma */}
                     {/* Customer Name */}
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-relative-z1">
+                      <label className="supplier-label-block">
                         Müşteri Adı
                       </label>
                       <input
@@ -520,13 +406,13 @@ export default function CreateShipmentModal({
                         value={headerData.customerName}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, customerName: e.target.value }))}
                         placeholder="Müşteri adı..."
-                        style={{ width: '100%' }}
+                        className="w-full"
                       />
                     </div>
 
                     {/* Customer Company */}
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-relative-z1">
+                      <label className="supplier-label-block">
                         Firma
                       </label>
                       <input
@@ -535,14 +421,14 @@ export default function CreateShipmentModal({
                         value={headerData.customerCompany}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, customerCompany: e.target.value }))}
                         placeholder="Firma adı..."
-                        style={{ width: '100%' }}
+                        className="w-full"
                       />
                     </div>
 
                     {/* Row 3: Teslimat Adresi | Notlar */}
                     {/* Delivery Address */}
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-relative-z1">
+                      <label className="supplier-label-block">
                         Teslimat Adresi
                       </label>
                       <input
@@ -551,13 +437,13 @@ export default function CreateShipmentModal({
                         value={headerData.deliveryAddress}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
                         placeholder="Teslimat adresi..."
-                        style={{ width: '100%' }}
+                        className="w-full"
                       />
                     </div>
 
                     {/* Notes */}
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                    <div className="pos-relative-z1">
+                      <label className="supplier-label-block">
                         Notlar
                       </label>
                       <input
@@ -566,7 +452,7 @@ export default function CreateShipmentModal({
                         value={headerData.notes}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, notes: e.target.value }))}
                         placeholder="Sevkiyat notu..."
-                        style={{ width: '100%' }}
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -576,26 +462,14 @@ export default function CreateShipmentModal({
               {/* ===== STEP 2: Kalemler ===== */}
               {currentStep === 2 && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>
+                  <div className="supplier-header-flex">
+                    <p className="text-xs-gray">
                       Sevk edilecek malzemeleri ekleyin
                     </p>
                     <button
                       type="button"
                       onClick={addItem}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '6px 10px',
-                        backgroundColor: 'var(--primary, #3b82f6)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-add-item"
                     >
                       <Plus size={14} />
                       Ekle
@@ -603,30 +477,19 @@ export default function CreateShipmentModal({
                   </div>
 
                   {items.length === 0 ? (
-                    <div style={{
-                      textAlign: 'center',
-                      padding: '32px 20px',
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '8px',
-                      color: '#6b7280'
-                    }}>
-                      <Package size={28} style={{ marginBottom: '8px', opacity: 0.5 }} />
-                      <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>Henüz kalem eklenmedi</p>
+                    <div className="empty-items-box">
+                      <Package size={28} className="mb-8 opacity-50" />
+                      <p className="text-xs-gray">Henüz kalem eklenmedi</p>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div className="flex-col-gap-8">
                       {items.map((item, index) => (
                         <div 
                           key={item.id} 
-                          style={{
-                            backgroundColor: 'var(--muted-bg, #f9fafb)',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            border: '1px solid var(--border, #e5e7eb)'
-                          }}
+                          className="shipment-item-card"
                         >
                           {/* Material Select */}
-                          <div style={{ position: 'relative', marginBottom: '8px' }}>
+                          <div className="pos-relative mb-8">
                             <button
                               type="button"
                               className="mes-filter-select"
@@ -637,46 +500,25 @@ export default function CreateShipmentModal({
                                   dropdownOpen: idx === index ? !it.dropdownOpen : false
                                 })))
                               }}
-                              style={{ width: '100%', justifyContent: 'space-between' }}
+                              className="full-justify-between"
                             >
-                              <span style={{ 
-                                color: item.materialCode ? '#1f2937' : '#9ca3af',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                fontSize: '13px'
-                              }}>
+                              <span className={`text-truncate text-13 ${item.materialCode ? 'text-conditional' : 'text-conditional placeholder'}`}>
                                 {item.materialCode ? `${item.materialCode} - ${item.materialName}` : 'Malzeme seç...'}
                               </span>
                               <ChevronDown size={14} />
                             </button>
                             {item.dropdownOpen && (
-                              <div style={{
-                                position: 'fixed',
-                                top: 'auto',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                width: '420px',
-                                backgroundColor: 'white',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '6px',
-                                boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-                                zIndex: 99999,
-                                maxHeight: '250px',
-                                overflow: 'auto',
-                                marginTop: '4px'
-                              }}>
+                              <div className="material-dropdown-fixed">
                                 {/* Search */}
-                                <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, backgroundColor: 'white' }}>
-                                  <div style={{ position: 'relative' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                                <div className="dropdown-search-header">
+                                  <div className="pos-relative">
+                                    <Search size={14} className="search-icon-absolute" />
                                     <input
                                       type="text"
-                                      className="mes-filter-input is-compact"
+                                      className="mes-filter-input is-compact pl-32 w-full-12"
                                       value={item.searchTerm}
                                       onChange={(e) => updateItem(item.id, 'searchTerm', e.target.value)}
                                       placeholder="Malzeme ara..."
-                                      style={{ paddingLeft: '32px', width: '100%', fontSize: '12px', color: '#1f2937' }}
                                       onClick={(e) => e.stopPropagation()}
                                     />
                                   </div>
@@ -691,18 +533,13 @@ export default function CreateShipmentModal({
                                   .map(m => (
                                     <div
                                       key={m.code}
-                                      style={{ 
-                                        padding: '8px 12px', 
-                                        cursor: 'pointer', 
-                                        borderBottom: '1px solid #f3f4f6',
-                                        backgroundColor: item.materialCode === m.code ? '#dbeafe' : 'transparent'
-                                      }}
+                                      className={`dropdown-option-item ${item.materialCode === m.code ? 'selected' : ''}`}
                                       onClick={(e) => { e.stopPropagation(); updateItem(item.id, 'materialCode', m.code); }}
                                     >
-                                      <div style={{ fontWeight: '500', fontSize: '12px', color: '#1f2937' }}>{m.code}</div>
-                                      <div style={{ fontSize: '11px', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
+                                      <div className="dropdown-option-code">{m.code}</div>
+                                      <div className="dropdown-option-meta">
                                         <span>{m.name}</span>
-                                        <span style={{ color: '#16a34a' }}>Stok: {formatQty(m.availableStock)} {m.unit}</span>
+                                        <span className="dropdown-option-stock">Stok: {formatQty(m.availableStock)} {m.unit}</span>
                                       </div>
                                     </div>
                                   ))
@@ -712,7 +549,7 @@ export default function CreateShipmentModal({
                                   m.code.toLowerCase().includes(item.searchTerm.toLowerCase()) ||
                                   m.name.toLowerCase().includes(item.searchTerm.toLowerCase())
                                 ).length === 0 && (
-                                  <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
+                                  <div className="dropdown-empty-state">
                                     Malzeme bulunamadı
                                   </div>
                                 )}
@@ -721,43 +558,30 @@ export default function CreateShipmentModal({
                           </div>
 
                           {/* Quantity & Actions Row */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div className="flex-center-gap-8">
+                            <div className="qty-row-flex">
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                className="mes-filter-input is-compact"
+                                className="mes-filter-input is-compact qty-input"
                                 value={item.quantity}
                                 onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
                                 placeholder="Miktar"
                                 pattern="[0-9]*\.?[0-9]*"
-                                style={{ width: '80px', textAlign: 'right', fontSize: '13px' }}
                               />
-                              <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                              <span className="text-muted-xs">
                                 {item.unit}
                               </span>
                             </div>
                             {item.materialCode && (
-                              <span style={{ 
-                                fontSize: '11px', 
-                                color: 'var(--success, #16a34a)',
-                                backgroundColor: 'var(--success-bg, #dcfce7)',
-                                padding: '2px 6px',
-                                borderRadius: '4px'
-                              }}>
+                              <span className="stock-badge">
                                 Mevcut: {formatQty(item.availableStock)}
                               </span>
                             )}
                             <button
                               type="button"
                               onClick={() => removeItem(item.id)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                color: 'var(--error, #dc2626)'
-                              }}
+                              className="btn-remove-item"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -772,43 +596,37 @@ export default function CreateShipmentModal({
               {/* ===== STEP 3: Özet ===== */}
               {currentStep === 3 && (
                 <div>
-                  <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#6b7280' }}>
+                  <p className="text-xs-light-mb">
                     Sevkiyat bilgilerini kontrol edin ve onaylayın
                   </p>
 
                   {/* Header Info */}
                   {(headerData.workOrderCode || headerData.quoteId || headerData.customerName || headerData.customerCompany || headerData.deliveryAddress) && (
-                    <div style={{
-                      backgroundColor: 'var(--muted-bg, #f9fafb)',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      marginBottom: '16px',
-                      fontSize: '13px'
-                    }}>
-                      <h4 style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '600', color: '#374151', textTransform: 'uppercase' }}>
+                    <div className="summary-info-box">
+                      <h4 className="summary-section-title">
                         Sevkiyat Bilgileri
                       </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      <div className="grid-2-gap-6">
                         {headerData.workOrderCode && (
-                          <div><span style={{ color: '#6b7280' }}>İş Emri:</span> {headerData.workOrderCode}</div>
+                          <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>
                         )}
                         {headerData.quoteId && (
-                          <div><span style={{ color: '#6b7280' }}>Teklif:</span> #{headerData.quoteId}</div>
+                          <div><span className="text-muted">Teklif:</span> #{headerData.quoteId}</div>
                         )}
                         {headerData.customerName && (
-                          <div><span style={{ color: '#6b7280' }}>Müşteri:</span> {headerData.customerName}</div>
+                          <div><span className="text-muted">Müşteri:</span> {headerData.customerName}</div>
                         )}
                         {headerData.customerCompany && (
-                          <div><span style={{ color: '#6b7280' }}>Firma:</span> {headerData.customerCompany}</div>
+                          <div><span className="text-muted">Firma:</span> {headerData.customerCompany}</div>
                         )}
                       </div>
                       {headerData.deliveryAddress && (
-                        <div style={{ marginTop: '6px' }}>
-                          <span style={{ color: '#6b7280' }}>Adres:</span> {headerData.deliveryAddress}
+                        <div className="mt-6">
+                          <span className="text-muted">Adres:</span> {headerData.deliveryAddress}
                         </div>
                       )}
                       {headerData.notes && (
-                        <div style={{ marginTop: '6px', fontStyle: 'italic', color: '#6b7280' }}>
+                        <div className="mt-6 text-italic-muted">
                           Not: {headerData.notes}
                         </div>
                       )}
@@ -816,51 +634,25 @@ export default function CreateShipmentModal({
                   )}
 
                   {/* Items Summary */}
-                  <div style={{
-                    border: '1px solid var(--border, #e5e7eb)',
-                    borderRadius: '8px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      backgroundColor: 'var(--muted-bg, #f9fafb)',
-                      padding: '10px 12px',
-                      borderBottom: '1px solid var(--border)',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      textTransform: 'uppercase'
-                    }}>
+                  <div className="bordered-container-rounded">
+                    <div className="summary-header">
                       Kalemler ({totalItems})
                     </div>
                     {items.map((item, index) => (
                       <div 
                         key={item.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '10px 12px',
-                          borderBottom: index < items.length - 1 ? '1px solid var(--border, #f3f4f6)' : 'none',
-                          fontSize: '13px'
-                        }}
+                        className="summary-item-row"
                       >
                         <div>
-                          <div style={{ fontWeight: '500' }}>{item.materialCode}</div>
-                          <div style={{ fontSize: '11px', color: '#6b7280' }}>{item.materialName}</div>
+                          <div className="font-medium">{item.materialCode}</div>
+                          <div className="text-muted-sm">{item.materialName}</div>
                         </div>
-                        <div style={{ fontWeight: '600', color: 'var(--primary, #3b82f6)' }}>
+                        <div className="summary-item-qty">
                           {formatQty(item.quantity)} {item.unit}
                         </div>
                       </div>
                     ))}
-                    <div style={{
-                      backgroundColor: 'var(--primary-light, #dbeafe)',
-                      padding: '10px 12px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '13px',
-                      fontWeight: '600'
-                    }}>
+                    <div className="summary-total-row">
                       <span>Toplam</span>
                       <span>{formatQty(totalQuantity)}</span>
                     </div>
@@ -872,33 +664,14 @@ export default function CreateShipmentModal({
         </div>
 
         {/* Footer */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '14px 20px',
-          borderTop: '1px solid var(--border, #e5e7eb)',
-          backgroundColor: 'var(--card-bg, #ffffff)'
-        }}>
+        <div className="modal-footer-flex">
           {/* Left side - Back button or empty */}
           <div>
             {currentStep > 1 && (
               <button
                 type="button"
                 onClick={handleBack}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '8px 14px',
-                  backgroundColor: 'transparent',
-                  color: '#6b7280',
-                  border: '1px solid var(--border, #d1d5db)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
+                className="btn-back"
               >
                 <ArrowLeft size={14} />
                 Geri
@@ -907,20 +680,11 @@ export default function CreateShipmentModal({
           </div>
           
           {/* Right side - Next/Submit button */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="flex-gap-10">
             <button
               type="button"
               onClick={onClose}
-              style={{
-                padding: '8px 14px',
-                backgroundColor: 'transparent',
-                color: '#6b7280',
-                border: '1px solid var(--border, #d1d5db)',
-                borderRadius: '6px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
+              className="btn-cancel"
             >
               İptal
             </button>
@@ -930,19 +694,7 @@ export default function CreateShipmentModal({
                 type="button"
                 onClick={handleNext}
                 disabled={currentStep === 2 && items.length === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '8px 14px',
-                  backgroundColor: (currentStep === 2 && items.length === 0) ? 'var(--muted, #9ca3af)' : 'var(--primary, #3b82f6)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: (currentStep === 2 && items.length === 0) ? 'not-allowed' : 'pointer'
-                }}
+                className={`btn-next ${(currentStep === 2 && items.length === 0) ? 'disabled' : 'enabled'}`}
               >
                 İleri
                 <ArrowRight size={14} />
@@ -952,23 +704,11 @@ export default function CreateShipmentModal({
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 16px',
-                  backgroundColor: loading ? 'var(--muted, #9ca3af)' : 'var(--success, #16a34a)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
+                className={`btn-submit ${loading ? 'disabled' : 'enabled'}`}
               >
                 {loading ? (
                   <>
-                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    <Loader2 size={14} className="spin-animation" />
                     Oluşturuluyor...
                   </>
                 ) : (

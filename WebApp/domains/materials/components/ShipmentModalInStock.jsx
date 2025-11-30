@@ -240,13 +240,13 @@ export default function ShipmentModalInStock({
     <div ref={panelRef} style={panelStyle} onClick={e => e.stopPropagation()}>
       {/* Header */}
       <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Truck size={18} style={{ color: 'var(--primary, #3b82f6)' }} />
+        <div className="flex-center-gap-8">
+          <Truck size={18} className="text-primary-var" />
           <div>
             <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary, #111827)' }}>
               Sevkiyat Oluştur
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)' }}>
+            <div className="text-secondary-var">
               {material.code}
             </div>
           </div>
@@ -321,7 +321,7 @@ export default function ShipmentModalInStock({
               fontSize: '12px',
               color: 'var(--text-secondary, #6b7280)'
             }}>
-              <Loader2 size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={14} className="animate-spin" className="spin-animation" />
               Veriler yükleniyor...
             </div>
           )}
@@ -329,7 +329,7 @@ export default function ShipmentModalInStock({
           {/* Quantity - using mes-filter-input is-compact */}
           <div style={{ marginBottom: '14px' }}>
             <label style={labelStyle}>Sevk Miktarı *</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="flex-gap-8">
               <input
                 type="text"
                 className="mes-filter-input is-compact"
@@ -339,7 +339,7 @@ export default function ShipmentModalInStock({
                 inputMode="decimal"
                 pattern="[0-9]*\.?[0-9]*"
                 required
-                style={{ flex: 1 }}
+                className="flex-1"
                 autoFocus
               />
               <div style={{
@@ -359,7 +359,7 @@ export default function ShipmentModalInStock({
           </div>
 
           {/* Work Order Dropdown - using mes-filter-select */}
-          <div style={{ marginBottom: '14px', position: 'relative' }}>
+          <div className="mb-14-relative">
             <label style={labelStyle}>İş Emri (Tamamlanmış)</label>
             <button
               type="button"
@@ -380,14 +380,14 @@ export default function ShipmentModalInStock({
               }}>
                 {formData.workOrderCode || 'İş emri seçin'}
               </span>
-              <ChevronDown size={16} style={{ color: 'var(--text-secondary, #6b7280)', flexShrink: 0 }} />
+              <ChevronDown size={16} className="text-secondary-shrink" />
             </button>
             
             {workOrderDropdownOpen && (
               <div style={dropdownContainerStyle}>
                 {/* Search */}
-                <div style={{ padding: '8px', borderBottom: '1px solid var(--border, #e5e7eb)' }}>
-                  <div style={{ position: 'relative' }}>
+                <div className="p-8-border-var">
+                  <div className="pos-relative">
                     <Search size={14} style={{ 
                       position: 'absolute', 
                       left: '10px', 
@@ -401,7 +401,7 @@ export default function ShipmentModalInStock({
                       value={workOrderSearch}
                       onChange={(e) => setWorkOrderSearch(e.target.value)}
                       placeholder="Ara..."
-                      style={{ paddingLeft: '32px', width: '100%' }}
+                      className="pl-32-full"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -433,8 +433,8 @@ export default function ShipmentModalInStock({
                       onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--hover-bg, #f3f4f6)'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                     >
-                      <div style={{ fontWeight: '500' }}>{wo.workOrderCode}</div>
-                      {wo.productName && <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)' }}>{wo.productName}</div>}
+                      <div className="font-medium">{wo.workOrderCode}</div>
+                      {wo.productName && <div className="text-secondary-var">{wo.productName}</div>}
                     </div>
                   ))
                 ) : (
@@ -447,7 +447,7 @@ export default function ShipmentModalInStock({
           </div>
 
           {/* Quote Dropdown - using mes-filter-select */}
-          <div style={{ marginBottom: '14px', position: 'relative' }}>
+          <div className="mb-14-relative">
             <label style={labelStyle}>Teklif (Onaylanmış)</label>
             <button
               type="button"
@@ -468,14 +468,14 @@ export default function ShipmentModalInStock({
               }}>
                 {formData.quoteId || 'Teklif seçin'}
               </span>
-              <ChevronDown size={16} style={{ color: 'var(--text-secondary, #6b7280)', flexShrink: 0 }} />
+              <ChevronDown size={16} className="text-secondary-shrink" />
             </button>
             
             {quoteDropdownOpen && (
               <div style={dropdownContainerStyle}>
                 {/* Search */}
-                <div style={{ padding: '8px', borderBottom: '1px solid var(--border, #e5e7eb)' }}>
-                  <div style={{ position: 'relative' }}>
+                <div className="p-8-border-var">
+                  <div className="pos-relative">
                     <Search size={14} style={{ 
                       position: 'absolute', 
                       left: '10px', 
@@ -489,7 +489,7 @@ export default function ShipmentModalInStock({
                       value={quoteSearch}
                       onChange={(e) => setQuoteSearch(e.target.value)}
                       placeholder="Ara..."
-                      style={{ paddingLeft: '32px', width: '100%' }}
+                      className="pl-32-full"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -521,8 +521,8 @@ export default function ShipmentModalInStock({
                       onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--hover-bg, #f3f4f6)'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                     >
-                      <div style={{ fontWeight: '500' }}>#{q.id}</div>
-                      {q.customer_name && <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)' }}>{q.customer_name}</div>}
+                      <div className="font-medium">#{q.id}</div>
+                      {q.customer_name && <div className="text-secondary-var">{q.customer_name}</div>}
                     </div>
                   ))
                 ) : (
@@ -543,12 +543,12 @@ export default function ShipmentModalInStock({
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               placeholder="Sevkiyat notu..."
-              style={{ width: '100%' }}
+              className="w-full"
             />
           </div>
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="flex-gap-10">
             <button
               type="button"
               onClick={onClose}

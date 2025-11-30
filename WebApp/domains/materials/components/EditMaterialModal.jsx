@@ -476,29 +476,21 @@ export default function EditMaterialModal({
             <h2>Malzeme Detayları</h2>
             <button className="modal-close" onClick={handleClose}>×</button>
           </div>
-          <div className="modal-form" style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+          <div className="modal-form empty-state-simple">
             {!loadingTimeout ? (
               <>
-                <div style={{ fontSize: '24px', marginBottom: '16px' }}>⏳</div>
-                <p style={{ margin: 0, fontSize: '16px', fontWeight: '500' }}>Malzeme detayları yükleniyor...</p>
-                <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#9ca3af' }}>Lütfen bekleyin</p>
+                <div className="icon-lg-mb">⏳</div>
+                <p className="loading-text-title">Malzeme detayları yükleniyor...</p>
+                <p className="text-sm-light">Lütfen bekleyin</p>
               </>
             ) : (
               <>
-                <div style={{ fontSize: '24px', marginBottom: '16px' }}>⚠️</div>
-                <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#dc2626' }}>Yükleme çok uzun sürüyor</p>
-                <p style={{ margin: '8px 0 16px', fontSize: '14px', color: '#9ca3af' }}>Bağlantı problemi olabilir</p>
+                <div className="icon-lg-mb">⚠️</div>
+                <p className="loading-text-error">Yükleme çok uzun sürüyor</p>
+                <p className="loading-text-subtitle">Bağlantı problemi olabilir</p>
                 <button 
                   onClick={handleClose}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#dc2626',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
+                  className="btn-timeout-close"
                 >
                   Kapat ve Tekrar Dene
                 </button>
@@ -519,10 +511,10 @@ export default function EditMaterialModal({
             <h2>Malzeme Detayları</h2>
             <button className="modal-close" onClick={handleClose}>×</button>
           </div>
-          <div className="modal-form" style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
-            <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#374151' }}>Malzeme bulunamadı</p>
-            <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#9ca3af' }}>Bu malzeme silinmiş olabilir veya erişim yetkiniz bulunmuyor</p>
+          <div className="modal-form empty-state-simple">
+            <div className="icon-search-lg">🔍</div>
+            <p className="loading-text-gray">Malzeme bulunamadı</p>
+            <p className="text-sm-light">Bu malzeme silinmiş olabilir veya erişim yetkiniz bulunmuyor</p>
           </div>
         </div>
       </div>
@@ -557,7 +549,7 @@ export default function EditMaterialModal({
           <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Malzeme Detayları {isRemoved && <span style={{ color: '#dc2626', fontSize: '14px' }}>(Kaldırılmış)</span>}</h2>
+          <h2>Malzeme Detayları {isRemoved && <span className="text-error-sm">(Kaldırılmış)</span>}</h2>
           <div className="header-actions">
             {!isRemoved && !isEditing && (
               <button type="button" onClick={(e) => { e.preventDefault(); handleUnlock(); }} className="btn-edit" title="Düzenle">
@@ -705,101 +697,38 @@ export default function EditMaterialModal({
             
             {/* Sağ kolon - Tedarikçiler */}
             <div className="details-right-section">
-              <div className="suppliers-section" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  marginBottom: '12px',
-                  color: '#374151',
-                  borderBottom: '1px solid #e5e7eb',
-                  paddingBottom: '6px',
-                  flexShrink: 0
-                }}>
+              <div className="suppliers-section suppliers-section-full">
+                <h3 className="suppliers-section-title">
                   Tedarikçiler
                 </h3>
                 
                 {/* Kaydırılabilir Tedarikçiler Listesi */}
-                <div 
-                  className="suppliers-list" 
-                  style={{ 
-                    flex: 1,
-                    overflowY: 'auto',
-                    paddingRight: '4px'
-                  }}
-                >
+                <div className="suppliers-list suppliers-list-scroll">
                   {/* Loading State için Tedarikçiler */}
                   {suppliersLoading ? (
-                    <div style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '8px',
-                      padding: '12px 8px' 
-                    }}>
+                    <div className="supplier-skeleton">
                       {[1, 2, 3].map((_, index) => (
                         <div 
                           key={index}
-                          style={{
-                            padding: '6px',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '6px',
-                            backgroundColor: '#f9fafb',
-                            animation: 'pulse 1.5s ease-in-out infinite'
-                          }}
+                          className="supplier-skeleton-item"
                         >
-                          <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}>
-                            <div style={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              flex: 1
-                            }}>
-                              <div style={{ 
-                                height: '12px',
-                                backgroundColor: '#e5e7eb',
-                                borderRadius: '3px',
-                                flex: 1,
-                                animation: 'pulse 1.5s ease-in-out infinite'
-                              }}></div>
-                              <div style={{ 
-                                width: '35px',
-                                height: '14px',
-                                backgroundColor: '#e5e7eb',
-                                borderRadius: '3px',
-                                animation: 'pulse 1.5s ease-in-out infinite'
-                              }}></div>
+                          <div className="supplier-skeleton-row">
+                            <div className="supplier-skeleton-left">
+                              <div className="supplier-skeleton-bar"></div>
+                              <div className="supplier-skeleton-badge"></div>
                             </div>
-                            <div style={{ 
-                              display: 'flex', 
-                              gap: '4px' 
-                            }}>
+                            <div className="supplier-skeleton-buttons">
                               {[1, 2, 3].map((_, btnIndex) => (
                                 <div 
                                   key={btnIndex}
-                                  style={{
-                                    width: '16px',
-                                    height: '16px',
-                                    backgroundColor: '#e5e7eb',
-                                    borderRadius: '3px',
-                                    animation: 'pulse 1.5s ease-in-out infinite'
-                                  }}
+                                  className="supplier-skeleton-btn"
                                 ></div>
                               ))}
                             </div>
                           </div>
                         </div>
                       ))}
-                      <div style={{ 
-                        textAlign: 'center', 
-                        color: '#6b7280', 
-                        fontSize: '11px',
-                        marginTop: '8px',
-                        fontStyle: 'italic'
-                      }}>
+                      <div className="supplier-loading-text">
                         🔄 Tedarikçiler yükleniyor...
                       </div>
                     </div>
@@ -809,40 +738,13 @@ export default function EditMaterialModal({
                       {materialSuppliers.map((supplier, index) => (
                     <div 
                       key={supplier.id || index}
-                      className="supplier-card"
-                      style={{
-                        padding: '6px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        marginBottom: '4px',
-                        backgroundColor: '#ffffff',
-                        transition: 'all 0.2s ease'
-                      }}
+                      className="supplier-card supplier-card-compact"
                     >
                       {/* Tek Satır - Tüm İçerik */}
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
+                      <div className="supplier-card-row">
                         {/* Sol Taraf - Tedarikçi Adı ve Durum */}
-                        <div style={{ 
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flex: 1,
-                          minWidth: 0
-                        }}>
-                          <div style={{ 
-                            fontWeight: '600', 
-                            fontSize: '11px',
-                            color: '#111827',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            flex: 1
-                          }}>
+                        <div className="supplier-card-left">
+                          <div className="supplier-card-name">
                             {supplier.name || supplier.companyName}
                           </div>
                           {(() => {
@@ -887,26 +789,11 @@ export default function EditMaterialModal({
                         </div>
                         
                         {/* Sağ Taraf - Butonlar */}
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          gap: '4px',
-                          flexShrink: 0
-                        }}>
+                        <div className="supplier-card-buttons">
                           {/* Info Butonu */}
                           {/* Tedarikçi Info Butonu - Yeni pencerede tedarikçi detaylarını aç */}
                           <button
-                            style={{
-                              background: '#f3f4f6',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '3px',
-                              padding: '2px 4px',
-                              cursor: 'pointer',
-                              fontSize: '8px',
-                              fontWeight: '500',
-                              color: '#374151',
-                              transition: 'all 0.2s ease'
-                            }}
+                            className="btn-supplier-info"
                             onClick={(e) => {
                               e.stopPropagation();
                               console.log('Tedarikçi detayı açılacak:', supplier.name || supplier.companyName);
@@ -916,14 +803,6 @@ export default function EditMaterialModal({
                               window.open(supplierDetailsUrl, '_blank');
                             }}
                             title={`${supplier.name || supplier.companyName} detaylarını görüntüle`}
-                            onMouseOver={(e) => {
-                              e.target.style.background = '#e5e7eb';
-                              e.target.style.borderColor = '#9ca3af';
-                            }}
-                            onMouseOut={(e) => {
-                              e.target.style.background = '#f3f4f6';
-                              e.target.style.borderColor = '#d1d5db';
-                            }}
                           >
                             ℹ️
                           </button>
@@ -931,44 +810,24 @@ export default function EditMaterialModal({
                           {/* İletişim Butonları */}
                           {(supplier.phone1 || supplier.phone) && (
                             <button
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px',
-                                borderRadius: '3px',
-                                fontSize: '10px',
-                                lineHeight: 1
-                              }}
+                              className="btn-supplier-contact"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(`tel:${supplier.phone1 || supplier.phone}`);
                               }}
                               title={`Telefon: ${supplier.phone1 || supplier.phone}`}
-                              onMouseOver={(e) => e.target.style.background = '#dbeafe'}
-                              onMouseOut={(e) => e.target.style.background = 'none'}
                             >
                               📞
                             </button>
                           )}
                           {(supplier.email1 || supplier.email) && (
                             <button
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px',
-                                borderRadius: '3px',
-                                fontSize: '10px',
-                                lineHeight: 1
-                              }}
+                              className="btn-supplier-contact email"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(`mailto:${supplier.email1 || supplier.email}`);
                               }}
                               title={`Email: ${supplier.email1 || supplier.email}`}
-                              onMouseOver={(e) => e.target.style.background = '#fef3c7'}
-                              onMouseOut={(e) => e.target.style.background = 'none'}
                             >
                               ✉️
                             </button>
@@ -980,18 +839,10 @@ export default function EditMaterialModal({
                   
                   {/* Boş Durum */}
                   {materialSuppliers.length === 0 && (
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '16px 8px', 
-                      color: '#6b7280', 
-                      fontSize: '11px',
-                      border: '1px dashed #e5e7eb',
-                      borderRadius: '6px',
-                      backgroundColor: '#f9fafb'
-                    }}>
-                      <div style={{ fontSize: '16px', marginBottom: '4px' }}>🏢</div>
-                      <div style={{ fontWeight: '500', marginBottom: '2px' }}>Tedarikçi yok</div>
-                      <div style={{ fontSize: '9px', color: '#9ca3af' }}>Bu malzemeyi tedarik eden firma bulunmuyor</div>
+                    <div className="supplier-empty-compact">
+                      <div className="text-md-mb">🏢</div>
+                      <div className="font-medium-mb-2">Tedarikçi yok</div>
+                      <div className="text-xxs-light">Bu malzemeyi tedarik eden firma bulunmuyor</div>
                     </div>
                   )}
                   </>
@@ -1069,12 +920,11 @@ export default function EditMaterialModal({
           </div>
           
           {/* Lot Envanteri - Lot tracking inventory section */}
-          <div className="lot-inventory-section mes-section-card" style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0 }}>📦 Lot Envanteri</h3>
+          <div className="lot-inventory-section mes-section-card mb-24">
+            <div className="supplier-header-flex">
+              <h3 className="m-0">📦 Lot Envanteri</h3>
               <button
                 type="button"
-                className="mes-primary-action"
                 onClick={() => {
                   if (material?.code) {
                     console.log('🔄 Lot envanteri yükleniyor...', material.code);
@@ -1082,26 +932,19 @@ export default function EditMaterialModal({
                   }
                 }}
                 disabled={lotsLoading || !material?.code}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  cursor: lotsLoading || !material?.code ? 'not-allowed' : 'pointer',
-                  opacity: lotsLoading || !material?.code ? 0.6 : 1
-                }}
+                className="mes-primary-action btn-load-data"
               >
                 {lotsLoading ? '⏳ Yükleniyor...' : '🔄 Lot Bilgilerini Yükle'}
               </button>
             </div>
             
             {lotsError && (
-              <div className="alert alert-danger" style={{ marginBottom: '12px' }}>
+              <div className="alert alert-danger mb-12">
                 ❌ Hata: {lotsError}
               </div>
             )}
             
-            <div className="mes-table-container" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <div className="mes-table-container table-scroll-400">
               <table className="custom-table">
                 <thead>
                   <tr>
@@ -1134,10 +977,10 @@ export default function EditMaterialModal({
                       
                       return (
                         <tr key={lot.lotNumber || index}>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                          <td className="td-center-bold">
                             #{lot.fifoOrder}
                           </td>
-                          <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                          <td className="td-monospace">
                             {lot.lotNumber || '-'}
                           </td>
                           <td>
@@ -1152,7 +995,7 @@ export default function EditMaterialModal({
                           <td>
                             {expDate ? expDate.toLocaleDateString('tr-TR') : '-'}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                          <td className="td-right-bold">
                             {Number(lot.balance).toLocaleString('tr-TR', { 
                               minimumFractionDigits: 2, 
                               maximumFractionDigits: 2 
@@ -1193,9 +1036,9 @@ export default function EditMaterialModal({
           </div>
           
           {/* Üretim geçmişi tablosu */}
-          <div className="production-history-section" style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0 }}>Üretim Geçmişi</h3>
+          <div className="production-history-section mb-24">
+            <div className="supplier-header-flex">
+              <h3 className="m-0">Üretim Geçmişi</h3>
               <button 
                 type="button"
                 onClick={() => {
@@ -1208,16 +1051,7 @@ export default function EditMaterialModal({
                   }
                 }}
                 disabled={productionLoading}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  background: productionLoading ? '#e5e7eb' : '#f9fafb',
-                  cursor: productionLoading ? 'not-allowed' : 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: productionLoading ? '#9ca3af' : '#374151'
-                }}
+                className={`btn-load-history ${productionLoading ? 'disabled' : ''}`}
               >
                 {productionLoading ? '⏳ Yükleniyor...' : '🔄 Üretim Geçmişini Yükle'}
               </button>
@@ -1270,14 +1104,7 @@ export default function EditMaterialModal({
                           <td>{item.workOrderCode}</td>
                           <td>{item.nodeId}</td>
                           <td>
-                            <span style={{
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              backgroundColor: typeColor + '20',
-                              color: typeColor
-                            }}>
+                            <span className={`badge-type ${item.type}`}>
                               {typeLabel}
                             </span>
                           </td>
@@ -1294,8 +1121,8 @@ export default function EditMaterialModal({
           
           {/* Tedarik geçmişi tablosu */}
           <div className="supply-history-section">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0 }}>Tedarik Geçmişi</h3>
+            <div className="supplier-header-flex">
+              <h3 className="m-0">Tedarik Geçmişi</h3>
               <button 
                 type="button"
                 onClick={() => {
@@ -1304,16 +1131,7 @@ export default function EditMaterialModal({
                     loadHistory();
                   }
                 }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  background: procurementLoading ? '#e5e7eb' : '#f9fafb',
-                  cursor: procurementLoading ? 'not-allowed' : 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: procurementLoading ? '#9ca3af' : '#374151'
-                }}
+                className={`btn-load-history ${procurementLoading ? 'disabled' : ''}`}
                 disabled={!material?.id || procurementLoading}
               >
                 {procurementLoading ? '⏳ Yükleniyor...' : '🔄 Tedarik Geçmişini Yükle'}
@@ -1368,7 +1186,7 @@ export default function EditMaterialModal({
                 </tbody>
               </table>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <div className="flex-end-mt-8">
               <button
                 type="button"
                 onClick={() => {
@@ -1381,15 +1199,7 @@ export default function EditMaterialModal({
                     console.error('Order panelini açma hatası:', e)
                   }
                 }}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  background: '#f9fafb',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 600
-                }}
+                className="btn-view-all"
               >
                 Tüm tedarik geçmişini gör
               </button>

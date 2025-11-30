@@ -166,7 +166,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
             )}
             <span className="mes-filter-caret">▾</span>
           </div>
-          <div id="types-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+          <div id="types-dropdown" className="multi-select-dropdown" className="d-none">
             <div className="mes-filter-panel-header">
               <button 
                 type="button" 
@@ -200,8 +200,8 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
                       checked={filters.types?.includes(type.id) || false}
                       onChange={() => handleMultiSelectChange('types', type.id)}
                     />
-                    <span style={{ flex: '1 1 0%' }}>{type.label}</span>
-                    <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({count})</span>
+                    <span className="flex-1-0">{type.label}</span>
+                    <span className="text-muted-var">({count})</span>
                   </label>
                 )
               })}
@@ -223,7 +223,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
             )}
             <span className="mes-filter-caret">▾</span>
           </div>
-          <div id="categories-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+          <div id="categories-dropdown" className="multi-select-dropdown" className="d-none">
             <div className="mes-filter-panel-header">
               <button 
                 type="button" 
@@ -257,8 +257,8 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
                       checked={filters.categories?.includes(category.id) || false}
                       onChange={() => handleMultiSelectChange('categories', category.id)}
                     />
-                    <span style={{ flex: '1 1 0%' }}>{category.name || category.label}</span>
-                    <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({count})</span>
+                    <span className="flex-1-0">{category.name || category.label}</span>
+                    <span className="text-muted-var">({count})</span>
                   </label>
                 )
               })}

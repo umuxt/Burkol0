@@ -373,58 +373,26 @@ export default function MaterialDetailsPanel({
 
   return (
     <div className="material-detail-panel">
-      <div style={{ 
-        background: 'white', 
-        borderRadius: '6px', 
-        border: '1px solid #e5e7eb',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <div className="detail-panel-card">
         {/* Header */}
-        <div style={{ 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="detail-panel-header">
+          <div className="flex-center-gap-12">
             <button
               onClick={handleClose}
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                background: 'white',
-                color: '#374151',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
+              className="btn-icon-back"
               title="Detayları Kapat"
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-              Malzeme Detayları {isRemoved && <span style={{ color: '#dc2626', fontSize: '14px' }}>(Kaldırılmış)</span>}
+            <h3 className="supplier-section-title-lg">
+              Malzeme Detayları {isRemoved && <span className="text-error-sm">(Kaldırılmış)</span>}
             </h3>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="flex-gap-8-center">
             {!isRemoved && !isEditing ? (
               <button
                 onClick={handleUnlock}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  background: 'white',
-                  color: '#374151',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
+                className="btn-icon-edit"
               >
                 <Edit size={14} /> Düzenle
               </button>
@@ -434,35 +402,13 @@ export default function MaterialDetailsPanel({
                 <button
                   type="submit"
                   form="material-detail-form"
-                  style={{
-                    padding: '6px 12px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: '#3b82f6',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
+                  className="btn-icon-save"
                 >
                   <Download size={14} /> Kaydet
                 </button>
                 <button
                   onClick={() => setIsEditing(false)}
-                  style={{
-                    padding: '6px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
+                  className="btn-icon-cancel"
                 >
                   <ArrowLeft size={14} /> İptal
                 </button>
@@ -476,18 +422,7 @@ export default function MaterialDetailsPanel({
                     onClose();
                   }
                 }}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid #dc2626',
-                  borderRadius: '4px',
-                  background: 'white',
-                  color: '#dc2626',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
+                className="btn-icon-delete"
               >
                 <Trash2 size={14} /> Sil
               </button>
@@ -496,31 +431,25 @@ export default function MaterialDetailsPanel({
         </div>
 
         {/* Content - Scrollable */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+        <div className="panel-content">
           <form id="material-detail-form" onSubmit={handleSubmit}>
             {/* Temel Bilgiler */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="section-card">
+              <h3 className="supplier-section-header">
                 Temel Bilgiler
               </h3>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Malzeme Kodu:
                 </span>
-                <span style={{ fontSize: '12px', color: '#111827' }}>
+                <span className="supplier-detail-value">
                   {safeRender(formData.code)}
                 </span>
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Malzeme Adı:
                 </span>
                 {isEditing ? (
@@ -529,24 +458,17 @@ export default function MaterialDetailsPanel({
                     name="name"
                     value={safeRender(formData.name)}
                     onChange={handleInputChange}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="input-edit-field"
                   />
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {safeRender(formData.name)}
                   </span>
                 )}
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Tip:
                 </span>
                 {isEditing ? (
@@ -554,28 +476,21 @@ export default function MaterialDetailsPanel({
                     name="type"
                     value={safeRender(formData.type)}
                     onChange={handleInputChange}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="select-edit-field"
                   >
                     {types.map(type => (
                       <option key={type.value || type.id} value={type.value || type.id}>{type.label}</option>
                     ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {getTypeLabel(formData.type)}
                   </span>
                 )}
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Kategori:
                 </span>
                 {isEditing ? (
@@ -584,14 +499,7 @@ export default function MaterialDetailsPanel({
                       <select
                         value={safeRender(formData.category)}
                         onChange={handleCategoryChange}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #3b82f6',
-                          borderRadius: '4px',
-                          background: 'white',
-                          width: '100%',
-                          fontSize: '14px'
-                        }}
+                        className="select-edit-field"
                         required={!['processed', 'scrap'].includes(formData.type)}
                       >
                         <option value="">Kategori seçin</option>
@@ -606,27 +514,20 @@ export default function MaterialDetailsPanel({
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         placeholder="Yeni kategori adı"
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #3b82f6',
-                          borderRadius: '4px',
-                          background: 'white',
-                          width: '100%',
-                          fontSize: '14px'
-                        }}
+                        className="input-edit-field"
                         required
                       />
                     )}
                   </>
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {getCategoryName(formData.category)}
                   </span>
                 )}
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '0' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Birim:
                 </span>
                 {isEditing ? (
@@ -635,17 +536,10 @@ export default function MaterialDetailsPanel({
                     name="unit"
                     value={safeRender(formData.unit)}
                     onChange={handleInputChange}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="input-edit-field"
                   />
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {safeRender(formData.unit)}
                   </span>
                 )}
@@ -653,19 +547,13 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Stok Bilgileri */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+            <div className="section-card">
+              <h3 className="supplier-section-header">
                 Stok Bilgileri
               </h3>
               
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Mevcut Stok:
                 </span>
                 {isEditing ? (
@@ -676,24 +564,17 @@ export default function MaterialDetailsPanel({
                     onChange={handleInputChange}
                     inputMode="decimal"
                     pattern="[0-9]*\.?[0-9]*"
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="input-edit-field"
                   />
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827', fontWeight: '600' }}>
+                  <span className="text-12-dark">
                     {safeRender(formData.stock, '0')} {material.unit}
                   </span>
                 )}
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Minimum Stok:
                 </span>
                 {isEditing ? (
@@ -704,24 +585,17 @@ export default function MaterialDetailsPanel({
                     onChange={handleInputChange}
                     inputMode="decimal"
                     pattern="[0-9]*\.?[0-9]*"
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="input-edit-field"
                   />
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {safeRender(formData.reorderPoint, '0')} {material.unit}
                   </span>
                 )}
               </div>
 
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '0' }}>
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+              <div className="supplier-detail-row">
+                <span className="supplier-detail-label-120">
                   Durum:
                 </span>
                 {isEditing ? (
@@ -729,19 +603,12 @@ export default function MaterialDetailsPanel({
                     name="status"
                     value={safeRender(formData.status, 'Aktif')}
                     onChange={handleInputChange}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      width: '100%',
-                      fontSize: '14px'
-                    }}
+                    className="select-edit-field"
                   >
                     <option value="Aktif">Aktif</option>
                   </select>
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                  <span className="supplier-detail-value">
                     {safeRender(formData.status, 'Aktif')}
                   </span>
                 )}
@@ -749,81 +616,31 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Tedarikçiler */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                marginBottom: '12px',
-                color: '#374151',
-                borderBottom: '1px solid #e5e7eb',
-                paddingBottom: '6px'
-              }}>
+            <div className="section-card">
+              <h3 className="suppliers-section-title">
                 Tedarikçiler
               </h3>
               
-              <div style={{ 
-                maxHeight: '200px',
-                overflowY: 'auto',
-                paddingRight: '4px'
-              }}>
+              <div className="suppliers-list-scroll">
                 {suppliersLoading ? (
-                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '11px', padding: '12px' }}>
+                  <div className="empty-suppliers-panel">
                     🔄 Tedarikçiler yükleniyor...
                   </div>
                 ) : materialSuppliers.length === 0 ? (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '16px 8px', 
-                    color: '#6b7280', 
-                    fontSize: '11px',
-                    border: '1px dashed #e5e7eb',
-                    borderRadius: '6px',
-                    backgroundColor: '#f9fafb'
-                  }}>
-                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>🏢</div>
-                    <div style={{ fontWeight: '500', marginBottom: '2px' }}>Tedarikçi yok</div>
-                    <div style={{ fontSize: '9px', color: '#9ca3af' }}>Bu malzemeyi tedarik eden firma bulunmuyor</div>
+                  <div className="supplier-empty-compact">
+                    <div className="text-md-mb">🏢</div>
+                    <div className="font-medium-mb-2">Tedarikçi yok</div>
+                    <div className="text-xxs-light">Bu malzemeyi tedarik eden firma bulunmuyor</div>
                   </div>
                 ) : (
                   materialSuppliers.map((supplier, index) => (
                     <div 
                       key={supplier.id || index}
-                      style={{
-                        padding: '6px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        marginBottom: '4px',
-                        backgroundColor: '#ffffff'
-                      }}
+                      className="supplier-card-compact"
                     >
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <div style={{ 
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flex: 1,
-                          minWidth: 0
-                        }}>
-                          <div style={{ 
-                            fontWeight: '600', 
-                            fontSize: '11px',
-                            color: '#111827',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            flex: 1
-                          }}>
+                      <div className="supplier-card-row">
+                        <div className="supplier-card-left">
+                          <div className="supplier-card-name">
                             {supplier.name || supplier.companyName}
                           </div>
                           {(() => {
@@ -854,24 +671,10 @@ export default function MaterialDetailsPanel({
                           })()}
                         </div>
                         
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          gap: '4px',
-                          flexShrink: 0
-                        }}>
+                        <div className="supplier-card-buttons">
                           <button
                             type="button"
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px',
-                              borderRadius: '3px',
-                              color: '#6b7280',
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}
+                            className="btn-supplier-contact"
                             onClick={(e) => {
                               e.stopPropagation();
                               const supplierDetailsUrl = `/materials.html#suppliers-tab&supplier-${supplier.id}`;
@@ -885,16 +688,7 @@ export default function MaterialDetailsPanel({
                           {(supplier.phone1 || supplier.phone) && (
                             <button
                               type="button"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px',
-                                borderRadius: '3px',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
+                              className="btn-supplier-contact"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(`tel:${supplier.phone1 || supplier.phone}`);
@@ -907,16 +701,7 @@ export default function MaterialDetailsPanel({
                           {(supplier.email1 || supplier.email) && (
                             <button
                               type="button"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px',
-                                borderRadius: '3px',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
+                              className="btn-supplier-contact email"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(`mailto:${supplier.email1 || supplier.email}`);
@@ -936,15 +721,9 @@ export default function MaterialDetailsPanel({
 
             {/* Lot Envanteri - Only show when lot tracking is enabled */}
             {systemSettings.lotTracking && (
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="section-card">
+              <div className="supplier-header-flex">
+                <h3 className="title-with-icon">
                   <Package size={16} />
                   Lot Envanteri
                 </h3>
@@ -955,45 +734,36 @@ export default function MaterialDetailsPanel({
                       loadLots();
                     }
                   }}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid #d1d5db',
-                    background: lotsLoading ? '#e5e7eb' : '#f9fafb',
-                    cursor: lotsLoading ? 'not-allowed' : 'pointer',
-                    fontSize: '10px',
-                    fontWeight: '600',
-                    color: lotsLoading ? '#9ca3af' : '#374151'
-                  }}
+                  className="btn-load-sm"
                   disabled={!material?.id || lotsLoading}
                 >
-                  <RotateCw size={12} style={{ marginRight: '4px' }} />
+                  <RotateCw size={12} className="mr-4" />
                   {lotsLoading ? 'Yükleniyor...' : 'Yükle'}
                 </button>
               </div>
               
-              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+              <div className="scroll-container">
+                <table className="table-xs">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Lot No</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tedarikçi Lot</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Miktar</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Üretim</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>SKT</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Durum</th>
+                    <tr className="border-bottom-medium">
+                      <th className="supplier-th-left">Lot No</th>
+                      <th className="supplier-th-left">Tedarikçi Lot</th>
+                      <th className="supplier-th-right">Miktar</th>
+                      <th className="supplier-th-left">Üretim</th>
+                      <th className="supplier-th-left">SKT</th>
+                      <th className="supplier-th-left">Durum</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lotsLoading ? (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+                        <td colSpan="6" className="cell-center-gray">
                           Lot envanteri yükleniyor...
                         </td>
                       </tr>
                     ) : lotsError ? (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#dc2626' }}>
+                        <td colSpan="6" className="cell-center-error">
                           {lotsError}
                         </td>
                       </tr>
@@ -1005,23 +775,16 @@ export default function MaterialDetailsPanel({
                         const unit = material?.unit || '';
                         
                         return (
-                          <tr key={lot.lotNumber || idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '6px 8px', fontWeight: '600', color: '#1d4ed8' }}>{lot.lotNumber || '-'}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{lot.supplierLotCode || '-'}</td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#111827' }}>
+                          <tr key={lot.lotNumber || idx} className="border-bottom-light">
+                            <td className="supplier-td-bold-blue">{lot.lotNumber || '-'}</td>
+                            <td className="supplier-td">{lot.supplierLotCode || '-'}</td>
+                            <td className="supplier-td-right-bold">
                               {!isNaN(qty) ? `${qty} ${unit}`.trim() : '-'}
                             </td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{mfgDate}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{expDate}</td>
-                            <td style={{ padding: '6px 8px' }}>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: '600',
-                                background: lot.status === 'active' ? '#dcfce7' : '#f3f4f6',
-                                color: lot.status === 'active' ? '#16a34a' : '#6b7280'
-                              }}>
+                            <td className="supplier-td">{mfgDate}</td>
+                            <td className="supplier-td">{expDate}</td>
+                            <td className="supplier-td-simple">
+                              <span className={`badge-status-sm ${lot.status === 'active' ? 'active' : 'inactive'}`}>
                                 {lot.status === 'active' ? 'Aktif' : lot.status === 'depleted' ? 'Tükendi' : lot.status || '-'}
                               </span>
                             </td>
@@ -1030,7 +793,7 @@ export default function MaterialDetailsPanel({
                       })
                     ) : (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#9ca3af' }}>
+                        <td colSpan="6" className="cell-center-muted">
                           Henüz lot kaydı bulunmuyor
                         </td>
                       </tr>
@@ -1042,15 +805,9 @@ export default function MaterialDetailsPanel({
             )}
 
             {/* Üretim Geçmişi */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="section-card">
+              <div className="supplier-header-flex">
+                <h3 className="title-with-icon">
                   <Factory size={16} />
                   Üretim Geçmişi
                 </h3>
@@ -1061,44 +818,35 @@ export default function MaterialDetailsPanel({
                       loadProductionHistory();
                     }
                   }}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid #d1d5db',
-                    background: productionLoading ? '#e5e7eb' : '#f9fafb',
-                    cursor: productionLoading ? 'not-allowed' : 'pointer',
-                    fontSize: '10px',
-                    fontWeight: '600',
-                    color: productionLoading ? '#9ca3af' : '#374151'
-                  }}
+                  className="btn-load-sm"
                   disabled={!material?.id || productionLoading}
                 >
-                  <RotateCw size={12} style={{ marginRight: '4px' }} />
+                  <RotateCw size={12} className="mr-4" />
                   {productionLoading ? 'Yükleniyor...' : 'Yükle'}
                 </button>
               </div>
               
-              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+              <div className="scroll-container">
+                <table className="table-xs">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tarih</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>İş Emri</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Operasyon</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Miktar</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tip</th>
+                    <tr className="border-bottom-medium">
+                      <th className="supplier-th-left">Tarih</th>
+                      <th className="supplier-th-left">İş Emri</th>
+                      <th className="supplier-th-left">Operasyon</th>
+                      <th className="supplier-th-right">Miktar</th>
+                      <th className="supplier-th-left">Tip</th>
                     </tr>
                   </thead>
                   <tbody>
                     {productionLoading ? (
                       <tr>
-                        <td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+                        <td colSpan="5" className="cell-center-gray">
                           Üretim geçmişi yükleniyor...
                         </td>
                       </tr>
                     ) : productionError ? (
                       <tr>
-                        <td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#dc2626' }}>
+                        <td colSpan="5" className="cell-center-error">
                           {productionError}
                         </td>
                       </tr>
@@ -1157,22 +905,15 @@ export default function MaterialDetailsPanel({
                         }
                         
                         return (
-                          <tr key={item.id || idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{dateStr} {timeStr}</td>
-                            <td style={{ padding: '6px 8px', fontWeight: '600', color: '#1d4ed8' }}>{item.workOrderCode || '-'}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{item.nodeId || '-'}</td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#111827' }}>
+                          <tr key={item.id || idx} className="border-bottom-light">
+                            <td className="supplier-td">{dateStr} {timeStr}</td>
+                            <td className="supplier-td-bold-blue">{item.workOrderCode || '-'}</td>
+                            <td className="supplier-td">{item.nodeId || '-'}</td>
+                            <td className="supplier-td-right-bold">
                               {!isNaN(qty) ? `${qty} ${unit}`.trim() : '0 ' + unit}
                             </td>
-                            <td style={{ padding: '6px 8px' }}>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: '600',
-                                background: typeColor + '20',
-                                color: typeColor
-                              }}>
+                            <td className="supplier-td-simple">
+                              <span className={`badge-type ${item.type}`}>
                                 {typeLabel}
                               </span>
                             </td>
@@ -1181,7 +922,7 @@ export default function MaterialDetailsPanel({
                       })
                     ) : (
                       <tr>
-                        <td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#9ca3af' }}>
+                        <td colSpan="5" className="cell-center-muted">
                           Henüz üretim geçmişi bulunmuyor
                         </td>
                       </tr>
@@ -1190,7 +931,7 @@ export default function MaterialDetailsPanel({
                 </table>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <div className="flex-end-mt-8">
                 <button
                   type="button"
                   onClick={() => {
@@ -1201,16 +942,7 @@ export default function MaterialDetailsPanel({
                       console.error('Üretim panelini açma hatası:', e);
                     }
                   }}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '4px',
-                    border: '1px solid #e5e7eb',
-                    background: '#f9fafb',
-                    cursor: 'pointer',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#374151'
-                  }}
+                  className="btn-load-sm"
                 >
                   Tüm üretim geçmişini gör
                 </button>
@@ -1218,15 +950,9 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Tedarik Geçmişi */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="section-card">
+              <div className="supplier-header-flex">
+                <h3 className="title-with-icon">
                   <ShoppingCart size={16} />
                   Tedarik Geçmişi
                 </h3>
@@ -1237,45 +963,36 @@ export default function MaterialDetailsPanel({
                       loadHistory();
                     }
                   }}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid #d1d5db',
-                    background: procurementLoading ? '#e5e7eb' : '#f9fafb',
-                    cursor: procurementLoading ? 'not-allowed' : 'pointer',
-                    fontSize: '10px',
-                    fontWeight: '600',
-                    color: procurementLoading ? '#9ca3af' : '#374151'
-                  }}
+                  className="btn-load-sm"
                   disabled={!material?.id || procurementLoading}
                 >
-                  <RotateCw size={12} style={{ marginRight: '4px' }} />
+                  <RotateCw size={12} className="mr-4" />
                   {procurementLoading ? 'Yükleniyor...' : 'Yükle'}
                 </button>
               </div>
               
-              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+              <div className="scroll-container">
+                <table className="table-xs">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tarih</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tedarikçi</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Miktar</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Birim Fiyat</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Toplam</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Durum</th>
+                    <tr className="border-bottom-medium">
+                      <th className="supplier-th-left">Tarih</th>
+                      <th className="supplier-th-left">Tedarikçi</th>
+                      <th className="supplier-th-right">Miktar</th>
+                      <th className="supplier-th-right">Birim Fiyat</th>
+                      <th className="supplier-th-right">Toplam</th>
+                      <th className="supplier-th-left">Durum</th>
                     </tr>
                   </thead>
                   <tbody>
                     {procurementLoading ? (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+                        <td colSpan="6" className="cell-center-gray">
                           Tedarik geçmişi yükleniyor...
                         </td>
                       </tr>
                     ) : procurementError ? (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#dc2626' }}>
+                        <td colSpan="6" className="cell-center-error">
                           {procurementError}
                         </td>
                       </tr>
@@ -1288,25 +1005,25 @@ export default function MaterialDetailsPanel({
                         const unitPrice = Number(row.unitPrice || 0);
                         const total = !isNaN(qty) && !isNaN(unitPrice) ? (qty * unitPrice) : 0;
                         return (
-                          <tr key={`${row.orderId}-${row.itemSequence}-${idx}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{dateStr}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{row.supplierName || '-'}</td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#111827' }}>
+                          <tr key={`${row.orderId}-${row.itemSequence}-${idx}`} className="border-bottom-light">
+                            <td className="supplier-td">{dateStr}</td>
+                            <td className="supplier-td">{row.supplierName || '-'}</td>
+                            <td className="supplier-td-right">
                               {!isNaN(qty) ? `${qty} ${unit}`.trim() : '-'}
                             </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#111827' }}>
+                            <td className="supplier-td-right">
                               {!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}
                             </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#111827' }}>
+                            <td className="supplier-td-right">
                               {!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}
                             </td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{row.itemStatus || '-'}</td>
+                            <td className="supplier-td">{row.itemStatus || '-'}</td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan="6" style={{ padding: '12px', textAlign: 'center', color: '#9ca3af' }}>
+                        <td colSpan="6" className="cell-center-muted">
                           Henüz tedarik geçmişi bulunmuyor
                         </td>
                       </tr>
@@ -1315,7 +1032,7 @@ export default function MaterialDetailsPanel({
                 </table>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <div className="flex-end-mt-8">
                 <button
                   type="button"
                   onClick={() => {
@@ -1326,16 +1043,7 @@ export default function MaterialDetailsPanel({
                       console.error('Order panelini açma hatası:', e);
                     }
                   }}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '4px',
-                    border: '1px solid #e5e7eb',
-                    background: '#f9fafb',
-                    cursor: 'pointer',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#374151'
-                  }}
+                  className="btn-load-sm"
                 >
                   Tüm tedarik geçmişini gör
                 </button>

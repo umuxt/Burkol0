@@ -58,7 +58,6 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
             <div 
               key={tabId}
               className={`tab-panel ${currentActiveTab === tabId ? 'active' : ''}`}
-              style={{ display: currentActiveTab === tabId ? 'block' : 'none' }}
             >
               {child}
             </div>

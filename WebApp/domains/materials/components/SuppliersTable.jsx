@@ -878,7 +878,7 @@ export default function SuppliersTable({
         <table>
           <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center' }}>
+              <th className="col-w-40-center">
                 <input
                   type="checkbox"
                   title="Tümünü seç"
@@ -886,7 +886,7 @@ export default function SuppliersTable({
                   onChange={(e) => handleSelectAll(e.target.checked, sortedSuppliers)}
                 />
               </th>
-              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+              <th className="col-min-120-nowrap">
                 <button 
                   type="button"
                   onClick={() => handleSort('code')}
@@ -897,7 +897,7 @@ export default function SuppliersTable({
                   </span>
                 </button>
               </th>
-              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+              <th className="col-min-160">
                 <button 
                   type="button"
                   onClick={() => handleSort('name')}
@@ -908,7 +908,7 @@ export default function SuppliersTable({
                   </span>
                 </button>
               </th>
-              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+              <th className="col-min-160">
                 <button 
                   type="button"
                   onClick={() => handleSort('categories')}
@@ -920,7 +920,7 @@ export default function SuppliersTable({
                 </button>
               </th>
               {!selectedSupplier && (
-                <th style={{ minWidth: '180px', textAlign: 'center' }}>
+                <th className="th-actions-center">
                   Aksiyonlar
                 </th>
               )}
@@ -930,19 +930,10 @@ export default function SuppliersTable({
             {/* Loading state */}
             {loading && suppliers.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 20px',
-                  color: '#6b7280'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
+                <td colSpan="5" className="loading-cell-center">
+                  <div className="loading-content-flex">
                     <div className="spinner"></div>
-                    <p style={{ margin: 0, fontSize: '14px' }}>Tedarikçiler yükleniyor...</p>
+                    <p className="text-subtitle">Tedarikçiler yükleniyor...</p>
                   </div>
                 </td>
               </tr>
@@ -952,13 +943,10 @@ export default function SuppliersTable({
             {!loading && sortedSuppliers.map(supplier => (
                   <tr
                     key={supplier.id}
-                    className="mes-table-row"
+                    className={`mes-table-row ${selectedSupplier?.id === supplier.id ? 'selected' : ''}`}
                     onClick={() => handleRowClick(supplier)}
-                    style={{
-                      backgroundColor: selectedSupplier?.id === supplier.id ? 'rgb(239, 246, 255)' : 'white'
-                    }}
                   >
-                    <td style={{ width: '40px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <td className="col-w-40-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedSupplierIds.has(supplier.id)}
@@ -1013,103 +1001,38 @@ export default function SuppliersTable({
                                 {categoryName}
                               </span>
                             ))
-                          : <span style={{ color: 'rgb(107, 114, 128)', fontStyle: 'italic', fontSize: '11px' }}>Kategoriler</span>
+                          : <span className="text-muted-italic-xs">Kategoriler</span>
                         }
                       </div>
                     </td>
                     {!selectedSupplier && (
-                      <td style={{ padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}>
+                      <td className="td-actions-compact">
                         <button
+                          className="btn-icon-mini"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (supplier.phone1) {
                               window.open(`tel:${supplier.phone1}`, '_self');
                             }
                           }}
-                          style={{
-                            padding: '2px',
-                            border: 'none',
-                            borderRadius: '3px',
-                            background: 'transparent',
-                            color: '#374151',
-                            fontSize: '10px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '16px',
-                            height: '16px',
-                            lineHeight: 1,
-                            transition: 'all 0.2s ease',
-                            marginRight: '4px'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = 'scale(1.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = 'scale(1)';
-                          }}
                           title={`Ara: ${supplier.phone1 || 'Telefon bulunamadı'}`}
                         >
                           <Phone size={10} />
                         </button>
                         <button
+                          className="btn-icon-mini"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (supplier.email1) {
                               window.open(`mailto:${supplier.email1}`, '_blank');
                             }
                           }}
-                          style={{
-                            padding: '2px',
-                            border: 'none',
-                            borderRadius: '3px',
-                            background: 'transparent',
-                            color: '#374151',
-                            fontSize: '10px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '16px',
-                            height: '16px',
-                            lineHeight: 1,
-                            transition: 'all 0.2s ease',
-                            marginRight: '4px'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = 'scale(1.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = 'scale(1)';
-                          }}
                           title={`Mail At: ${supplier.email1 || 'Email bulunamadı'}`}
                         >
                           <Mail size={10} />
                         </button>
                         <button
-                          style={{
-                            padding: '2px',
-                            border: 'none',
-                            borderRadius: '3px',
-                            background: 'transparent',
-                            color: '#374151',
-                            fontSize: '10px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '16px',
-                            height: '16px',
-                            lineHeight: 1,
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = 'scale(1.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = 'scale(1)';
-                          }}
+                          className="btn-icon-mini"
                           title="Sipariş Ver"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1127,25 +1050,16 @@ export default function SuppliersTable({
             {/* Empty state */}
             {!loading && sortedSuppliers.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ 
-                  textAlign: 'center', 
-                  padding: '40px 20px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '12px',
-                    color: '#6b7280'
-                  }}>
-                    <div style={{ fontSize: '48px', opacity: 0.5 }}>🏭</div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#374151' }}>
+                <td colSpan="5" className="empty-state-cell">
+                  <div className="empty-state-flex">
+                    <div className="empty-state-icon">🏭</div>
+                    <h3 className="title-lg-gray">
                       {activeCategory === 'all' 
                         ? 'Henüz tedarikçi bulunmuyor' 
                         : 'Bu kategoride tedarikçi bulunmuyor'
                       }
                     </h3>
-                    <p style={{ margin: 0, fontSize: '14px' }}>
+                    <p className="text-subtitle">
                       {activeCategory === 'all' 
                         ? 'İlk tedarikçinizi eklemek için "Tedarikçi Ekle" butonunu kullanın.' 
                         : 'Bu kategoriye ait henüz tedarikçi yok.'
@@ -1164,133 +1078,48 @@ export default function SuppliersTable({
       {/* Sağ Panel - Detaylar */}
       {selectedSupplier && (
         <div className="supplier-detail-panel">
-          <div style={{ 
-            background: 'white', 
-            borderRadius: '6px', 
-            border: '1px solid #e5e7eb',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
+          <div className="supplier-panel-wrapper">
             {/* Header */}
-            <div style={{ 
-              padding: '16px 20px', 
-              borderBottom: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="supplier-panel-header">
+              <div className="flex-center-gap-12">
                 <button
+                  className="btn-back-sm"
                   onClick={() => setSelectedSupplier(null)}
-                  style={{
-                    padding: '6px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
                   title="Detayları Kapat"
                 >
                   <ArrowLeft size={14} />
                 </button>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                <h3 className="supplier-section-title-lg">
                   Tedarikçi Detayları
                 </h3>
               </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div className="flex-gap-8-center">
                 <button
+                  className="btn-icon-sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (selectedSupplier.phone1) {
                       window.open(`tel:${selectedSupplier.phone1}`, '_self');
                     }
                   }}
-                  style={{
-                    padding: '6px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: 'transparent',
-                    color: '#374151',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '24px',
-                    height: '24px',
-                    lineHeight: 1,
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'scale(1.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'scale(1)';
-                  }}
                   title={`Ara: ${selectedSupplier.phone1 || 'Telefon bulunamadı'}`}
                 >
                   <Phone size={14} />
                 </button>
                 <button
+                  className="btn-icon-sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (selectedSupplier.email1) {
                       window.open(`mailto:${selectedSupplier.email1}`, '_blank');
                     }
                   }}
-                  style={{
-                    padding: '6px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: 'transparent',
-                    color: '#374151',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '24px',
-                    height: '24px',
-                    lineHeight: 1,
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'scale(1.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'scale(1)';
-                  }}
                   title={`Mail At: ${selectedSupplier.email1 || 'Email bulunamadı'}`}
                 >
                   <Mail size={14} />
                 </button>
                 <button
-                  style={{
-                    padding: '6px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: 'transparent',
-                    color: '#374151',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '24px',
-                    height: '24px',
-                    lineHeight: 1,
-                    transition: 'all 0.2s ease',
-                    marginRight: '8px'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'scale(1.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'scale(1)';
-                  }}
+                  className="btn-icon-sm-mr"
                   title="Sipariş Ver"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1304,87 +1133,49 @@ export default function SuppliersTable({
                 </button>
                 {!isEditing ? (
                   <button
+                    className="btn-secondary-sm"
                     onClick={handleEdit}
-                    style={{
-                      padding: '6px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
                   >
-                    <Edit size={14} style={{ marginRight: '4px' }} /> Düzenle
+                    <Edit size={14} className="mr-4" /> Düzenle
                   </button>
                 ) : (
                   <>
                     <button
                       type="submit"
                       form="supplier-detail-form"
-                      style={{
-                        padding: '6px 12px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: '12px'
-                      }}
+                      className="btn-primary-sm"
                     >
-                      <Save size={14} style={{ marginRight: '4px' }} /> Kaydet
+                      <Save size={14} className="mr-4" /> Kaydet
                     </button>
                     <button
+                      className="btn-secondary-sm"
                       onClick={handleCancel}
-                      style={{
-                        padding: '6px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        background: 'white',
-                        color: '#374151',
-                        cursor: 'pointer',
-                        fontSize: '12px'
-                      }}
                     >
-                      <X size={14} style={{ marginRight: '4px' }} /> İptal
+                      <X size={14} className="mr-4" /> İptal
                     </button>
                   </>
                 )}
                 <button
+                  className="btn-danger-outline-sm"
                   onClick={handleDeleteSupplier}
-                  style={{
-                    padding: '6px 12px',
-                    border: '1px solid #dc2626',
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
                 >
-                  <Trash2 size={14} style={{ marginRight: '4px' }} /> Sil
+                  <Trash2 size={14} className="mr-4" /> Sil
                 </button>
               </div>
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+            <div className="panel-content">
               <form onSubmit={handleSaveSupplier} id="supplier-detail-form" className="supplier-details-layout">
                 {/* Temel Firma Bilgileri */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                <div className="section-card-mb">
+                  <h3 className="supplier-section-header">
                     Temel Firma Bilgileri
                   </h3>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                  <div className="supplier-grid-2">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Tedarikçi Kodu:
                       </span>
                       {isEditing ? (
@@ -1396,14 +1187,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.code || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Durum:
                       </span>
                       {isEditing ? (
@@ -1419,15 +1210,15 @@ export default function SuppliersTable({
                           <option value="Askıda">Askıda</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.status || '-'}
                         </span>
                       )}
                     </div>
                   </div>
                   
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                  <div className="supplier-detail-row">
+                    <span className="supplier-detail-label-120">
                       Firma Adı:
                     </span>
                     {isEditing ? (
@@ -1439,15 +1230,15 @@ export default function SuppliersTable({
                         style={{ ...getInputStyle(isEditing), flex: 1 }}
                       />
                     ) : (
-                      <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                      <span className="supplier-detail-value">
                         {selectedSupplier.name || selectedSupplier.companyName || '-'}
                       </span>
                     )}
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                  <div className="supplier-grid-2">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Tedarikçi Tipi:
                       </span>
                       {isEditing ? (
@@ -1466,14 +1257,14 @@ export default function SuppliersTable({
                           <option value="consultant">Danışman</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.supplierType || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         İş Kayıt No:
                       </span>
                       {isEditing ? (
@@ -1485,7 +1276,7 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.businessRegistrationNumber || '-'}
                         </span>
                       )}
@@ -1494,20 +1285,14 @@ export default function SuppliersTable({
                 </div>
 
                 {/* İletişim Bilgileri */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                <div className="section-card-mb">
+                  <h3 className="supplier-section-header">
                     İletişim Bilgileri
                   </h3>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '8px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                  <div className="supplier-grid-2-mb">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Yetkili Kişi:
                       </span>
                       {isEditing ? (
@@ -1519,14 +1304,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.contactPerson || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Acil Durum:
                       </span>
                       {isEditing ? (
@@ -1538,16 +1323,16 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.emergencyContact || '-'}
                         </span>
                       )}
                     </div>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '8px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                  <div className="supplier-grid-3-mb">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Telefon 1:
                       </span>
                       {isEditing ? (
@@ -1559,14 +1344,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.phone1 || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Telefon 2:
                       </span>
                       {isEditing ? (
@@ -1578,14 +1363,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.phone2 || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Acil Tel:
                       </span>
                       {isEditing ? (
@@ -1597,16 +1382,16 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.emergencyPhone || '-'}
                         </span>
                       )}
                     </div>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '8px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                  <div className="supplier-grid-3-mb">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         E-posta 1:
                       </span>
                       {isEditing ? (
@@ -1618,14 +1403,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.email1 || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         E-posta 2:
                       </span>
                       {isEditing ? (
@@ -1637,14 +1422,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.email2 || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Faks:
                       </span>
                       {isEditing ? (
@@ -1656,16 +1441,16 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.fax || '-'}
                         </span>
                       )}
                     </div>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                  <div className="supplier-grid-2">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Web Sitesi:
                       </span>
                       {isEditing ? (
@@ -1677,14 +1462,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.website || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-120">
                         Tercih İletişim:
                       </span>
                       {isEditing ? (
@@ -1700,7 +1485,7 @@ export default function SuppliersTable({
                           <option value="whatsapp">WhatsApp</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.preferredCommunication || '-'}
                         </span>
                       )}
@@ -1709,20 +1494,15 @@ export default function SuppliersTable({
                 </div>
 
                 {/* Adres ve Mali Bilgiler - Üst Bölüm */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div className="supplier-grid-2-mb">
                   {/* Adres Bilgileri */}
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                  <div className="section-card">
+                    <h3 className="supplier-section-header">
                       Adres Bilgileri
                     </h3>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px', marginTop: '2px' }}>
+                    <div className="supplier-detail-row-start">
+                      <span className="supplier-detail-label-80-mt">
                         Adres:
                       </span>
                       {isEditing ? (
@@ -1734,14 +1514,14 @@ export default function SuppliersTable({
                           style={{ ...getInputStyle(isEditing), flex: 1, resize: 'vertical' }}
                         />
                       ) : (
-                        <span className="detail-value description" style={{ fontSize: '12px', color: '#111827', flex: 1 }}>
+                        <span className="text-xs-flex-1">
                           {selectedSupplier.address || 'Adres girilmemiş'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Şehir:
                       </span>
                       {isEditing ? (
@@ -1753,14 +1533,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.city || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         İlçe:
                       </span>
                       {isEditing ? (
@@ -1772,14 +1552,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.state || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Posta Kodu:
                       </span>
                       {isEditing ? (
@@ -1791,14 +1571,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.postalCode || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Ülke:
                       </span>
                       {isEditing ? (
@@ -1819,7 +1599,7 @@ export default function SuppliersTable({
                           <option value="Other">Diğer</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.country || '-'}
                         </span>
                       )}
@@ -1827,18 +1607,13 @@ export default function SuppliersTable({
                   </div>
 
                   {/* Mali Bilgiler */}
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                  <div className="section-card">
+                    <h3 className="supplier-section-header">
                       Mali Bilgiler
                     </h3>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Vergi No:
                       </span>
                       {isEditing ? (
@@ -1850,14 +1625,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.taxNumber || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Vergi Dairesi:
                       </span>
                       {isEditing ? (
@@ -1869,14 +1644,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.taxOffice || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Para Birimi:
                       </span>
                       {isEditing ? (
@@ -1892,14 +1667,14 @@ export default function SuppliersTable({
                           <option value="GBP">GBP</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.currency || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Kredi Limiti:
                       </span>
                       {isEditing ? (
@@ -1911,14 +1686,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.creditLimit || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Kredi Notu:
                       </span>
                       {isEditing ? (
@@ -1936,14 +1711,14 @@ export default function SuppliersTable({
                           <option value="F">F - Riskli</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.creditRating || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Yıllık Ciro:
                       </span>
                       {isEditing ? (
@@ -1955,7 +1730,7 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.annualRevenue || '-'}
                         </span>
                       )}
@@ -1964,20 +1739,15 @@ export default function SuppliersTable({
                 </div>
 
                 {/* Ödeme ve Operasyonel Bilgiler - Orta Bölüm */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div className="supplier-grid-2-mb">
                   {/* Ödeme Bilgileri */}
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                  <div className="section-card">
+                    <h3 className="supplier-section-header">
                       Ödeme Bilgileri
                     </h3>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Ödeme Koşul:
                       </span>
                       {isEditing ? (
@@ -1997,14 +1767,14 @@ export default function SuppliersTable({
                           <option value="120 gün vade">120 gün</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.paymentTerms || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Ödeme Yöntem:
                       </span>
                       {isEditing ? (
@@ -2023,14 +1793,14 @@ export default function SuppliersTable({
                           <option value="promissory_note">Senet</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.paymentMethod || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Banka:
                       </span>
                       {isEditing ? (
@@ -2042,14 +1812,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.bankName || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Hesap No:
                       </span>
                       {isEditing ? (
@@ -2061,14 +1831,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.bankAccount || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         IBAN:
                       </span>
                       {isEditing ? (
@@ -2080,7 +1850,7 @@ export default function SuppliersTable({
                           style={{ ...getInputStyle(isEditing), flex: 1 }}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.iban || '-'}
                         </span>
                       )}
@@ -2088,18 +1858,13 @@ export default function SuppliersTable({
                   </div>
 
                   {/* Operasyonel Bilgiler */}
-                  <div style={{ 
-                    padding: '12px', 
-                    background: 'white', 
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                  <div className="section-card">
+                    <h3 className="supplier-section-header">
                       Operasyonel Bilgiler
                     </h3>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Teslimat:
                       </span>
                       {isEditing ? (
@@ -2111,14 +1876,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.deliveryCapability || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Tedarik Süresi:
                       </span>
                       {isEditing ? (
@@ -2130,14 +1895,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.leadTime ? `${selectedSupplier.leadTime} gün` : '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Min. Sipariş:
                       </span>
                       {isEditing ? (
@@ -2149,14 +1914,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.minimumOrderQuantity || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-80">
                         Sertifika:
                       </span>
                       {isEditing ? (
@@ -2176,7 +1941,7 @@ export default function SuppliersTable({
                           <option value="other">Diğer</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.qualityCertification || '-'}
                         </span>
                       )}
@@ -2185,20 +1950,14 @@ export default function SuppliersTable({
                 </div>
 
                 {/* Şirket Bilgileri - Alt Bölüm */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                <div className="section-card-mb">
+                  <h3 className="supplier-section-header">
                     Şirket Bilgileri
                   </h3>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                  <div className="grid-4">
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-100">
                         Kuruluş Yılı:
                       </span>
                       {isEditing ? (
@@ -2210,14 +1969,14 @@ export default function SuppliersTable({
                           style={getInputStyle(isEditing)}
                         />
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.yearEstablished || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-100">
                         Çalışan Sayısı:
                       </span>
                       {isEditing ? (
@@ -2236,14 +1995,14 @@ export default function SuppliersTable({
                           <option value="1000+">1000+ kişi</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.employeeCount || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-100">
                         Risk Seviyesi:
                       </span>
                       {isEditing ? (
@@ -2258,14 +2017,14 @@ export default function SuppliersTable({
                           <option value="high">Yüksek Risk</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.riskLevel || '-'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                    <div className="supplier-detail-row">
+                      <span className="supplier-detail-label-100">
                         Uyumluluk:
                       </span>
                       {isEditing ? (
@@ -2281,7 +2040,7 @@ export default function SuppliersTable({
                           <option value="under_review">İnceleniyor</option>
                         </select>
                       ) : (
-                        <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                        <span className="supplier-detail-value">
                           {selectedSupplier.complianceStatus || '-'}
                         </span>
                       )}
@@ -2290,20 +2049,14 @@ export default function SuppliersTable({
                 </div>
 
                 {/* Tedarik Edilen Malzemeler */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                <div className="section-card-mb">
+                  <h3 className="supplier-section-header">
                     Tedarik Edilen Malzemeler
                   </h3>
 
                   {/* Material Mode Toggle */}
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <div className="mb-12">
+                    <div className="flex-gap-8-mb-8">
                       <button
                         type="button"
                         onClick={handleOpenMaterialPopup}
@@ -2379,37 +2132,20 @@ export default function SuppliersTable({
                     const validMaterialsCount = filteredMaterials.length
                     
                     return (
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center',
-                          marginBottom: '8px'
-                        }}>
-                          <h4 style={{ margin: '0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
+                      <div className="mb-12">
+                        <div className="material-list-header">
+                          <h4 className="material-list-title">
                             Tedarik Edilen Malzemeler ({validMaterialsCount})
                           </h4>
                           <button
                             type="button"
+                            className={`btn-toggle-sm ${showAllMaterials ? 'active' : ''}`}
                             onClick={() => setShowAllMaterials(!showAllMaterials)}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '10px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px',
-                              background: showAllMaterials ? '#3b82f6' : 'white',
-                              color: showAllMaterials ? 'white' : '#6b7280',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
-                            }}
                           >
                             {showAllMaterials ? 'Mevcut Malzemeler' : 'Hepsini Göster'}
                           </button>
                         </div>
-                      <div style={{ 
-                        border: '1px solid #e5e7eb', 
-                        borderRadius: '4px'
-                      }}>
+                      <div className="material-list-container">
                         {filteredMaterials.length > 0 ? (
                           filteredMaterials.map((material, index) => {
                           // Find full material details from allMaterials array
@@ -2465,7 +2201,7 @@ export default function SuppliersTable({
                                   {fullMaterial?.unit || material.unit}
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div className="flex-center-gap-6">
                                 <button
                                   onClick={() => handleShowMaterialDetail(material.id)}
                                   style={{
@@ -2531,13 +2267,7 @@ export default function SuppliersTable({
                           )
                           })
                         ) : (
-                          <div style={{ 
-                            padding: '20px', 
-                            textAlign: 'center', 
-                            color: '#6b7280', 
-                            fontSize: '12px',
-                            fontStyle: 'italic'
-                          }}>
+                        <div className="empty-message-italic">
                             {showAllMaterials 
                               ? 'Bu tedarikçiye ait malzeme bulunamadı.' 
                               : 'Bu tedarikçiye ait aktif malzeme bulunamadı. "Hepsini Göster" ile kaldırılmış malzemeleri görebilirsiniz.'
@@ -2552,8 +2282,8 @@ export default function SuppliersTable({
                   {/* New Material Mode */}
                   {materialMode === 'new' && (
                     <div>
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Malzeme Adı:
                         </span>
                         <input
@@ -2573,8 +2303,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Tip:
                         </span>
                         <select
@@ -2597,8 +2327,8 @@ export default function SuppliersTable({
                         </select>
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Kategori:
                         </span>
                         <select
@@ -2625,8 +2355,8 @@ export default function SuppliersTable({
                       </div>
 
                       {showNewCategory && (
-                        <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                          <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                        <div className="supplier-detail-row">
+                          <span className="supplier-detail-label-100">
                             Yeni Kategori:
                           </span>
                           <input
@@ -2646,8 +2376,8 @@ export default function SuppliersTable({
                         </div>
                       )}
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Birim:
                         </span>
                         <select
@@ -2677,8 +2407,8 @@ export default function SuppliersTable({
                         </select>
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Kod:
                         </span>
                         <input
@@ -2698,8 +2428,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px', marginTop: '6px' }}>
+                      <div className="supplier-detail-row-start">
+                        <span className="supplier-detail-label-100-mt">
                           Açıklama:
                         </span>
                         <textarea
@@ -2720,8 +2450,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Minimum Stok:
                         </span>
                         <input
@@ -2741,8 +2471,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Mevcut Stok:
                         </span>
                         <input
@@ -2762,8 +2492,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Maliyet Fiyatı:
                         </span>
                         <input
@@ -2784,8 +2514,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Satış Fiyatı:
                         </span>
                         <input
@@ -2806,8 +2536,8 @@ export default function SuppliersTable({
                         />
                       </div>
 
-                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      <div className="supplier-detail-row">
+                        <span className="supplier-detail-label-100">
                           Durum:
                         </span>
                         <select
@@ -2865,42 +2595,24 @@ export default function SuppliersTable({
 
                   {/* Show message when no materials */}
                   {(!selectedSupplier?.suppliedMaterials || selectedSupplier.suppliedMaterials.length === 0) && materialMode !== 'new' && (
-                    <div style={{ 
-                      padding: '20px', 
-                      textAlign: 'center', 
-                      color: '#6b7280', 
-                      fontSize: '12px',
-                      fontStyle: 'italic'
-                    }}>
+                    <div className="empty-message-italic">
                       Henüz malzeme eklenmemiş. Yukarıdaki butonları kullanarak malzeme ekleyebilirsiniz.
                     </div>
                   )}
                 </div>
 
                 {/* Supply History - Tedarik Geçmişi */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
+                <div className="section-card-mb">
                   <SupplierHistorySection supplier={selectedSupplier} />
                 </div>
 
                 {/* Ek Bilgiler */}
-                <div style={{ 
-                  marginBottom: '16px', 
-                  padding: '12px', 
-                  background: 'white', 
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                <div className="section-card-mb">
+                  <h3 className="supplier-section-header">
                     Ek Bilgiler
                   </h3>
                   
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div className="supplier-detail-row-start">
                     <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px', marginTop: '2px' }}>
                       Notlar ve Açıklamalar:
                     </span>
@@ -2913,7 +2625,7 @@ export default function SuppliersTable({
                         style={{ ...getInputStyle(isEditing), flex: 1, resize: 'vertical' }}
                       />
                     ) : (
-                      <span className="detail-value description" style={{ fontSize: '12px', color: '#111827', flex: 1 }}>
+                      <span className="text-xs-flex-1">
                         {selectedSupplier.notes || 'Ek bilgi girilmemiş'}
                       </span>
                     )}
@@ -2927,58 +2639,24 @@ export default function SuppliersTable({
 
       {/* Material Selection Popup */}
       {showMaterialPopup && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1001
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '20px',
-            maxWidth: '600px',
-            maxHeight: '80vh',
-            width: '90%',
-            overflowY: 'auto',
-            position: 'relative'
-          }}>
+        <div className="modal-overlay">
+          <div className="modal-content-lg">
             {/* Popup Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px',
-              borderBottom: '1px solid #e5e7eb',
-              paddingBottom: '12px'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+            <div className="modal-header-between">
+              <h3 className="supplier-section-title-lg">
                 Mevcut Malzemelerden Seç
               </h3>
               <button
                 type="button"
                 onClick={() => setShowMaterialPopup(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '20px',
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  padding: '4px'
-                }}
+                className="btn-close-x"
               >
                 ×
               </button>
             </div>
 
             {/* Search Input */}
-            <div style={{ marginBottom: '12px' }}>
+            <div className="mb-12">
               <input
                 type="text"
                 value={materialSearchTerm}
@@ -2997,19 +2675,13 @@ export default function SuppliersTable({
 
             {/* Materials List */}
             {materialsLoading ? (
-              <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+              <div className="empty-state-content">
                 Malzemeler yükleniyor...
               </div>
             ) : (
-              <div style={{ 
-                maxHeight: '400px', 
-                overflowY: 'auto', 
-                border: '1px solid #e5e7eb', 
-                borderRadius: '4px',
-                marginBottom: '16px'
-              }}>
+              <div className="modal-list-scroll">
                 {filteredMaterials.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                  <div className="empty-state-content">
                     {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Henüz malzeme bulunmuyor'}
                   </div>
                 ) : (
@@ -3039,13 +2711,13 @@ export default function SuppliersTable({
                         }
                       }}
                     >
-                      <div style={{ fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                      <div className="label-bold-mb">
                         {material.name}
                         {selectedMaterials.find(m => m.id === material.id) && (
-                          <span style={{ color: '#10b981', marginLeft: '8px' }}>✓ Seçildi</span>
+                          <span className="text-success-ml">✓ Seçildi</span>
                         )}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      <div className="text-muted-xs">
                         {material.code && `Kod: ${material.code} • `}
                         {(() => { const cn = getCategoryName(material.category); return cn ? `Kategori: ${cn} • ` : '' })()}
                         {material.unit && `Birim: ${material.unit}`}
@@ -3058,42 +2730,22 @@ export default function SuppliersTable({
 
             {/* Selected Materials Summary */}
             {selectedMaterials.length > 0 && (
-              <div style={{
-                background: '#f0f9ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: '4px',
-                padding: '12px',
-                marginBottom: '16px'
-              }}>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e40af', marginBottom: '8px' }}>
+              <div className="selection-info-box">
+                <div className="text-blue-title">
                   Seçilen Malzemeler ({selectedMaterials.length})
                 </div>
-                <div style={{ fontSize: '12px', color: '#1e40af' }}>
+                <div className="text-link-blue">
                   {selectedMaterials.map(m => m.name).join(', ')}
                 </div>
               </div>
             )}
 
             {/* Popup Footer */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '8px',
-              borderTop: '1px solid #e5e7eb',
-              paddingTop: '12px'
-            }}>
+            <div className="modal-footer-end">
               <button
                 type="button"
                 onClick={() => setShowMaterialPopup(false)}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  background: 'white',
-                  color: '#374151',
-                  cursor: 'pointer'
-                }}
+                className="btn-secondary-md"
               >
                 İptal
               </button>
@@ -3147,7 +2799,7 @@ function SupplierHistorySection({ supplier }) {
 
   return (
     <div className="supply-history-section">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <div className="supplier-header-flex">
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827' }}>Tedarik Geçmişi</h3>
         <button 
           type="button"
@@ -3177,12 +2829,12 @@ function SupplierHistorySection({ supplier }) {
         <table style={{ minWidth: '100%', tableLayout: 'auto' }}>
           <thead>
             <tr style={{ background: '#f9fafb' }}>
-              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Tarih</th>
+              <th className="text-nowrap-muted">Tarih</th>
               <th style={{ minWidth: '150px', color: '#374151' }}>Malzeme</th>
-              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Miktar</th>
-              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Birim Fiyat</th>
-              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Toplam</th>
-              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Durum</th>
+              <th className="text-nowrap-muted">Miktar</th>
+              <th className="text-nowrap-muted">Birim Fiyat</th>
+              <th className="text-nowrap-muted">Toplam</th>
+              <th className="text-nowrap-muted">Durum</th>
             </tr>
           </thead>
           <tbody>
@@ -3203,12 +2855,12 @@ function SupplierHistorySection({ supplier }) {
                 const total = !isNaN(qty) && !isNaN(unitPrice) ? (qty * unitPrice) : 0
                 return (
                   <tr key={`${row.orderId}-${row.itemSequence}-${idx}`}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{dateStr}</td>
+                    <td className="text-nowrap">{dateStr}</td>
                     <td style={{ maxWidth: '150px', wordBreak: 'break-word' }} title={row.materialName || row.materialCode}>{row.materialName || row.materialCode || '-'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(qty) ? `${qty} ${row.unit || ''}`.trim() : '-'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{row.itemStatus || '-'}</td>
+                    <td className="text-nowrap">{!isNaN(qty) ? `${qty} ${row.unit || ''}`.trim() : '-'}</td>
+                    <td className="text-nowrap">{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td className="text-nowrap">{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td className="text-nowrap">{row.itemStatus || '-'}</td>
                   </tr>
                 )
               })
@@ -3222,7 +2874,7 @@ function SupplierHistorySection({ supplier }) {
           </tbody>
         </table>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+      <div className="flex-end-mt-8">
         <button
           type="button"
           onClick={() => {

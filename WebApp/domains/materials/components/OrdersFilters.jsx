@@ -111,14 +111,13 @@ export default function OrdersFilters({
   }
 
   return (
-    <div className="mes-filter-controls" style={{ position: 'relative' }}>
+    <div className="mes-filter-controls" className="pos-relative">
       {/* Expand/Collapse Button */}
       <button
         type="button"
-        className="mes-filter-button is-compact"
+        className="mes-filter-button is-compact btn-expand-collapse"
         onClick={() => onToggleExpanded(!isExpanded)}
         title={isExpanded ? 'Daralt' : 'Genişlet'}
-        style={{ minWidth: '32px', padding: '0 8px' }}
       >
         <span>{isExpanded ? '»' : '«'}</span>
       </button>
@@ -146,7 +145,7 @@ export default function OrdersFilters({
         <div 
           id="orderStatus-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -181,7 +180,7 @@ export default function OrdersFilters({
                     onFilterChange('orderStatus', newValue)
                   }}
                 />
-                <span style={{ flex: '1 1 0%' }}>{status}</span>
+                <span className="flex-1-0">{status}</span>
               </label>
             ))}
           </div>
@@ -202,7 +201,7 @@ export default function OrdersFilters({
         <div 
           id="itemStatus-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none' }}
+          className="d-none"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -237,7 +236,7 @@ export default function OrdersFilters({
                     onFilterChange('itemStatus', newValue)
                   }}
                 />
-                <span style={{ flex: '1 1 0%' }}>{status}</span>
+                <span className="flex-1-0">{status}</span>
               </label>
             ))}
           </div>
@@ -258,7 +257,7 @@ export default function OrdersFilters({
         <div 
           id="dateRange-dropdown"
           className="multi-select-dropdown"
-          style={{ display: 'none', width: 'auto', minWidth: '260px' }}
+          className="dropdown-hidden-auto"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -302,12 +301,12 @@ export default function OrdersFilters({
                     }
                   }}
                 />
-                <span style={{ flex: '1 1 0%' }}>{label}</span>
+                <span className="flex-1-0">{label}</span>
               </label>
             ))}
-            <div style={{ padding: '8px 12px', borderTop: '1px solid #e5e7eb', marginTop: '4px', minWidth: '240px' }}>
-              <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '6px', color: '#6b7280' }}>Tarih Aralığı</div>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+            <div className="dropdown-add-new">
+              <div className="form-label-sm">Tarih Aralığı</div>
+              <div className="flex-gap-8-mb-4">
                 <input
                   type="date"
                   placeholder="Başlangıç"
@@ -321,7 +320,7 @@ export default function OrdersFilters({
                     }
                   }}
                   className="mes-filter-input is-compact"
-                  style={{ flex: 1, fontSize: '11px' }}
+                  className="flex-1-xs"
                 />
                 <input
                   type="date"
@@ -336,7 +335,7 @@ export default function OrdersFilters({
                     }
                   }}
                   className="mes-filter-input is-compact"
-                  style={{ flex: 1, fontSize: '11px' }}
+                  className="flex-1-xs"
                 />
               </div>
             </div>
@@ -359,7 +358,7 @@ export default function OrdersFilters({
           <div 
             id="materialType-dropdown"
             className="multi-select-dropdown"
-            style={{ display: 'none', minWidth: '280px' }}
+            className="dropdown-hidden"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -380,7 +379,7 @@ export default function OrdersFilters({
                 <span>Kapat</span>
               </button>
             </div>
-            <div className="mes-filter-panel-content" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <div className="mes-filter-panel-content" className="scroll-container">
               {activeMaterials.map(material => (
                 <label key={material.materialCode}>
                   <input
@@ -394,7 +393,7 @@ export default function OrdersFilters({
                       onFilterChange('materialType', newValue)
                     }}
                   />
-                  <span style={{ flex: '1 1 0%', fontSize: '11px' }}>{material.materialCode} - {material.materialName}</span>
+                  <span className="flex-1-0-xs">{material.materialCode} - {material.materialName}</span>
                 </label>
               ))}
             </div>
@@ -417,7 +416,7 @@ export default function OrdersFilters({
           <div 
             id="supplierType-dropdown"
             className="multi-select-dropdown"
-            style={{ display: 'none', minWidth: '280px' }}
+            className="dropdown-hidden"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -438,7 +437,7 @@ export default function OrdersFilters({
                 <span>Kapat</span>
               </button>
             </div>
-            <div className="mes-filter-panel-content" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <div className="mes-filter-panel-content" className="scroll-container">
               {activeSuppliers.map(supplier => (
                 <label key={supplier.supplierCode}>
                   <input
@@ -452,7 +451,7 @@ export default function OrdersFilters({
                       onFilterChange('supplierType', newValue)
                     }}
                   />
-                  <span style={{ flex: '1 1 0%', fontSize: '11px' }}>{supplier.supplierCode} - {supplier.supplierName}</span>
+                  <span className="flex-1-0-xs">{supplier.supplierCode} - {supplier.supplierName}</span>
                 </label>
               ))}
             </div>
@@ -475,7 +474,7 @@ export default function OrdersFilters({
           <div 
             id="deliveryStatus-dropdown"
             className="multi-select-dropdown"
-            style={{ display: 'none', width: 'auto', minWidth: '260px' }}
+            className="dropdown-hidden-auto"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -521,12 +520,12 @@ export default function OrdersFilters({
                       }
                     }}
                   />
-                  <span style={{ flex: '1 1 0%' }}>{label}</span>
+                  <span className="flex-1-0">{label}</span>
                 </label>
               ))}
-              <div style={{ padding: '8px 12px', borderTop: '1px solid #e5e7eb', marginTop: '4px', minWidth: '240px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '500', marginBottom: '6px', color: '#6b7280' }}>Teslimat Aralığı</div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+              <div className="dropdown-add-new">
+                <div className="form-label-sm">Teslimat Aralığı</div>
+                <div className="flex-gap-8-mb-4">
                   <input
                     type="date"
                     placeholder="Başlangıç"
@@ -540,7 +539,7 @@ export default function OrdersFilters({
                       }
                     }}
                     className="mes-filter-input is-compact"
-                    style={{ flex: 1, fontSize: '11px' }}
+                    className="flex-1-xs"
                   />
                   <input
                     type="date"
@@ -555,7 +554,7 @@ export default function OrdersFilters({
                       }
                     }}
                     className="mes-filter-input is-compact"
-                    style={{ flex: 1, fontSize: '11px' }}
+                    className="flex-1-xs"
                   />
                 </div>
               </div>
@@ -577,8 +576,7 @@ export default function OrdersFilters({
           </button>
           <div 
             id="priceRange-dropdown"
-            className="multi-select-dropdown"
-            style={{ display: 'none', width: 'auto' }}
+            className="multi-select-dropdown dropdown-auto-width"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -599,8 +597,8 @@ export default function OrdersFilters({
                 <span>Kapat</span>
               </button>
             </div>
-            <div className="mes-filter-panel-content" style={{ padding: '12px', minWidth: '240px' }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div className="mes-filter-panel-content filter-panel-padded">
+              <div className="flex-gap-8-mb-8">
                 <input
                   type="text" inputMode="decimal"
                   placeholder="Min"
@@ -613,7 +611,7 @@ export default function OrdersFilters({
                     onFilterChange('priceRange', newPriceRange)
                   }}
                   className="mes-filter-input is-compact"
-                  style={{ flex: 1 }}
+                  className="flex-1"
                   pattern="[0-9]*\.?[0-9]*"
                 />
                 <input
@@ -628,7 +626,7 @@ export default function OrdersFilters({
                     onFilterChange('priceRange', newPriceRange)
                   }}
                   className="mes-filter-input is-compact"
-                  style={{ flex: 1 }}
+                  className="flex-1"
                   pattern="[0-9]*\.?[0-9]*"
                 />
               </div>
@@ -640,7 +638,7 @@ export default function OrdersFilters({
                   const newPriceRange = { ...filters.priceRange, mode: newMode }
                   onFilterChange('priceRange', newPriceRange)
                 }}
-                style={{ width: '100%' }}
+                className="w-full"
               >
                 <span>{filters.priceRange.mode === 'order' ? 'Sipariş Bazlı' : 'Ürün Bazlı'}</span>
               </button>
