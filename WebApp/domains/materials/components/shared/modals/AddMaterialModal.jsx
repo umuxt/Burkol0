@@ -207,7 +207,7 @@ export default function AddMaterialModal({
   const formContent = (
     <form id="add-material-form" onSubmit={handleSubmit}>
       {/* Temel Malzeme Bilgileri */}
-      <div className="modal-section">
+      <div className="section-card-mb">
         <h3 className="section-header">Temel Malzeme Bilgileri</h3>
         
         <div className="detail-row">
@@ -310,7 +310,7 @@ export default function AddMaterialModal({
       {/* Stok ve Fiyat Bilgileri */}
       <div className="supplier-grid-2-mb">
         {/* Stok Bilgileri */}
-        <div className="modal-section">
+        <div className="section-card-mb">
           <h3 className="section-header">Stok Bilgileri</h3>
           
           <div className="detail-row">
@@ -345,7 +345,7 @@ export default function AddMaterialModal({
         </div>
 
         {/* Fiyat Bilgileri */}
-        <div className="modal-section">
+        <div className="section-card-mb">
           <h3 className="section-header">Fiyat Bilgileri</h3>
           
           <div className="detail-row">
@@ -379,7 +379,7 @@ export default function AddMaterialModal({
       </div>
 
       {/* Ek Bilgiler */}
-      <div className="modal-section">
+      <div className="section-card-mb">
         <h3 className="section-header">Ek Bilgiler</h3>
         
         <div className="supplier-grid-2">

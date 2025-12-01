@@ -107,7 +107,7 @@ export default function OrderDetailsPanel({
         <div className="order-detail-content panel-content">
           
           {/* Sipariş Bilgileri */}
-          <div className="order-info-section">
+          <div className="section-card-mb">
             <div className="order-info-grid-header">
               <div>
                 <div className="label-sm">SİPARİŞ KODU</div>
@@ -157,7 +157,7 @@ export default function OrderDetailsPanel({
 
           {/* Teslimat & Not */}
           <div className="order-info-grid-2">
-            <div className="order-info-section">
+            <div className="section-card-mb">
               <h3 className="section-header">Teslimat Durumu</h3>
               <span 
                 className="delivery-status-badge"
@@ -170,7 +170,7 @@ export default function OrderDetailsPanel({
               </span>
             </div>
             
-            <div className="order-info-section">
+            <div className="section-card-mb">
               <h3 className="section-header">Not / Referans</h3>
               <div className="text-sm text-dark">
                 {order.notes || '-'}
@@ -179,7 +179,7 @@ export default function OrderDetailsPanel({
           </div>
 
           {/* Tedarikçi Bilgileri */}
-          <div className="order-info-section">
+          <div className="section-card-mb">
             <div className="section-header-with-action">
               <h3>Tedarikçi Bilgileri</h3>
               <button
@@ -210,7 +210,7 @@ export default function OrderDetailsPanel({
           </div>
 
           {/* Sipariş Satırları */}
-          <div className="order-info-section">
+          <div className="section-card-mb">
             <h3 className="section-header">
               Sipariş Satırları ({order.items?.length || order.item_count || 0})
             </h3>
@@ -270,13 +270,7 @@ export default function OrderDetailsPanel({
                                 onChange={(e) => {
                                   onItemStatusChange?.(order.id, item, e.target.value);
                                 }}
-                                style={{
-                                  padding: '4px 8px',
-                                  fontSize: '11px',
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: '4px',
-                                  background: '#fff'
-                                }}
+                                className="item-status-select"
                               >
                                 {ITEM_STATUS_OPTIONS.map(status => (
                                   <option key={status} value={status}>{status}</option>
