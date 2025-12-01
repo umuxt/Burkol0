@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Check, Trash2, RotateCw, AlertCircle } from '../../../shared/components/Icons'
+import { Check, Trash2, RotateCw, AlertCircle } from '../../../../shared/components/Icons.jsx'
 
 export default function MaterialsFilters({ categories, types, onFilterChange, materials = [] }) {
   const [filters, setFilters] = useState({

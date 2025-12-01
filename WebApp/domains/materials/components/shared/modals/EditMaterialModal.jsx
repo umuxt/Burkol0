@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
-import useMaterialProductionHistory from '../hooks/useMaterialProductionHistory.js'
-import useMaterialLots from '../hooks/useMaterialLots.js'
-import { useSuppliers } from '../hooks/useSuppliers'
+import useMaterialProcurementHistory from '../../../hooks/useMaterialProcurementHistory.js'
+import useMaterialProductionHistory from '../../../hooks/useMaterialProductionHistory.js'
+import useMaterialLots from '../../../hooks/useMaterialLots.js'
+import { useSuppliers } from '../../../hooks/useSuppliers.js'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
-} from '../utils/material-status-utils'
-import { showToast } from '../../../shared/components/MESToast.js'
+} from '../../../utils/material-status-utils.js'
+import { showToast } from '../../../../../shared/components/MESToast.js'
 
 export default function EditMaterialModal({ 
   isOpen, 

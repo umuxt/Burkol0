@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import StockBar from '../../../shared/components/StockBar.jsx'
-import { Truck } from '../../../shared/components/Icons.jsx' // Import Truck icon
+import StockBar from '../../../../shared/components/StockBar.jsx'
+import { Truck } from '../../../../shared/components/Icons.jsx' // Import Truck icon
 
 export default function MaterialsTable({
   materials,

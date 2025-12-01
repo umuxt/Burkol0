@@ -6,18 +6,18 @@ import DynamicFormRenderer from '../shared/components/DynamicFormRenderer.js';
 import QuotesManager from '../domains/quotes/components/QuotesManager.js';
 import { showToast } from '../shared/components/MESToast.js';
 import MaterialsTabs from '../domains/materials/components/MaterialsTabs.jsx';
-import StocksTabContent from '../domains/materials/components/StocksTabContent.jsx';
-import SuppliersTabContent from '../domains/materials/components/SuppliersTabContent.jsx';
-import MaterialsDashboard from '../domains/materials/components/MaterialsDashboard.jsx';
-import MaterialsFilters from '../domains/materials/components/MaterialsFilters.jsx';
-import MaterialsTable from '../domains/materials/components/MaterialsTable.jsx';
-import MaterialsActions from '../domains/materials/components/MaterialsActions.jsx';
-import AddMaterialModal from '../domains/materials/components/AddMaterialModal.jsx';
-import CategoryManagementModal from '../domains/materials/components/CategoryManagementModal.jsx';
-import MaterialDeletionWarningModal from '../domains/materials/components/MaterialDeletionWarningModal.jsx';
+import StocksTabContent from '../domains/materials/components/stocks/StocksTabContent.jsx';
+import SuppliersTabContent from '../domains/materials/components/suppliers/SuppliersTabContent.jsx';
+import MaterialsDashboard from '../domains/materials/components/materials/MaterialsDashboard.jsx';
+import MaterialsFilters from '../domains/materials/components/materials/MaterialsFilters.jsx';
+import MaterialsTable from '../domains/materials/components/materials/MaterialsTable.jsx';
+import MaterialsActions from '../domains/materials/components/materials/MaterialsActions.jsx';
+import AddMaterialModal from '../domains/materials/components/shared/modals/AddMaterialModal.jsx';
+import CategoryManagementModal from '../domains/materials/components/shared/modals/CategoryManagementModal.jsx';
+import MaterialDeletionWarningModal from '../domains/materials/components/shared/modals/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from '../shared/components/ErrorBoundary.jsx';
-import MaterialsHelp from '../domains/materials/components/MaterialsHelp.jsx';
-import ShipmentPanel from '../domains/materials/components/ShipmentPanel.jsx'; // New import
+import MaterialsHelp from '../domains/materials/components/materials/MaterialsHelp.jsx';
+import ShipmentsTabContent from '../domains/materials/components/shipments/ShipmentsTabContent.jsx';
 
 // Backend API hooks
 import { useMaterials, useMaterialActions } from '../domains/materials/hooks/useMaterials.js';
@@ -25,7 +25,7 @@ import { useMaterialCategories } from '../domains/materials/hooks/useMaterialCat
 import { useSuppliers } from '../domains/materials/hooks/useSuppliers.js';
 
 // Lazy loading imports
-const LazyOrdersTabContent = React.lazy(() => import('../domains/materials/components/OrdersTabContent.jsx'));
+const LazyOrdersTabContent = React.lazy(() => import('../domains/materials/components/orders/OrdersTabContent.jsx'));
 import { useCategorySync } from '../domains/materials/hooks/useCategorySync.js'; // YENİ
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
@@ -497,8 +497,8 @@ function MaterialsApp() {
             <LazyOrdersTabContent />
           </React.Suspense>
         )}
-        {activeTab === 'shipments' && ( // New conditional rendering for ShipmentPanel
-          <ShipmentPanel />
+        {activeTab === 'shipments' && ( // New conditional rendering for ShipmentsTabContent
+          <ShipmentsTabContent />
         )}
       </MaterialsTabs>
       

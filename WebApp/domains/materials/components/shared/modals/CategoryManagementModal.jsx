@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { categoriesService } from '../services/categories-service.js';
-import { showToast } from '../../../shared/components/MESToast.js';
+import { categoriesService } from '../../../services/categories-service.js';
+import { showToast } from '../../../../../shared/components/MESToast.js';
 
 export default function CategoryManagementModal({ 
   isOpen, 

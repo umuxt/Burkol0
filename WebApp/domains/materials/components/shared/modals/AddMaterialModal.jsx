@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { useSuppliers } from '../hooks/useSuppliers.js'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { useSuppliers } from '../../../hooks/useSuppliers.js'
+import { showToast } from '../../../../../shared/components/MESToast.js'
 
 export default function AddMaterialModal({ 
   isOpen, 
@@ -61,7 +61,7 @@ export default function AddMaterialModal({
   useEffect(() => {
     const loadAllMaterials = async () => {
       try {
-        const { materialsService } = await import('../services/materials-service.js');
+        const { materialsService } = await import('../../../services/materials-service.js');
         const allMaterialsList = await materialsService.getAllMaterials();
         setAllMaterials(allMaterialsList);
       } catch (error) {

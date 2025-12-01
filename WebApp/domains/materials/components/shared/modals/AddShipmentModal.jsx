@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { shipmentsService } from '../services/shipments-service.js'
+import { shipmentsService } from '../../../services/shipments-service.js'
 import { Truck, X, Package, Plus, Trash2, ChevronDown, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 
 /**
@@ -8,7 +8,7 @@ import { Truck, X, Package, Plus, Trash2, ChevronDown, Search, Loader2, AlertCir
  * Adım 2: Malzeme Ekleme (Kalemler)
  * Adım 3: Özet ve Onay
  */
-export default function CreateShipmentModal({ 
+export default function AddShipmentModal({ 
   isOpen, 
   onClose, 
   onSuccess
@@ -327,9 +327,8 @@ export default function CreateShipmentModal({
                       </label>
                       <button
                         type="button"
-                        className="mes-filter-select"
+                        className="mes-filter-select full-justify-between"
                         onClick={(e) => { e.stopPropagation(); setWorkOrderDropdownOpen(!workOrderDropdownOpen); setQuoteDropdownOpen(false); }}
-                        className="full-justify-between"
                       >
                         <span className={`text-conditional ${!headerData.workOrderCode ? 'placeholder' : ''}`}>
                           {headerData.workOrderCode || 'Seçin...'}
@@ -364,9 +363,8 @@ export default function CreateShipmentModal({
                       </label>
                       <button
                         type="button"
-                        className="mes-filter-select"
+                        className="mes-filter-select full-justify-between"
                         onClick={(e) => { e.stopPropagation(); setQuoteDropdownOpen(!quoteDropdownOpen); setWorkOrderDropdownOpen(false); }}
-                        className="full-justify-between"
                       >
                         <span className={`text-conditional ${!headerData.quoteId ? 'placeholder' : ''}`}>
                           {headerData.quoteId || 'Seçin...'}
@@ -402,11 +400,10 @@ export default function CreateShipmentModal({
                       </label>
                       <input
                         type="text"
-                        className="mes-filter-input is-compact"
+                        className="mes-filter-input is-compact w-full"
                         value={headerData.customerName}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, customerName: e.target.value }))}
                         placeholder="Müşteri adı..."
-                        className="w-full"
                       />
                     </div>
 
@@ -417,11 +414,10 @@ export default function CreateShipmentModal({
                       </label>
                       <input
                         type="text"
-                        className="mes-filter-input is-compact"
+                        className="mes-filter-input is-compact w-full"
                         value={headerData.customerCompany}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, customerCompany: e.target.value }))}
                         placeholder="Firma adı..."
-                        className="w-full"
                       />
                     </div>
 
@@ -433,11 +429,10 @@ export default function CreateShipmentModal({
                       </label>
                       <input
                         type="text"
-                        className="mes-filter-input is-compact"
+                        className="mes-filter-input is-compact w-full"
                         value={headerData.deliveryAddress}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
                         placeholder="Teslimat adresi..."
-                        className="w-full"
                       />
                     </div>
 
@@ -448,11 +443,10 @@ export default function CreateShipmentModal({
                       </label>
                       <input
                         type="text"
-                        className="mes-filter-input is-compact"
+                        className="mes-filter-input is-compact w-full"
                         value={headerData.notes}
                         onChange={(e) => setHeaderData(prev => ({ ...prev, notes: e.target.value }))}
                         placeholder="Sevkiyat notu..."
-                        className="w-full"
                       />
                     </div>
                   </div>
@@ -492,7 +486,7 @@ export default function CreateShipmentModal({
                           <div className="pos-relative mb-8">
                             <button
                               type="button"
-                              className="mes-filter-select"
+                              className="mes-filter-select full-justify-between"
                               onClick={(e) => { 
                                 e.stopPropagation()
                                 setItems(prev => prev.map((it, idx) => ({
@@ -500,7 +494,6 @@ export default function CreateShipmentModal({
                                   dropdownOpen: idx === index ? !it.dropdownOpen : false
                                 })))
                               }}
-                              className="full-justify-between"
                             >
                               <span className={`text-truncate text-13 ${item.materialCode ? 'text-conditional' : 'text-conditional placeholder'}`}>
                                 {item.materialCode ? `${item.materialCode} - ${item.materialName}` : 'Malzeme seç...'}

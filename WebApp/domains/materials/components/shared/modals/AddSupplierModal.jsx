@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useSuppliers } from '../hooks/useSuppliers'
-import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
-import { categoriesService } from '../services/categories-service'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { useSuppliers } from '../../../hooks/useSuppliers.js'
+import { useMaterials, useMaterialActions } from '../../../hooks/useMaterials.js'
+import { categoriesService } from '../../../services/categories-service.js'
+import { showToast } from '../../../../../shared/components/MESToast.js'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave }) {
   const { suppliers, loading: suppliersLoading } = useSuppliers()
@@ -160,7 +160,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
   // Load all materials for code generation when modal opens
   const loadAllMaterials = async () => {
     try {
-      const { materialsService } = await import('../services/materials-service.js');
+      const { materialsService } = await import('../../../services/materials-service.js');
       const allMaterialsList = await materialsService.getAllMaterials();
       console.log('🔢 AddSupplierModal: Kod oluşturma için tüm materyaller yüklendi:', allMaterialsList.length);
       setAllMaterials(allMaterialsList);
@@ -1516,7 +1516,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 Ek Bilgiler
               </h3>
               
-              <div className="detail-item" className="supplier-detail-row-start">
+              <div className="detail-item supplier-detail-row-start">
                 <textarea
                   name="notes"
                   value={formData.notes || ''}

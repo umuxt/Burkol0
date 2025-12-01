@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useSuppliers } from '../hooks/useSuppliers'
+import { useSuppliers } from '../../../hooks/useSuppliers.js'
 
 const MaterialDeletionWarningModal = ({ 
   isOpen, 

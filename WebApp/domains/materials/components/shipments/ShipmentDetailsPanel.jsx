@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus } from '../../../shared/components/Icons.jsx'
-import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../services/shipments-service.js'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus } from '../../../../shared/components/Icons.jsx'
+import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../../services/shipments-service.js'
+import { showToast } from '../../../../shared/components/MESToast.js'
 
 export default function ShipmentDetailsPanel({
   shipment,
@@ -449,8 +449,8 @@ export default function ShipmentDetailsPanel({
             </h3>
             
             {/* Shipment Code */}
-            <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Sevkiyat Kodu:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', fontWeight: '600' }}>
@@ -460,8 +460,8 @@ export default function ShipmentDetailsPanel({
 
             {/* Customer Name */}
             {(currentShipment.customerName || currentShipment.customerCompany) && (
-              <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-rgb-120">
+              <div className="detail-item supplier-detail-row">
+                  <span className="detail-label supplier-detail-label-rgb-120">
                     Müşteri:
                   </span>
                   <span className="text-sm-dark">
@@ -472,16 +472,16 @@ export default function ShipmentDetailsPanel({
 
             {/* Delivery Address */}
             {currentShipment.deliveryAddress && (
-              <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-rgb-120">
+              <div className="detail-item supplier-detail-row">
+                  <span className="detail-label supplier-detail-label-rgb-120">
                     Teslimat Adresi:
                   </span>
                   <span className="text-sm-dark">{currentShipment.deliveryAddress}</span>
               </div>
             )}
 
-            <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Durum:
                 </span>
                 <span className="mes-tag" style={{ 
@@ -493,8 +493,8 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Kalem Sayısı:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -503,15 +503,15 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Oluşturma Tarihi:
                 </span>
                 <span className="text-sm-dark">{formatDate(currentShipment.createdAt)}</span>
             </div>
 
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '0px' }}>
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Son Güncelleme:
                 </span>
                 <span className="text-sm-dark">{formatDate(currentShipment.updatedAt)}</span>
@@ -777,8 +777,8 @@ export default function ShipmentDetailsPanel({
             </h3>
             
             {/* Work Order */}
-            <div className="detail-item" className="flex-center-mb-12">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item flex-center-mb-12">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   İş Emri Kodu:
                 </span>
                 {isEditing ? (
@@ -806,8 +806,8 @@ export default function ShipmentDetailsPanel({
             </div>
 
             {/* Quote */}
-            <div className="detail-item" className="flex-center-mb-12">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item flex-center-mb-12">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Teklif ID:
                 </span>
                 {isEditing ? (
@@ -835,8 +835,8 @@ export default function ShipmentDetailsPanel({
             </div>
 
             {/* Plan */}
-            <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-rgb-120">
+            <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-rgb-120">
                   Plan ID:
                 </span>
                 {isEditing ? (

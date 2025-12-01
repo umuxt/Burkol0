@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Download } from '../../../shared/components/Icons.jsx'
-import SuppliersTable from './SuppliersTable'
-import AddSupplierModal from './AddSupplierModal'
-import SuppliersFilters from './SuppliersFilters'
-import { useCategories } from '../hooks/useCategories'
-import { useSuppliers } from '../hooks/useSuppliers'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { Plus, Download } from '../../../../shared/components/Icons.jsx'
+import SuppliersTable from './SuppliersTable.jsx'
+import AddSupplierModal from '../shared/modals/AddSupplierModal.jsx'
+import SuppliersFilters from './SuppliersFilters.jsx'
+import { useCategories } from '../../hooks/useCategories.js'
+import { useSuppliers } from '../../hooks/useSuppliers.js'
+import { showToast } from '../../../../shared/components/MESToast.js'
 
 export default function SuppliersTabContent({ 
   categories,

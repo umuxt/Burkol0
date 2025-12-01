@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Info, Phone, Mail, RotateCw, Package, Factory, ShoppingCart } from '../../../shared/components/Icons.jsx'
-import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
-import useMaterialProductionHistory from '../hooks/useMaterialProductionHistory.js'
-import useMaterialLots from '../hooks/useMaterialLots.js'
-import { useSuppliers } from '../hooks/useSuppliers'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { ArrowLeft, Edit, Download, Trash2, Info, Phone, Mail, RotateCw, Package, Factory, ShoppingCart } from '../../../../shared/components/Icons.jsx'
+import useMaterialProcurementHistory from '../../hooks/useMaterialProcurementHistory.js'
+import useMaterialProductionHistory from '../../hooks/useMaterialProductionHistory.js'
+import useMaterialLots from '../../hooks/useMaterialLots.js'
+import { useSuppliers } from '../../hooks/useSuppliers.js'
+import { showToast } from '../../../../shared/components/MESToast.js'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
-} from '../utils/material-status-utils'
+} from '../../utils/material-status-utils.js'
 
 export default function MaterialDetailsPanel({ 
   material,

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Plus, Download, Trash2 } from '../../../shared/components/Icons.jsx'
-import MaterialsDashboard from './MaterialsDashboard.jsx'
-import MaterialsFilters from './MaterialsFilters.jsx'
-import MaterialsTable from './MaterialsTable.jsx'
-import BulkProgressModal from './BulkProgressModal.jsx'
-import AddOrderModal from './AddOrderModal.jsx'
-import MaterialDetailsPanel from './MaterialDetailsPanel.jsx'
-import ShipmentModalInStock from './ShipmentModalInStock.jsx'
-import { materialsService } from '../services/materials-service.js'
-import { showToast } from '../../../shared/components/MESToast.js'
+import { Plus, Download, Trash2 } from '../../../../shared/components/Icons.jsx'
+import MaterialsDashboard from '../materials/MaterialsDashboard.jsx'
+import MaterialsFilters from '../materials/MaterialsFilters.jsx'
+import MaterialsTable from '../materials/MaterialsTable.jsx'
+import BulkProgressModal from '../shared/modals/BulkProgressModal.jsx'
+import AddOrderModal from '../shared/modals/AddOrderModal.jsx'
+import MaterialDetailsPanel from '../materials/MaterialDetailsPanel.jsx'
+import AddShipmentInStockModal from '../shared/modals/AddShipmentInStockModal.jsx'
+import { materialsService } from '../../services/materials-service.js'
+import { showToast } from '../../../../shared/components/MESToast.js'
 
 export default function StocksTabContent({ 
   materials, 
@@ -495,7 +495,7 @@ export default function StocksTabContent({
       {/* Add Material Modal is now handled by main.jsx */}
 
       {/* Shipment Modal */}
-      <ShipmentModalInStock
+      <AddShipmentInStockModal
         isOpen={shipmentModalState.isOpen}
         onClose={() => setShipmentModalState(prev => ({ ...prev, isOpen: false }))}
         material={shipmentModalState.material}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { shipmentsService } from '../services/shipments-service.js'
+import { shipmentsService } from '../../../services/shipments-service.js'
 import { Truck, X, Package, ChevronDown, Search, Loader2 } from 'lucide-react'
 
 /**
@@ -7,7 +7,7 @@ import { Truck, X, Package, ChevronDown, Search, Loader2 } from 'lucide-react'
  * MES sistem tasarım diline uygun - mes-filter-select ve mes-filter-input sınıflarını kullanır
  * Verileri API'den çeker: approved quotes ve completed work orders
  */
-export default function ShipmentModalInStock({ 
+export default function AddShipmentInStockModal({ 
   isOpen, 
   onClose, 
   material,
@@ -321,7 +321,7 @@ export default function ShipmentModalInStock({
               fontSize: '12px',
               color: 'var(--text-secondary, #6b7280)'
             }}>
-              <Loader2 size={14} className="animate-spin" className="spin-animation" />
+              <Loader2 size={14} className="animate-spin spin-animation" />
               Veriler yükleniyor...
             </div>
           )}
@@ -332,14 +332,13 @@ export default function ShipmentModalInStock({
             <div className="flex-gap-8">
               <input
                 type="text"
-                className="mes-filter-input is-compact"
+                className="mes-filter-input is-compact flex-1"
                 value={formData.shipmentQuantity}
                 onChange={(e) => handleChange('shipmentQuantity', e.target.value)}
                 placeholder="0"
                 inputMode="decimal"
                 pattern="[0-9]*\.?[0-9]*"
                 required
-                className="flex-1"
                 autoFocus
               />
               <div style={{
@@ -397,11 +396,10 @@ export default function ShipmentModalInStock({
                     }} />
                     <input
                       type="text"
-                      className="mes-filter-input is-compact"
+                      className="mes-filter-input is-compact pl-32-full"
                       value={workOrderSearch}
                       onChange={(e) => setWorkOrderSearch(e.target.value)}
                       placeholder="Ara..."
-                      className="pl-32-full"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -485,11 +483,10 @@ export default function ShipmentModalInStock({
                     }} />
                     <input
                       type="text"
-                      className="mes-filter-input is-compact"
+                      className="mes-filter-input is-compact pl-32-full"
                       value={quoteSearch}
                       onChange={(e) => setQuoteSearch(e.target.value)}
                       placeholder="Ara..."
-                      className="pl-32-full"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -539,11 +536,10 @@ export default function ShipmentModalInStock({
             <label style={labelStyle}>Not</label>
             <input
               type="text"
-              className="mes-filter-input is-compact"
+              className="mes-filter-input is-compact w-full"
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               placeholder="Sevkiyat notu..."
-              className="w-full"
             />
           </div>
 
