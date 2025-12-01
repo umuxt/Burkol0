@@ -360,11 +360,13 @@ body:has(.materials-page) {
   vertical-align: middle;
 }
 
-.orders-tab-content .mes-code-text {
+/* Standard Code Text - for displaying codes like Be-001, S-001, SHP-001 */
+.mes-code-text {
   display: inline-block;
   font-family: monospace;
-  font-size: 11px !important;
-  color: rgb(107, 114, 128) !important;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(107, 114, 128);
 }
 
 /* Price Range Header Styles - Multi-select Header Tasarımında */
@@ -2734,13 +2736,6 @@ textarea.editable-input {
   vertical-align: middle;
 }
 
-.materials-table .mes-code-text {
-  display: inline-block;
-  font-family: monospace;
-  font-size: 11px !important;
-  color: rgb(107, 114, 128) !important;
-}
-
 .mes-tag-group {
   display: flex;
   flex-wrap: wrap;
@@ -4116,20 +4111,8 @@ textarea.editable-input {
   animation: spin 1s linear infinite;
 }
 
-.col-w-220 {
-  width: 220px;
-  min-width: 220px;
-  white-space: nowrap;
-}
-
 .col-w-120 {
   width: 120px;
-}
-
-.col-w-120-nowrap {
-  width: 120px;
-  min-width: 120px;
-  white-space: nowrap;
 }
 
 .col-min-140-left {
@@ -4291,10 +4274,6 @@ textarea.editable-input {
   font-weight: 600;
   color: #111827;
   margin-bottom: 4px;
-}
-
-.font-semibold-only {
-  font-weight: 600;
 }
 
 .font-medium-mb-2 {
@@ -6539,38 +6518,6 @@ textarea.editable-input {
 .table-fixed-layout {
   table-layout: fixed;
   width: 100%;
-}
-
-/* Column widths */
-.col-w-180 {
-  width: 180px;
-  max-width: 180px;
-  white-space: nowrap;
-}
-
-.col-w-140-180 {
-  min-width: 140px;
-  max-width: 180px;
-  white-space: nowrap;
-}
-
-.col-w-220-nowrap {
-  min-width: 220px;
-  white-space: nowrap;
-}
-
-.col-w-120-left {
-  width: 120px;
-  min-width: 90px;
-  max-width: 120px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.col-w-80-nowrap {
-  min-width: 80px;
-  max-width: 80px;
-  white-space: nowrap;
 }
 
 /* Order status select in table */

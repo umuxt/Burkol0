@@ -948,7 +948,7 @@ export default function SuppliersTable({
                     className={`mes-table-row ${selectedSupplier?.id === supplier.id ? 'selected' : ''}`}
                     onClick={() => handleRowClick(supplier)}
                   >
-                    <td className="col-w-40-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedSupplierIds.has(supplier.id)}

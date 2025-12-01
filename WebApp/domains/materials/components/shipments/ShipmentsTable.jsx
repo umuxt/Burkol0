@@ -84,7 +84,7 @@ export default function ShipmentsTable({
             >
               {/* Sevkiyat Kodu */}
               <td>
-                <span className="mes-code-text font-semibold-only">
+                <span className="mes-code-text">
                   {shipment.shipmentCode || `SHP-${shipment.id}`}
                 </span>
               </td>
@@ -108,34 +108,23 @@ export default function ShipmentsTable({
 
               {/* Sevkiyat Kalemleri */}
               <td>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                <div className="line-chips-container" style={{ flexWrap: 'wrap', gap: '4px' }}>
                   {(shipment.items || []).slice(0, 3).map((item, idx) => {
                     const itemSeq = item.itemCode ? item.itemCode.split('-').pop() : String(idx + 1).padStart(2, '0');
                     return (
                       <div 
                         key={item.id || idx}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          background: '#fff',
-                          padding: '2px 4px',
-                          fontSize: '11px',
-                          color: '#475569',
-                          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
-                        }}
+                        className="line-chip"
                       >
-                        <span style={{ fontSize: '11px', fontWeight: '600', color: '#1d4ed8' }}>
+                        <span className="line-chip-code">
                           {itemSeq}
                         </span>
                         <span className="text-border">|</span>
-                        <span style={{ fontWeight: '600', fontFamily: 'monospace', fontSize: '10px', color: '#6b7280' }}>
+                        <span className="line-chip-material">
                           {item.materialCode || item.productCode || '-'}
                         </span>
                         <span className="text-border">|</span>
-                        <span className="font-semibold-only">
+                        <span className="line-chip-qty">
                           {(() => {
                             const qty = parseFloat(item.quantity) || 0;
                             return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, '');

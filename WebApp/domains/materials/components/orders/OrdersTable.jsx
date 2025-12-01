@@ -218,11 +218,11 @@ export default function OrdersTable({
           <colgroup>
             <col className="col-w-40" />
             <col className="col-w-120" />
-            <col className="col-w-220" />
-            {variant !== 'completed' && <col className="col-w-180" />}
+            <col />
+            {variant !== 'completed' && <col />}
             <col />
             <col className="col-w-120" />
-            {variant !== 'completed' && <col className="col-w-80-nowrap" />}
+            {variant !== 'completed' && <col />}
           </colgroup>
           <thead>
             <tr>
@@ -237,40 +237,40 @@ export default function OrdersTable({
                   checked={Array.isArray(orders) && orders.length > 0 && orders.every(o => selectedOrderIds?.has?.(o.id))}
                 />
               </th>
-              <th className="col-w-120-nowrap">
+              <th className="col-w-120-nowrap-only">
                 <button type="button" onClick={() => handleSort('orderCode')} className="mes-sort-button">
                   Sipariş Kodu
                   <span className="mes-sort-icon">{getSortIndicator('orderCode')}</span>
                 </button>
               </th>
-              <th className="col-w-220">
+              <th className="col-min-160">
                 <button type="button" onClick={() => handleSort('supplier')} className="mes-sort-button">
                   Tedarikçi
                   <span className="mes-sort-icon">{getSortIndicator('supplier')}</span>
                 </button>
               </th>
               {variant !== 'completed' && (
-                <th className="col-w-140-180">
+                <th className="col-min-160">
                   <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                     Teslimat Durumu
                     <span className="mes-sort-icon">{getSortIndicator('status')}</span>
                   </button>
                 </th>
               )}
-              <th className="col-w-220-nowrap">
+              <th className="col-min-160">
                 <button type="button" onClick={() => handleSort('items')} className="mes-sort-button">
                   Sipariş Satırları
                   <span className="mes-sort-icon">{getSortIndicator('items')}</span>
                 </button>
               </th>
-              <th className="col-w-120-left">
+              <th className="col-min-120-nowrap">
                 <button type="button" onClick={() => handleSort('total')} className="mes-sort-button">
                   Tutar
                   <span className="mes-sort-icon">{getSortIndicator('total')}</span>
                 </button>
               </th>
               {variant !== 'completed' && (
-                <th className="col-w-80-nowrap">
+                <th className="col-w-80-center">
                   <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                     Durum
                     <span className="mes-sort-icon">{getSortIndicator('status')}</span>
@@ -332,10 +332,10 @@ export default function OrdersTable({
                       onClick={(e) => e.stopPropagation()}
                     />
                   </td>
-                  <td className="col-w-120-nowrap">
+                  <td className="col-w-120-nowrap-only">
                     <span className="mes-code-text">{order.orderCode || order.id}</span>
                   </td>
-                  <td className="col-w-220">
+                  <td className="col-min-160">
                     <span className="mes-code-text">{order.supplierCode || order.supplierId || ''}</span>
                     {(order.supplierCode || order.supplierId) && (order.supplierName) ? ' / ' : ''}
                     {order.supplierName || ''}

@@ -46,16 +46,9 @@ export default function ShipmentsFilters({
             <span>Yenile</span>
           </button>
           <button 
-            className="mes-filter-button is-compact is-primary"
+            className="mes-primary-action is-compact"
             onClick={onCreateNew}
             title="Yeni Sevkiyat"
-            style={{
-              backgroundColor: 'var(--primary, #3b82f6)',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
           >
             <Plus size={16} />
             <span>Yeni Sevkiyat</span>
