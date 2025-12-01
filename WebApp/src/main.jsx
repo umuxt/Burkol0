@@ -11,7 +11,6 @@ import SuppliersTabContent from '../domains/materials/components/suppliers/Suppl
 import MaterialsDashboard from '../domains/materials/components/materials/MaterialsDashboard.jsx';
 import MaterialsFilters from '../domains/materials/components/materials/MaterialsFilters.jsx';
 import MaterialsTable from '../domains/materials/components/materials/MaterialsTable.jsx';
-import MaterialsActions from '../domains/materials/components/materials/MaterialsActions.jsx';
 import AddMaterialModal from '../domains/materials/components/shared/modals/AddMaterialModal.jsx';
 import CategoryManagementModal from '../domains/materials/components/shared/modals/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from '../domains/materials/components/shared/modals/MaterialDeletionWarningModal.jsx';

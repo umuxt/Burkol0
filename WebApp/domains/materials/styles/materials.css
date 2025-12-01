@@ -417,28 +417,7 @@ body:has(.materials-page) {
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
-.price-toggle-button {
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  color: white;
-  border-radius: 3px;
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-left: 4px;
-  min-width: 40px;
-}
 
-.price-toggle-button:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-}
-
-.price-toggle-button:active {
-  transform: scale(0.95);
-}
 
 .price-toggle-switch {
   display: flex;
@@ -506,70 +485,6 @@ body:has(.materials-page) {
   margin-left: 4px;
 }
 
-.price-toggle-btn {
-  padding: 2px 6px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  font-size: 10px;
-  font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.price-toggle-btn:first-child {
-  border-radius: 3px 0 0 3px;
-  border-right: none;
-}
-
-.price-toggle-btn:last-child {
-  border-radius: 0 3px 3px 0;
-}
-
-.price-toggle-btn.active {
-  background: #2563eb;
-  color: white;
-  border-color: #2563eb;
-}
-
-.price-toggle-btn:hover:not(.active) {
-  background: #e5e7eb;
-  color: #374151;
-}
-
-.price-clear-btn {
-  background: none;
-  border: 1px solid #ef4444;
-  color: #ef4444;
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-size: 10px;
-  cursor: pointer;
-  margin-left: 4px;
-  transition: all 0.2s;
-}
-
-.price-clear-btn:hover {
-  background: #fef2f2;
-}
-
-.price-apply-btn {
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  color: white;
-  border-radius: 3px;
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.price-apply-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-}
-
 /* Price Range Inline Styles - Keep for backup */
 .price-range-inline {
   display: flex;
@@ -607,60 +522,6 @@ body:has(.materials-page) {
   border-radius: 4px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
-}
-
-.toggle-btn {
-  padding: 4px 8px;
-  background: none;
-  border: none;
-  font-size: 10px;
-  font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.toggle-btn.active {
-  background: #2563eb;
-  color: white;
-}
-
-.toggle-btn:hover:not(.active) {
-  background: #e5e7eb;
-  color: #374151;
-}
-
-.clear-btn-inline, .apply-btn-inline {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid;
-}
-
-.clear-btn-inline {
-  background: white;
-  color: #ef4444;
-  border-color: #ef4444;
-  min-width: 24px;
-}
-
-.clear-btn-inline:hover {
-  background: #fef2f2;
-}
-
-.apply-btn-inline {
-  background: #2563eb;
-  color: white;
-  border-color: #2563eb;
-  min-width: 50px;
-}
-
-.apply-btn-inline:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
 }
 
 /* Help System Styles (Materials) */
@@ -995,39 +856,6 @@ body:has(.materials-page) {
   justify-content: flex-end;
 }
 
-.clear-btn, .apply-btn {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid;
-}
-
-.clear-btn {
-  background: white;
-  color: #6b7280;
-  border-color: #d1d5db;
-}
-
-.clear-btn:hover {
-  background: #f9fafb;
-  color: #374151;
-  border-color: #9ca3af;
-}
-
-.apply-btn {
-  background: #2563eb;
-  color: white;
-  border-color: #2563eb;
-}
-
-.apply-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-}
-
 /* MES Filter Bar - Main Container */
 .mes-filter-bar {
   display: flex;
@@ -1132,15 +960,6 @@ body:has(.materials-page) {
   cursor: not-allowed;
 }
 
-/* Delete Selected Button */
-/* Delete seçili butonu da aynı boyutta kalır */
-
-.materials-actions .delete-selected-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-  background: linear-gradient(135deg, #c82333, #bd2130);
-}
-
 /* Materials Dashboard - MES Style Cards */
 .materials-dashboard {
   display: flex;
@@ -1228,84 +1047,6 @@ body:has(.materials-page) {
   height: 16px;
   background: rgb(209, 213, 219);
   flex-shrink: 0;
-}
-
-/* Suppliers Button */
-.suppliers-btn {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: white;
-  border: none;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: auto;
-  flex-shrink: 0;
-  height: 48px;
-}
-
-.suppliers-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
-  background: linear-gradient(135deg, #5856eb, #7c3aed);
-}
-
-.suppliers-btn span {
-  font-size: 16px;
-}
-
-/* Materials Actions Panel */
-.materials-actions-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 200px;
-  flex-shrink: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
-}
-
-.orders-btn {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  color: white;
-  border: none;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  height: calc(50% - 6px);
-}
-
-.orders-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
-  background: linear-gradient(135deg, #d97706, #ea580c);
-}
-
-.orders-btn span {
-  font-size: 16px;
-}
-
-.materials-actions-panel .suppliers-btn {
-  flex: 1;
-  height: calc(50% - 6px);
-  margin-top: 0;
 }
 
 /* Extra specificity for materials dashboard cards */
@@ -1749,30 +1490,6 @@ section.materials-dashboard div.card {
   transform: rotate(180deg);
 }
 
-/* Action Buttons */
-.action-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.add-material-btn {
-  background: linear-gradient(135deg, #28a745, #20c997);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
-}
-
-.add-material-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
-}
-
 /* Responsive Design */
 @media (max-width: 768px) {
   .materials-header-section {
@@ -1801,25 +1518,6 @@ section.materials-dashboard div.card {
     font-size: 14px;
   }
   
-  .materials-actions-panel {
-    min-width: unset;
-    flex-direction: row;
-    gap: 8px;
-  }
-  
-  .materials-actions-panel .suppliers-btn,
-  .materials-actions-panel .orders-btn {
-    height: 40px;
-    font-size: 12px;
-    padding: 8px 12px;
-    flex: 1;
-  }
-  
-  .materials-actions-panel .suppliers-btn span,
-  .materials-actions-panel .orders-btn span {
-    font-size: 14px;
-  }
-  
   .search-section {
     flex-direction: column;
     align-items: stretch;
@@ -1828,10 +1526,6 @@ section.materials-dashboard div.card {
   
   .quick-filters {
     justify-content: stretch;
-  }
-  
-  .quick-filter-btn {
-    flex: 1;
   }
   
   .dropdown-filters {
@@ -2254,22 +1948,6 @@ textarea.editable-input {
   min-height: 80px !important;
 }
 
-/* Category info button */
-.category-info-btn {
-  background: none;
-  border: none;
-  margin-left: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px;
-  border-radius: 3px;
-  transition: background-color 0.2s;
-}
-
-.category-info-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
 /* Material Details Layout - Yeniden düzenlenmiş */
 .modal-form.material-details-layout {
   display: flex !important;
@@ -2465,21 +2143,6 @@ textarea.editable-input {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.save-header-btn {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.save-header-btn:hover {
-  background-color: #218838;
 }
 
 .categories-section {
@@ -3258,25 +2921,6 @@ textarea.editable-input {
   font-size: 14px;
 }
 
-.order-item-remove-btn {
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.order-item-remove-btn:hover {
-  background: #dc2626;
-}
-
 /* Order Modal Steps */
 .order-modal-steps {
   padding: 16px 24px;
@@ -3381,49 +3025,6 @@ textarea.editable-input {
 .material-selection-details {
   font-size: 12px;
   color: #6b7280;
-}
-
-.material-selection-btn {
-  padding: 6px 12px;
-  font-size: 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.material-selection-btn.add {
-  background: #3b82f6;
-  color: white;
-}
-
-.material-selection-btn.add:hover {
-  background: #2563eb;
-}
-
-.material-selection-btn.added {
-  background: #e5e7eb;
-  color: #6b7280;
-  cursor: not-allowed;
-}
-
-/* Order Action Buttons */
-.order-action-btn {
-  padding: 4px 8px;
-  font-size: 11px;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.order-action-btn.detail {
-  background: #3b82f6;
-  color: white;
-}
-
-.order-action-btn.detail:hover {
-  background: #2563eb;
 }
 
 .order-status-select {
@@ -4714,10 +4315,6 @@ textarea.editable-input {
   align-items: center;
 }
 
-.order-dropdown-btn-muted {
-  color: #9ca3af;
-}
-
 .order-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -5973,16 +5570,6 @@ textarea.editable-input {
   gap: 4px;
 }
 
-.supplier-panel-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-.supplier-panel-btn:hover { background: #e5e7eb; }
-
 .empty-suppliers-panel {
   text-align: center;
   color: #6b7280;
@@ -6790,36 +6377,6 @@ textarea.editable-input {
   justify-content: flex-end;
 }
 
-/* Gray button small */
-.btn-gray-sm {
-  padding: 6px 12px;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-gray-sm:hover {
-  background: #4b5563;
-}
-
-/* Green button small */
-.btn-green-sm {
-  padding: 6px 12px;
-  background: #10b981;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-green-sm:hover {
-  background: #059669;
-}
-
 /* Empty message italic */
 .empty-message-italic {
   padding: 20px;
@@ -6929,20 +6486,6 @@ textarea.editable-input {
 
 .btn-secondary-md:hover {
   background: #f9fafb;
-}
-
-.btn-primary-md {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  background: #3b82f6;
-  color: white;
-  cursor: pointer;
-}
-
-.btn-primary-md:hover {
-  background: #2563eb;
 }
 
 /* Selected row background */

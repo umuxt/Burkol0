@@ -551,8 +551,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 Temel Firma Bilgileri
               </h3>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-120">
                   Tedarikçi Kodu:
                 </span>
                 <div className="flex-1">
@@ -570,8 +570,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 </div>
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-item supplier-detail-row">
+                <span className="detail-label supplier-detail-label-120">
                   Firma Adı *:
                 </span>
                 <input
