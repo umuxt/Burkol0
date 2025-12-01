@@ -314,15 +314,7 @@ body:has(.materials-page) {
   border-collapse: collapse;
 }
 
-.orders-tab-content .table-container th {
-  background: #f8fafc;
-  padding: 12px 16px;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
-  white-space: nowrap;
-}
+/* Orders table header - uses standard header (defined above at line ~2329) */
 
 .orders-tab-content .table-container td {
   padding: 16px;
@@ -1626,7 +1618,7 @@ section.materials-dashboard div.card {
 
 /* StockBar Stilleri */
 .stock-cell {
-  padding: 0.5rem 1rem !important;
+  padding: 2px 8px !important;
   min-width: 120px;
   max-width: 150px;
 }
@@ -1634,19 +1626,19 @@ section.materials-dashboard div.card {
 .stock-bar-container {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 2px;
   cursor: help;
 }
 
 .stock-bar-horizontal {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
 }
 
 .stock-bar {
   flex: 1;
-  height: 8px;
+  height: 6px;
   position: relative;
   min-width: 60px;
 }
@@ -2326,143 +2318,68 @@ textarea.editable-input {
   border-collapse: collapse;
 }
 
-/* TH stilleri - başlık satırı için */
-.materials-table th {
+/* ═══════════════════════════════════════════════════════════════
+   STANDARD TABLE HEADER - Base styles for all table headers
+   ═══════════════════════════════════════════════════════════════ */
+.mes-table-header,
+/* ═══════════════════════════════════════════════════════════════
+   STANDARD TABLE HEADERS - All domain tables use same style
+   ═══════════════════════════════════════════════════════════════ */
+.materials-table th,
+.orders-tab-content .table-container th,
+.supply-history-table th,
+.history-table th {
   padding: 8px;
-  text-align: left;
-  border-bottom: 1px solid rgb(229, 231, 235);
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Allow specific cells to expand */
-.materials-table td.no-ellipsis {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.materials-table th {
-  background: rgb(248, 249, 250);
-  font-weight: 600;
-  color: rgb(55, 65, 81);
-  font-size: 14px;
-  text-transform: none;
-  letter-spacing: 0;
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 8px;
 }
 
-/* TD ve TR stilleri .mes-table-row tarafından yönetiliyor */
+/* ═══════════════════════════════════════════════════════════════
+   STANDARD TABLE ROWS - All domain tables use same style
+   ═══════════════════════════════════════════════════════════════ */
+.materials-table td,
+.orders-tab-content .table-container td,
+.supply-history-table td,
+.history-table td {
+  padding: 2px 8px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.2;
+  height: 25px;
+  vertical-align: middle;
+}
 
-/* MES Table Row Styles - Materials table specific */
-.materials-table .mes-table-row {
+/* Clickable table rows */
+.mes-table-row {
   cursor: pointer;
   background-color: #ffffff;
   transition: background-color 0.2s ease;
   height: 25px;
 }
 
-.materials-table .mes-table-row:hover {
-  background-color: rgb(249, 250, 251);
+.mes-table-row:hover {
+  background-color: #f9fafb;
 }
 
-.materials-table .mes-table-row td {
-  padding: 2px 8px !important;
-  color: rgb(17, 24, 39) !important;
-  font-size: 13px !important;
-  border-bottom: 1px solid rgb(243, 244, 246) !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 0;
-  line-height: 1.2 !important;
-  height: 25px !important;
-  vertical-align: middle;
-}
-
-.mes-tag-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.materials-table .mes-tag {
-  background-color: rgb(243, 244, 246);
-  color: rgb(107, 114, 128);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px !important;
-  font-weight: 500;
-  display: inline-block;
-  line-height: 1.4;
-}
-
-.materials-table tr.inactive {
-  background: #fef7f7;
-  color: #9ca3af;
-  opacity: 0.7;
-}
-
-.materials-table tr.inactive:hover {
-  background: #fef2f2;
-  opacity: 0.8;
-}
-
-.materials-table tr.inactive.clickable-row:hover {
-  background: #fef2f2;
-}
-
-.materials-table tr.inactive td {
-  color: #9ca3af;
-  font-weight: 400;
-}
-
-/* Removed Material Styles */
-.materials-table tr.removed-material {
-  background: rgba(220, 53, 69, 0.05);
-  color: #6c757d;
-  opacity: 0.6;
-}
-
-.materials-table tr.removed-material:hover {
-  background: rgba(220, 53, 69, 0.08);
-  opacity: 0.75;
-}
-
-.materials-table tr.removed-material td {
-  color: #6c757d;
-  font-weight: 400;
-}
-
-.materials-table tr.removed-material .stock-bar-background {
-  opacity: 0.5;
-}
-
-.materials-table tr.removed-material .stock-fill {
-  opacity: 0.5;
-}
-
-.materials-table tr.removed-material .reorder-line {
-  opacity: 0.5;
-}
-
-.materials-table tr.removed-material .stock-current {
-  color: #6c757d;
-  opacity: 0.7;
-}
-
-/* Low stock row highlight */
-.materials-table tr.low-stock {
-  background: rgba(239, 68, 68, 0.03);
-}
-
-.materials-table tr.low-stock:hover {
-  background: rgba(239, 68, 68, 0.06);
-}
+/* ═══════════════════════════════════════════════════════════════
+   TABLE-SPECIFIC STYLES REMOVED - Use standard mes-table-header and mes-table-row
+   All custom table styles consolidated to unified classes
+   ═══════════════════════════════════════════════════════════════ */
 
 /* MES-style sort button for table headers */
 .mes-sort-button {
