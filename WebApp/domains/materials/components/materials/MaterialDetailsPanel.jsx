@@ -567,7 +567,7 @@ export default function MaterialDetailsPanel({
                     className="modal-input"
                   />
                 ) : (
-                  <span className="text-12-dark">
+                  <span className="text-sm text-dark font-semibold">
                     {safeRender(formData.stock, '0')} {material.unit}
                   </span>
                 )}

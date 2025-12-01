@@ -384,7 +384,7 @@ export default function OrdersTable({
                   )}
                   <td className="no-ellipsis td-py-4">
                     {items.length > 0 ? renderLineChips(items) : (
-                      <span className="text-no-items">Sipariş satırı yok</span>
+                      <span className="empty-state-text">Sipariş satırı yok</span>
                     )}
                   </td>
                   <td className="td-total">

@@ -172,7 +172,7 @@ export default function OrderDetailsPanel({
             
             <div className="order-info-section">
               <h3 className="section-header">Not / Referans</h3>
-              <div className="text-note-content">
+              <div className="text-sm text-dark">
                 {order.notes || '-'}
               </div>
             </div>

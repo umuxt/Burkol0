@@ -835,7 +835,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                             <div className="mes-badge info">
                               {material.lineId}
                             </div>
-                          <div className="font-medium-14">
+                          <div className="font-medium text-md">
                             {material.materialName}
                           </div>
                           <div className="text-muted-xs">
@@ -912,19 +912,19 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                         >
                           <div className="flex-between-center">
                             <div className="flex-1">
-                              <div className="font-medium-name">
+                              <div className="font-medium text-base">
                                 {material.name}
                               </div>
-                              <div className="text-muted-11">
+                              <div className="text-xs text-muted">
                                 Kod: {material.code}
                               </div>
                               {material.category && (
-                                <div className="text-muted-11">
+                                <div className="text-xs text-muted">
                                   Kategori: {material.category}
                                 </div>
                               )}
                               {material.unit && (
-                                <div className="text-muted-11-last">
+                                <div className="text-xs text-muted">
                                   Birim: {material.unit}
                                 </div>
                               )}

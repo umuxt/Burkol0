@@ -1003,7 +1003,7 @@ export default function SuppliersTable({
                                 {categoryName}
                               </span>
                             ))
-                          : <span className="text-muted-italic-xs">Kategoriler</span>
+                          : <span className="text-xs text-muted-italic">Kategoriler</span>
                         }
                       </div>
                     </td>

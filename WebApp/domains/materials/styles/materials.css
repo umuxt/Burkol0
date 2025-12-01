@@ -2457,8 +2457,7 @@ textarea.editable-input {
 
 .suppliers-container,
 .materials-container,
-.orders-container,
-.shipments-container {
+.orders-container {
   display: flex;
   gap: 12px;
   height: calc(100vh - 200px);
@@ -2467,8 +2466,7 @@ textarea.editable-input {
 
 .suppliers-table-panel,
 .materials-table-panel,
-.orders-table-panel,
-.shipments-table-panel {
+.orders-table-panel {
   flex: 1 1 0%;
   min-width: 300px;
   display: flex;
@@ -2491,8 +2489,7 @@ textarea.editable-input {
   
   .suppliers-container,
   .materials-container,
-  .orders-container,
-  .shipments-container {
+  .orders-container {
     flex-direction: column;
     height: auto;
   }
@@ -3110,10 +3107,6 @@ textarea.editable-input {
   white-space: nowrap;
 }
 
-.text-nowrap-muted {
-  white-space: nowrap;
-  color: #374151;
-}
 
 /* Spacing utilities */
 .mr-4 {
@@ -3247,56 +3240,121 @@ textarea.editable-input {
   display: none;
 }
 
-.text-muted {
-  color: #6b7280;
+/* ============================================
+   TYPOGRAPHY SYSTEM - Standardized
+   ============================================ */
+
+/* === FONT SIZES === */
+.text-xs { font-size: 11px; }
+.text-sm { font-size: 12px; }
+.text-base { font-size: 13px; }
+.text-md { font-size: 14px; }
+.text-lg { font-size: 16px; }
+.text-xl { font-size: 18px; }
+.text-2xl { font-size: 20px; }
+
+/* === FONT WEIGHTS === */
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* === TEXT COLORS === */
+.text-dark { color: #111827; }
+.text-gray { color: #374151; }
+.text-muted { color: #6b7280; }
+.text-light { color: #9ca3af; }
+.text-primary { color: #3b82f6; }
+.text-success { color: #16a34a; }
+.text-warning { color: #f59e0b; }
+.text-error { color: #dc2626; }
+
+/* === TEXT ALIGNMENT === */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* === TEXT MODIFIERS === */
+.text-italic { font-style: italic; }
+.text-nowrap { white-space: nowrap; }
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.text-muted-sm {
-  font-size: 11px;
-  color: #6b7280;
-}
+/* === HEADINGS === */
+.h1 { font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 16px 0; }
+.h2 { font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 12px 0; }
+.h3 { font-size: 18px; font-weight: 600; color: #374151; margin: 0 0 8px 0; }
+.h4 { font-size: 16px; font-weight: 600; color: #374151; margin: 0 0 8px 0; }
+.h5 { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 4px 0; }
+.h6 { font-size: 13px; font-weight: 600; color: #6b7280; margin: 0 0 4px 0; }
 
-.text-muted-xs {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.text-sm-dark {
-  font-size: 12px;
-  color: rgb(17, 24, 39);
-}
-
-.text-muted-var {
-  color: var(--muted-foreground);
-  font-size: 11px;
-}
-
-.text-border {
-  color: #d1d5db;
-}
-
-.supplier-label-block {
+/* === LABEL STYLES === */
+.label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 4px;
-}
-
-.supplier-label-block-sm {
-  display: block;
-  margin-bottom: 6px;
   font-size: 13px;
   font-weight: 500;
   color: #374151;
-}
-
-.form-label-muted {
-  font-size: 11px;
-  color: #78716c;
-  font-weight: 500;
   margin-bottom: 4px;
 }
+
+.label-sm {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.label-bold {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+/* === COMMON COMBINATIONS === */
+.text-xs-muted { font-size: 11px; color: #6b7280; }
+.text-sm-muted { font-size: 12px; color: #6b7280; }
+.text-md-muted { font-size: 14px; color: #6b7280; }
+.text-xs-dark { font-size: 11px; color: #111827; }
+.text-sm-dark { font-size: 12px; color: #111827; }
+.text-md-dark { font-size: 14px; color: #111827; }
+.text-xs-light { font-size: 11px; color: #9ca3af; }
+.text-sm-light { font-size: 12px; color: #9ca3af; }
+.text-muted-italic { color: #6b7280; font-style: italic; }
+.text-light-italic { color: #9ca3af; font-style: italic; }
+
+/* === SPECIALIZED TEXT === */
+.text-subtitle { font-size: 14px; color: #6b7280; margin: 0; }
+.text-hint { display: block; font-size: 11px; color: #9ca3af; font-style: italic; margin-top: 4px; }
+.text-required { color: #dc2626; }
+.text-link { color: #3b82f6; cursor: pointer; text-decoration: none; }
+.text-link:hover { text-decoration: underline; }
+
+/* === EMPTY/LOADING/ERROR STATES === */
+.empty-state-title { font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+.empty-state-text { font-size: 14px; color: #6b7280; }
+.loading-text { color: #6b7280; font-size: 13px; }
+.error-text { color: #dc2626; font-size: 13px; }
+
+/* === DETAIL ROWS === */
+.detail-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: #111827;
+  font-weight: 500;
+}
+
 
 .flex-center-gap-8 {
   display: flex;
@@ -3330,10 +3388,7 @@ textarea.editable-input {
   z-index: 1;
 }
 
-.text-subtitle {
-  margin: 0;
-  font-size: 14px;
-}
+/* Removed duplicate: .text-subtitle - defined in standard typography */
 
 /* Additional Utility Classes */
 .col-w-40-center {
@@ -3358,28 +3413,6 @@ textarea.editable-input {
   white-space: nowrap;
 }
 
-.mb-8 {
-  margin-bottom: 8px;
-}
-
-.font-medium {
-  font-weight: 500;
-}
-
-.font-semibold {
-  font-weight: 600;
-}
-
-.text-muted-italic {
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.text-xs-muted {
-  font-size: 11px;
-  color: #6b7280;
-  font-weight: 400;
-}
 
 .flex-1-xs {
   flex: 1;
@@ -3409,13 +3442,6 @@ textarea.editable-input {
   border-collapse: collapse;
 }
 
-.text-center {
-  text-align: center;
-}
-
-.text-right {
-  text-align: right;
-}
 
 .supplier-td-right {
   padding: 6px 8px;
@@ -3601,103 +3627,6 @@ textarea.editable-input {
   position: relative;
 }
 
-.title-lg-gray {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.title-lg {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.text-sm-muted {
-  margin: 0;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.text-xs-gray {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.text-sm-light {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: #9ca3af;
-}
-
-.text-xs-light-mb {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.label-bold-mb {
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 4px;
-}
-
-.font-medium-mb-2 {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.font-medium-13 {
-  font-weight: 500;
-  font-size: 13px;
-}
-
-.text-xxs-light {
-  font-size: 9px;
-  color: #9ca3af;
-}
-
-.icon-lg-mb {
-  font-size: 24px;
-  margin-bottom: 16px;
-}
-
-.text-md-mb {
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-.text-blue-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e40af;
-  margin-bottom: 8px;
-}
-
-.text-dark-medium {
-  font-size: 13px;
-  color: #0c0a09;
-  font-weight: 500;
-}
-
-.text-xs-full {
-  font-size: 12px;
-  opacity: 1;
-}
-
-.text-link-blue {
-  font-size: 12px;
-  color: #1e40af;
-}
-
-.form-label-sm {
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 6px;
-  color: #6b7280;
-}
 
 /* Additional Grid & Flex Classes */
 .grid-4 {
@@ -3737,40 +3666,6 @@ textarea.editable-input {
   gap: 6px;
 }
 
-/* Color Utilities */
-.text-secondary-shrink {
-  color: var(--text-secondary, #6b7280);
-  flex-shrink: 0;
-}
-
-.text-primary-var {
-  color: var(--primary, #3b82f6);
-}
-
-.text-error-sm {
-  color: #dc2626;
-  font-size: 14px;
-}
-
-.text-muted-medium {
-  color: #78716c;
-  font-weight: 500;
-}
-
-.text-muted-italic-only {
-  color: #6b7280;
-  font-style: italic;
-}
-
-.text-success-ml {
-  color: #10b981;
-  margin-left: 8px;
-}
-
-.text-dark-bold {
-  color: #0c0a09;
-  font-weight: 600;
-}
 
 /* Dropdown Hidden States */
 .dropdown-hidden {
@@ -3784,20 +3679,6 @@ textarea.editable-input {
   min-width: 260px;
 }
 
-/* Text Block Utilities */
-.text-hint-block {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 4px;
-  display: block;
-}
-
-.text-hint-xs-block {
-  font-size: 10px;
-  color: #6b7280;
-  display: block;
-  margin-top: 2px;
-}
 
 .flex-1-0-xs {
   flex: 1 1 0%;
@@ -4018,10 +3899,6 @@ textarea.editable-input {
   color: #dc2626;
 }
 
-.text-success-bold {
-  color: #059669;
-  font-weight: 600;
-}
 
 .flex-gap-12 {
   display: flex;
@@ -4203,22 +4080,6 @@ textarea.editable-input {
   font-style: italic;
 }
 
-.font-medium-name {
-  font-weight: 500;
-  font-size: 13px;
-  margin-bottom: 2px;
-}
-
-.text-muted-11 {
-  font-size: 11px;
-  color: #6b7280;
-  margin-bottom: 1px;
-}
-
-.text-muted-11-last {
-  font-size: 11px;
-  color: #6b7280;
-}
 
 /* Bordered List Containers */
 .bordered-list {
@@ -4243,10 +4104,6 @@ textarea.editable-input {
 
 /* Line ID badge duplicate - REMOVED */
 
-.font-medium-14 {
-  font-weight: 500;
-  font-size: 14px;
-}
 
 /* Compact Modal Header */
 .compact-modal-header {
@@ -4440,10 +4297,6 @@ textarea.editable-input {
   margin: 0 4px 4px 0;
 }
 
-.font-semibold-dark {
-  font-weight: 600;
-  color: #111827;
-}
 
 .popup-footer {
   display: flex;
@@ -4722,9 +4575,6 @@ textarea.editable-input {
   margin-bottom: 8px;
 }
 
-.text-13 {
-  font-size: 13px;
-}
 
 .summary-info-box {
   background-color: var(--muted-bg, #f9fafb);
@@ -4744,10 +4594,6 @@ textarea.editable-input {
   margin-top: 6px;
 }
 
-.text-italic-muted {
-  font-style: italic;
-  color: #6b7280;
-}
 
 .bordered-container-rounded {
   border: 1px solid var(--border, #e5e7eb);
@@ -5301,7 +5147,6 @@ textarea.editable-input {
   color: #374151;
 }
 
-.text-12-dark { font-size: 12px; color: #111827; font-weight: 600; }
 
 /* Status Badge Small */
 /* Status badges - REMOVED, use .mes-badge.active or .mes-badge.inactive instead */
@@ -5562,12 +5407,6 @@ textarea.editable-input {
   font-weight: 600;
 }
 
-/* Text styles for order detail */
-.text-note-content {
-  font-size: 12px;
-  color: #0c0a09;
-  line-height: 1.5;
-}
 
 /* Supplier info row */
 .supplier-info-row {
@@ -5739,12 +5578,6 @@ textarea.editable-input {
   font-weight: 600;
 }
 
-/* No items text */
-.text-no-items {
-  font-size: 12px;
-  color: #6b7280;
-  font-style: italic;
-}
 
 /* Total cell */
 .td-total {
@@ -5832,12 +5665,6 @@ textarea.editable-input {
   gap: 12px;
 }
 
-/* Empty category text */
-.text-muted-italic-xs {
-  color: rgb(107, 114, 128);
-  font-style: italic;
-  font-size: 11px;
-}
 
 /* Table action cell */
 .td-actions-compact {

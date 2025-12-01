@@ -420,7 +420,7 @@ export default function ShipmentDetailsPanel({
                 <span className="detail-label detail-label">
                   Sevkiyat Kodu:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', fontWeight: '600' }}>
+                <span className="text-sm text-dark font-semibold">
                   {currentShipment.shipmentCode || `SHP-${currentShipment.id}`}
                 </span>
             </div>
@@ -464,7 +464,7 @@ export default function ShipmentDetailsPanel({
                 <span className="detail-label detail-label">
                   Kalem Sayısı:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="text-sm text-dark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Package size={12} />
                   {currentShipment.itemCount || shipmentItems.length || 1}
                 </span>
@@ -603,7 +603,7 @@ export default function ShipmentDetailsPanel({
             {itemsLoading ? (
               <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
                 <Loader2 size={20} className="animate-spin" style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }} />
-                <p style={{ margin: '8px 0 0', fontSize: '12px' }}>Yükleniyor...</p>
+                <p className="text-sm mt-8">Yükleniyor...</p>
               </div>
             ) : shipmentItems.length === 0 ? (
               // Legacy: Single item display for old data
@@ -611,15 +611,15 @@ export default function ShipmentDetailsPanel({
                 <div style={{ padding: '8px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <span style={{ fontWeight: '500', fontSize: '13px', color: '#111827' }}>{currentShipment.productCode}</span>
+                      <span className="text-base text-dark font-medium">{currentShipment.productCode}</span>
                     </div>
-                    <span style={{ fontWeight: '600', fontSize: '13px', color: '#3b82f6' }}>
+                    <span className="text-base text-primary font-semibold">
                       {(() => { const qty = parseFloat(currentShipment.shipmentQuantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {currentShipment.unit || 'adet'}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
+                <div className="text-center p-20 text-light text-sm">
                   Kalem bulunamadı
                 </div>
               )
@@ -637,7 +637,7 @@ export default function ShipmentDetailsPanel({
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div className="flex-1">
-                        <div style={{ fontWeight: '500', fontSize: '13px', color: '#111827', marginBottom: '2px' }}>
+                        <div className="text-base text-dark font-medium mb-2">
                           {item.materialCode}
                         </div>
                         {item.materialName && (
@@ -646,17 +646,17 @@ export default function ShipmentDetailsPanel({
                           </div>
                         )}
                         {item.notes && (
-                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', fontStyle: 'italic' }}>
+                          <div className="text-xs text-light text-italic mt-4">
                             {item.notes}
                           </div>
                         )}
                       </div>
                       <div className="flex-center-gap-12">
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: '600', fontSize: '14px', color: '#3b82f6' }}>
+                          <span className="text-md text-primary font-semibold">
                             {item.quantity}
                           </span>
-                          <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
+                          <span className="text-xs text-muted ml-4">
                             {item.unit || 'adet'}
                           </span>
                         </div>
@@ -700,10 +700,10 @@ export default function ShipmentDetailsPanel({
                   borderRadius: '4px',
                   marginTop: '4px'
                 }}>
-                  <span style={{ fontWeight: '600', fontSize: '12px', color: '#374151' }}>
+                  <span className="text-sm text-gray font-semibold">
                     Toplam: {shipmentItems.length} kalem
                   </span>
-                  <span style={{ fontWeight: '600', fontSize: '13px', color: '#1d4ed8' }}>
+                  <span className="text-base text-primary font-semibold">
                     {shipmentItems.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toLocaleString('tr-TR')}
                   </span>
                 </div>
@@ -811,11 +811,7 @@ export default function ShipmentDetailsPanel({
             <h3 className="section-header">
               Açıklama / Not
             </h3>
-            <div style={{ 
-              fontSize: '12px',
-              color: 'rgb(17, 24, 39)',
-              minHeight: '40px'
-            }}>
+            <div className="text-sm text-dark" style={{ minHeight: '40px' }}>
               {isEditing ? (
                 <textarea
                   value={editData.description}
@@ -834,7 +830,7 @@ export default function ShipmentDetailsPanel({
                 />
               ) : (
                 <div style={{ whiteSpace: 'pre-wrap' }}>
-                  {currentShipment.description || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not bulunmuyor.</span>}
+                  {currentShipment.description || <span className="text-light text-italic">Not bulunmuyor.</span>}
                 </div>
               )}
             </div>

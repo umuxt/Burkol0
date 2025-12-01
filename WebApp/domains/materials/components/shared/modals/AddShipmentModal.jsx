@@ -305,7 +305,7 @@ export default function AddShipmentModal({
           {dataLoading && (
             <div className="loading-center">
               <Loader2 size={18} className="spin-animation" />
-              <span className="text-13">Veriler yükleniyor...</span>
+              <span className="text-base">Veriler yükleniyor...</span>
             </div>
           )}
 
@@ -495,7 +495,7 @@ export default function AddShipmentModal({
                                 })))
                               }}
                             >
-                              <span className={`text-truncate text-13 ${item.materialCode ? 'text-conditional' : 'text-conditional placeholder'}`}>
+                              <span className={`text-truncate text-base ${item.materialCode ? 'text-conditional' : 'text-conditional placeholder'}`}>
                                 {item.materialCode ? `${item.materialCode} - ${item.materialName}` : 'Malzeme seç...'}
                               </span>
                               <ChevronDown size={14} />
@@ -619,7 +619,7 @@ export default function AddShipmentModal({
                         </div>
                       )}
                       {headerData.notes && (
-                        <div className="mt-6 text-italic-muted">
+                        <div className="mt-6 text-muted-italic">
                           Not: {headerData.notes}
                         </div>
                       )}

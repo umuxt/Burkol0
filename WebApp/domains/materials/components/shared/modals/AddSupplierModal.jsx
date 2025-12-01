@@ -1491,7 +1491,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                         className="material-item-row"
                       >
                         <div>
-                          <div className="font-semibold-dark">{material.name}</div>
+                          <div className="font-semibold text-dark">{material.name}</div>
                           <div className="text-muted-sm">
                             {getCategoryName(material.category)} • {material.unit}
                           </div>
