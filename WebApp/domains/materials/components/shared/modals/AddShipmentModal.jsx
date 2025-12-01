@@ -567,7 +567,7 @@ export default function AddShipmentModal({
                               </span>
                             </div>
                             {item.materialCode && (
-                              <span className="stock-badge">
+                              <span className="mes-badge success">
                                 Mevcut: {formatQty(item.availableStock)}
                               </span>
                             )}

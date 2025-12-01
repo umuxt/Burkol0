@@ -832,7 +832,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       >
                         <div className="order-item-grid">
                           <div>
-                            <div className="line-id-badge">
+                            <div className="mes-badge info">
                               {material.lineId}
                             </div>
                           <div className="font-medium-14">
@@ -984,7 +984,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       className="summary-item"
                     >
                       <div>
-                        <div className="line-id-badge-sm">{material.lineId}</div>
+                        <div className="mes-badge info" style="font-size: 11px">{material.lineId}</div>
                         <div className="font-medium-13">{material.materialName}</div>
                         <div className="text-muted-sm">
                           {material.materialCode} • {(() => { const qty = parseFloat(material.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {material.unit || 'adet'} × {formatCurrency(material.unitPrice)}

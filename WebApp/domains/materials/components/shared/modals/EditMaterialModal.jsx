@@ -1104,7 +1104,7 @@ export default function EditMaterialModal({
                           <td>{item.workOrderCode}</td>
                           <td>{item.nodeId}</td>
                           <td>
-                            <span className={`badge-type ${item.type}`}>
+                            <span className={`mes-badge ${item.type === 'consumption' ? 'danger' : item.type === 'production' ? 'success' : 'info'}`}>
                               {typeLabel}
                             </span>
                           </td>

@@ -2457,7 +2457,8 @@ textarea.editable-input {
 
 .suppliers-container,
 .materials-container,
-.orders-container {
+.orders-container,
+.shipments-container {
   display: flex;
   gap: 12px;
   height: calc(100vh - 200px);
@@ -2466,7 +2467,8 @@ textarea.editable-input {
 
 .suppliers-table-panel,
 .materials-table-panel,
-.orders-table-panel {
+.orders-table-panel,
+.shipments-table-panel {
   flex: 1 1 0%;
   min-width: 300px;
   display: flex;
@@ -2489,7 +2491,8 @@ textarea.editable-input {
   
   .suppliers-container,
   .materials-container,
-  .orders-container {
+  .orders-container,
+  .shipments-container {
     flex-direction: column;
     height: auto;
   }
@@ -2735,41 +2738,7 @@ textarea.editable-input {
   color: #3b82f6;
 }
 
-/* Order Status Badges */
-.order-status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.order-status-badge.taslak {
-  background-color: #6b7280;
-}
-
-.order-status-badge.onay-bekliyor {
-  background-color: #f59e0b;
-}
-
-.order-status-badge.onaylandi {
-  background-color: #3b82f6;
-}
-
-.order-status-badge.kismi-teslimat {
-  background-color: #f97316;
-}
-
-.order-status-badge.tamamlandi {
-  background-color: #10b981;
-}
-
-.order-status-badge.iptal-edildi {
-  background-color: #ef4444;
-}
+/* Order status badges - REMOVED, use .mes-badge instead */
 
 /* Order Summary Cards */
 .order-summary-card {
@@ -4272,18 +4241,7 @@ textarea.editable-input {
   align-items: center;
 }
 
-.line-id-badge {
-  font-size: 12px;
-  color: #3b82f6;
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.line-id-badge-sm {
-  font-size: 11px;
-  color: #3b82f6;
-  font-weight: 500;
-}
+/* Line ID badge duplicate - REMOVED */
 
 .font-medium-14 {
   font-weight: 500;
@@ -4902,13 +4860,7 @@ textarea.editable-input {
 .qty-row-flex { flex: 1; display: flex; align-items: center; gap: 6px; }
 .qty-input { width: 80px; text-align: right; font-size: 13px; }
 
-.stock-badge {
-  font-size: 11px;
-  color: var(--success, #16a34a);
-  background-color: var(--success-bg, #dcfce7);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
+/* Stock badge - REMOVED, use .mes-badge.success instead */
 
 .btn-remove-item {
   background: none;
@@ -5142,16 +5094,7 @@ textarea.editable-input {
 /* Container Utilities */
 .table-scroll-400 { max-height: 400px; overflow-y: auto; }
 
-/* Badge Type */
-.badge-type {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.badge-type.consumption { background-color: rgba(239, 68, 68, 0.13); color: #ef4444; }
-.badge-type.production { background-color: rgba(16, 185, 129, 0.13); color: #10b981; }
-.badge-type.wip { background-color: rgba(59, 130, 246, 0.13); color: #3b82f6; }
+/* Badge Type - REMOVED, use .mes-badge with .danger/.success/.info variants instead */
 
 /* MaterialDetailsPanel Styles */
 .detail-panel-card {
@@ -5361,14 +5304,7 @@ textarea.editable-input {
 .text-12-dark { font-size: 12px; color: #111827; font-weight: 600; }
 
 /* Status Badge Small */
-.badge-status-sm {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-}
-.badge-status-sm.active { background: #dcfce7; color: #16a34a; }
-.badge-status-sm.inactive { background: #f3f4f6; color: #6b7280; }
+/* Status badges - REMOVED, use .mes-badge.active or .mes-badge.inactive instead */
 
 /* MaterialsTable Specific Styles */
 .sort-icon-inactive {

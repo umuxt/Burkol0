@@ -911,7 +911,7 @@ export default function MaterialDetailsPanel({
                               {!isNaN(qty) ? `${qty} ${unit}`.trim() : '0 ' + unit}
                             </td>
                             <td className="supplier-td-simple">
-                              <span className={`badge-type ${item.type}`}>
+                              <span className={`mes-badge ${item.type === 'consumption' ? 'danger' : item.type === 'production' ? 'success' : 'info'}`}>
                                 {typeLabel}
                               </span>
                             </td>
