@@ -110,14 +110,14 @@ export default function OrderDetailsPanel({
           <div className="order-info-section">
             <div className="order-info-grid-header">
               <div>
-                <div className="form-label-muted">SİPARİŞ KODU</div>
-                <div className="text-title-dark">
+                <div className="label-sm">SİPARİŞ KODU</div>
+                <div className="h4">
                   {order.orderCode || order.id}
                 </div>
               </div>
               <div>
-                <div className="form-label-muted">TEDARİKÇİ</div>
-                <div className="text-title-dark">
+                <div className="label-sm">TEDARİKÇİ</div>
+                <div className="h4">
                   {order.supplierName}
                 </div>
               </div>
@@ -135,20 +135,20 @@ export default function OrderDetailsPanel({
             
             <div className="order-info-grid-3">
               <div>
-                <div className="form-label-muted">Oluşturulma</div>
-                <div className="text-dark-medium">
+                <div className="label-sm">Oluşturulma</div>
+                <div className="text-base text-dark font-medium">
                   {order.orderDate ? (new Date(order.orderDate)).toLocaleDateString('tr-TR') : '-'}
                 </div>
               </div>
               <div>
-                <div className="form-label-muted">Tahmini Teslim</div>
-                <div className="text-dark-medium">
+                <div className="label-sm">Tahmini Teslim</div>
+                <div className="text-base text-dark font-medium">
                   {order.expectedDeliveryDate ? (new Date(order.expectedDeliveryDate)).toLocaleDateString('tr-TR') : '-'}
                 </div>
               </div>
               <div>
-                <div className="form-label-muted">Toplam Tutar</div>
-                <div className="text-title-dark">
+                <div className="label-sm">Toplam Tutar</div>
+                <div className="h4">
                   {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: order.currency || 'TRY' }).format(order.totalAmount || 0)}
                 </div>
               </div>
@@ -197,14 +197,14 @@ export default function OrderDetailsPanel({
             </div>
             <div className="supplier-info-row">
               <div className="flex-center-gap-8">
-                <span className="text-muted-medium">Tedarikçi Kodu:</span>
-                <span className="text-dark-bold">
+                <span className="text-sm text-muted font-medium">Tedarikçi Kodu:</span>
+                <span className="text-base text-dark font-bold">
                   {order.supplierId ? `T-${String(order.supplierId).padStart(4, '0')}` : '-'}
                 </span>
               </div>
               <div className="flex-center-gap-8">
-                <span className="text-muted-medium">Tedarikçi Adı:</span>
-                <span className="text-dark-bold">{order.supplierName || '-'}</span>
+                <span className="text-sm text-muted font-medium">Tedarikçi Adı:</span>
+                <span className="text-base text-dark font-bold">{order.supplierName || '-'}</span>
               </div>
             </div>
           </div>
