@@ -18,10 +18,10 @@ export default function OrdersFilters({
     const header = event.currentTarget
     
     if (dropdown) {
-      const isVisible = dropdown.style.display === 'block'
+      const isVisible = !dropdown.classList.contains('d-none')
       // Close all other dropdowns first
       document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-        d.style.display = 'none'
+        d.classList.add('d-none')
       })
       // Toggle this dropdown
       if (!isVisible) {
@@ -43,9 +43,9 @@ export default function OrdersFilters({
           dropdown.style.right = 'auto'
         }
         
-        dropdown.style.display = 'block'
+        dropdown.classList.remove('d-none')
       } else {
-        dropdown.style.display = 'none'
+        dropdown.classList.add('d-none')
       }
     }
   }
@@ -55,14 +55,14 @@ export default function OrdersFilters({
     const handleClickOutside = (event) => {
       if (!event.target.closest('.multi-select-container')) {
         document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-          d.style.display = 'none'
+          d.classList.add('d-none')
         })
       }
     }
 
     const handleScroll = () => {
       document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-        d.style.display = 'none'
+        d.classList.add('d-none')
       })
     }
 
@@ -111,7 +111,7 @@ export default function OrdersFilters({
   }
 
   return (
-    <div className="mes-filter-controls" className="pos-relative">
+    <div className="mes-filter-controls pos-relative">
       {/* Expand/Collapse Button */}
       <button
         type="button"
@@ -144,8 +144,7 @@ export default function OrdersFilters({
         </button>
         <div 
           id="orderStatus-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -160,7 +159,7 @@ export default function OrdersFilters({
               className="mes-filter-panel-button"
               onClick={(e) => {
                 e.stopPropagation()
-                document.getElementById('orderStatus-dropdown').style.display = 'none'
+                document.getElementById('orderStatus-dropdown').classList.add('d-none')
               }}
             >
               <span>Kapat</span>
@@ -200,8 +199,7 @@ export default function OrdersFilters({
         </button>
         <div 
           id="itemStatus-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -216,7 +214,7 @@ export default function OrdersFilters({
               className="mes-filter-panel-button"
               onClick={(e) => {
                 e.stopPropagation()
-                document.getElementById('itemStatus-dropdown').style.display = 'none'
+                document.getElementById('itemStatus-dropdown').classList.add('d-none')
               }}
             >
               <span>Kapat</span>
@@ -256,8 +254,7 @@ export default function OrdersFilters({
         </button>
         <div 
           id="dateRange-dropdown"
-          className="multi-select-dropdown"
-          className="dropdown-hidden-auto"
+          className="multi-select-dropdown dropdown-hidden-auto"
         >
           <div className="mes-filter-panel-header">
             <button
@@ -272,7 +269,7 @@ export default function OrdersFilters({
               className="mes-filter-panel-button"
               onClick={(e) => {
                 e.stopPropagation()
-                document.getElementById('dateRange-dropdown').style.display = 'none'
+                document.getElementById('dateRange-dropdown').classList.add('d-none')
               }}
             >
               <span>Kapat</span>
@@ -319,8 +316,7 @@ export default function OrdersFilters({
                       onFilterChange('dateRange', [])
                     }
                   }}
-                  className="mes-filter-input is-compact"
-                  className="flex-1-xs"
+                  className="mes-filter-input is-compact flex-1-xs"
                 />
                 <input
                   type="date"
@@ -334,8 +330,7 @@ export default function OrdersFilters({
                       onFilterChange('dateRange', [])
                     }
                   }}
-                  className="mes-filter-input is-compact"
-                  className="flex-1-xs"
+                  className="mes-filter-input is-compact flex-1-xs"
                 />
               </div>
             </div>
@@ -357,8 +352,7 @@ export default function OrdersFilters({
           </button>
           <div 
             id="materialType-dropdown"
-            className="multi-select-dropdown"
-            className="dropdown-hidden"
+            className="multi-select-dropdown dropdown-hidden"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -373,13 +367,13 @@ export default function OrdersFilters({
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('materialType-dropdown').style.display = 'none'
+                  document.getElementById('materialType-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
               </button>
             </div>
-            <div className="mes-filter-panel-content" className="scroll-container">
+            <div className="mes-filter-panel-content scroll-container">
               {activeMaterials.map(material => (
                 <label key={material.materialCode}>
                   <input
@@ -415,8 +409,7 @@ export default function OrdersFilters({
           </button>
           <div 
             id="supplierType-dropdown"
-            className="multi-select-dropdown"
-            className="dropdown-hidden"
+            className="multi-select-dropdown dropdown-hidden"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -431,13 +424,13 @@ export default function OrdersFilters({
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('supplierType-dropdown').style.display = 'none'
+                  document.getElementById('supplierType-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
               </button>
             </div>
-            <div className="mes-filter-panel-content" className="scroll-container">
+            <div className="mes-filter-panel-content scroll-container">
               {activeSuppliers.map(supplier => (
                 <label key={supplier.supplierCode}>
                   <input
@@ -473,8 +466,7 @@ export default function OrdersFilters({
           </button>
           <div 
             id="deliveryStatus-dropdown"
-            className="multi-select-dropdown"
-            className="dropdown-hidden-auto"
+            className="multi-select-dropdown dropdown-hidden-auto"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -489,7 +481,7 @@ export default function OrdersFilters({
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('deliveryStatus-dropdown').style.display = 'none'
+                  document.getElementById('deliveryStatus-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -538,8 +530,7 @@ export default function OrdersFilters({
                         onFilterChange('deliveryStatus', [])
                       }
                     }}
-                    className="mes-filter-input is-compact"
-                    className="flex-1-xs"
+                    className="mes-filter-input is-compact flex-1-xs"
                   />
                   <input
                     type="date"
@@ -553,8 +544,7 @@ export default function OrdersFilters({
                         onFilterChange('deliveryStatus', [])
                       }
                     }}
-                    className="mes-filter-input is-compact"
-                    className="flex-1-xs"
+                    className="mes-filter-input is-compact flex-1-xs"
                   />
                 </div>
               </div>
@@ -591,7 +581,7 @@ export default function OrdersFilters({
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('priceRange-dropdown').style.display = 'none'
+                  document.getElementById('priceRange-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -610,8 +600,7 @@ export default function OrdersFilters({
                     const newPriceRange = { ...filters.priceRange, min: cleanValue }
                     onFilterChange('priceRange', newPriceRange)
                   }}
-                  className="mes-filter-input is-compact"
-                  className="flex-1"
+                  className="mes-filter-input is-compact flex-1"
                   pattern="[0-9]*\.?[0-9]*"
                 />
                 <input
@@ -625,20 +614,18 @@ export default function OrdersFilters({
                     const newPriceRange = { ...filters.priceRange, max: cleanValue }
                     onFilterChange('priceRange', newPriceRange)
                   }}
-                  className="mes-filter-input is-compact"
-                  className="flex-1"
+                  className="mes-filter-input is-compact flex-1"
                   pattern="[0-9]*\.?[0-9]*"
                 />
               </div>
               <button
                 type="button"
-                className="mes-filter-button is-compact"
+                className="mes-filter-button is-compact w-full"
                 onClick={() => {
                   const newMode = filters.priceRange.mode === 'order' ? 'item' : 'order'
                   const newPriceRange = { ...filters.priceRange, mode: newMode }
                   onFilterChange('priceRange', newPriceRange)
                 }}
-                className="w-full"
               >
                 <span>{filters.priceRange.mode === 'order' ? 'Sipariş Bazlı' : 'Ürün Bazlı'}</span>
               </button>
