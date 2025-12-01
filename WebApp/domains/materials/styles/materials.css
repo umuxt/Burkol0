@@ -1283,8 +1283,12 @@ section.materials-dashboard div.card {
   background: rgb(249, 250, 251);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MULTI-SELECT DROPDOWN - Filter dropdowns with checkboxes
+   Usage: Use with .d-none class for initial hidden state
+   JavaScript should toggle .d-none class (not inline style)
+   ═══════════════════════════════════════════════════════════════ */
 .multi-select-dropdown {
-  display: none;
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
@@ -4106,7 +4110,11 @@ textarea.editable-input {
   text-align: right;
 }
 
-.order-dropdown-btn {
+/* ═══════════════════════════════════════════════════════════════
+   DROPDOWN - Single Select Trigger Button
+   Usage: Button that opens dropdown-menu
+   ═══════════════════════════════════════════════════════════════ */
+.dropdown-trigger {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #d1d5db;
@@ -4119,7 +4127,12 @@ textarea.editable-input {
   align-items: center;
 }
 
-.order-dropdown-menu {
+/* ═══════════════════════════════════════════════════════════════
+   DROPDOWN - Single Select Menu
+   Usage: Simple select dropdown for single value selection
+   Examples: Supplier picker, status selector
+   ═══════════════════════════════════════════════════════════════ */
+.dropdown-menu {
   position: absolute;
   top: 100%;
   left: 0;
@@ -4134,14 +4147,18 @@ textarea.editable-input {
   margin-top: 4px;
 }
 
-.order-dropdown-item {
+.dropdown-item {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 13px;
   border-bottom: 1px solid #f3f4f6;
 }
 
-.order-dropdown-item-selected {
+.dropdown-item:hover {
+  background-color: #f9fafb;
+}
+
+.dropdown-item-selected {
   background-color: #dbeafe;
 }
 
@@ -4767,20 +4784,7 @@ textarea.editable-input {
   font-size: 12px;
 }
 
-.dropdown-menu-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background-color: white;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 9999;
-  max-height: 180px;
-  overflow: auto;
-  margin-top: 4px;
-}
+/* dropdown-menu-popup REMOVED - Use .dropdown-menu instead */
 
 .empty-items-box {
   text-align: center;

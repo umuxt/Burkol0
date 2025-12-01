@@ -28,32 +28,33 @@ export default function ShipmentsFilters({
 }) {
   return (
     <>
-      {/* Filter Bar */}
-      <div className="mes-filter-bar" style={{ position: 'relative', marginBottom: '1rem' }}>
-        <div className="mes-filter-controls">
-          <input 
-            type="text" 
-            placeholder="Sevkiyat Ara (Kod, İş Emri, Müşteri, Not)..." 
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="mes-filter-input is-compact"
-          />
-          <button 
-            className="mes-filter-button is-compact"
-            onClick={onRefresh}
-            title="Yenile"
-          >
-            <span>Yenile</span>
-          </button>
-          <button 
-            className="mes-primary-action is-compact"
-            onClick={onCreateNew}
-            title="Yeni Sevkiyat"
-          >
-            <Plus size={16} />
-            <span>Yeni Sevkiyat</span>
-          </button>
-        </div>
+      {/* Action Buttons */}
+      <button 
+        className="mes-primary-action is-compact"
+        onClick={onCreateNew}
+        title="Yeni Sevkiyat"
+      >
+        <Plus size={16} />
+        <span>Yeni Sevkiyat</span>
+      </button>
+      
+      <button 
+        className="mes-filter-button is-compact"
+        onClick={onRefresh}
+        title="Yenile"
+      >
+        <span>Yenile</span>
+      </button>
+
+      {/* Search Input - Inside filter-controls */}
+      <div className="mes-filter-controls">
+        <input 
+          type="text" 
+          placeholder="Sevkiyat Ara (Kod, İş Emri, Müşteri, Not)..." 
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="mes-filter-input is-compact"
+        />
       </div>
 
       {/* Tabs */}

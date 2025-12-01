@@ -336,7 +336,7 @@ export default function AddShipmentModal({
                         <ChevronDown size={14} />
                       </button>
                       {workOrderDropdownOpen && (
-                        <div className="dropdown-menu-popup">
+                        <div className="dropdown-menu">
                           <div 
                             className="dropdown-item-muted"
                             onClick={() => { setHeaderData(prev => ({ ...prev, workOrderCode: '' })); setWorkOrderDropdownOpen(false); }}
@@ -372,7 +372,7 @@ export default function AddShipmentModal({
                         <ChevronDown size={14} />
                       </button>
                       {quoteDropdownOpen && (
-                        <div className="dropdown-menu-popup">
+                        <div className="dropdown-menu">
                           <div 
                             className="dropdown-item-muted"
                             onClick={() => { setHeaderData(prev => ({ ...prev, quoteId: '' })); setQuoteDropdownOpen(false); }}

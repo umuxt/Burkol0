@@ -123,10 +123,10 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
     const header = event.currentTarget
     
     if (dropdown) {
-      const isVisible = dropdown.style.display === 'block'
+      const isVisible = !dropdown.classList.contains('d-none')
       // Close all other dropdowns first
       document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-        d.style.display = 'none'
+        d.classList.add('d-none')
       })
       // Toggle this dropdown
       if (!isVisible) {
@@ -148,9 +148,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
           dropdown.style.right = 'auto'
         }
         
-        dropdown.style.display = 'block'
-      } else {
-        dropdown.style.display = 'none'
+        dropdown.classList.remove('d-none')
       }
     }
   }
@@ -160,7 +158,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
     const handleClickOutside = (event) => {
       if (!event.target.closest('.multi-select-container')) {
         document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-          d.style.display = 'none'
+          d.classList.add('d-none')
         })
       }
     }
@@ -168,7 +166,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
     // Close on scroll
     const handleScroll = () => {
       document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-        d.style.display = 'none'
+        d.classList.add('d-none')
       })
     }
 
@@ -282,8 +280,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         </button>
         <div 
           id="supplierTypes-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -298,7 +295,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('supplierTypes-dropdown').style.display = 'none'
+                  document.getElementById('supplierTypes-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -335,8 +332,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         </button>
         <div 
           id="countries-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -351,7 +347,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('countries-dropdown').style.display = 'none'
+                  document.getElementById('countries-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -388,8 +384,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         </button>
         <div 
           id="creditRating-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -404,7 +399,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('creditRating-dropdown').style.display = 'none'
+                  document.getElementById('creditRating-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -441,8 +436,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         </button>
         <div 
           id="paymentTerms-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -457,7 +451,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('paymentTerms-dropdown').style.display = 'none'
+                  document.getElementById('paymentTerms-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>
@@ -494,8 +488,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
         </button>
         <div 
           id="deliveryTime-dropdown"
-          className="multi-select-dropdown"
-          className="d-none"
+          className="multi-select-dropdown d-none"
           >
             <div className="mes-filter-panel-header">
               <button
@@ -510,7 +503,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll, 
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  document.getElementById('deliveryTime-dropdown').style.display = 'none'
+                  document.getElementById('deliveryTime-dropdown').classList.add('d-none')
                 }}
               >
                 <span>Kapat</span>

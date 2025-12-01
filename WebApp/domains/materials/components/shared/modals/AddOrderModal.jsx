@@ -722,18 +722,12 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       <ChevronDown size={14} />
                     </button>
                     {supplierDropdownOpen && (
-                      <div className="order-dropdown-menu">
+                      <div className="dropdown-menu">
                         {filteredSuppliers?.map(supplier => (
                           <div
                             key={supplier.id}
                             onClick={() => { handleSupplierChange(supplier.id); setSupplierDropdownOpen(false); }}
-                            style={{
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              borderBottom: '1px solid #f3f4f6',
-                              backgroundColor: formData.supplierId === supplier.id ? '#dbeafe' : 'transparent'
-                            }}
+                            className={formData.supplierId === supplier.id ? 'dropdown-item dropdown-item-selected' : 'dropdown-item'}
                           >
                             {supplier.name || supplier.companyName} ({supplier.code})
                           </div>
@@ -751,24 +745,18 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setStatusDropdownOpen(!statusDropdownOpen); setSupplierDropdownOpen(false); }}
-                        className="order-dropdown-btn"
+                        className="dropdown-trigger"
                       >
                         <span>{formData.orderStatus}</span>
                         <ChevronDown size={14} />
                       </button>
                       {statusDropdownOpen && (
-                        <div className="order-dropdown-menu">
+                        <div className="dropdown-menu">
                           {['Taslak', 'Onay Bekliyor', 'Onaylandı'].map(status => (
                             <div
                               key={status}
                               onClick={() => { setFormData(prev => ({ ...prev, orderStatus: status })); setStatusDropdownOpen(false); }}
-                              style={{
-                                padding: '8px 12px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                                borderBottom: '1px solid #f3f4f6',
-                                backgroundColor: formData.orderStatus === status ? '#dbeafe' : 'transparent'
-                              }}
+                              className={formData.orderStatus === status ? 'dropdown-item dropdown-item-selected' : 'dropdown-item'}
                             >
                               {status}
                             </div>

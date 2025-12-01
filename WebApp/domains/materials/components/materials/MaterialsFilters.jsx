@@ -15,7 +15,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
     const handleClickOutside = (event) => {
       if (!event.target.closest('.multi-select-container')) {
         document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
-          dropdown.style.display = 'none';
+          dropdown.classList.add('d-none');
         });
       }
     };
@@ -23,9 +23,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
     // Scroll olduğunda dropdown'ları kapat
     const handleScroll = () => {
       document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
-        if (dropdown.style.display === 'block') {
-          dropdown.style.display = 'none';
-        }
+        dropdown.classList.add('d-none');
       });
     };
 
@@ -111,10 +109,10 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
     const dropdown = document.getElementById(dropdownId);
     const header = event.currentTarget;
     if (dropdown) {
-      const isVisible = dropdown.style.display === 'block';
+      const isVisible = !dropdown.classList.contains('d-none');
       // Close all other dropdowns first
       document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-        d.style.display = 'none';
+        d.classList.add('d-none');
       });
       // Toggle this dropdown
       if (!isVisible) {
@@ -135,9 +133,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
           dropdown.style.right = 'auto';
         }
         
-        dropdown.style.display = 'block';
-      } else {
-        dropdown.style.display = 'none';
+        dropdown.classList.remove('d-none');
       }
     }
   };
@@ -166,7 +162,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
             )}
             <span className="mes-filter-caret">▾</span>
           </div>
-          <div id="types-dropdown" className="multi-select-dropdown" className="d-none">
+          <div id="types-dropdown" className="multi-select-dropdown d-none">
             <div className="mes-filter-panel-header">
               <button 
                 type="button" 
@@ -183,7 +179,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  document.getElementById('types-dropdown').style.display = 'none';
+                  document.getElementById('types-dropdown').classList.add('d-none');
                 }}
                 title="Close"
               >
@@ -223,7 +219,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
             )}
             <span className="mes-filter-caret">▾</span>
           </div>
-          <div id="categories-dropdown" className="multi-select-dropdown" className="d-none">
+          <div id="categories-dropdown" className="multi-select-dropdown d-none">
             <div className="mes-filter-panel-header">
               <button 
                 type="button" 
@@ -240,7 +236,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
                 className="mes-filter-panel-button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  document.getElementById('categories-dropdown').style.display = 'none';
+                  document.getElementById('categories-dropdown').classList.add('d-none');
                 }}
                 title="Close"
               >

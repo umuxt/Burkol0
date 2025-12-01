@@ -95,19 +95,50 @@ export default function ShipmentsTabContent() {
     setCreateModalOpen(false);
   };
 
+  // Loading state
+  if (loading && shipments.length === 0) {
+    return (
+      <div className="stocks-tab-content">
+        <div className="loading-container">
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Sevkiyatlar yükleniyor...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state  
+  if (error && shipments.length === 0) {
+    return (
+      <div className="stocks-tab-content">
+        <div className="error-container">
+          <h3>Veri Yükleme Hatası</h3>
+          <p>{error}</p>
+          <button onClick={loadShipments}>
+            Tekrar Dene
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="shipment-panel-content">
+    <div className="stocks-tab-content">
       {/* Filter Bar & Tabs */}
-      <ShipmentsFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onRefresh={loadShipments}
-        onCreateNew={() => setCreateModalOpen(true)}
-        shipments={shipments}
-        filteredCount={filteredShipments.length}
-      />
+      <div className="mes-filter-bar" style={{ position: 'relative' }}>
+        <ShipmentsFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onRefresh={loadShipments}
+          onCreateNew={() => setCreateModalOpen(true)}
+          shipments={shipments}
+          filteredCount={filteredShipments.length}
+        />
+      </div>
 
       {/* Main Content Area */}
       <div className="materials-container">
