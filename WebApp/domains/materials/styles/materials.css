@@ -3225,8 +3225,12 @@ textarea.editable-input {
   flex: 1;
 }
 
-/* Section Headers */
-.supplier-section-header {
+/* ═══════════════════════════════════════════════════════════════
+   SECTION HEADER STYLES - Standardized
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 1. section-header: Sadece başlık, buton yok */
+.section-header {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
@@ -3235,16 +3239,21 @@ textarea.editable-input {
   padding-bottom: 6px;
 }
 
-.supplier-section-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
+/* 2. section-header-with-action: Başlık + buton için flex container */
+.section-header-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
 }
 
-.supplier-section-subtitle {
+.section-header-with-action h3 {
   margin: 0;
   font-size: 14px;
+  font-weight: 600;
+  color: #111827;
 }
 
 /* Grid Layouts */
@@ -3444,20 +3453,6 @@ textarea.editable-input {
   color: #d1d5db;
 }
 
-.supplier-section-title-lg {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.supplier-section-title-xl {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-}
-
 .supplier-label-block {
   display: block;
   font-size: 12px;
@@ -3479,13 +3474,6 @@ textarea.editable-input {
   color: #78716c;
   font-weight: 500;
   margin-bottom: 4px;
-}
-
-.supplier-header-flex {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
 }
 
 .flex-center-gap-8 {
@@ -3645,31 +3633,12 @@ textarea.editable-input {
   font-weight: 600;
 }
 
-.supplier-section-header-rgb {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgb(17, 24, 39);
-  border-bottom: 1px solid rgb(229, 231, 235);
-  padding-bottom: 6px;
-}
-
 .supplier-detail-label-rgb-120 {
   font-weight: 600;
   font-size: 12px;
   color: rgb(55, 65, 81);
   min-width: 120px;
   margin-right: 8px;
-}
-
-.title-with-icon {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* More Utility Classes */
@@ -3922,14 +3891,6 @@ textarea.editable-input {
   color: #6b7280;
 }
 
-.form-label-uppercase {
-  font-size: 11px;
-  color: #78716c;
-  font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
 /* Additional Grid & Flex Classes */
 .grid-4 {
   display: grid;
@@ -4125,15 +4086,6 @@ textarea.editable-input {
   background: white;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
-}
-
-.modal-section-title {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 6px;
 }
 
 .modal-header {
@@ -4696,13 +4648,6 @@ textarea.editable-input {
   margin-top: 8px;
 }
 
-.section-title-sm {
-  margin: 0 0 8px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: #111827;
-}
-
 .material-tag-item {
   display: inline-flex;
   align-items: center;
@@ -5021,14 +4966,6 @@ textarea.editable-input {
   font-size: 13px;
 }
 
-.summary-section-title {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
-  text-transform: uppercase;
-}
-
 .grid-2-gap-6 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5289,15 +5226,6 @@ textarea.editable-input {
 
 /* Suppliers Section */
 .suppliers-section-full { height: 100%; display: flex; flex-direction: column; }
-.suppliers-section-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 6px;
-  flex-shrink: 0;
-}
 .suppliers-list-scroll { flex: 1; overflow-y: auto; padding-right: 4px; }
 
 /* Supplier Loading Skeleton */
@@ -5425,24 +5353,38 @@ textarea.editable-input {
   flex-direction: column;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   PANEL HEADER - Universal Standard for All Detail Panels
+   Usage: Materials, Suppliers, Orders, Shipments
+   Structure: .detail-panel-header > .header-left + .header-actions
+   ═══════════════════════════════════════════════════════════════ */
 .detail-panel-header {
-  padding: 16px 20px;
+  padding: 10px 20px;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
-.btn-icon-back {
-  padding: 6px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: white;
-  color: #374151;
-  cursor: pointer;
-  font-size: 12px;
+.detail-panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
 }
-.btn-icon-back:hover { background: #f3f4f6; }
+
+.detail-panel-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-panel-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .btn-icon-edit {
   padding: 6px 12px;
@@ -5822,14 +5764,6 @@ textarea.editable-input {
   flex-direction: column;
 }
 
-.order-detail-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .btn-back-sm {
   padding: 6px 12px;
   border: 1px solid #d1d5db;
@@ -5906,21 +5840,6 @@ textarea.editable-input {
   font-size: 12px;
   color: #0c0a09;
   line-height: 1.5;
-}
-
-.section-label-uppercase {
-  font-size: 11px;
-  color: #78716c;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.section-label-uppercase-mb {
-  font-size: 11px;
-  color: #78716c;
-  font-weight: 600;
-  margin-bottom: 12px;
-  text-transform: uppercase;
 }
 
 /* Supplier info row */
@@ -6295,16 +6214,7 @@ textarea.editable-input {
   flex-direction: column;
 }
 
-/* Supplier panel header */
-.supplier-panel-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Back button style */
+/* Back button style - used in panel headers */
 .btn-back-sm {
   padding: 6px 12px;
   border: 1px solid #d1d5db;

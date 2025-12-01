@@ -85,18 +85,21 @@ export default function OrderDetailsPanel({
     <div className="order-detail-panel">
       <div className="order-detail-card">
         {/* Header */}
-        <div className="order-detail-header">
-          <div className="flex-center-gap-12">
+        <div className="detail-panel-header">
+          <div className="header-left">
             <button
               onClick={onClose}
-              className="btn-back-sm"
+              className="btn-secondary-sm"
               title="Detayları Kapat"
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 className="supplier-section-title-lg">
+            <h2>
               Sipariş Detayı
-            </h3>
+            </h2>
+          </div>
+          <div className="header-actions">
+            {/* Action buttons can be added here */}
           </div>
         </div>
 
@@ -155,7 +158,7 @@ export default function OrderDetailsPanel({
           {/* Teslimat & Not */}
           <div className="order-info-grid-2">
             <div className="order-info-section">
-              <div className="form-label-uppercase">Teslimat Durumu</div>
+              <h3 className="section-header">Teslimat Durumu</h3>
               <span 
                 className="delivery-status-badge"
                 style={{
@@ -168,7 +171,7 @@ export default function OrderDetailsPanel({
             </div>
             
             <div className="order-info-section">
-              <div className="form-label-uppercase">Not / Referans</div>
+              <h3 className="section-header">Not / Referans</h3>
               <div className="text-note-content">
                 {order.notes || '-'}
               </div>
@@ -177,8 +180,8 @@ export default function OrderDetailsPanel({
 
           {/* Tedarikçi Bilgileri */}
           <div className="order-info-section">
-            <div className="supplier-header-flex">
-              <div className="section-label-uppercase">Tedarikçi Bilgileri</div>
+            <div className="section-header-with-action">
+              <h3>Tedarikçi Bilgileri</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -208,9 +211,9 @@ export default function OrderDetailsPanel({
 
           {/* Sipariş Satırları */}
           <div className="order-info-section">
-            <div className="section-label-uppercase-mb">
+            <h3 className="section-header">
               Sipariş Satırları ({order.items?.length || order.item_count || 0})
-            </div>
+            </h3>
             
             {loading ? (
               <p className="text-loading-gray">Satırlar yükleniyor...</p>

@@ -23,7 +23,7 @@ export default function MaterialSelectModal({
       <div className="modal-content-lg">
         {/* Popup Header */}
         <div className="modal-header-between">
-          <h3 className="supplier-section-title-lg">
+          <h3 className="section-header">
             Mevcut Malzemelerden Seç
           </h3>
           <button

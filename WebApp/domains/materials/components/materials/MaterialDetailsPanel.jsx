@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Info, Phone, Mail, RotateCw, Package, Factory, ShoppingCart } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Info, Phone, Mail, RotateCw } from '../../../../shared/components/Icons.jsx'
 import useMaterialProcurementHistory from '../../hooks/useMaterialProcurementHistory.js'
 import useMaterialProductionHistory from '../../hooks/useMaterialProductionHistory.js'
 import useMaterialLots from '../../hooks/useMaterialLots.js'
@@ -376,25 +376,25 @@ export default function MaterialDetailsPanel({
       <div className="detail-panel-card">
         {/* Header */}
         <div className="detail-panel-header">
-          <div className="flex-center-gap-12">
+          <div className="header-left">
             <button
               onClick={handleClose}
-              className="btn-icon-back"
+              className="btn-secondary-sm"
               title="Detayları Kapat"
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 className="supplier-section-title-lg">
+            <h2>
               Malzeme Detayları {isRemoved && <span className="text-error-sm">(Kaldırılmış)</span>}
-            </h3>
+            </h2>
           </div>
-          <div className="flex-gap-8-center">
+          <div className="header-actions">
             {!isRemoved && !isEditing ? (
               <button
                 onClick={handleUnlock}
-                className="btn-icon-edit"
+                className="btn-secondary-sm"
               >
-                <Edit size={14} /> Düzenle
+                <Edit size={14} className="mr-4" /> Düzenle
               </button>
             ) : null}
             {!isRemoved && isEditing ? (
@@ -422,9 +422,9 @@ export default function MaterialDetailsPanel({
                     onClose();
                   }
                 }}
-                className="btn-icon-delete"
+                className="btn-danger-outline-sm"
               >
-                <Trash2 size={14} /> Sil
+                <Trash2 size={14} className="mr-4" /> Sil
               </button>
             )}
           </div>
@@ -435,7 +435,7 @@ export default function MaterialDetailsPanel({
           <form id="material-detail-form" onSubmit={handleSubmit}>
             {/* Temel Bilgiler */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Temel Bilgiler
               </h3>
               
@@ -548,7 +548,7 @@ export default function MaterialDetailsPanel({
 
             {/* Stok Bilgileri */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Stok Bilgileri
               </h3>
               
@@ -617,7 +617,7 @@ export default function MaterialDetailsPanel({
 
             {/* Tedarikçiler */}
             <div className="section-card-mb">
-              <h3 className="suppliers-section-title">
+              <h3 className="section-header">
                 Tedarikçiler
               </h3>
               
@@ -722,9 +722,8 @@ export default function MaterialDetailsPanel({
             {/* Lot Envanteri - Only show when lot tracking is enabled */}
             {systemSettings.lotTracking && (
             <div className="section-card-mb">
-              <div className="supplier-header-flex">
-                <h3 className="title-with-icon">
-                  <Package size={16} />
+              <div className="section-header-with-action">
+                <h3>
                   Lot Envanteri
                 </h3>
                 <button 
@@ -806,9 +805,8 @@ export default function MaterialDetailsPanel({
 
             {/* Üretim Geçmişi */}
             <div className="section-card-mb">
-              <div className="supplier-header-flex">
-                <h3 className="title-with-icon">
-                  <Factory size={16} />
+              <div className="section-header-with-action">
+                <h3>
                   Üretim Geçmişi
                 </h3>
                 <button 
@@ -951,9 +949,8 @@ export default function MaterialDetailsPanel({
 
             {/* Tedarik Geçmişi */}
             <div className="section-card-mb">
-              <div className="supplier-header-flex">
-                <h3 className="title-with-icon">
-                  <ShoppingCart size={16} />
+              <div className="section-header-with-action">
+                <h3>
                   Tedarik Geçmişi
                 </h3>
                 <button 

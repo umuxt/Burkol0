@@ -263,7 +263,7 @@ export default function ShipmentDetailsPanel({
 
     return (
       <div className="section-card-mb">
-        <h3 className="supplier-section-header-rgb">
+        <h3 className="section-header">
           Durum Güncelle
         </h3>
         
@@ -358,43 +358,26 @@ export default function ShipmentDetailsPanel({
         flexDirection: 'column'
       }}>
         {/* Header */}
-        <div style={{ 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div className="flex-center-gap-12">
+        <div className="detail-panel-header">
+          <div className="header-left">
             <button
               onClick={onClose}
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                background: 'white',
-                color: '#374151',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
+              className="btn-secondary-sm"
               title="Detayları Kapat"
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 className="supplier-section-title-lg">
+            <h2>
               Sevkiyat Detayı
-            </h3>
+            </h2>
           </div>
           
           {/* Header Actions */}
-          <div className="flex-gap-8">
+          <div className="header-actions">
             {!isEditing && currentShipment.status !== 'delivered' ? (
               <button 
                 onClick={handleEditToggle}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#6b7280', padding: '4px'
-                }}
+                className="btn-icon-sm"
                 title="Düzenle"
               >
                 <Edit size={16} />
@@ -404,20 +387,16 @@ export default function ShipmentDetailsPanel({
                 <button 
                   onClick={handleSave}
                   disabled={isUpdating}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#16a34a', padding: '4px'
-                  }}
+                  className="btn-icon-sm"
+                  style={{ color: '#16a34a' }}
                   title="Kaydet"
                 >
                   <Check size={18} />
                 </button>
                 <button 
                   onClick={handleEditToggle}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#ef4444', padding: '4px'
-                  }}
+                  className="btn-icon-sm"
+                  style={{ color: '#ef4444' }}
                   title="İptal"
                 >
                   <X size={18} />
@@ -432,7 +411,7 @@ export default function ShipmentDetailsPanel({
           
           {/* Sevkiyat Bilgileri */}
           <div className="section-card-mb">
-            <h3 className="supplier-section-header-rgb">
+            <h3 className="section-header">
               Sevkiyat Bilgileri
             </h3>
             
@@ -508,11 +487,10 @@ export default function ShipmentDetailsPanel({
 
           {/* Sevkiyat Kalemleri */}
           <div className="section-card-mb">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Package size={14} />
+            <div className="section-header-with-action">
+              <h3>
                 Sevkiyat Kalemleri
-                {itemsLoading && <Loader2 size={14} className="animate-spin" />}
+                {itemsLoading && <Loader2 size={14} className="animate-spin" style={{ marginLeft: '8px' }} />}
               </h3>
               {currentShipment.status === 'pending' && (
                 <button
@@ -735,10 +713,10 @@ export default function ShipmentDetailsPanel({
 
           {/* Kaynak & Referans */}
           <div className="section-card-mb">
-            <h3 className="supplier-section-header-rgb" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Kaynak & Referans</span>
+            <div className="section-header-with-action">
+              <h3>Kaynak & Referans</h3>
               {dataLoading && <Loader2 size={14} className="animate-spin" />}
-            </h3>
+            </div>
             
             {/* Work Order */}
             <div className="detail-item flex-center-mb-12">
@@ -830,7 +808,7 @@ export default function ShipmentDetailsPanel({
 
           {/* Açıklama / Not */}
           <div className="section-card-mb">
-            <h3 className="supplier-section-header-rgb">
+            <h3 className="section-header">
               Açıklama / Not
             </h3>
             <div style={{ 

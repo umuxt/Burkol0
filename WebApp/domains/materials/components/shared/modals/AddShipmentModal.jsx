@@ -456,7 +456,7 @@ export default function AddShipmentModal({
               {/* ===== STEP 2: Kalemler ===== */}
               {currentStep === 2 && (
                 <div>
-                  <div className="supplier-header-flex">
+                  <div className="section-header-with-action">
                     <p className="text-xs-gray">
                       Sevk edilecek malzemeleri ekleyin
                     </p>
@@ -596,9 +596,9 @@ export default function AddShipmentModal({
                   {/* Header Info */}
                   {(headerData.workOrderCode || headerData.quoteId || headerData.customerName || headerData.customerCompany || headerData.deliveryAddress) && (
                     <div className="summary-info-box">
-                      <h4 className="summary-section-title">
+                      <h3 className="section-header">
                         Sevkiyat Bilgileri
-                      </h4>
+                      </h3>
                       <div className="grid-2-gap-6">
                         {headerData.workOrderCode && (
                           <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>

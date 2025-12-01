@@ -698,7 +698,7 @@ export default function EditMaterialModal({
             {/* Sağ kolon - Tedarikçiler */}
             <div className="details-right-section">
               <div className="suppliers-section suppliers-section-full">
-                <h3 className="suppliers-section-title">
+                <h3 className="section-header">
                   Tedarikçiler
                 </h3>
                 
@@ -921,7 +921,7 @@ export default function EditMaterialModal({
           
           {/* Lot Envanteri - Lot tracking inventory section */}
           <div className="lot-inventory-section section-card-mb">
-            <div className="supplier-header-flex">
+            <div className="section-header-with-action">
               <h3 className="m-0">📦 Lot Envanteri</h3>
               <button
                 type="button"
@@ -1037,7 +1037,7 @@ export default function EditMaterialModal({
           
           {/* Üretim geçmişi tablosu */}
           <div className="production-history-section mb-24">
-            <div className="supplier-header-flex">
+            <div className="section-header-with-action">
               <h3 className="m-0">Üretim Geçmişi</h3>
               <button 
                 type="button"
@@ -1121,7 +1121,7 @@ export default function EditMaterialModal({
           
           {/* Tedarik geçmişi tablosu */}
           <div className="supply-history-section">
-            <div className="supplier-header-flex">
+            <div className="section-header-with-action">
               <h3 className="m-0">Tedarik Geçmişi</h3>
               <button 
                 type="button"

@@ -208,7 +208,7 @@ export default function AddMaterialModal({
     <form id="add-material-form" onSubmit={handleSubmit}>
       {/* Temel Malzeme Bilgileri */}
       <div className="modal-section">
-        <h3 className="modal-section-title">Temel Malzeme Bilgileri</h3>
+        <h3 className="section-header">Temel Malzeme Bilgileri</h3>
         
         <div className="supplier-detail-row">
           <span className="modal-label">Malzeme Kodu:</span>
@@ -311,7 +311,7 @@ export default function AddMaterialModal({
       <div className="supplier-grid-2-mb">
         {/* Stok Bilgileri */}
         <div className="modal-section">
-          <h3 className="modal-section-title">Stok Bilgileri</h3>
+          <h3 className="section-header">Stok Bilgileri</h3>
           
           <div className="supplier-detail-row">
             <span className="modal-label-80">Stok Miktarı *:</span>
@@ -346,7 +346,7 @@ export default function AddMaterialModal({
 
         {/* Fiyat Bilgileri */}
         <div className="modal-section">
-          <h3 className="modal-section-title">Fiyat Bilgileri</h3>
+          <h3 className="section-header">Fiyat Bilgileri</h3>
           
           <div className="supplier-detail-row">
             <span className="modal-label-80">Maliyet Fiyatı:</span>
@@ -380,7 +380,7 @@ export default function AddMaterialModal({
 
       {/* Ek Bilgiler */}
       <div className="modal-section">
-        <h3 className="modal-section-title">Ek Bilgiler</h3>
+        <h3 className="section-header">Ek Bilgiler</h3>
         
         <div className="supplier-grid-2">
           <div className="supplier-detail-row">
@@ -433,7 +433,7 @@ export default function AddMaterialModal({
     return (
       <div className="modal-inline-container">
         <div className="modal-header">
-          <h2 className="supplier-section-title-xl">
+          <h2 className="modal-title">
             Yeni Malzeme Ekle
           </h2>
           <div className="flex-center-gap-8">
@@ -468,7 +468,7 @@ export default function AddMaterialModal({
       >
         {/* Header */}
         <div className="modal-header">
-          <h2 className="supplier-section-title-xl">
+          <h2 className="modal-title">
             Yeni Malzeme Ekle
           </h2>
           <div className="flex-center-gap-8">

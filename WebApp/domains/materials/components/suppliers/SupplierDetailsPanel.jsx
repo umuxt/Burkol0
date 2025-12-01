@@ -73,20 +73,20 @@ export default function SupplierDetailsPanel({
     <div className="supplier-detail-panel">
       <div className="supplier-panel-wrapper">
         {/* Header */}
-        <div className="supplier-panel-header">
-          <div className="flex-center-gap-12">
+        <div className="detail-panel-header">
+          <div className="header-left">
             <button
-              className="btn-back-sm"
+              className="btn-secondary-sm"
               onClick={onClose}
               title="Detayları Kapat"
             >
               <ArrowLeft size={14} />
             </button>
-            <h3 className="supplier-section-title-lg">
+            <h2>
               Tedarikçi Detayları
-            </h3>
+            </h2>
           </div>
-          <div className="flex-gap-8-center">
+          <div className="header-actions">
             <button
               className="btn-icon-sm"
               onClick={(e) => {
@@ -161,7 +161,7 @@ export default function SupplierDetailsPanel({
           <form onSubmit={onSave} id="supplier-detail-form" className="supplier-details-layout">
             {/* Temel Firma Bilgileri */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Temel Firma Bilgileri
               </h3>
               
@@ -278,7 +278,7 @@ export default function SupplierDetailsPanel({
 
             {/* İletişim Bilgileri */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 İletişim Bilgileri
               </h3>
               
@@ -489,7 +489,7 @@ export default function SupplierDetailsPanel({
             <div className="supplier-grid-2-mb">
               {/* Adres Bilgileri */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Adres Bilgileri
                 </h3>
                 
@@ -600,7 +600,7 @@ export default function SupplierDetailsPanel({
 
               {/* Mali Bilgiler */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Mali Bilgiler
                 </h3>
                 
@@ -734,7 +734,7 @@ export default function SupplierDetailsPanel({
             <div className="supplier-grid-2-mb">
               {/* Ödeme Bilgileri */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Ödeme Bilgileri
                 </h3>
                 
@@ -851,7 +851,7 @@ export default function SupplierDetailsPanel({
 
               {/* Operasyonel Bilgiler */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Operasyonel Bilgiler
                 </h3>
                 
@@ -943,7 +943,7 @@ export default function SupplierDetailsPanel({
 
             {/* Şirket Bilgileri - Alt Bölüm */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Şirket Bilgileri
               </h3>
               
@@ -1042,7 +1042,7 @@ export default function SupplierDetailsPanel({
 
             {/* Tedarik Edilen Malzemeler */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Tedarik Edilen Malzemeler
               </h3>
 
@@ -1583,7 +1583,7 @@ export default function SupplierDetailsPanel({
 
             {/* Ek Bilgiler */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Ek Bilgiler
               </h3>
               
@@ -1619,8 +1619,8 @@ function SupplierHistorySection({ supplier }) {
 
   return (
     <div className="supply-history-section">
-      <div className="supplier-header-flex">
-        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827' }}>Tedarik Geçmişi</h3>
+      <div className="section-header-with-action">
+        <h3>Tedarik Geçmişi</h3>
         <button 
           type="button"
           onClick={() => {

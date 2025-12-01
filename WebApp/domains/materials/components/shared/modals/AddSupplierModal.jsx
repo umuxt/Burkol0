@@ -522,7 +522,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
       <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-flex">
-          <h2 className="supplier-section-title-xl">
+          <h2 className="modal-title">
             Yeni Tedarikçi Ekle
           </h2>
           <div className="flex-center-gap-8">
@@ -547,7 +547,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
           <form id="add-supplier-form" onSubmit={handleSubmit}>
             {/* Temel Firma Bilgileri */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Temel Firma Bilgileri
               </h3>
               
@@ -623,7 +623,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
             {/* İletişim Bilgileri */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 İletişim Bilgileri
               </h3>
               
@@ -778,7 +778,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             <div className="supplier-grid-2-mb">
               {/* Adres Bilgileri */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Adres Bilgileri
                 </h3>
                 
@@ -863,7 +863,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
               {/* Mali Bilgiler */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Mali Bilgiler
                 </h3>
                 
@@ -968,7 +968,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             <div className="supplier-grid-2-mb">
               {/* Ödeme Bilgileri */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Ödeme Bilgileri
                 </h3>
                 
@@ -1058,7 +1058,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
               {/* Operasyonel Bilgiler */}
               <div className="section-card-mb">
-                <h3 className="supplier-section-header">
+                <h3 className="section-header">
                   Operasyonel Bilgiler
                 </h3>
                 
@@ -1130,7 +1130,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
             {/* Şirket Bilgileri - Alt Bölüm */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Şirket Bilgileri
               </h3>
               
@@ -1227,7 +1227,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
             {/* Tedarik Edilen Malzemeler */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Tedarik Edilen Malzemeler
               </h3>
 
@@ -1481,9 +1481,9 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               {/* Selected Materials */}
               {selectedMaterials.length > 0 && (
                 <div className="mt-12">
-                  <h4 className="section-title-sm">
+                  <h3 className="section-header">
                     Seçilen Malzemeler ({selectedMaterials.length})
-                  </h4>
+                  </h3>
                   <div className="selected-materials-list">
                     {selectedMaterials.map(material => (
                       <div
@@ -1512,7 +1512,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
             {/* Ek Bilgiler */}
             <div className="section-card-mb">
-              <h3 className="supplier-section-header">
+              <h3 className="section-header">
                 Ek Bilgiler
               </h3>
               
@@ -1538,7 +1538,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
         <div className="popup-content">
           {/* Popup Header */}
           <div className="popup-header">
-            <h3 className="supplier-section-title-lg">
+            <h3 className="section-header">
               Mevcut Malzemelerden Seç
             </h3>
             <button
