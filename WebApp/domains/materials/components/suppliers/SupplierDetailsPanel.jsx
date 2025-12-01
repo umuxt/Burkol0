@@ -488,7 +488,7 @@ export default function SupplierDetailsPanel({
             {/* Adres ve Mali Bilgiler - Üst Bölüm */}
             <div className="supplier-grid-2-mb">
               {/* Adres Bilgileri */}
-              <div className="section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Adres Bilgileri
                 </h3>
@@ -599,7 +599,7 @@ export default function SupplierDetailsPanel({
               </div>
 
               {/* Mali Bilgiler */}
-              <div className="section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Mali Bilgiler
                 </h3>
@@ -733,7 +733,7 @@ export default function SupplierDetailsPanel({
             {/* Ödeme ve Operasyonel Bilgiler - Orta Bölüm */}
             <div className="supplier-grid-2-mb">
               {/* Ödeme Bilgileri */}
-              <div className="section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Ödeme Bilgileri
                 </h3>
@@ -850,7 +850,7 @@ export default function SupplierDetailsPanel({
               </div>
 
               {/* Operasyonel Bilgiler */}
-              <div className="section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Operasyonel Bilgiler
                 </h3>
@@ -1046,50 +1046,33 @@ export default function SupplierDetailsPanel({
                 Tedarik Edilen Malzemeler
               </h3>
 
-              {/* Material Mode Toggle */}
-              <div className="mb-12">
-                <div className="flex-gap-8-mb-8">
-                  <button
-                    type="button"
-                    onClick={onOpenMaterialPopup}
-                    style={{
-                      padding: '6px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Mevcut Malzemelerden Ekle
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      onSetMaterialMode('new')
-                      if ((!activeMaterials || activeMaterials.length === 0) && !materialsLoading) {
-                        await loadMaterials()
-                        await extractMaterialCategories()
-                      } else {
-                        await extractMaterialCategories()
-                      }
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: materialMode === 'new' ? '#3b82f6' : 'white',
-                      color: materialMode === 'new' ? 'white' : '#374151',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Yeni Malzeme Ekle
-                  </button>
-                </div>
-              </div>
-
+                                {/* Material Mode Toggle */}
+                                <div className="mb-12">
+                                  <div className="flex-gap-8-mb-8">
+                                    <button
+                                      type="button"
+                                      onClick={onOpenMaterialPopup}
+                                      className="section-button"
+                                    >
+                                      Mevcut Malzemelerden Ekle
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        onSetMaterialMode('new')
+                                        if ((!activeMaterials || activeMaterials.length === 0) && !materialsLoading) {
+                                          await loadMaterials()
+                                          await extractMaterialCategories()
+                                        } else {
+                                          await extractMaterialCategories()
+                                        }
+                                      }}
+                                      className="section-button"
+                                    >
+                                      Yeni Malzeme Ekle
+                                    </button>
+                                  </div>
+                                </div>
               {/* Current Supplied Materials */}
               {supplier?.suppliedMaterials && supplier.suppliedMaterials.length > 0 && (() => {
                 // Normalize supplied materials to have consistent field names
@@ -1646,16 +1629,7 @@ function SupplierHistorySection({ supplier }) {
               loadHistory();
             }
           }}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: '1px solid #d1d5db',
-            background: loading ? '#e5e7eb' : '#f9fafb',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '12px',
-            fontWeight: '600',
-            color: loading ? '#9ca3af' : '#374151'
-          }}
+          className="section-button"
           disabled={!supplier?.id || loading}
         >
           <RotateCw size={14} style={{ marginRight: '6px' }} className={loading ? 'rotating' : ''} />
@@ -1722,15 +1696,7 @@ function SupplierHistorySection({ supplier }) {
               console.error('Order panelini açma hatası:', e)
             }
           }}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            background: '#f9fafb',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 600
-          }}
+          className="section-button"
         >
           Tüm tedarik geçmişini gör
         </button>

@@ -920,7 +920,7 @@ export default function EditMaterialModal({
           </div>
           
           {/* Lot Envanteri - Lot tracking inventory section */}
-          <div className="lot-inventory-section mes-section-card mb-24">
+          <div className="lot-inventory-section section-card-mb">
             <div className="supplier-header-flex">
               <h3 className="m-0">📦 Lot Envanteri</h3>
               <button
@@ -932,7 +932,7 @@ export default function EditMaterialModal({
                   }
                 }}
                 disabled={lotsLoading || !material?.code}
-                className="mes-primary-action btn-load-data"
+                className="section-button"
               >
                 {lotsLoading ? '⏳ Yükleniyor...' : '🔄 Lot Bilgilerini Yükle'}
               </button>
@@ -1051,7 +1051,7 @@ export default function EditMaterialModal({
                   }
                 }}
                 disabled={productionLoading}
-                className={`btn-load-history ${productionLoading ? 'disabled' : ''}`}
+                className="section-button"
               >
                 {productionLoading ? '⏳ Yükleniyor...' : '🔄 Üretim Geçmişini Yükle'}
               </button>
@@ -1131,7 +1131,7 @@ export default function EditMaterialModal({
                     loadHistory();
                   }
                 }}
-                className={`btn-load-history ${procurementLoading ? 'disabled' : ''}`}
+                className="section-button"
                 disabled={!material?.id || procurementLoading}
               >
                 {procurementLoading ? '⏳ Yükleniyor...' : '🔄 Tedarik Geçmişini Yükle'}
@@ -1199,7 +1199,7 @@ export default function EditMaterialModal({
                     console.error('Order panelini açma hatası:', e)
                   }
                 }}
-                className="btn-view-all"
+                className="section-button"
               >
                 Tüm tedarik geçmişini gör
               </button>

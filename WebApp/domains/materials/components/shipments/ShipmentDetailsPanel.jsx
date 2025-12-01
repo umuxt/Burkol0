@@ -262,13 +262,7 @@ export default function ShipmentDetailsPanel({
     }
 
     return (
-      <div style={{ 
-        marginBottom: '16px', 
-        padding: '12px', 
-        background: 'white', 
-        borderRadius: '6px',
-        border: '1px solid rgb(229, 231, 235)'
-      }}>
+      <div className="section-card-mb">
         <h3 className="supplier-section-header-rgb">
           Durum Güncelle
         </h3>
@@ -437,13 +431,7 @@ export default function ShipmentDetailsPanel({
         <div className="panel-content">
           
           {/* Sevkiyat Bilgileri */}
-          <div style={{ 
-            marginBottom: '16px', 
-            padding: '12px', 
-            background: 'white', 
-            borderRadius: '6px',
-            border: '1px solid rgb(229, 231, 235)'
-          }}>
+          <div className="section-card-mb">
             <h3 className="supplier-section-header-rgb">
               Sevkiyat Bilgileri
             </h3>
@@ -519,13 +507,7 @@ export default function ShipmentDetailsPanel({
           </div>
 
           {/* Sevkiyat Kalemleri */}
-          <div style={{ 
-            marginBottom: '16px', 
-            padding: '12px', 
-            background: 'white', 
-            borderRadius: '6px',
-            border: '1px solid rgb(229, 231, 235)'
-          }}>
+          <div className="section-card-mb">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px', marginBottom: '12px' }}>
               <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Package size={14} />
@@ -535,19 +517,7 @@ export default function ShipmentDetailsPanel({
               {currentShipment.status === 'pending' && (
                 <button
                   onClick={() => { setShowAddItem(true); loadMaterials(); }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    cursor: 'pointer'
-                  }}
+                  className="section-button"
                 >
                   <Plus size={14} />
                   Yeni Kalem Ekle
@@ -764,14 +734,8 @@ export default function ShipmentDetailsPanel({
           </div>
 
           {/* Kaynak & Referans */}
-          <div style={{ 
-            marginBottom: '16px', 
-            padding: '12px', 
-            background: 'white', 
-            borderRadius: '6px',
-            border: '1px solid rgb(229, 231, 235)'
-          }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="section-card-mb">
+            <h3 className="supplier-section-header-rgb" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Kaynak & Referans</span>
               {dataLoading && <Loader2 size={14} className="animate-spin" />}
             </h3>
@@ -865,13 +829,7 @@ export default function ShipmentDetailsPanel({
           </div>
 
           {/* Açıklama / Not */}
-          <div style={{ 
-            marginBottom: '16px', 
-            padding: '12px', 
-            background: 'white', 
-            borderRadius: '6px',
-            border: '1px solid rgb(229, 231, 235)'
-          }}>
+          <div className="section-card-mb">
             <h3 className="supplier-section-header-rgb">
               Açıklama / Not
             </h3>

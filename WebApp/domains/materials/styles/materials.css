@@ -3624,22 +3624,6 @@ textarea.editable-input {
   flex: 1;
 }
 
-/* Section Card */
-.supplier-section-card {
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.supplier-section-card-mb {
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  margin-bottom: 12px;
-}
-
 /* Section Headers */
 .supplier-section-header {
   margin: 0 0 12px 0;
@@ -5796,17 +5780,8 @@ textarea.editable-input {
   background-color: #f9fafb;
 }
 
-/* Lot Section */
-.btn-load-data {
-  padding: 8px 16px;
-  font-size: 14px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-}
-.btn-load-data:disabled { cursor: not-allowed; opacity: 0.6; }
-
-.btn-load-history {
+/* Section Button - Standard button for section actions */
+.section-button {
   padding: 6px 12px;
   border-radius: 6px;
   border: 1px solid #d1d5db;
@@ -5815,20 +5790,14 @@ textarea.editable-input {
   font-size: 12px;
   font-weight: 600;
   color: #374151;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
-.btn-load-history:hover:not(:disabled) { background: #f3f4f6; }
-.btn-load-history:disabled { background: #e5e7eb; cursor: not-allowed; color: #9ca3af; }
+.section-button:hover:not(:disabled) { background: #f3f4f6; }
+.section-button:disabled { background: #e5e7eb; cursor: not-allowed; color: #9ca3af; }
 
-.btn-view-all {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
-.btn-view-all:hover { background: #f3f4f6; }
+
 
 /* Table Cell Styles */
 .td-center-bold { text-align: center; font-weight: bold; }
@@ -5933,14 +5902,6 @@ textarea.editable-input {
   gap: 4px;
 }
 .btn-icon-delete:hover { background: #fef2f2; }
-
-.section-card {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
 
 .input-edit-field {
   padding: 8px 12px;
@@ -6078,20 +6039,6 @@ textarea.editable-input {
 }
 
 .text-12-dark { font-size: 12px; color: #111827; font-weight: 600; }
-
-/* Load/Refresh Buttons */
-.btn-load-sm {
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
-  color: #374151;
-}
-.btn-load-sm:hover:not(:disabled) { background: #f3f4f6; }
-.btn-load-sm:disabled { background: #e5e7eb; cursor: not-allowed; color: #9ca3af; }
 
 /* Status Badge Small */
 .badge-status-sm {
@@ -6597,18 +6544,7 @@ textarea.editable-input {
 }
 .btn-reload:hover { background-color: #2563eb; }
 
-/* Detail panel button */
-.btn-detail-link {
-  padding: 4px 8px;
-  border: 1px solid #e7e5e4;
-  border-radius: 4px;
-  background: white;
-  color: #0c0a09;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.btn-detail-link:hover { background: #f5f5f4; }
+
 
 /* Loading/Error text in detail */
 .text-loading-gray {
@@ -6829,13 +6765,6 @@ textarea.editable-input {
 /* Section card - used for form sections */
 .section-card-mb {
   margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-}
-
-.section-card {
   padding: 12px;
   background: white;
   border-radius: 6px;

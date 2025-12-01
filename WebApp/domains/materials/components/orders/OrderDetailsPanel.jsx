@@ -187,7 +187,7 @@ export default function OrderDetailsPanel({
                   const url = `materials.html#suppliers-tab&supplier-${encodeURIComponent(supplierId)}`;
                   window.open(url, '_blank');
                 }}
-                className="btn-detail-link"
+                className="section-button"
               >
                 Detaya Git ↗
               </button>

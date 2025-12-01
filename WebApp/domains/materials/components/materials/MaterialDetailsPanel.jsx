@@ -434,7 +434,7 @@ export default function MaterialDetailsPanel({
         <div className="panel-content">
           <form id="material-detail-form" onSubmit={handleSubmit}>
             {/* Temel Bilgiler */}
-            <div className="section-card">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Temel Bilgiler
               </h3>
@@ -547,7 +547,7 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Stok Bilgileri */}
-            <div className="section-card">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Stok Bilgileri
               </h3>
@@ -616,7 +616,7 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Tedarikçiler */}
-            <div className="section-card">
+            <div className="section-card-mb">
               <h3 className="suppliers-section-title">
                 Tedarikçiler
               </h3>
@@ -721,7 +721,7 @@ export default function MaterialDetailsPanel({
 
             {/* Lot Envanteri - Only show when lot tracking is enabled */}
             {systemSettings.lotTracking && (
-            <div className="section-card">
+            <div className="section-card-mb">
               <div className="supplier-header-flex">
                 <h3 className="title-with-icon">
                   <Package size={16} />
@@ -734,7 +734,7 @@ export default function MaterialDetailsPanel({
                       loadLots();
                     }
                   }}
-                  className="btn-load-sm"
+                  className="section-button"
                   disabled={!material?.id || lotsLoading}
                 >
                   <RotateCw size={12} className="mr-4" />
@@ -805,7 +805,7 @@ export default function MaterialDetailsPanel({
             )}
 
             {/* Üretim Geçmişi */}
-            <div className="section-card">
+            <div className="section-card-mb">
               <div className="supplier-header-flex">
                 <h3 className="title-with-icon">
                   <Factory size={16} />
@@ -818,7 +818,7 @@ export default function MaterialDetailsPanel({
                       loadProductionHistory();
                     }
                   }}
-                  className="btn-load-sm"
+                  className="section-button"
                   disabled={!material?.id || productionLoading}
                 >
                   <RotateCw size={12} className="mr-4" />
@@ -942,7 +942,7 @@ export default function MaterialDetailsPanel({
                       console.error('Üretim panelini açma hatası:', e);
                     }
                   }}
-                  className="btn-load-sm"
+                  className="section-button"
                 >
                   Tüm üretim geçmişini gör
                 </button>
@@ -950,7 +950,7 @@ export default function MaterialDetailsPanel({
             </div>
 
             {/* Tedarik Geçmişi */}
-            <div className="section-card">
+            <div className="section-card-mb">
               <div className="supplier-header-flex">
                 <h3 className="title-with-icon">
                   <ShoppingCart size={16} />
@@ -963,7 +963,7 @@ export default function MaterialDetailsPanel({
                       loadHistory();
                     }
                   }}
-                  className="btn-load-sm"
+                  className="section-button"
                   disabled={!material?.id || procurementLoading}
                 >
                   <RotateCw size={12} className="mr-4" />
@@ -1043,7 +1043,7 @@ export default function MaterialDetailsPanel({
                       console.error('Order panelini açma hatası:', e);
                     }
                   }}
-                  className="btn-load-sm"
+                  className="section-button"
                 >
                   Tüm tedarik geçmişini gör
                 </button>

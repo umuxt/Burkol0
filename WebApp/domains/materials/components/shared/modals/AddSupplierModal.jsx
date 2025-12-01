@@ -546,7 +546,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
         <div className="modal-body-bg">
           <form id="add-supplier-form" onSubmit={handleSubmit}>
             {/* Temel Firma Bilgileri */}
-            <div className="supplier-section-card-mb">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Temel Firma Bilgileri
               </h3>
@@ -622,7 +622,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* İletişim Bilgileri */}
-            <div className="supplier-section-card-mb">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 İletişim Bilgileri
               </h3>
@@ -777,7 +777,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             {/* Adres ve Mali Bilgiler - Üst Bölüm */}
             <div className="supplier-grid-2-mb">
               {/* Adres Bilgileri */}
-              <div className="supplier-section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Adres Bilgileri
                 </h3>
@@ -862,7 +862,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               </div>
 
               {/* Mali Bilgiler */}
-              <div className="supplier-section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Mali Bilgiler
                 </h3>
@@ -967,7 +967,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             {/* Ödeme ve Operasyonel Bilgiler - Orta Bölüm */}
             <div className="supplier-grid-2-mb">
               {/* Ödeme Bilgileri */}
-              <div className="supplier-section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Ödeme Bilgileri
                 </h3>
@@ -1057,7 +1057,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               </div>
 
               {/* Operasyonel Bilgiler */}
-              <div className="supplier-section-card">
+              <div className="section-card-mb">
                 <h3 className="supplier-section-header">
                   Operasyonel Bilgiler
                 </h3>
@@ -1129,7 +1129,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Şirket Bilgileri - Alt Bölüm */}
-            <div className="supplier-section-card-mb">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Şirket Bilgileri
               </h3>
@@ -1226,7 +1226,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Tedarik Edilen Malzemeler */}
-            <div className="supplier-section-card-mb">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Tedarik Edilen Malzemeler
               </h3>
@@ -1511,7 +1511,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
             </div>
 
             {/* Ek Bilgiler */}
-            <div className="supplier-section-card-mb">
+            <div className="section-card-mb">
               <h3 className="supplier-section-header">
                 Ek Bilgiler
               </h3>
