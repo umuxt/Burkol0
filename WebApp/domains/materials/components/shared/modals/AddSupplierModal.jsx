@@ -551,8 +551,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 Temel Firma Bilgileri
               </h3>
               
-              <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Tedarikçi Kodu:
                 </span>
                 <div className="flex-1">
@@ -562,7 +562,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     value={formData.code || ''}
                     onChange={handleInputChange}
                     placeholder={nextCode}
-                    className="input-full"
+                    className="modal-input"
                   />
                   <small className="text-hint-xs-block">
                     Boş bırakılırsa otomatik olarak {nextCode} atanacak
@@ -570,8 +570,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 </div>
               </div>
               
-              <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Firma Adı *:
                 </span>
                 <input
@@ -585,8 +585,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Tedarikçi Tipi *:
                 </span>
                 <select
@@ -606,8 +606,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 </select>
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   İş Kayıt No:
                 </span>
                 <input
@@ -627,8 +627,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 İletişim Bilgileri
               </h3>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Yetkili Kişi *:
                 </span>
                 <input
@@ -642,8 +642,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Acil Durum Kişi:
                 </span>
                 <input
@@ -656,8 +656,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Telefon 1 *:
                 </span>
                 <input
@@ -671,8 +671,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Telefon 2:
                 </span>
                 <input
@@ -685,8 +685,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Acil Telefon:
                 </span>
                 <input
@@ -699,8 +699,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Faks:
                 </span>
                 <input
@@ -713,8 +713,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   E-posta 1 *:
                 </span>
                 <input
@@ -728,8 +728,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   E-posta 2:
                 </span>
                 <input
@@ -742,8 +742,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Web Sitesi:
                 </span>
                 <input
@@ -756,8 +756,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 />
               </div>
               
-              <div className="detail-item" className="supplier-detail-row">
-                <span className="detail-label" className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="modal-label">
                   Tercih İletişim:
                 </span>
                 <select
@@ -782,8 +782,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   Adres Bilgileri
                 </h3>
                 
-                <div className="detail-item" className="supplier-detail-row-start">
-                  <span className="detail-label" className="supplier-detail-label-80-mt">
+                <div className="detail-row-start">
+                  <span className="modal-label">
                     Adres:
                   </span>
                   <textarea
@@ -796,8 +796,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Şehir:
                   </span>
                   <input
@@ -810,8 +810,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     İlçe:
                   </span>
                   <input
@@ -824,8 +824,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Posta Kodu:
                   </span>
                   <input
@@ -838,8 +838,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Ülke:
                   </span>
                   <select
@@ -867,8 +867,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   Mali Bilgiler
                 </h3>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Vergi No:
                   </span>
                   <input
@@ -881,8 +881,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Vergi Dairesi:
                   </span>
                   <input
@@ -895,8 +895,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Para Birimi:
                   </span>
                   <select
@@ -912,8 +912,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Kredi Limiti:
                   </span>
                   <input
@@ -928,8 +928,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Kredi Notu:
                   </span>
                   <select
@@ -947,8 +947,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Yıllık Ciro:
                   </span>
                   <input
@@ -972,8 +972,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   Ödeme Bilgileri
                 </h3>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Ödeme Koşul:
                   </span>
                   <select
@@ -993,8 +993,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Ödeme Yöntem:
                   </span>
                   <select
@@ -1013,8 +1013,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Banka:
                   </span>
                   <input
@@ -1027,8 +1027,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Hesap No:
                   </span>
                   <input
@@ -1041,8 +1041,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     IBAN:
                   </span>
                   <input
@@ -1062,8 +1062,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   Operasyonel Bilgiler
                 </h3>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Teslimat:
                   </span>
                   <input
@@ -1076,8 +1076,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Tedarik Süresi:
                   </span>
                   <input
@@ -1091,8 +1091,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Min. Sipariş:
                   </span>
                   <input
@@ -1105,8 +1105,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Sertifika:
                   </span>
                   <select
@@ -1135,8 +1135,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               </h3>
               
               <div className="grid-4">
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Kuruluş Yılı:
                   </span>
                   <input
@@ -1151,8 +1151,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   />
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Çalışan Sayısı:
                   </span>
                   <select
@@ -1171,8 +1171,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Risk Seviyesi:
                   </span>
                   <select
@@ -1187,8 +1187,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                   </select>
                 </div>
                 
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Uyumluluk:
                   </span>
                   <select
@@ -1206,8 +1206,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               </div>
               
               <div className="mt-8">
-                <div className="detail-item" className="supplier-detail-row">
-                  <span className="detail-label" className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="modal-label">
                     Durum:
                   </span>
                   <select
@@ -1274,8 +1274,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
               {/* New Material Mode */}
               {materialMode === 'new' && (
                 <div>
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Malzeme Adı:
                     </span>
                     <input
@@ -1288,8 +1288,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Tip:
                     </span>
                     <select
@@ -1305,8 +1305,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     </select>
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Kategori:
                     </span>
                     <select
@@ -1327,8 +1327,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
                   {/* Custom Category Input - Show when "new category" is selected */}
                   {showNewCategory && (
-                    <div className="detail-item" className="supplier-detail-row">
-                      <span className="detail-label" className="supplier-detail-label-100">
+                    <div className="detail-row">
+                      <span className="modal-label">
                         Yeni Kategori:
                       </span>
                       <input
@@ -1341,8 +1341,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     </div>
                   )}
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Birim:
                     </span>
                     <select
@@ -1365,8 +1365,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     </select>
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Kod:
                     </span>
                     <input
@@ -1379,8 +1379,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row-start">
-                    <span className="detail-label" className="supplier-detail-label-100-mt">
+                  <div className="detail-row-start">
+                    <span className="modal-label">
                       Açıklama:
                     </span>
                     <textarea
@@ -1393,8 +1393,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Minimum Stok:
                     </span>
                     <input
@@ -1407,8 +1407,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Mevcut Stok:
                     </span>
                     <input
@@ -1421,8 +1421,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Maliyet Fiyatı:
                     </span>
                     <input
@@ -1436,8 +1436,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Satış Fiyatı:
                     </span>
                     <input
@@ -1451,8 +1451,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="detail-item" className="supplier-detail-row">
-                    <span className="detail-label" className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="modal-label">
                       Durum:
                     </span>
                     <select
@@ -1516,7 +1516,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
                 Ek Bilgiler
               </h3>
               
-              <div className="detail-item supplier-detail-row-start">
+              <div className="detail-row-start">
                 <textarea
                   name="notes"
                   value={formData.notes || ''}

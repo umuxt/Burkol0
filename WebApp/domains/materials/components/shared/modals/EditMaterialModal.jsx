@@ -586,13 +586,13 @@ export default function EditMaterialModal({
               <h3>Malzeme Bilgileri</h3>
               
               <div className="details-content">
-                <div className="detail-item">
-                  <span className="detail-label">Malzeme Kodu:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Malzeme Kodu:</span>
                   <span className="detail-value">{safeRender(formData.code)}</span>
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Malzeme Adı:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Malzeme Adı:</span>
                   {!isEditing ? (
                     <span className="detail-value">{safeRender(formData.name)}</span>
                   ) : (
@@ -601,14 +601,14 @@ export default function EditMaterialModal({
                       name="name"
                       value={safeRender(formData.name)}
                       onChange={handleInputChange}
-                      className="detail-input"
+                      className="modal-input"
                       required
                     />
                   )}
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Malzeme Tipi:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Malzeme Tipi:</span>
                   {!isEditing ? (
                     <span className="detail-value">{types.find(type => type.id === formData.type)?.label || safeRender(formData.type, 'Tip seçilmemiş')}</span>
                   ) : (
@@ -616,7 +616,7 @@ export default function EditMaterialModal({
                       name="type"
                       value={safeRender(formData.type)}
                       onChange={handleInputChange}
-                      className="detail-input"
+                      className="modal-input"
                       required
                     >
                       <option value="">Tip seçin</option>
@@ -627,8 +627,8 @@ export default function EditMaterialModal({
                   )}
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Kategori:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Kategori:</span>
                   {!isEditing ? (
                     <span className="detail-value">{
                       (() => {
@@ -654,7 +654,7 @@ export default function EditMaterialModal({
                         <select
                           value={safeRender(formData.category)}
                           onChange={handleCategoryChange}
-                          className="detail-input"
+                          className="modal-input"
                           required={!['processed', 'scrap'].includes(formData.type)}
                         >
                           <option value="">Kategori seçin</option>
@@ -669,7 +669,7 @@ export default function EditMaterialModal({
                           value={newCategory}
                           onChange={(e) => setNewCategory(e.target.value)}
                           placeholder="Yeni kategori adı"
-                          className="detail-input"
+                          className="modal-input"
                           required
                         />
                       )}
@@ -677,8 +677,8 @@ export default function EditMaterialModal({
                   )}
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Açıklama:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Açıklama:</span>
                   {!isEditing ? (
                     <span className="detail-value description">{safeRender(formData.description, 'Açıklama girilmemiş')}</span>
                   ) : (
@@ -687,7 +687,7 @@ export default function EditMaterialModal({
                       value={safeRender(formData.description)}
                       onChange={handleInputChange}
                       placeholder="Malzeme açıklaması"
-                      className="detail-input"
+                      className="modal-input"
                       rows="2"
                     />
                   )}
@@ -858,13 +858,13 @@ export default function EditMaterialModal({
             
             <div className="details-content">
               <div className="stock-info-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Birim:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Birim:</span>
                   <span className="detail-value">{safeRender(formData.unit)}</span>
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Mevcut Stok:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Mevcut Stok:</span>
                   {!isEditing ? (
                     <span className="detail-value">{safeRender(formData.stock, '0')}</span>
                   ) : (
@@ -873,7 +873,7 @@ export default function EditMaterialModal({
                       name="stock"
                       value={safeRender(formData.stock, '0')}
                       onChange={handleInputChange}
-                      className="detail-input"
+                      className="modal-input"
                       inputMode="decimal"
                       pattern="[0-9]*\.?[0-9]*"
                       required
@@ -881,8 +881,8 @@ export default function EditMaterialModal({
                   )}
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Reorder Point:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Reorder Point:</span>
                   {!isEditing ? (
                     <span className="detail-value">{safeRender(formData.reorderPoint, '0')}</span>
                   ) : (
@@ -891,7 +891,7 @@ export default function EditMaterialModal({
                       name="reorderPoint"
                       value={safeRender(formData.reorderPoint, '0')}
                       onChange={handleInputChange}
-                      className="detail-input"
+                      className="modal-input"
                       inputMode="decimal"
                       pattern="[0-9]*\.?[0-9]*"
                       required
@@ -899,8 +899,8 @@ export default function EditMaterialModal({
                   )}
                 </div>
                 
-                <div className="detail-item">
-                  <span className="detail-label">Durum:</span>
+                <div className="detail-row">
+                  <span className="modal-label">Durum:</span>
                   {!isEditing ? (
                     <span className="detail-value">{safeRender(formData.status, 'Aktif')}</span>
                   ) : (
@@ -908,7 +908,7 @@ export default function EditMaterialModal({
                       name="status"
                       value={safeRender(formData.status, 'Aktif')}
                       onChange={handleInputChange}
-                      className="detail-input"
+                      className="modal-input"
                     >
                       <option value="Aktif">Aktif</option>
                       {/* Removed Pasif option - materials only have 'Aktif' or 'Kaldırıldı' status */}

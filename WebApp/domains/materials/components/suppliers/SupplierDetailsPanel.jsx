@@ -166,8 +166,8 @@ export default function SupplierDetailsPanel({
               </h3>
               
               <div className="supplier-grid-2">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Tedarikçi Kodu:
                   </span>
                   {isEditing ? (
@@ -179,14 +179,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.code || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Durum:
                   </span>
                   {isEditing ? (
@@ -202,15 +202,15 @@ export default function SupplierDetailsPanel({
                       <option value="Askıda">Askıda</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.status || '-'}
                     </span>
                   )}
                 </div>
               </div>
               
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Firma Adı:
                 </span>
                 {isEditing ? (
@@ -222,15 +222,15 @@ export default function SupplierDetailsPanel({
                     style={{ ...getInputStyle(isEditing), flex: 1 }}
                   />
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {supplier.name || supplier.companyName || '-'}
                   </span>
                 )}
               </div>
               
               <div className="supplier-grid-2">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Tedarikçi Tipi:
                   </span>
                   {isEditing ? (
@@ -249,14 +249,14 @@ export default function SupplierDetailsPanel({
                       <option value="consultant">Danışman</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.supplierType || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     İş Kayıt No:
                   </span>
                   {isEditing ? (
@@ -268,7 +268,7 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.businessRegistrationNumber || '-'}
                     </span>
                   )}
@@ -283,8 +283,8 @@ export default function SupplierDetailsPanel({
               </h3>
               
               <div className="supplier-grid-2-mb">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Yetkili Kişi:
                   </span>
                   {isEditing ? (
@@ -296,14 +296,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.contactPerson || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Acil Durum:
                   </span>
                   {isEditing ? (
@@ -315,7 +315,7 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.emergencyContact || '-'}
                     </span>
                   )}
@@ -323,8 +323,8 @@ export default function SupplierDetailsPanel({
               </div>
               
               <div className="supplier-grid-3-mb">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Telefon 1:
                   </span>
                   {isEditing ? (
@@ -336,14 +336,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.phone1 || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Telefon 2:
                   </span>
                   {isEditing ? (
@@ -355,14 +355,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.phone2 || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Acil Tel:
                   </span>
                   {isEditing ? (
@@ -374,7 +374,7 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.emergencyPhone || '-'}
                     </span>
                   )}
@@ -382,8 +382,8 @@ export default function SupplierDetailsPanel({
               </div>
               
               <div className="supplier-grid-3-mb">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     E-posta 1:
                   </span>
                   {isEditing ? (
@@ -395,14 +395,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.email1 || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     E-posta 2:
                   </span>
                   {isEditing ? (
@@ -414,14 +414,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.email2 || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Faks:
                   </span>
                   {isEditing ? (
@@ -433,7 +433,7 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.fax || '-'}
                     </span>
                   )}
@@ -441,8 +441,8 @@ export default function SupplierDetailsPanel({
               </div>
               
               <div className="supplier-grid-2">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Web Sitesi:
                   </span>
                   {isEditing ? (
@@ -454,14 +454,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.website || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-120">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Tercih İletişim:
                   </span>
                   {isEditing ? (
@@ -477,7 +477,7 @@ export default function SupplierDetailsPanel({
                       <option value="whatsapp">WhatsApp</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.preferredCommunication || '-'}
                     </span>
                   )}
@@ -493,8 +493,8 @@ export default function SupplierDetailsPanel({
                   Adres Bilgileri
                 </h3>
                 
-                <div className="supplier-detail-row-start">
-                  <span className="supplier-detail-label-80-mt">
+                <div className="detail-row-start">
+                  <span className="detail-label">
                     Adres:
                   </span>
                   {isEditing ? (
@@ -506,14 +506,14 @@ export default function SupplierDetailsPanel({
                       style={{ ...getInputStyle(isEditing), flex: 1, resize: 'vertical' }}
                     />
                   ) : (
-                    <span className="text-xs-flex-1">
+                    <span className="detail-value">
                       {supplier.address || 'Adres girilmemiş'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Şehir:
                   </span>
                   {isEditing ? (
@@ -525,14 +525,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.city || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     İlçe:
                   </span>
                   {isEditing ? (
@@ -544,14 +544,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.state || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Posta Kodu:
                   </span>
                   {isEditing ? (
@@ -563,14 +563,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.postalCode || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Ülke:
                   </span>
                   {isEditing ? (
@@ -591,7 +591,7 @@ export default function SupplierDetailsPanel({
                       <option value="Other">Diğer</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.country || '-'}
                     </span>
                   )}
@@ -604,8 +604,8 @@ export default function SupplierDetailsPanel({
                   Mali Bilgiler
                 </h3>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Vergi No:
                   </span>
                   {isEditing ? (
@@ -617,14 +617,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.taxNumber || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Vergi Dairesi:
                   </span>
                   {isEditing ? (
@@ -636,14 +636,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.taxOffice || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Para Birimi:
                   </span>
                   {isEditing ? (
@@ -659,14 +659,14 @@ export default function SupplierDetailsPanel({
                       <option value="GBP">GBP</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.currency || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Kredi Limiti:
                   </span>
                   {isEditing ? (
@@ -678,14 +678,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.creditLimit || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Kredi Notu:
                   </span>
                   {isEditing ? (
@@ -703,14 +703,14 @@ export default function SupplierDetailsPanel({
                       <option value="F">F - Riskli</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.creditRating || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Yıllık Ciro:
                   </span>
                   {isEditing ? (
@@ -722,7 +722,7 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.annualRevenue || '-'}
                     </span>
                   )}
@@ -738,8 +738,8 @@ export default function SupplierDetailsPanel({
                   Ödeme Bilgileri
                 </h3>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Ödeme Koşul:
                   </span>
                   {isEditing ? (
@@ -759,14 +759,14 @@ export default function SupplierDetailsPanel({
                       <option value="120 gün vade">120 gün</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.paymentTerms || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Ödeme Yöntem:
                   </span>
                   {isEditing ? (
@@ -785,14 +785,14 @@ export default function SupplierDetailsPanel({
                       <option value="promissory_note">Senet</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.paymentMethod || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Banka:
                   </span>
                   {isEditing ? (
@@ -804,14 +804,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.bankName || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Hesap No:
                   </span>
                   {isEditing ? (
@@ -823,14 +823,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.bankAccount || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     IBAN:
                   </span>
                   {isEditing ? (
@@ -842,7 +842,7 @@ export default function SupplierDetailsPanel({
                       style={{ ...getInputStyle(isEditing), flex: 1 }}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.iban || '-'}
                     </span>
                   )}
@@ -855,8 +855,8 @@ export default function SupplierDetailsPanel({
                   Operasyonel Bilgiler
                 </h3>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Teslimat:
                   </span>
                   {isEditing ? (
@@ -868,14 +868,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.deliveryCapability || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Tedarik Süresi:
                   </span>
                   {isEditing ? (
@@ -887,14 +887,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.leadTime ? `${supplier.leadTime} gün` : '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Min. Sipariş:
                   </span>
                   {isEditing ? (
@@ -906,14 +906,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.minimumOrderQuantity || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-80">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Sertifika:
                   </span>
                   {isEditing ? (
@@ -933,7 +933,7 @@ export default function SupplierDetailsPanel({
                       <option value="other">Diğer</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.qualityCertification || '-'}
                     </span>
                   )}
@@ -948,8 +948,8 @@ export default function SupplierDetailsPanel({
               </h3>
               
               <div className="grid-4">
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Kuruluş Yılı:
                   </span>
                   {isEditing ? (
@@ -961,14 +961,14 @@ export default function SupplierDetailsPanel({
                       style={getInputStyle(isEditing)}
                     />
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.yearEstablished || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Çalışan Sayısı:
                   </span>
                   {isEditing ? (
@@ -987,14 +987,14 @@ export default function SupplierDetailsPanel({
                       <option value="1000+">1000+ kişi</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.employeeCount || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Risk Seviyesi:
                   </span>
                   {isEditing ? (
@@ -1009,14 +1009,14 @@ export default function SupplierDetailsPanel({
                       <option value="high">Yüksek Risk</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.riskLevel || '-'}
                     </span>
                   )}
                 </div>
                 
-                <div className="supplier-detail-row">
-                  <span className="supplier-detail-label-100">
+                <div className="detail-row">
+                  <span className="detail-label">
                     Uyumluluk:
                   </span>
                   {isEditing ? (
@@ -1032,7 +1032,7 @@ export default function SupplierDetailsPanel({
                       <option value="under_review">İnceleniyor</option>
                     </select>
                   ) : (
-                    <span className="supplier-detail-value">
+                    <span className="detail-value">
                       {supplier.complianceStatus || '-'}
                     </span>
                   )}
@@ -1257,8 +1257,8 @@ export default function SupplierDetailsPanel({
               {/* New Material Mode */}
               {materialMode === 'new' && (
                 <div>
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Malzeme Adı:
                     </span>
                     <input
@@ -1278,8 +1278,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Tip:
                     </span>
                     <select
@@ -1302,8 +1302,8 @@ export default function SupplierDetailsPanel({
                     </select>
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Kategori:
                     </span>
                     <select
@@ -1330,8 +1330,8 @@ export default function SupplierDetailsPanel({
                   </div>
 
                   {showNewCategory && (
-                    <div className="supplier-detail-row">
-                      <span className="supplier-detail-label-100">
+                    <div className="detail-row">
+                      <span className="detail-label">
                         Yeni Kategori:
                       </span>
                       <input
@@ -1351,8 +1351,8 @@ export default function SupplierDetailsPanel({
                     </div>
                   )}
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Birim:
                     </span>
                     <select
@@ -1382,8 +1382,8 @@ export default function SupplierDetailsPanel({
                     </select>
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Kod:
                     </span>
                     <input
@@ -1403,8 +1403,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row-start">
-                    <span className="supplier-detail-label-100-mt">
+                  <div className="detail-row-start">
+                    <span className="detail-label">
                       Açıklama:
                     </span>
                     <textarea
@@ -1425,8 +1425,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Minimum Stok:
                     </span>
                     <input
@@ -1446,8 +1446,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Mevcut Stok:
                     </span>
                     <input
@@ -1467,8 +1467,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Maliyet Fiyatı:
                     </span>
                     <input
@@ -1489,8 +1489,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Satış Fiyatı:
                     </span>
                     <input
@@ -1511,8 +1511,8 @@ export default function SupplierDetailsPanel({
                     />
                   </div>
 
-                  <div className="supplier-detail-row">
-                    <span className="supplier-detail-label-100">
+                  <div className="detail-row">
+                    <span className="detail-label">
                       Durum:
                     </span>
                     <select
@@ -1587,8 +1587,8 @@ export default function SupplierDetailsPanel({
                 Ek Bilgiler
               </h3>
               
-              <div className="supplier-detail-row-start">
-                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px', marginTop: '2px' }}>
+              <div className="detail-row-start">
+                <span className="detail-label">
                   Notlar ve Açıklamalar:
                 </span>
                 {isEditing ? (
@@ -1600,7 +1600,7 @@ export default function SupplierDetailsPanel({
                     style={{ ...getInputStyle(isEditing), flex: 1, resize: 'vertical' }}
                   />
                 ) : (
-                  <span className="text-xs-flex-1">
+                  <span className="detail-value">
                     {supplier.notes || 'Ek bilgi girilmemiş'}
                   </span>
                 )}

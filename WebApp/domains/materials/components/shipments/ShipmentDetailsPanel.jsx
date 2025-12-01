@@ -416,8 +416,8 @@ export default function ShipmentDetailsPanel({
             </h3>
             
             {/* Shipment Code */}
-            <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Sevkiyat Kodu:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', fontWeight: '600' }}>
@@ -427,11 +427,11 @@ export default function ShipmentDetailsPanel({
 
             {/* Customer Name */}
             {(currentShipment.customerName || currentShipment.customerCompany) && (
-              <div className="detail-item supplier-detail-row">
-                  <span className="detail-label supplier-detail-label-rgb-120">
+              <div className="detail-row">
+                  <span className="detail-label detail-label">
                     Müşteri:
                   </span>
-                  <span className="text-sm-dark">
+                  <span className="detail-value">
                     {currentShipment.customerName}{currentShipment.customerCompany && currentShipment.customerName ? ` - ${currentShipment.customerCompany}` : currentShipment.customerCompany}
                   </span>
               </div>
@@ -439,16 +439,16 @@ export default function ShipmentDetailsPanel({
 
             {/* Delivery Address */}
             {currentShipment.deliveryAddress && (
-              <div className="detail-item supplier-detail-row">
-                  <span className="detail-label supplier-detail-label-rgb-120">
+              <div className="detail-row">
+                  <span className="detail-label detail-label">
                     Teslimat Adresi:
                   </span>
-                  <span className="text-sm-dark">{currentShipment.deliveryAddress}</span>
+                  <span className="detail-value">{currentShipment.deliveryAddress}</span>
               </div>
             )}
 
-            <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Durum:
                 </span>
                 <span className="mes-tag" style={{ 
@@ -460,8 +460,8 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Kalem Sayısı:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -470,18 +470,18 @@ export default function ShipmentDetailsPanel({
                 </span>
             </div>
 
-            <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Oluşturma Tarihi:
                 </span>
-                <span className="text-sm-dark">{formatDate(currentShipment.createdAt)}</span>
+                <span className="detail-value">{formatDate(currentShipment.createdAt)}</span>
             </div>
 
-            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '0px' }}>
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label">
                   Son Güncelleme:
                 </span>
-                <span className="text-sm-dark">{formatDate(currentShipment.updatedAt)}</span>
+                <span className="detail-value">{formatDate(currentShipment.updatedAt)}</span>
             </div>
           </div>
 
@@ -719,8 +719,8 @@ export default function ShipmentDetailsPanel({
             </div>
             
             {/* Work Order */}
-            <div className="detail-item flex-center-mb-12">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   İş Emri Kodu:
                 </span>
                 {isEditing ? (
@@ -741,15 +741,15 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span className="text-sm-dark">
+                  <span className="detail-value">
                     {currentShipment.workOrderCode || <span className="text-muted-italic">-</span>}
                   </span>
                 )}
             </div>
 
             {/* Quote */}
-            <div className="detail-item flex-center-mb-12">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Teklif ID:
                 </span>
                 {isEditing ? (
@@ -770,15 +770,15 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span className="text-sm-dark">
+                  <span className="detail-value">
                     {currentShipment.quoteId ? `#${currentShipment.quoteId}` : <span className="text-muted-italic">-</span>}
                   </span>
                 )}
             </div>
 
             {/* Plan */}
-            <div className="detail-item supplier-detail-row">
-                <span className="detail-label supplier-detail-label-rgb-120">
+            <div className="detail-row">
+                <span className="detail-label detail-label">
                   Plan ID:
                 </span>
                 {isEditing ? (
@@ -799,7 +799,7 @@ export default function ShipmentDetailsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span className="text-sm-dark">
+                  <span className="detail-value">
                     {currentShipment.planId || <span className="text-muted-italic">-</span>}
                   </span>
                 )}

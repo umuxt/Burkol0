@@ -439,17 +439,17 @@ export default function MaterialDetailsPanel({
                 Temel Bilgiler
               </h3>
               
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Malzeme Kodu:
                 </span>
-                <span className="supplier-detail-value">
+                <span className="detail-value">
                   {safeRender(formData.code)}
                 </span>
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Malzeme Adı:
                 </span>
                 {isEditing ? (
@@ -458,17 +458,17 @@ export default function MaterialDetailsPanel({
                     name="name"
                     value={safeRender(formData.name)}
                     onChange={handleInputChange}
-                    className="input-edit-field"
+                    className="modal-input"
                   />
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {safeRender(formData.name)}
                   </span>
                 )}
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Tip:
                 </span>
                 {isEditing ? (
@@ -476,21 +476,21 @@ export default function MaterialDetailsPanel({
                     name="type"
                     value={safeRender(formData.type)}
                     onChange={handleInputChange}
-                    className="select-edit-field"
+                    className="modal-input"
                   >
                     {types.map(type => (
                       <option key={type.value || type.id} value={type.value || type.id}>{type.label}</option>
                     ))}
                   </select>
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {getTypeLabel(formData.type)}
                   </span>
                 )}
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Kategori:
                 </span>
                 {isEditing ? (
@@ -499,7 +499,7 @@ export default function MaterialDetailsPanel({
                       <select
                         value={safeRender(formData.category)}
                         onChange={handleCategoryChange}
-                        className="select-edit-field"
+                        className="modal-input"
                         required={!['processed', 'scrap'].includes(formData.type)}
                       >
                         <option value="">Kategori seçin</option>
@@ -514,20 +514,20 @@ export default function MaterialDetailsPanel({
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         placeholder="Yeni kategori adı"
-                        className="input-edit-field"
+                        className="modal-input"
                         required
                       />
                     )}
                   </>
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {getCategoryName(formData.category)}
                   </span>
                 )}
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Birim:
                 </span>
                 {isEditing ? (
@@ -536,10 +536,10 @@ export default function MaterialDetailsPanel({
                     name="unit"
                     value={safeRender(formData.unit)}
                     onChange={handleInputChange}
-                    className="input-edit-field"
+                    className="modal-input"
                   />
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {safeRender(formData.unit)}
                   </span>
                 )}
@@ -552,8 +552,8 @@ export default function MaterialDetailsPanel({
                 Stok Bilgileri
               </h3>
               
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Mevcut Stok:
                 </span>
                 {isEditing ? (
@@ -564,7 +564,7 @@ export default function MaterialDetailsPanel({
                     onChange={handleInputChange}
                     inputMode="decimal"
                     pattern="[0-9]*\.?[0-9]*"
-                    className="input-edit-field"
+                    className="modal-input"
                   />
                 ) : (
                   <span className="text-12-dark">
@@ -573,8 +573,8 @@ export default function MaterialDetailsPanel({
                 )}
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Minimum Stok:
                 </span>
                 {isEditing ? (
@@ -585,17 +585,17 @@ export default function MaterialDetailsPanel({
                     onChange={handleInputChange}
                     inputMode="decimal"
                     pattern="[0-9]*\.?[0-9]*"
-                    className="input-edit-field"
+                    className="modal-input"
                   />
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {safeRender(formData.reorderPoint, '0')} {material.unit}
                   </span>
                 )}
               </div>
 
-              <div className="supplier-detail-row">
-                <span className="supplier-detail-label-120">
+              <div className="detail-row">
+                <span className="detail-label">
                   Durum:
                 </span>
                 {isEditing ? (
@@ -603,12 +603,12 @@ export default function MaterialDetailsPanel({
                     name="status"
                     value={safeRender(formData.status, 'Aktif')}
                     onChange={handleInputChange}
-                    className="select-edit-field"
+                    className="modal-input"
                   >
                     <option value="Aktif">Aktif</option>
                   </select>
                 ) : (
-                  <span className="supplier-detail-value">
+                  <span className="detail-value">
                     {safeRender(formData.status, 'Aktif')}
                   </span>
                 )}

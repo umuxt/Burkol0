@@ -210,7 +210,7 @@ export default function AddMaterialModal({
       <div className="modal-section">
         <h3 className="section-header">Temel Malzeme Bilgileri</h3>
         
-        <div className="supplier-detail-row">
+        <div className="detail-row">
           <span className="modal-label">Malzeme Kodu:</span>
           <div className="flex-1">
             <input
@@ -227,7 +227,7 @@ export default function AddMaterialModal({
           </div>
         </div>
         
-        <div className="supplier-detail-row">
+        <div className="detail-row">
           <span className="modal-label">Malzeme Adı *:</span>
           <input
             type="text"
@@ -240,7 +240,7 @@ export default function AddMaterialModal({
           />
         </div>
 
-        <div className="supplier-detail-row">
+        <div className="detail-row">
           <span className="modal-label">Tip *:</span>
           <select
             name="type"
@@ -256,7 +256,7 @@ export default function AddMaterialModal({
           </select>
         </div>
 
-        <div className="supplier-detail-row">
+        <div className="detail-row">
           <span className="modal-label">
             Kategori {['processed', 'scrap'].includes(formData.type) ? '' : '*'}:
           </span>
@@ -287,7 +287,7 @@ export default function AddMaterialModal({
           </div>
         </div>
 
-        <div className="supplier-detail-row">
+        <div className="detail-row">
           <span className="modal-label">Birim *:</span>
           <select
             name="unit"
@@ -313,7 +313,7 @@ export default function AddMaterialModal({
         <div className="modal-section">
           <h3 className="section-header">Stok Bilgileri</h3>
           
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Stok Miktarı *:</span>
             <input
               type="text"
@@ -328,7 +328,7 @@ export default function AddMaterialModal({
             />
           </div>
           
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Reorder Point *:</span>
             <input
               type="text"
@@ -348,7 +348,7 @@ export default function AddMaterialModal({
         <div className="modal-section">
           <h3 className="section-header">Fiyat Bilgileri</h3>
           
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Maliyet Fiyatı:</span>
             <input
               type="text"
@@ -362,7 +362,7 @@ export default function AddMaterialModal({
             />
           </div>
           
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Satış Fiyatı:</span>
             <input
               type="text"
@@ -383,7 +383,7 @@ export default function AddMaterialModal({
         <h3 className="section-header">Ek Bilgiler</h3>
         
         <div className="supplier-grid-2">
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Tedarikçi:</span>
             <select
               name="supplier"
@@ -400,7 +400,7 @@ export default function AddMaterialModal({
             </select>
           </div>
 
-          <div className="supplier-detail-row">
+          <div className="detail-row">
             <span className="modal-label-80">Durum:</span>
             <select
               name="status"
@@ -414,7 +414,7 @@ export default function AddMaterialModal({
           </div>
         </div>
         
-        <div className="supplier-detail-row-start">
+        <div className="detail-row-start">
           <span className="modal-label-mt">Açıklama:</span>
           <textarea
             name="description"

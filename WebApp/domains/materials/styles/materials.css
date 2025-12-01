@@ -2011,45 +2011,37 @@ textarea.editable-input {
   gap: 3px; /* %75 azaltıldı: 12px -> 3px */
 }
 
-.modal-form.material-details-layout .detail-item {
+/* ═══════════════════════════════════════════════════════════════
+   DETAIL ROW - Universal Standard for Detail Panels
+   Usage: Material, Supplier, Order, Shipment detail views
+   Structure: .detail-row > .detail-label + .detail-value
+   ═══════════════════════════════════════════════════════════════ */
+
+.detail-row {
   display: flex;
   align-items: center;
-  margin: 0;
-  padding: 2px 0; /* %75 azaltıldı: 8px -> 2px */
-  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
 }
 
-.modal-form.material-details-layout .detail-item:last-child {
-  border-bottom: none;
+.detail-row-start {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 8px;
 }
 
 .detail-label {
   font-weight: 600;
-  min-width: 100px;
+  font-size: 12px;
   color: #374151;
-  font-size: 13px;
+  min-width: 120px;
+  margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .detail-value {
+  font-size: 12px;
+  color: #111827;
   flex: 1;
-  padding: 2px;
-  color: #1f2937;
-  font-size: 14px;
-}
-
-.detail-input {
-  border: none;
-  background: none;
-  padding: 2px;
-  flex: 1;
-  font-size: 14px;
-  color: #1f2937;
-}
-
-.detail-input:focus {
-  outline: none;
-  border-color: #d4af37;
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
 }
 
 /* 2x2 Grid için stok bilgileri */
@@ -2060,18 +2052,7 @@ textarea.editable-input {
   gap: 3px !important; /* Grid öğeleri arası gap - %75 azaltıldı: 12px -> 3px */
 }
 
-/* Stock grid içindeki detail-item'lar için özel spacing */
-.modal-form.material-details-layout .stock-info-grid .detail-item {
-  display: flex;
-  align-items: center;
-  margin: 0;
-  padding: 2px 0; /* Ana detail-item ile aynı sıkışık spacing */
-  border-bottom: 1px solid #f3f4f6;
-}
 
-.modal-form.material-details-layout .stock-info-grid .detail-item:last-child {
-  border-bottom: none;
-}
 
 /* Sağ kolon placeholder */
 .details-right-section {
@@ -3164,67 +3145,6 @@ textarea.editable-input {
   margin-bottom: 8px;
 }
 
-/* =====================================================
-   SUPPLIER DETAIL PANEL STYLES - Inline Style Migration
-   ===================================================== */
-
-/* Detail Row - flex row with items centered */
-.supplier-detail-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.supplier-detail-row-start {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-/* Detail Labels - various widths */
-.supplier-detail-label {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  margin-right: 8px;
-}
-
-.supplier-detail-label-80 {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 80px;
-  margin-right: 8px;
-}
-
-.supplier-detail-label-100 {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 100px;
-  margin-right: 8px;
-}
-
-.supplier-detail-label-120 {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 120px;
-  margin-right: 8px;
-}
-
-/* Detail Values */
-.supplier-detail-value {
-  font-size: 12px;
-  color: #111827;
-}
-
-.supplier-detail-value-flex {
-  font-size: 12px;
-  color: #111827;
-  flex: 1;
-}
-
 /* ═══════════════════════════════════════════════════════════════
    SECTION HEADER STYLES - Standardized
    ═══════════════════════════════════════════════════════════════ */
@@ -3256,32 +3176,7 @@ textarea.editable-input {
   color: #111827;
 }
 
-/* Grid Layouts */
-.supplier-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
 
-.supplier-grid-2-mb {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.supplier-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-}
-
-.supplier-grid-3-mb {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 8px;
-}
 
 /* Text Styles */
 .text-nowrap {
@@ -3633,14 +3528,6 @@ textarea.editable-input {
   font-weight: 600;
 }
 
-.supplier-detail-label-rgb-120 {
-  font-weight: 600;
-  font-size: 12px;
-  color: rgb(55, 65, 81);
-  min-width: 120px;
-  margin-right: 8px;
-}
-
 /* More Utility Classes */
 .flex-gap-8 {
   display: flex;
@@ -3878,12 +3765,6 @@ textarea.editable-input {
   color: #1e40af;
 }
 
-.text-xs-flex-1 {
-  font-size: 12px;
-  color: #111827;
-  flex: 1;
-}
-
 .form-label-sm {
   font-size: 11px;
   font-weight: 500;
@@ -3921,17 +3802,7 @@ textarea.editable-input {
   gap: 8px;
 }
 
-.flex-center-mb-12 {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
 
-.flex-center-mb-0 {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0;
-}
 
 .flex-center-gap-6 {
   display: flex;
@@ -3984,25 +3855,6 @@ textarea.editable-input {
   display: none;
   width: auto;
   min-width: 260px;
-}
-
-/* Label Variations */
-.supplier-detail-label-80-mt {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 80px;
-  margin-right: 8px;
-  margin-top: 2px;
-}
-
-.supplier-detail-label-100-mt {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 100px;
-  margin-right: 8px;
-  margin-top: 6px;
 }
 
 /* Text Block Utilities */
@@ -5442,25 +5294,6 @@ textarea.editable-input {
 }
 .btn-icon-delete:hover { background: #fef2f2; }
 
-.input-edit-field {
-  padding: 8px 12px;
-  border: 1px solid #3b82f6;
-  border-radius: 4px;
-  background: white;
-  width: 100%;
-  font-size: 14px;
-}
-.input-edit-field:focus { outline: none; border-color: #2563eb; }
-
-.select-edit-field {
-  padding: 8px 12px;
-  border: 1px solid #3b82f6;
-  border-radius: 4px;
-  background: white;
-  width: 100%;
-  font-size: 14px;
-}
-
 /* Suppliers Section in Panel */
 .suppliers-panel-section {
   margin-bottom: 16px;
@@ -6491,16 +6324,6 @@ textarea.editable-input {
   border-radius: 2px;
   background: #dc2626;
   color: white;
-}
-
-/* Detail label with notes width */
-.supplier-detail-label-notes {
-  font-weight: 600;
-  font-size: 12px;
-  color: #374151;
-  min-width: 120px;
-  margin-right: 8px;
-  margin-top: 2px;
 }
 
 /* History table section */
