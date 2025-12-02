@@ -1,19 +1,21 @@
 // QuotesManager - Main quotes management component
 import React from 'react';
-import API from '../api/quotesApi.js'
-import { priceApi } from '../api/index.js'
-import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
-import { getTableColumns, getFieldValue, formatFieldValue } from '../lib/table-utils.js'
-import { calculatePrice, getPriceChangeType } from '../lib/price-calculator.js'
-import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../lib/filter-utils.js'
+import API from '../../../../shared/lib/api.js'
+import { quotesService } from '../../services/quotes-service.js'
+import { priceApi } from '../../services/pricing-service.js'
+import { formsApi } from '../../services/forms-service.js'
+import { statusLabel, procLabel, materialLabel } from '../../../../shared/i18n.js'
+import { getTableColumns, getFieldValue, formatFieldValue } from '../../utils/table-utils.js'
+import { calculatePrice, getPriceChangeType } from '../../utils/price-calculator.js'
+import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../../utils/filter-utils.js'
 import QuoteDetailsPanel from './QuoteDetailsPanel.jsx'
 import AddQuoteModal from './AddQuoteModal.jsx'
-import SettingsModalCompact from '../../../src/components/modals/SettingsModal.js'
-import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
+import SettingsModalCompact from '../../../../src/components/modals/SettingsModal.js'
+import { FilterPopup } from '../../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
-import PricingManager from './PricingManager.jsx'
-import FormManager from './FormManager.jsx'
-import { showToast } from '../../../shared/components/MESToast.js'
+import PricingManager from '../pricing/PricingManager.jsx'
+import FormManager from '../forms/FormManager.jsx'
+import { showToast } from '../../../../shared/components/MESToast.js'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -300,7 +302,7 @@ function QuotesManager({ t, onLogout }) {
 
   async function setItemStatus(itemId, newStatus) {
     try {
-      await API.updateStatus(itemId, newStatus)
+      await quotesService.updateStatus(itemId, newStatus)
       
       // Update the detail item if it's currently being viewed
       if (selectedQuote && selectedQuote.id === itemId) {
@@ -530,8 +532,8 @@ function QuotesManager({ t, onLogout }) {
 
   async function loadFormConfig() {
     try {
-      const config = await API.getFormConfig()
-      setFormConfig(config.formConfig)
+      const template = await formsApi.getActiveTemplate()
+      setFormConfig(template || {})
     } catch (e) {
       console.error('Form config load error:', e)
     }
@@ -624,7 +626,7 @@ function QuotesManager({ t, onLogout }) {
   }, [totalItems])
 
   async function setItemStatus(id, st) { 
-    await API.updateStatus(id, st)
+    await quotesService.updateStatus(id, st)
     // Update the specific quote in the list instead of full refresh
     setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
     showToast('Kayıt durumu güncellendi!', 'success')
@@ -907,7 +909,7 @@ function QuotesManager({ t, onLogout }) {
     })
 
     try {
-      const comparison = await API.getQuotePriceComparison(item.id)
+      const comparison = await quotesService.getPriceComparison(item.id)
       const summary = comparison.differenceSummary || {}
       const baselinePrice = summary.oldPrice ?? comparison.quote.appliedPrice ?? fallbackOriginal
       const latestPrice = summary.newPrice ?? comparison.quote.latestPrice ?? fallbackNew
@@ -997,7 +999,7 @@ function QuotesManager({ t, onLogout }) {
       console.log('🔧 Updating version for quote:', priceReview.item.id)
       setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
       
-      const response = await API.updateQuoteVersion(priceReview.item.id)
+      const response = await quotesService.updateQuoteVersion(priceReview.item.id)
       if (!response || response.success === false) {
         throw new Error(response?.error || 'version update failed')
       }
@@ -1417,7 +1419,7 @@ function QuotesManager({ t, onLogout }) {
         quote: selectedQuote,
         onClose: () => setSelectedQuote(null),
         onSave: async (quoteId, quoteData) => {
-          await API.update(quoteId, quoteData)
+          await quotesService.updateQuote(quoteId, quoteData)
           await refresh()
         },
         onDelete: remove,

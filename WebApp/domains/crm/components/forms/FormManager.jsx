@@ -1,8 +1,9 @@
-import { showToast } from '../../../shared/components/MESToast.js';
+import { showToast } from '../../../../shared/components/MESToast.js';
 // Quotes Form Manager - Dynamic form configuration for quotes domain
 import React from 'react';
-import { formsApi } from '../api/index.js';
-import { FormBuilderCompact } from '../../../src/components/formBuilder/FormBuilderCompact.js'
+import API from '../../../../shared/lib/api.js';
+import { formsApi } from '../../services/forms-service.js';
+import { FormBuilderCompact } from './formBuilder/FormBuilderCompact.js'
 
 const { useState, useEffect } = React;
 

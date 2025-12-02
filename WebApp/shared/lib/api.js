@@ -1,6 +1,5 @@
 // API and localStorage fallback (ES module)
 import { tFor, statusLabel } from '../i18n.js'
-import quotesPostgresAdapter from './quotesPostgresAdapter.js'
 
 const LS_KEY = 'bp_quotes_v1'
 let LOCAL_STORAGE_MODE = false // Global flag for localStorage fallback mode
@@ -157,9 +156,80 @@ export function withAuth(headers = {}) {
 }
 
 export const API = {
-  // ==================== QUOTES API - PostgreSQL ====================
-  // Override with PostgreSQL adapter for quotes system
-  ...quotesPostgresAdapter,
+  // ==================== QUOTES/CRM API - PostgreSQL ====================
+  async getQuotes(filters = {}) {
+    const params = new URLSearchParams(filters).toString()
+    const url = `${API_BASE}/api/quotes${params ? `?${params}` : ''}`
+    const res = await fetchWithTimeout(url, { headers: withAuth() }, 10000)
+    if (!res.ok) throw new Error('get_quotes_failed')
+    return res.json()
+  },
+
+  async getQuote(id) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { headers: withAuth() }, 10000)
+    if (!res.ok) throw new Error('get_quote_failed')
+    return res.json()
+  },
+
+  async createQuote(quoteData) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(quoteData)
+    }, 15000)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'create_quote_failed')
+    }
+    return res.json()
+  },
+
+  async updateQuote(id, updates) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates)
+    }, 15000)
+    if (!res.ok) throw new Error('update_quote_failed')
+    return res.json()
+  },
+
+  async deleteQuote(id) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, {
+      method: 'DELETE',
+      headers: withAuth()
+    }, 10000)
+    if (!res.ok) throw new Error('delete_quote_failed')
+    return res.json()
+  },
+
+  async getFormConfig() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/form-templates/active`, { headers: withAuth() }, 10000)
+    if (!res.ok) return { formConfig: { fields: [] } }
+    const template = await res.json()
+    return {
+      formConfig: {
+        fields: (template.fields || []).map(field => ({
+          id: field.field_code,
+          label: field.field_name,
+          type: field.field_type,
+          required: field.is_required || false,
+          placeholder: field.placeholder,
+          defaultValue: field.default_value,
+          options: (field.options || []).map(opt => ({
+            value: opt.option_value,
+            label: opt.option_label
+          }))
+        }))
+      }
+    }
+  },
+
+  async getPriceSettings() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/price-settings/active`, { headers: withAuth() }, 10000)
+    if (!res.ok) return { parameters: [], formula: '' }
+    return res.json()
+  },
 
   // ==================== ORDERS API ====================
   async listOrders(params = {}) {
@@ -911,3 +981,4 @@ export const API = {
 }
 
 export default API
+

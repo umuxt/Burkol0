@@ -24,7 +24,7 @@ class ModuleLoader {
 
            componentPath.includes('/performance/admin/') ||    this.config = {      }r React components
 
-           componentPath.includes('/domains/quotes/components/QuotesManager.js') ||
+           componentPath.includes('/domains/crm/components/QuotesManager.js') ||
 
            componentPath.includes('/components/modals/SettingsModal.js') ||      preloadThreshold: '100px',class ModuleLoader {
 
@@ -612,7 +612,7 @@ export default ModuleLoader        // Silent retry for performance paths      if
 
       admin: [  }
 
-        './domains/quotes/components/QuotesManager.js',
+        './domains/crm/components/QuotesManager.js',
 
         './components/modals/SettingsModal.js',  // Sequential loading for low priority
 
@@ -660,7 +660,7 @@ export default ModuleLoader        // Silent retry for performance paths      if
 
     this.observers.forEach(observer => observer.disconnect())      'admin': [
 
-    this.observers.clear()        './domains/quotes/components/QuotesManager.js',
+    this.observers.clear()        './domains/crm/components/QuotesManager.js',
 
     this.cache.clear()        './components/modals/SettingsModal.js',
 

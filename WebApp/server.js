@@ -11,9 +11,7 @@ import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 // Quotes routes - PostgreSQL migrated
-import { setupQuotesRoutes } from './domains/quotes/server/quotesRoutes.js'
-import { setupFormRoutes } from './domains/quotes/server/formRoutes.js'
-import { setupPriceRoutes } from './domains/quotes/server/priceRoutes.js'
+import { setupCRMRoutes } from './domains/crm/api/index.js'
 import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
 
@@ -103,10 +101,8 @@ app.use((req, res, next) => {
 // Setup API routes
 setupAuthRoutes(app)
 
-// Quotes routes - PostgreSQL (new system)
-setupQuotesRoutes(app)
-setupFormRoutes(app)
-setupPriceRoutes(app)
+// CRM routes - PostgreSQL (quotes, pricing, forms)
+setupCRMRoutes(app)
 
 // Materials domain routes (materials, orders, suppliers, categories)
 app.use('/api', materialsRoutes)

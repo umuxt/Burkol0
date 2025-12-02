@@ -1,5 +1,5 @@
 // Price calculation and update logic for quotes
-import API from '../api/quotesApi.js'
+import API from '../../../shared/lib/api.js'
 
 export function calculatePrice(quote, priceSettings) {
   return API.calculatePriceLocal(quote, priceSettings)

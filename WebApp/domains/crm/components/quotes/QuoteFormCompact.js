@@ -1,11 +1,11 @@
-import { showToast } from '../../../shared/components/MESToast.js';
+import { showToast } from '../../../../shared/components/MESToast.js';
 // Compact Quote Form - Multi-step form with validation and file upload
 // Note: DynamicFormRenderer is the primary form implementation
-import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../../shared/i18n.js'
-import API from '../api/quotesApi.js'
-import { uid } from '../../../shared/lib/utils.js'
-import Field from '../../../shared/components/ui/Field.js'
-import Modal from '../../../shared/components/ui/Modal.js'
+import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../../../shared/i18n.js'
+import API from '../../../../shared/lib/api.js'
+import { uid } from '../../../../shared/lib/utils.js'
+import Field from '../../../../shared/components/ui/Field.js'
+import Modal from '../../../../shared/components/ui/Modal.js'
 import { validateQuoteForm, getStepFields, stepHasErrors, computeMissingFields, sanitizeInteger, sanitizeNumber } from './FormValidation.js'
 import { handleFileUpload, handleProductFileUpload, removeFile, FilePreview } from './FileUploadUtils.js'
 import { StepNavigation, StepHeader, StepProgress, StepButtons, getStepConfig } from './FormSteps.js'

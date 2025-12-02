@@ -1,10 +1,10 @@
-import { showToast } from '../../../shared/components/MESToast.js';
+import { showToast } from '../../../../shared/components/MESToast.js';
 // Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
 import React from 'react';
-import { priceApi } from '../api/index.js'
-import { formsApi } from '../api/index.js'
-import FormulaValidator from '../../../src/components/SimpleFormulaValidator.js'
-import PricingUtils from '../lib/pricing-utils.js'
+import { priceApi } from '../../services/pricing-service.js';
+import { formsApi } from '../../services/forms-service.js';
+import FormulaValidator from '../forms/SimpleFormulaValidator.js'
+import PricingUtils from '../../utils/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect, useRef } = React;

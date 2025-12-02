@@ -4,12 +4,12 @@
  * API routes for managing price parameters and formulas
  */
 
-import db from '../../../db/connection.js';
-import PriceParameters from '../../../db/models/priceParameters.js';
-import PriceFormulas from '../../../db/models/priceFormulas.js';
-import PriceSettings from './models/PriceSettings.js';
-import { requireAuth } from '../../../server/auth.js';
-import logger from './logger.js';
+import db from '../../../../db/connection.js';
+import PriceParameters from '../../../../db/models/priceParameters.js';
+import PriceFormulas from '../../../../db/models/priceFormulas.js';
+import PriceSettings from '../services/priceSettingsService.js';
+import { requireAuth } from '../../../../server/auth.js';
+import logger from '../../utils/logger.js';
 
 /**
  * Setup price routes
@@ -19,7 +19,7 @@ export function setupPriceRoutes(app) {
   // ==================== PRICE PARAMETERS ====================
   
   // Get all parameters
-  app.get('/api/price-parameters', async (req, res) => {
+  app.get('/api/price-parameters', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/price-parameters - Fetching all parameters');
       
@@ -43,7 +43,7 @@ export function setupPriceRoutes(app) {
 
   // Get parameter with lookups
   // Note: Lookups removed - prices now in form_field_options.price_value
-  app.get('/api/price-parameters/:id/with-prices', async (req, res) => {
+  app.get('/api/price-parameters/:id/with-prices', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/price-parameters/${id}/with-prices`);
@@ -82,7 +82,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Get single parameter
-  app.get('/api/price-parameters/:id', async (req, res) => {
+  app.get('/api/price-parameters/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/price-parameters/${id}`);
@@ -103,7 +103,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Create parameter
-  app.post('/api/price-parameters', async (req, res) => {
+  app.post('/api/price-parameters', requireAuth, async (req, res) => {
     try {
       const { code, name, type, formFieldCode, fixedValue, unit, description } = req.body;
       
@@ -153,7 +153,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Update parameter
-  app.patch('/api/price-parameters/:id', async (req, res) => {
+  app.patch('/api/price-parameters/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { code, name, type, formFieldCode, fixedValue, unit, description } = req.body;
@@ -185,7 +185,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Delete parameter
-  app.delete('/api/price-parameters/:id', async (req, res) => {
+  app.delete('/api/price-parameters/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`DELETE /api/price-parameters/${id}`);
@@ -208,7 +208,7 @@ export function setupPriceRoutes(app) {
   // ==================== PRICE FORMULAS ====================
 
   // Get all formulas
-  app.get('/api/price-formulas', async (req, res) => {
+  app.get('/api/price-formulas', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/price-formulas - Fetching all formulas');
       
@@ -226,7 +226,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Get formula with parameters
-  app.get('/api/price-formulas/:id/with-parameters', async (req, res) => {
+  app.get('/api/price-formulas/:id/with-parameters', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/price-formulas/${id}/with-parameters`);
@@ -247,7 +247,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Get single formula
-  app.get('/api/price-formulas/:id', async (req, res) => {
+  app.get('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/price-formulas/${id}`);
@@ -268,7 +268,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Create formula
-  app.post('/api/price-formulas', async (req, res) => {
+  app.post('/api/price-formulas', requireAuth, async (req, res) => {
     try {
       const { code, name, formulaExpression, description, version, isActive, parameters } = req.body;
       
@@ -314,7 +314,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Update formula
-  app.patch('/api/price-formulas/:id', async (req, res) => {
+  app.patch('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { code, name, formulaExpression, description, version, isActive } = req.body;
@@ -345,7 +345,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Delete formula
-  app.delete('/api/price-formulas/:id', async (req, res) => {
+  app.delete('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`DELETE /api/price-formulas/${id}`);
@@ -366,7 +366,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Get all versions of a formula
-  app.get('/api/price-formulas/:code/versions', async (req, res) => {
+  app.get('/api/price-formulas/:code/versions', requireAuth, async (req, res) => {
     try {
       const { code } = req.params;
       logger.info(`GET /api/price-formulas/${code}/versions`);
@@ -382,7 +382,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Create new version of formula
-  app.post('/api/price-formulas/:id/new-version', async (req, res) => {
+  app.post('/api/price-formulas/:id/new-version', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, formulaExpression, description, createdBy } = req.body;
@@ -405,7 +405,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Activate a specific formula version
-  app.patch('/api/price-formulas/:id/activate', async (req, res) => {
+  app.patch('/api/price-formulas/:id/activate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`PATCH /api/price-formulas/${id}/activate`);
@@ -426,7 +426,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Calculate price with formula
-  app.post('/api/price-formulas/:id/calculate', async (req, res) => {
+  app.post('/api/price-formulas/:id/calculate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { formData } = req.body;
@@ -453,7 +453,7 @@ export function setupPriceRoutes(app) {
   // ==================== FORMULA PARAMETERS ====================
 
   // Add parameter to formula
-  app.post('/api/price-formulas/:formulaId/parameters', async (req, res) => {
+  app.post('/api/price-formulas/:formulaId/parameters', requireAuth, async (req, res) => {
     try {
       const { formulaId } = req.params;
       const { parameterId, sortOrder } = req.body;
@@ -478,7 +478,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Remove parameter from formula
-  app.delete('/api/price-formulas/:formulaId/parameters/:parameterId', async (req, res) => {
+  app.delete('/api/price-formulas/:formulaId/parameters/:parameterId', requireAuth, async (req, res) => {
     try {
       const { formulaId, parameterId } = req.params;
       logger.info(`DELETE /api/price-formulas/${formulaId}/parameters/${parameterId}`);
@@ -500,8 +500,21 @@ export function setupPriceRoutes(app) {
 
   // ==================== PRICE SETTINGS (VERSIONING) ====================
 
-  // Get all price settings (all versions)
-  app.get('/api/price-settings/all', async (req, res) => {
+  // Get all price settings (base route - alias for /all)
+  app.get('/api/price-settings', requireAuth, async (req, res) => {
+    try {
+      logger.info('GET /api/price-settings - Fetching all settings');
+      const settings = await PriceSettings.getAll();
+      logger.success(`Found ${settings.length} price settings`);
+      res.json(settings);
+    } catch (error) {
+      logger.error('Failed to fetch price settings', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch price settings', message: error.message });
+    }
+  });
+
+  // Get all price settings (all versions - same as base route)
+  app.get('/api/price-settings/all', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/price-settings/all - Fetching all versions');
       const settings = await PriceSettings.getAll();
@@ -513,8 +526,8 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get active price setting with details
-  app.get('/api/price-settings/active', async (req, res) => {
+  // Get active price setting with details (MUST be before /:id route)
+  app.get('/api/price-settings/active', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/price-settings/active - Fetching active setting');
       const setting = await PriceSettings.getActiveWithDetails();
@@ -533,7 +546,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Get specific price setting with details
-  app.get('/api/price-settings/:id', async (req, res) => {
+  app.get('/api/price-settings/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/price-settings/${id} - Fetching setting`);
@@ -553,7 +566,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Create new price setting
-  app.post('/api/price-settings', async (req, res) => {
+  app.post('/api/price-settings', requireAuth, async (req, res) => {
     try {
       const { name, description, parameters, formula } = req.body;
       
@@ -608,7 +621,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Update existing price setting (current version only)
-  app.patch('/api/price-settings/:id', async (req, res) => {
+  app.patch('/api/price-settings/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, description, parameters, formula } = req.body;
@@ -676,7 +689,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Create new version from existing setting
-  app.post('/api/price-settings/:id/new-version', async (req, res) => {
+  app.post('/api/price-settings/:id/new-version', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { name } = req.body;
@@ -694,7 +707,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Activate a price setting
-  app.patch('/api/price-settings/:id/activate', async (req, res) => {
+  app.patch('/api/price-settings/:id/activate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -711,7 +724,7 @@ export function setupPriceRoutes(app) {
   });
 
   // Delete price setting
-  app.delete('/api/price-settings/:id', async (req, res) => {
+  app.delete('/api/price-settings/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       

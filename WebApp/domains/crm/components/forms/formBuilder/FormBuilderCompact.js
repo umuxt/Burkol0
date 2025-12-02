@@ -1,7 +1,7 @@
-import { showToast } from '../../../shared/components/MESToast.js';
+import { showToast } from '../../../../../shared/components/MESToast.js';
 // Form Builder Compact - Main component using modular architecture
 import React from 'react';
-import API from '../../../shared/lib/api.js'
+import API from '../../../../../shared/lib/api.js'
 import { FieldEditor } from './FieldEditor.js'
 import { FieldList } from './FieldList.js'
 import { FormBuilderUtils } from './FormBuilderUtils.js'

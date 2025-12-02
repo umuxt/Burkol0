@@ -5,7 +5,7 @@
  * while using new PostgreSQL backend
  */
 
-import { quotesApi, formsApi, priceApi } from '../../domains/quotes/api/index.js';
+import { quotesApi, formsApi, priceApi } from '../../domains/crm/api/index.js';
 
 // This module provides backward-compatible API methods
 // that existing components can use without major refactoring

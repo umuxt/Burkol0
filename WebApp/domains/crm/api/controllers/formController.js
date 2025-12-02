@@ -4,10 +4,10 @@
  * API routes for managing form templates and fields
  */
 
-import FormTemplates from '../../../db/models/formTemplates.js';
-import FormFields from '../../../db/models/formFields.js';
-import { requireAuth } from '../../../server/auth.js';
-import logger from './logger.js';
+import FormTemplates from '../../../../db/models/formTemplates.js';
+import FormFields from '../../../../db/models/formFields.js';
+import { requireAuth } from '../../../../server/auth.js';
+import logger from '../../utils/logger.js';
 
 /**
  * Setup form routes
@@ -17,7 +17,7 @@ export function setupFormRoutes(app) {
   // ==================== FORM CONFIG (ACTIVE TEMPLATE) ====================
   
   // Get active form configuration (backward compatibility endpoint)
-  app.get('/api/form-config', async (req, res) => {
+  app.get('/api/form-config', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/form-config - Fetching active form template');
       
@@ -60,7 +60,7 @@ export function setupFormRoutes(app) {
   // ==================== FORM TEMPLATES ====================
   
   // Get all templates
-  app.get('/api/form-templates', async (req, res) => {
+  app.get('/api/form-templates', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/form-templates - Fetching all templates');
       
@@ -77,8 +77,28 @@ export function setupFormRoutes(app) {
     }
   });
 
+  // Get active template (MUST be before /:id route)
+  app.get('/api/form-templates/active', requireAuth, async (req, res) => {
+    try {
+      logger.info('GET /api/form-templates/active - Fetching active template');
+      
+      const template = await FormTemplates.getActive();
+      
+      if (!template) {
+        logger.warning('No active form template found');
+        return res.status(404).json({ error: 'No active form template found' });
+      }
+
+      logger.success(`Active template found: ${template.id}`);
+      res.json(template);
+    } catch (error) {
+      logger.error('Failed to fetch active template', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch active template', message: error.message });
+    }
+  });
+
   // Get template with fields
-  app.get('/api/form-templates/:id/with-fields', async (req, res) => {
+  app.get('/api/form-templates/:id/with-fields', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/form-templates/${id}/with-fields`);
@@ -99,7 +119,7 @@ export function setupFormRoutes(app) {
   });
 
   // Get single template
-  app.get('/api/form-templates/:id', async (req, res) => {
+  app.get('/api/form-templates/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/form-templates/${id}`);
@@ -120,7 +140,7 @@ export function setupFormRoutes(app) {
   });
 
   // Create template
-  app.post('/api/form-templates', async (req, res) => {
+  app.post('/api/form-templates', requireAuth, async (req, res) => {
     try {
       const { code, name, description, version, isActive } = req.body;
       
@@ -150,7 +170,7 @@ export function setupFormRoutes(app) {
   });
 
   // Update template
-  app.patch('/api/form-templates/:id', async (req, res) => {
+  app.patch('/api/form-templates/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { code, name, description, version, isActive } = req.body;
@@ -180,7 +200,7 @@ export function setupFormRoutes(app) {
   });
 
   // Set template as active
-  app.patch('/api/form-templates/:id/activate', async (req, res) => {
+  app.patch('/api/form-templates/:id/activate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`PATCH /api/form-templates/${id}/activate`);
@@ -201,7 +221,7 @@ export function setupFormRoutes(app) {
   });
 
   // Get all versions of a template
-  app.get('/api/form-templates/:code/versions', async (req, res) => {
+  app.get('/api/form-templates/:code/versions', requireAuth, async (req, res) => {
     try {
       const { code } = req.params;
       logger.info(`GET /api/form-templates/${code}/versions`);
@@ -217,7 +237,7 @@ export function setupFormRoutes(app) {
   });
 
   // Create new version of template
-  app.post('/api/form-templates/:id/new-version', async (req, res) => {
+  app.post('/api/form-templates/:id/new-version', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, description, createdBy } = req.body;
@@ -239,7 +259,7 @@ export function setupFormRoutes(app) {
   });
 
   // Delete template
-  app.delete('/api/form-templates/:id', async (req, res) => {
+  app.delete('/api/form-templates/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`DELETE /api/form-templates/${id}`);
@@ -262,7 +282,7 @@ export function setupFormRoutes(app) {
   // ==================== FORM FIELDS ====================
 
   // Get fields by template
-  app.get('/api/form-fields', async (req, res) => {
+  app.get('/api/form-fields', requireAuth, async (req, res) => {
     try {
       const { templateId } = req.query;
       
@@ -286,7 +306,7 @@ export function setupFormRoutes(app) {
   });
 
   // Create field
-  app.post('/api/form-fields', async (req, res) => {
+  app.post('/api/form-fields', requireAuth, async (req, res) => {
     try {
       const {
         templateId,
@@ -332,7 +352,7 @@ export function setupFormRoutes(app) {
   });
 
   // Update field
-  app.patch('/api/form-fields/:id', async (req, res) => {
+  app.patch('/api/form-fields/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const {
@@ -374,7 +394,7 @@ export function setupFormRoutes(app) {
   });
 
   // Delete field
-  app.delete('/api/form-fields/:id', async (req, res) => {
+  app.delete('/api/form-fields/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`DELETE /api/form-fields/${id}`);
@@ -397,7 +417,7 @@ export function setupFormRoutes(app) {
   // ==================== FIELD OPTIONS ====================
 
   // Get field options
-  app.get('/api/form-fields/:fieldId/options', async (req, res) => {
+  app.get('/api/form-fields/:fieldId/options', requireAuth, async (req, res) => {
     try {
       const { fieldId } = req.params;
       logger.info(`GET /api/form-fields/${fieldId}/options`);
@@ -413,7 +433,7 @@ export function setupFormRoutes(app) {
   });
 
   // Add field option
-  app.post('/api/form-fields/:fieldId/options', async (req, res) => {
+  app.post('/api/form-fields/:fieldId/options', requireAuth, async (req, res) => {
     try {
       const { fieldId } = req.params;
       const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
@@ -445,7 +465,7 @@ export function setupFormRoutes(app) {
   });
 
   // Update field option
-  app.patch('/api/form-fields/:fieldId/options/:optionId', async (req, res) => {
+  app.patch('/api/form-fields/:fieldId/options/:optionId', requireAuth, async (req, res) => {
     try {
       const { optionId } = req.params;
       const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
@@ -475,7 +495,7 @@ export function setupFormRoutes(app) {
   });
 
   // Delete field option
-  app.delete('/api/form-fields/:fieldId/options/:optionId', async (req, res) => {
+  app.delete('/api/form-fields/:fieldId/options/:optionId', requireAuth, async (req, res) => {
     try {
       const { optionId } = req.params;
       logger.info(`DELETE /api/form-fields/options/${optionId}`);

@@ -1,14 +1,12 @@
 /**
- * Quotes Routes - PostgreSQL
+ * Quote Controller
  * 
- * API routes for quotes system using new relational database
+ * API routes for quote management
  */
 
-import Quotes from '../../../db/models/quotes.js';
-import FormTemplates from '../../../db/models/formTemplates.js';
-import PriceFormulas from '../../../db/models/priceFormulas.js';
-import { requireAuth } from '../../../server/auth.js';
-import logger from './logger.js';
+import * as quoteService from '../services/quoteService.js';
+import { requireAuth } from '../../../../server/auth.js';
+import logger from '../../utils/logger.js';
 
 /**
  * Setup quotes routes
@@ -17,7 +15,7 @@ export function setupQuotesRoutes(app) {
   
   // ==================== GET STATISTICS ====================
   // IMPORTANT: This route must come before /:id to avoid matching "stats" as an ID
-  app.get('/api/quotes/stats', async (req, res) => {
+  app.get('/api/quotes/stats', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/quotes/stats - Fetching statistics');
 
@@ -26,7 +24,7 @@ export function setupQuotesRoutes(app) {
         toDate: req.query.toDate
       };
 
-      const stats = await Quotes.getStatistics(filters);
+      const stats = await quoteService.getQuoteStatistics(filters);
 
       logger.success('Statistics fetched');
       res.json(stats);
@@ -37,7 +35,7 @@ export function setupQuotesRoutes(app) {
   });
 
   // ==================== GET ALL QUOTES ====================
-  app.get('/api/quotes', async (req, res) => {
+  app.get('/api/quotes', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/quotes - Fetching all quotes');
       
@@ -49,7 +47,7 @@ export function setupQuotesRoutes(app) {
         toDate: req.query.toDate
       };
 
-      const quotes = await Quotes.getAll(filters);
+      const quotes = await quoteService.getQuotes(filters);
       
       logger.success(`Found ${quotes.length} quotes`);
       res.json(quotes);
@@ -60,12 +58,12 @@ export function setupQuotesRoutes(app) {
   });
 
   // ==================== GET SINGLE QUOTE ====================
-  app.get('/api/quotes/:id', async (req, res) => {
+  app.get('/api/quotes/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`GET /api/quotes/${id} - Fetching quote details`);
       
-      const quote = await Quotes.getById(id);
+      const quote = await quoteService.getQuoteById(id);
       
       if (!quote) {
         logger.warning(`Quote not found: ${id}`);
@@ -81,7 +79,7 @@ export function setupQuotesRoutes(app) {
   });
 
   // ==================== CREATE QUOTE ====================
-  app.post('/api/quotes', async (req, res) => {
+  app.post('/api/quotes', requireAuth, async (req, res) => {
     try {
       const {
         customerName,
@@ -173,7 +171,7 @@ export function setupQuotesRoutes(app) {
   });
 
   // ==================== UPDATE QUOTE ====================
-  app.patch('/api/quotes/:id', async (req, res) => {
+  app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`PATCH /api/quotes/${id} - Updating quote`);

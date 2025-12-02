@@ -1,5 +1,5 @@
 import React from 'react'
-import { architectureAPI } from '../../../shared/lib/architectureAPI.js'
+import { architectureAPI } from '../../../../shared/lib/architectureAPI.js'
 
 /**
  * Price Status Badge Component

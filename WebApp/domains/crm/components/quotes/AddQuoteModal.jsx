@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import quotesApi from '../api/quotesApi.js'
-import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES } from '../../../shared/lib/utils.js'
-import { showToast } from '../../../shared/components/MESToast.js'
+import quotesApi from '../../../../shared/lib/api.js'
+import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES } from '../../../../shared/lib/utils.js'
+import { showToast } from '../../../../shared/components/MESToast.js'
 
 export default function AddQuoteModal({ 
   onClose, 

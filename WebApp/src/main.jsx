@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useI18n } from '../shared/i18n.js';
 import API from '../shared/lib/api.js';
 import DynamicFormRenderer from '../shared/components/DynamicFormRenderer.js';
-import QuotesManager from '../domains/quotes/components/QuotesManager.js';
+import QuotesManager from '../domains/crm/components/quotes/QuotesManager.js';
 import { showToast } from '../shared/components/MESToast.js';
 import MaterialsTabs from '../domains/materials/components/MaterialsTabs.jsx';
 import StocksTabContent from '../domains/materials/components/stocks/StocksTabContent.jsx';

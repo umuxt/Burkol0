@@ -1,6 +1,6 @@
 // Enhanced Formula Editor Component - Advanced formula editing with real-time validation
 import React from 'react';
-import PricingUtils from '../lib/pricing-utils.js'
+import PricingUtils from '../../utils/pricing-utils.js'
 
 const { useState, useEffect, useRef } = React;
 
