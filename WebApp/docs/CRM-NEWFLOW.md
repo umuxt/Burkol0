@@ -1171,10 +1171,24 @@ static async launchProduction(workOrderCode) {
    - API documentation güncelle
 
 **Test Kriterleri**:
-- [ ] Build hatasız tamamlanıyor
-- [ ] Console'da gereksiz log yok
-- [ ] Tüm önceki test kriterleri hala geçiyor
-- [ ] Lint hataları yok
+- [x] Build hatasız tamamlanıyor ✅ (3 Aralık 2025)
+- [x] Console'da gereksiz log yok ✅ (service init log'ları kaldırıldı)
+- [x] Tüm önceki test kriterleri hala geçiyor ✅
+- [x] Lint hataları yok ✅
+
+**Ön Araştırma Sonuçları** (3 Aralık 2025):
+- `QuoteFormCompact.js` - hiçbir yerde import edilmiyor → KALDIRILDI
+- `table-utils.js` ve `customers-table-utils.js` - farklı amaçlı, duplicate DEĞİL → KORUNDU
+- Console.log'lar - çoğu logger utility veya operasyonel → KORUNDU
+- Service init log'ları (4 adet) - gereksiz → KALDIRILDI
+- `_backup/` klasörü - orders_backup_20251201_141025/ → KORUNDU (gerekebilir)
+
+**Kaldırılan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/QuoteFormCompact.js` - SİLİNDİ ✅ (kullanılmıyordu)
+- `domains/crm/services/customers-service.js` - console.log kaldırıldı ✅
+- `domains/crm/services/quotes-service.js` - console.log kaldırıldı ✅
+- `domains/crm/services/pricing-service.js` - console.log kaldırıldı ✅
+- `domains/crm/services/forms-service.js` - console.log kaldırıldı ✅
 
 ---
 

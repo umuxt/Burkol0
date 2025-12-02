@@ -2,8 +2,6 @@
 
 import { fetchWithTimeout } from '../../../shared/lib/api.js'
 
-console.log('✅ Forms Service: Backend API kullanımı aktif');
-
 // Auth helper
 function withAuth(headers = {}) {
   try {
