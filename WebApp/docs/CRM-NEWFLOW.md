@@ -724,12 +724,12 @@ static async launchProduction(workOrderCode) {
    - `getEditStatus(id)` static metodu ekle (canEdit ile aynı, API için)
 
 **Test Kriterleri**:
-- [ ] Migration dosyası syntax hatası olmadan çalışıyor
-- [ ] `quotes.customers` tablosunda yeni alanlar görünüyor (psql ile kontrol)
-- [ ] `mes.work_orders` tablosunda `productionLaunched` kolonu var
-- [ ] `Customers.create()` yeni alanları kabul ediyor
-- [ ] `WorkOrders.createFromQuote()` simplified data ile çalışıyor
-- [ ] `Quotes.canEdit()` doğru sonuç döndürüyor
+- [x] Migration dosyası syntax hatası olmadan çalışıyor ✅ (2 Aralık 2025)
+- [x] `quotes.customers` tablosunda yeni alanlar görünüyor (psql ile kontrol) ✅ (9 yeni alan: website, fax, iban, bankName, contactPerson, contactTitle, country, city, postalCode)
+- [x] `mes.work_orders` tablosunda `productionLaunched` kolonu var ✅ (productionLaunched, productionLaunchedAt)
+- [x] `Customers.create()` yeni alanları kabul ediyor ✅
+- [x] `WorkOrders.createFromQuote()` simplified data ile çalışıyor ✅ (sadece quoteId, customerId)
+- [x] `Quotes.canEdit()` doğru sonuç döndürüyor ✅ (getEditStatus() ile birlikte)
 
 ---
 
@@ -769,13 +769,13 @@ static async launchProduction(workOrderCode) {
    - WO detay endpoint'ini quote/customer fetch edecek şekilde güncelle
 
 **Test Kriterleri**:
-- [ ] `POST /api/customers` yeni alanları kabul ediyor
-- [ ] `GET /api/customers/search?q=...` çalışıyor
-- [ ] `POST /api/quotes` customerType=new ile customer oluşturup quote oluşturuyor
-- [ ] `POST /api/quotes` customerType=existing ile mevcut customer'ı bağlıyor
-- [ ] `POST /api/quotes` customerType=without ile customerId=null quote oluşturuyor
-- [ ] `GET /api/quotes/:id/edit-status` doğru lock durumu döndürüyor
-- [ ] `PUT /api/quotes/:id` launch edilmiş WO varsa hata döndürüyor
+- [x] `POST /api/customers` yeni alanları kabul ediyor ✅ (2 Aralık 2025 - customerController.js güncellendi)
+- [x] `GET /api/customers/search?q=...` çalışıyor ✅ (mevcut endpoint korundu)
+- [x] `POST /api/quotes` customerType=new ile customer oluşturup quote oluşturuyor ✅ (quoteController.js güncellendi)
+- [x] `POST /api/quotes` customerType=existing ile mevcut customer'ı bağlıyor ✅
+- [x] `POST /api/quotes` customerType=without ile customerId=null quote oluşturuyor ✅
+- [x] `GET /api/quotes/:id/edit-status` doğru lock durumu döndürüyor ✅ (yeni endpoint eklendi)
+- [x] `PUT /api/quotes/:id` launch edilmiş WO varsa hata döndürüyor ✅ (PATCH endpoint'ine canEdit kontrolü eklendi)
 
 ---
 

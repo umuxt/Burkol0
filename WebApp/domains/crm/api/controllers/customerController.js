@@ -102,7 +102,17 @@ export function setupCustomerRoutes(app) {
         taxOffice,
         taxNumber,
         address,
-        notes
+        notes,
+        // New fields for CRM flow
+        website,
+        fax,
+        iban,
+        bankName,
+        contactPerson,
+        contactTitle,
+        country,
+        city,
+        postalCode
       } = req.body;
 
       logger.info('POST /api/customers - Creating new customer', { name, company });
@@ -122,7 +132,17 @@ export function setupCustomerRoutes(app) {
         taxOffice,
         taxNumber,
         address,
-        notes
+        notes,
+        // New fields for CRM flow
+        website,
+        fax,
+        iban,
+        bankName,
+        contactPerson,
+        contactTitle,
+        country,
+        city,
+        postalCode
       });
 
       logger.success(`Customer created: ${customer.id}`);
@@ -146,7 +166,17 @@ export function setupCustomerRoutes(app) {
         taxNumber,
         address,
         notes,
-        isActive
+        isActive,
+        // New fields for CRM flow
+        website,
+        fax,
+        iban,
+        bankName,
+        contactPerson,
+        contactTitle,
+        country,
+        city,
+        postalCode
       } = req.body;
       
       logger.info(`PATCH /api/customers/${id} - Updating customer`);
@@ -161,6 +191,16 @@ export function setupCustomerRoutes(app) {
       if (address !== undefined) updates.address = address;
       if (notes !== undefined) updates.notes = notes;
       if (isActive !== undefined) updates.isActive = isActive;
+      // New fields for CRM flow
+      if (website !== undefined) updates.website = website;
+      if (fax !== undefined) updates.fax = fax;
+      if (iban !== undefined) updates.iban = iban;
+      if (bankName !== undefined) updates.bankName = bankName;
+      if (contactPerson !== undefined) updates.contactPerson = contactPerson;
+      if (contactTitle !== undefined) updates.contactTitle = contactTitle;
+      if (country !== undefined) updates.country = country;
+      if (city !== undefined) updates.city = city;
+      if (postalCode !== undefined) updates.postalCode = postalCode;
 
       const customer = await customerService.updateCustomer(id, updates);
       

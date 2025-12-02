@@ -7,6 +7,8 @@
 import * as quoteService from '../services/quoteService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
+import Quotes from '../../../../db/models/quotes.js';
+import customerService from '../services/customerService.js';
 
 /**
  * Setup quotes routes
@@ -78,10 +80,41 @@ export function setupQuotesRoutes(app) {
     }
   });
 
+  // ==================== GET QUOTE EDIT STATUS ====================
+  app.get('/api/quotes/:id/edit-status', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/quotes/${id}/edit-status - Checking edit status`);
+      
+      const editStatus = await Quotes.getEditStatus(id);
+      
+      if (!editStatus) {
+        logger.warning(`Quote not found: ${id}`);
+        return res.status(404).json({ error: 'Quote not found' });
+      }
+
+      logger.success(`Edit status fetched: ${id}`, { 
+        canEdit: editStatus.canEdit,
+        hasWorkOrder: editStatus.hasWorkOrder
+      });
+      res.json(editStatus);
+    } catch (error) {
+      logger.error('Failed to fetch edit status', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch edit status', message: error.message });
+    }
+  });
+
   // ==================== CREATE QUOTE ====================
   app.post('/api/quotes', requireAuth, async (req, res) => {
     try {
       const {
+        // Customer type for new flow: 'existing', 'new', 'without'
+        customerType,
+        // Existing customer ID (for customerType='existing')
+        customerId,
+        // New customer data (for customerType='new')
+        newCustomerData,
+        // Customer fields for backward compatibility
         customerName,
         customerEmail,
         customerPhone,
@@ -95,16 +128,69 @@ export function setupQuotesRoutes(app) {
       } = req.body;
 
       logger.info('POST /api/quotes - Creating new quote', {
+        customerType: customerType || 'legacy',
         customer: customerName,
         company: customerCompany
       });
 
-      // Validate required fields
-      if (!customerName || !customerEmail) {
-        return res.status(400).json({ 
-          error: 'Missing required fields', 
-          details: ['customerName and customerEmail are required'] 
-        });
+      let resolvedCustomerId = customerId;
+      let resolvedCustomerName = customerName;
+      let resolvedCustomerEmail = customerEmail;
+      let resolvedCustomerPhone = customerPhone;
+      let resolvedCustomerCompany = customerCompany;
+      let resolvedCustomerAddress = customerAddress;
+      let isCustomer = false;
+
+      // Handle customer type based on new flow
+      if (customerType === 'existing' && customerId) {
+        // Using existing customer - fetch their data
+        const customer = await customerService.getCustomerById(customerId);
+        if (!customer) {
+          return res.status(400).json({
+            error: 'Customer not found',
+            details: ['Selected customer does not exist']
+          });
+        }
+        resolvedCustomerName = customer.name;
+        resolvedCustomerEmail = customer.email || '';
+        resolvedCustomerPhone = customer.phone || '';
+        resolvedCustomerCompany = customer.company || '';
+        resolvedCustomerAddress = customer.address || '';
+        isCustomer = true;
+        logger.info('Using existing customer', { customerId, customerName: customer.name });
+
+      } else if (customerType === 'new' && newCustomerData) {
+        // Creating new customer first
+        if (!newCustomerData.name) {
+          return res.status(400).json({
+            error: 'Missing required field',
+            details: ['Customer name is required for new customer']
+          });
+        }
+        const newCustomer = await customerService.createCustomer(newCustomerData);
+        resolvedCustomerId = newCustomer.id;
+        resolvedCustomerName = newCustomer.name;
+        resolvedCustomerEmail = newCustomer.email || '';
+        resolvedCustomerPhone = newCustomer.phone || '';
+        resolvedCustomerCompany = newCustomer.company || '';
+        resolvedCustomerAddress = newCustomer.address || '';
+        isCustomer = true;
+        logger.info('Created new customer', { customerId: newCustomer.id, customerName: newCustomer.name });
+
+      } else if (customerType === 'without') {
+        // Quote without customer record
+        resolvedCustomerId = null;
+        isCustomer = false;
+        logger.info('Creating quote without customer record');
+
+      } else {
+        // Legacy flow - validate required fields
+        if (!customerName || !customerEmail) {
+          return res.status(400).json({ 
+            error: 'Missing required fields', 
+            details: ['customerName and customerEmail are required'] 
+          });
+        }
       }
 
       // Get active form template if not specified
@@ -145,23 +231,25 @@ export function setupQuotesRoutes(app) {
 
       // Create quote
       const quote = await quoteService.createQuote({
-        customerName,
-        customerEmail,
-        customerPhone,
-        customerCompany,
-        customerAddress,
+        customerName: resolvedCustomerName,
+        customerEmail: resolvedCustomerEmail,
+        customerPhone: resolvedCustomerPhone,
+        customerCompany: resolvedCustomerCompany,
+        customerAddress: resolvedCustomerAddress,
         deliveryDate: parsedDeliveryDate,
         formTemplateId: templateId,
         priceFormulaId: formulaId,
         notes,
         formData,
-        isCustomer: req.body.isCustomer || false,
-        customerId: req.body.customerId || null,
+        isCustomer,
+        customerId: resolvedCustomerId,
         createdBy: req.user?.email || 'system'
       });
 
       logger.success('Quote created successfully', {
         quoteId: quote.id,
+        customerId: resolvedCustomerId,
+        customerType: customerType || 'legacy',
         calculatedPrice: quote.calculatedPrice
       });
 
@@ -177,6 +265,16 @@ export function setupQuotesRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`PATCH /api/quotes/${id} - Updating quote`);
+
+      // Check if quote can be edited (edit lock)
+      const canEdit = await Quotes.canEdit(id);
+      if (!canEdit) {
+        logger.warning(`Quote ${id} is locked - production has started`);
+        return res.status(403).json({ 
+          error: 'Quote is locked',
+          details: ['This quote cannot be edited because production has already started']
+        });
+      }
 
       // Parse delivery date if provided
       let deliveryDate = req.body.deliveryDate;

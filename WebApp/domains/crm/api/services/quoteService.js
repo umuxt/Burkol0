@@ -6,6 +6,7 @@
 import Quotes from '../../../../db/models/quotes.js';
 import FormTemplates from '../../../../db/models/formTemplates.js';
 import PriceFormulas from '../../../../db/models/priceFormulas.js';
+import Customers from '../../../../db/models/customers.js';
 
 /**
  * Get all quotes with optional filters
@@ -50,6 +51,43 @@ export async function createQuote(data) {
   };
 
   return Quotes.create(quoteData);
+}
+
+/**
+ * Create quote with new customer in a single operation
+ * @param {Object} quoteData - Quote data
+ * @param {Object} customerData - New customer data to create
+ * @returns {Object} Created quote with customer reference
+ */
+export async function createQuoteWithCustomer(quoteData, customerData) {
+  // First create the customer
+  const customer = await Customers.create(customerData);
+  
+  // Then create the quote with customer reference
+  const quote = await createQuote({
+    ...quoteData,
+    customerName: customer.name,
+    customerEmail: customer.email || '',
+    customerPhone: customer.phone || '',
+    customerCompany: customer.company || '',
+    customerAddress: customer.address || '',
+    isCustomer: true,
+    customerId: customer.id
+  });
+
+  return {
+    quote,
+    customer
+  };
+}
+
+/**
+ * Get quote edit status - check if quote can be edited
+ * @param {number} quoteId - Quote ID
+ * @returns {Object} Edit status with canEdit flag and details
+ */
+export async function getQuoteEditStatus(quoteId) {
+  return Quotes.getEditStatus(quoteId);
 }
 
 /**
