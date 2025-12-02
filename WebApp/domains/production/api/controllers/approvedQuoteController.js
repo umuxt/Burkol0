@@ -51,3 +51,31 @@ export const updateProductionState = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get work order details with full quote and customer data
+ * GET /api/mes/approved-quotes/:workOrderCode
+ */
+export const getWorkOrderDetails = async (req, res) => {
+  try {
+    const { workOrderCode } = req.params;
+    
+    if (!workOrderCode) {
+      return res.status(400).json({ error: 'workOrderCode is required' });
+    }
+
+    const details = await approvedQuoteService.getWorkOrderDetails(workOrderCode);
+    
+    if (!details) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    res.json(details);
+  } catch (error) {
+    console.error('❌ Error fetching work order details:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch work order details',
+      details: error.message 
+    });
+  }
+};

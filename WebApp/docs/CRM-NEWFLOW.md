@@ -1064,22 +1064,80 @@ static async launchProduction(workOrderCode) {
    - `getWorkOrderDetails()` fonksiyonunu güncelle
    - Quote ve Customer'ı join ile veya separate fetch ile getir
    - Simplified WO data'dan full data reconstruct
+   - Form field label'larını fieldCode yerine fieldName olarak göster
 
 2. **Frontend güncelle**: `domains/production/js/approvedQuotes.js`
    - `showApprovedQuoteDetail()` fonksiyonunu güncelle
    - Yeni API response format'ına adapte et
-   - Customer bilgilerini doğru göster
+   - Customer bilgilerini doğru göster (sadece üretimle ilgili olanlar)
    - Form data'yı doğru göster
 
 3. **Views güncelle**: `domains/production/js/views.js`
    - WO detail template'ini güncelle (gerekirse)
 
 **Test Kriterleri**:
-- [ ] WO detay açıldığında customer bilgileri doğru görünüyor
-- [ ] WO detay açıldığında form data doğru görünüyor
-- [ ] Müşterisiz quote'larda inline bilgiler gösteriliyor
-- [ ] Fiyat bilgisi doğru gösteriliyor
-- [ ] Teslim tarihi doğru gösteriliyor
+- [x] WO detay açıldığında customer bilgileri doğru görünüyor ✅ (3 Aralık 2025)
+- [x] WO detay açıldığında form data doğru görünüyor ✅ (formData bölümü eklendi)
+- [x] Müşterisiz quote'larda inline bilgiler gösteriliyor ✅ (fallback to quote fields)
+- [x] Fiyat bilgisi doğru gösteriliyor ✅ (priceFormatted)
+- [x] Teslim tarihi doğru gösteriliyor ✅ (formatDate)
+- [x] Form field'ları kod yerine label ile gösteriliyor ✅ (fieldCode → fieldName mapping)
+- [x] Fatura bilgileri üretim ekranında görünmüyor ✅ (satış departmanı için)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/production/api/services/approvedQuoteService.js` - getWorkOrderDetails() fonksiyonu eklendi ✅
+- `domains/production/api/controllers/approvedQuoteController.js` - GET /:workOrderCode endpoint eklendi ✅
+- `domains/production/api/routes.js` - GET /approved-quotes/:workOrderCode endpoint tanımlandı ✅
+- `domains/production/js/approvedQuotes.js` - showApprovedQuoteDetail() yeni API'ye adapte edildi ✅
+
+**Özellikler**:
+- Dinamik data fetch: WO detayları artık snapshot yerine API'den gerçek zamanlı çekiliyor
+- Form field label mapping: Backend'de form_fields tablosundan fieldCode → fieldName çevrimi yapılıyor
+- Sadeleştirilmiş müşteri bilgileri (üretim için):
+  - ✅ Gösterilen: Firma, Yetkili, Telefon, Adres (şehir, ülke)
+  - ❌ Kaldırılan: email, website, fax, postalCode, contactTitle
+- Fatura bilgileri kaldırıldı (üretim ekranı için gereksiz):
+  - ❌ Kaldırılan: taxNumber, taxOffice, iban, bankName
+- Fallback mekanizması: API başarısız olursa cache'den veri gösteriliyor
+
+**Değişiklik Detayları**:
+
+1. **approvedQuoteService.js - getWorkOrderDetails()**:
+   ```javascript
+   // Form field label'larını çözümle
+   const formFields = await db('quotes.form_fields as ff')
+     .join('quotes.form_templates as ft', 'ff.templateId', 'ft.id')
+     .where('ft.isActive', true)
+     .select('ff.fieldCode', 'ff.fieldName');
+   
+   // fieldCode → fieldName mapping
+   Object.entries(quote.formData).forEach(([code, value]) => {
+     const label = fieldLabelMap[code] || code;
+     formDataWithLabels[label] = value;
+   });
+   
+   // Customer: Sadece üretimle ilgili alanlar
+   customer: {
+     id, name, company, contactPerson, contactTitle,
+     phone, email, address, city, country
+     // Excluded: taxNumber, taxOffice, iban, bankName, fax, website, postalCode
+   }
+   ```
+
+2. **approvedQuotes.js - showApprovedQuoteDetail()**:
+   ```javascript
+   // Müşteri bilgileri - sadece üretimle ilgili
+   customerHtml = `
+     ${field('Firma', details.company || customer?.company)}
+     ${field('Yetkili', customer?.contactPerson || details.customerName)}
+     ${field('Telefon', details.phone || customer?.phone)}
+   `
+   // Adres (varsa)
+   if (customer?.address) { ... }
+   
+   // Fatura bilgileri bölümü KALDIRILDI
+   // Form alanları artık label ile gösteriliyor (backend'den geliyor)
+   ```
 
 ---
 

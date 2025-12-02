@@ -85,6 +85,7 @@ router.post('/work-orders/next-id', withAuth, workOrderController.getNextWorkOrd
 
 // APPROVED QUOTES
 router.get('/approved-quotes', withAuth, approvedQuoteController.getApprovedQuotes);
+router.get('/approved-quotes/:workOrderCode', withAuth, approvedQuoteController.getWorkOrderDetails);
 router.post('/approved-quotes/ensure', withAuth, approvedQuoteController.ensureApprovedQuote);
 router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, approvedQuoteController.updateProductionState);
 

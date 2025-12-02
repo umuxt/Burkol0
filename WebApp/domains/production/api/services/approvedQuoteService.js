@@ -110,6 +110,114 @@ export const ensureApprovedQuote = async (quoteId) => {
   };
 };
 
+/**
+ * Get work order details with full quote and customer data
+ * Uses the new simplified data model - fetches related data on demand
+ * Note: Only returns production-relevant customer info (not finance/billing)
+ */
+export const getWorkOrderDetails = async (workOrderCode) => {
+  if (!workOrderCode) {
+    throw new Error('workOrderCode_required');
+  }
+
+  // Use the model method that handles joins
+  const details = await WorkOrders.getWithQuoteAndCustomer(workOrderCode);
+  
+  if (!details) {
+    return null;
+  }
+
+  const { workOrder, quote, customer } = details;
+
+  // Format delivery date
+  let deliveryDate = quote?.deliveryDate;
+  if (deliveryDate && !(deliveryDate instanceof Date)) {
+    try {
+      deliveryDate = new Date(deliveryDate).toISOString();
+    } catch (e) {
+      deliveryDate = null;
+    }
+  } else if (deliveryDate instanceof Date) {
+    deliveryDate = deliveryDate.toISOString();
+  }
+
+  // Get form field labels from active template
+  let formDataWithLabels = {};
+  if (quote?.formData && Object.keys(quote.formData).length > 0) {
+    try {
+      // Fetch form fields to get labels
+      const formFields = await db('quotes.form_fields as ff')
+        .join('quotes.form_templates as ft', 'ff.templateId', 'ft.id')
+        .where('ft.isActive', true)
+        .select('ff.fieldCode', 'ff.fieldName');
+      
+      // Create a map of fieldCode -> fieldName
+      const fieldLabelMap = {};
+      formFields.forEach(f => {
+        fieldLabelMap[f.fieldCode] = f.fieldName;
+      });
+
+      // Transform formData to use labels instead of codes
+      Object.entries(quote.formData).forEach(([code, value]) => {
+        const label = fieldLabelMap[code] || code;
+        formDataWithLabels[label] = value;
+      });
+    } catch (e) {
+      console.error('Failed to fetch form field labels:', e);
+      formDataWithLabels = quote.formData;
+    }
+  }
+
+  return {
+    workOrder: {
+      id: workOrder.id,
+      code: workOrder.code,
+      quoteId: workOrder.quoteId,
+      status: workOrder.status,
+      productionState: workOrder.productionState,
+      productionLaunched: workOrder.productionLaunched,
+      productionLaunchedAt: workOrder.productionLaunchedAt,
+      productionStateUpdatedAt: workOrder.productionStateUpdatedAt,
+      productionStateUpdatedBy: workOrder.productionStateUpdatedBy,
+      createdAt: workOrder.createdAt
+    },
+    quote: quote ? {
+      id: quote.id,
+      status: quote.status,
+      customerId: quote.customerId,
+      customerName: quote.customerName,
+      customerCompany: quote.customerCompany,
+      deliveryDate,
+      finalPrice: quote.finalPrice,
+      calculatedPrice: quote.calculatedPrice,
+      formData: quote.formData,
+      notes: quote.notes,
+      createdAt: quote.createdAt
+    } : null,
+    // Customer info: Only production-relevant fields (no finance/billing info)
+    customer: customer ? {
+      id: customer.id,
+      name: customer.name,
+      company: customer.company,
+      contactPerson: customer.contactPerson,
+      contactTitle: customer.contactTitle,
+      phone: customer.phone,
+      email: customer.email,
+      address: customer.address,
+      city: customer.city,
+      country: customer.country
+      // Excluded: taxNumber, taxOffice, iban, bankName, fax, website, postalCode
+    } : null,
+    // Backward compatibility fields
+    customerName: customer?.name || quote?.customerName,
+    company: customer?.company || quote?.customerCompany,
+    phone: customer?.phone || quote?.customerPhone,
+    price: quote?.finalPrice || quote?.calculatedPrice,
+    deliveryDate,
+    formData: formDataWithLabels
+  };
+};
+
 export const updateProductionState = async (workOrderCode, productionState, user) => {
   if (!workOrderCode) {
     throw new Error('workOrderCode_required');

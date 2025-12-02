@@ -1446,8 +1446,6 @@ function updateAQFilterBadges() {
 
 export async function showApprovedQuoteDetail(id) {
   selectedQuoteId = id
-  // Find by any of identifiers (WO code used as id)
-  const q = quotesState.find(x => x.id === id || x.workOrderCode === id || x.quoteId === id)
   const panel = document.getElementById('approved-quote-detail-panel')
   const content = document.getElementById('approved-quote-detail-content')
   if (!panel || !content) return
@@ -1460,85 +1458,209 @@ export async function showApprovedQuoteDetail(id) {
       <div class="detail-value-wide">${esc(value ?? '-')}</div>
     </div>`
 
-  const files = Array.isArray(q?.uploadedFiles) ? q.uploadedFiles : (Array.isArray(q?.quoteSnapshot?.uploadedFiles) ? q.quoteSnapshot.uploadedFiles : [])
-  const filesHtml = files.length
-    ? `<ul class="file-list">${files.map(f => `<li><a href="${esc(f.url || f.path || '#')}" target="_blank" rel="noopener">${esc(f.name || f.fileName || 'file')}</a></li>`).join('')}</ul>`
-    : '<span class="no-files-text">Dosya yok</span>'
-
-  // Format dates
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return '-';
-      return date.toLocaleDateString('tr-TR', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    } catch (e) {
-      return '-';
-    }
-  };
-
-  const deliveryDateFormatted = formatDate(q?.deliveryDate || q?.quoteSnapshot?.deliveryDate);
-  const createdAtFormatted = q?.createdAt ? new Date(q.createdAt).toLocaleString('tr-TR') : '-';
-
-  // Show initial content with loading state for assignments
+  // Show loading state
   content.innerHTML = `
-    <div class="section-block">
-      <div class="section-title">Temel Bilgiler</div>
-      ${field('WO Kodu', q?.workOrderCode || q?.id)}
-      ${field('Teklif #', q?.quoteId || q?.quoteSnapshot?.id)}
-      ${field('Durum', q?.status)}
-      ${field('Teslim Tarihi', deliveryDateFormatted)}
-      ${field('Toplam Fiyat', (q?.price != null ? `₺${Number(q.price).toFixed(2)}` : '-'))}
-      ${field('Oluşturulma', createdAtFormatted)}
-    </div>
-    <div class="section-block">
-      <div class="section-title">Müşteri</div>
-      ${field('Ad Soyad', q?.customer || q?.name || q?.quoteSnapshot?.name)}
-      ${field('Firma', q?.company)}
-      ${field('E‑posta', q?.email)}
-      ${field('Telefon', q?.phone)}
-    </div>
-    <div class="section-block">
-      <div class="section-title">Teklif İçeriği</div>
-      ${field('Proje', q?.projectName || q?.project || '-')}
-      ${field('Teslim Tarihi', deliveryDateFormatted)}
-      ${field('Açıklama', q?.description || '-')}
-    </div>
-    <div class="section-block">
-      <div class="section-title">Dosyalar</div>
-      ${filesHtml}
-    </div>
-    <div id="assignments-section" class="assignments-section">
-      <div class="section-title">Work Packages</div>
-      <div class="loading-state-center">
-        <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
-      </div>
+    <div class="loading-state-center">
+      <i class="fa-solid fa-spinner fa-spin"></i> Detaylar yükleniyor...
     </div>
   `
 
   // Hide extra columns while details are open
   setTableDetailMode(true)
 
-  // Load enhanced production monitoring UI
-  const assignmentsSection = document.getElementById('assignments-section')
-  if (assignmentsSection) {
-    // Use enhanced monitoring UI with real-time updates
-    const workOrderCode = q?.workOrderCode || q?.id
-    const plan = productionPlansMap[workOrderCode]
+  try {
+    // Fetch full details from new API endpoint
+    const response = await fetch(`${API_BASE}/api/mes/approved-quotes/${encodeURIComponent(id)}`, {
+      headers: withAuth()
+    })
     
-    if (plan) {
-      // Show enhanced monitoring with SSE integration
-      showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
-    } else {
-      // No plan - show basic message
-      assignmentsSection.innerHTML = `
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    
+    const details = await response.json()
+    const { workOrder, quote, customer, formData } = details
+    
+    // Format dates
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('tr-TR', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      } catch (e) {
+        return '-';
+      }
+    };
+
+    const deliveryDateFormatted = formatDate(details.deliveryDate);
+    const createdAtFormatted = workOrder?.createdAt ? new Date(workOrder.createdAt).toLocaleString('tr-TR') : '-';
+
+    // Format price
+    const priceFormatted = details.price != null ? `₺${Number(details.price).toFixed(2)}` : '-';
+
+    // Build customer section - only production-relevant fields
+    let customerHtml = `
+      ${field('Firma', details.company || customer?.company || '-')}
+      ${field('Yetkili', customer?.contactPerson || details.customerName || customer?.name || '-')}
+      ${field('Telefon', details.phone || customer?.phone || '-')}
+    `
+    
+    // Add address if available
+    if (customer?.address) {
+      let addressStr = customer.address
+      if (customer.city) addressStr += `, ${customer.city}`
+      if (customer.country && customer.country !== 'Türkiye') addressStr += ` - ${customer.country}`
+      customerHtml += field('Adres', addressStr)
+    }
+
+    // Build form data section (labels are now resolved by backend)
+    let formDataHtml = ''
+    if (formData && Object.keys(formData).length > 0) {
+      const formFields = Object.entries(formData)
+        .filter(([key, value]) => value != null && value !== '')
+        .map(([key, value]) => field(key, value))
+        .join('')
+      
+      if (formFields) {
+        formDataHtml = `
+          <div class="section-block">
+            <div class="section-title">📋 Teklif Detayları</div>
+            ${formFields}
+          </div>
+        `
+      }
+    }
+
+    // Render full content
+    content.innerHTML = `
+      <div class="section-block">
+        <div class="section-title">📌 Temel Bilgiler</div>
+        ${field('WO Kodu', workOrder?.code || id)}
+        ${field('Teklif #', quote?.id || workOrder?.quoteId)}
+        ${field('Durum', workOrder?.status || '-')}
+        ${field('Üretim Durumu', workOrder?.productionState || '-')}
+        ${field('Teslim Tarihi', deliveryDateFormatted)}
+        ${field('Toplam Fiyat', priceFormatted)}
+        ${field('Oluşturulma', createdAtFormatted)}
+        ${workOrder?.productionLaunched ? field('Üretim Başladı', formatDate(workOrder.productionLaunchedAt)) : ''}
+      </div>
+      <div class="section-block">
+        <div class="section-title">👤 Müşteri</div>
+        ${customerHtml}
+      </div>
+      ${formDataHtml}
+      ${quote?.notes ? `
+        <div class="section-block">
+          <div class="section-title">📝 Notlar</div>
+          <div class="detail-notes">${esc(quote.notes)}</div>
+        </div>
+      ` : ''}
+      <div id="assignments-section" class="assignments-section">
         <div class="section-title">🎯 Üretim İzleme</div>
         <div class="loading-state-center">
-          <i class="fa-solid fa-info-circle"></i> Henüz üretim planı oluşturulmamış
+          <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
+        </div>
+      </div>
+    `
+
+    // Load enhanced production monitoring UI
+    const assignmentsSection = document.getElementById('assignments-section')
+    if (assignmentsSection) {
+      const workOrderCode = workOrder?.code || id
+      const plan = productionPlansMap[workOrderCode]
+      
+      if (plan) {
+        showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
+      } else {
+        assignmentsSection.innerHTML = `
+          <div class="section-title">🎯 Üretim İzleme</div>
+          <div class="loading-state-center">
+            <i class="fa-solid fa-info-circle"></i> Henüz üretim planı oluşturulmamış
+          </div>
+        `
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch work order details:', error)
+    
+    // Fallback to cached data from quotesState
+    const q = quotesState.find(x => x.id === id || x.workOrderCode === id || x.quoteId === id)
+    
+    if (q) {
+      const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        try {
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) return '-';
+          return date.toLocaleDateString('tr-TR', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        } catch (e) {
+          return '-';
+        }
+      };
+
+      const deliveryDateFormatted = formatDate(q?.deliveryDate || q?.quoteSnapshot?.deliveryDate);
+      const createdAtFormatted = q?.createdAt ? new Date(q.createdAt).toLocaleString('tr-TR') : '-';
+
+      content.innerHTML = `
+        <div class="alert-box alert-box-warning">
+          <i class="fa-solid fa-exclamation-triangle"></i> 
+          Detay verisi yüklenemedi. Önbellek verileri gösteriliyor.
+        </div>
+        <div class="section-block">
+          <div class="section-title">Temel Bilgiler</div>
+          ${field('WO Kodu', q?.workOrderCode || q?.id)}
+          ${field('Teklif #', q?.quoteId || q?.quoteSnapshot?.id)}
+          ${field('Durum', q?.status)}
+          ${field('Teslim Tarihi', deliveryDateFormatted)}
+          ${field('Toplam Fiyat', (q?.price != null ? `₺${Number(q.price).toFixed(2)}` : '-'))}
+          ${field('Oluşturulma', createdAtFormatted)}
+        </div>
+        <div class="section-block">
+          <div class="section-title">Müşteri</div>
+          ${field('Ad Soyad', q?.customer || q?.name || q?.quoteSnapshot?.name)}
+          ${field('Firma', q?.company)}
+          ${field('E‑posta', q?.email)}
+          ${field('Telefon', q?.phone)}
+        </div>
+        <div id="assignments-section" class="assignments-section">
+          <div class="section-title">Work Packages</div>
+          <div class="loading-state-center">
+            <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
+          </div>
+        </div>
+      `
+
+      // Still try to load production monitoring
+      const assignmentsSection = document.getElementById('assignments-section')
+      if (assignmentsSection) {
+        const workOrderCode = q?.workOrderCode || q?.id
+        const plan = productionPlansMap[workOrderCode]
+        
+        if (plan) {
+          showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
+        } else {
+          assignmentsSection.innerHTML = `
+            <div class="section-title">🎯 Üretim İzleme</div>
+            <div class="loading-state-center">
+              <i class="fa-solid fa-info-circle"></i> Henüz üretim planı oluşturulmamış
+            </div>
+          `
+        }
+      }
+    } else {
+      content.innerHTML = `
+        <div class="error-text">
+          <i class="fa-solid fa-exclamation-circle"></i> 
+          Detay bilgisi yüklenemedi. Lütfen sayfayı yenileyin.
         </div>
       `
     }
