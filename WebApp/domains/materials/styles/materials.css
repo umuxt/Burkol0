@@ -891,10 +891,6 @@ section.materials-dashboard div.card {
   background: rgb(254, 242, 242);
 }
 
-/* Large screens (Ultra wide) */
-@media (min-width: 1600px) {
-}
-
 .filter-group {
   display: flex;
   flex-direction: column;
@@ -1193,7 +1189,46 @@ section.materials-dashboard div.card {
   max-width: 150px;
 }
 
-.stock-fill.stock-fill.low {
+.stock-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: help;
+}
+
+.stock-bar-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stock-bar {
+  flex: 1;
+  height: 6px;
+  position: relative;
+  min-width: 60px;
+}
+
+.stock-bar-background {
+  width: 100%;
+  height: 100%;
+  background: #e5e7eb;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stock-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.stock-fill.normal {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.stock-fill.low {
   background: linear-gradient(90deg, #ef4444, #f87171);
   animation: pulse-warning 2s infinite;
 }
@@ -1201,6 +1236,15 @@ section.materials-dashboard div.card {
 @keyframes pulse-warning {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.reorder-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f59e0b;
+  z-index: 2;
 }
 
 .reorder-line::before {
@@ -1214,16 +1258,47 @@ section.materials-dashboard div.card {
   border-radius: 1px;
 }
 
-.stock-current.stock-current.low {
+.stock-current {
+  font-weight: 600;
+  font-size: 0.75rem;
+  min-width: 30px;
+  text-align: right;
+}
+
+.stock-current.normal {
+  color: #10b981;
+}
+
+.stock-current.low {
   color: #ef4444;
 }
 
 /* Pasif malzemeler için stock bar stilleri */
-.materials-table tr.inactive .materials-table tr.inactive .materials-table tr.inactive .materials-table tr.inactive .reorder-line::before {
+.materials-table tr.inactive .stock-bar-background {
+  background: #f3f4f6;
+  opacity: 0.6;
+}
+
+.materials-table tr.inactive .stock-fill {
+  background: #d1d5db !important;
+  opacity: 0.5;
+}
+
+.materials-table tr.inactive .reorder-line {
+  background: #9ca3af;
+  opacity: 0.5;
+}
+
+.materials-table tr.inactive .reorder-line::before {
   background: #9ca3af;
 }
 
-.materials-table tr.inactive /* Modal Stilleri */
+.materials-table tr.inactive .stock-current {
+  color: #9ca3af !important;
+  opacity: 0.7;
+}
+
+/* Modal Stilleri */
 .modal-overlay {
   position: fixed;
   inset: 0;
