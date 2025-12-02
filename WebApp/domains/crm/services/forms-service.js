@@ -58,7 +58,7 @@ export const formsService = {
   
   async activateTemplate(id) {
     const response = await fetchWithTimeout(`/api/form-templates/${id}/activate`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: withAuth()
     }, 10000)
     if (!response.ok) throw new Error('activate_template_failed')

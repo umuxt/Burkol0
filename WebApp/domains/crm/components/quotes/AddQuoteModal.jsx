@@ -4,6 +4,7 @@ import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT
 import { showToast } from '../../../../shared/components/MESToast.js'
 import QuoteCustomerStep from './QuoteCustomerStep.jsx'
 import QuoteFormStep from './QuoteFormStep.jsx'
+import QuoteReviewStep from './QuoteReviewStep.jsx'
 import { validateCustomerStep, validateFormStep } from '../../utils/quote-validation.js'
 
 /**
@@ -82,7 +83,7 @@ export default function AddQuoteModal({
   // Validate Step 2 - using validation utility
   function validateStep2() {
     const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
-    const result = validateFormStep(formData, fields)
+    const result = validateFormStep(fields, formData)
     setErrors(result.errors)
     return result.isValid
   }
@@ -175,6 +176,15 @@ export default function AddQuoteModal({
       setProdImgs(prev => prev.filter(f => f.id !== fileId))
     }
   }
+
+  // Handle files change from QuoteReviewStep
+  const handleFilesChange = useCallback((type, files) => {
+    if (type === 'tech') {
+      setTechFiles(files)
+    } else {
+      setProdImgs(files)
+    }
+  }, [])
 
   // Handle submit
   async function handleSubmit() {
@@ -272,160 +282,6 @@ export default function AddQuoteModal({
     )
   }
 
-  // Render Step 3: Review
-  function renderReviewStep() {
-    const { customerType, selectedCustomer, customerData, deliveryDate } = customerStepData
-    const displayCustomer = customerData || selectedCustomer || {}
-    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
-    
-    return (
-      <div className="quote-review-step">
-        {/* Customer Summary */}
-        <div className="review-section">
-          <h4 className="review-section-title">
-            👤 Müşteri Bilgileri
-            <button 
-              type="button" 
-              className="review-edit-btn"
-              onClick={() => setCurrentStep(1)}
-            >
-              Düzenle
-            </button>
-          </h4>
-          <div className="review-grid">
-            <div className="review-item">
-              <span className="review-label">Müşteri Tipi:</span>
-              <span className="review-value">
-                {customerType === 'existing' ? 'Mevcut Müşteri' : 
-                 customerType === 'new' ? 'Yeni Müşteri' : 'Müşterisiz'}
-              </span>
-            </div>
-            <div className="review-item">
-              <span className="review-label">Ad Soyad:</span>
-              <span className="review-value">{displayCustomer.name || '-'}</span>
-            </div>
-            <div className="review-item">
-              <span className="review-label">Şirket:</span>
-              <span className="review-value">{displayCustomer.company || '-'}</span>
-            </div>
-            <div className="review-item">
-              <span className="review-label">E-posta:</span>
-              <span className="review-value">{displayCustomer.email || '-'}</span>
-            </div>
-            <div className="review-item">
-              <span className="review-label">Telefon:</span>
-              <span className="review-value">{displayCustomer.phone || '-'}</span>
-            </div>
-            <div className="review-item">
-              <span className="review-label">Teslim Tarihi:</span>
-              <span className="review-value">{deliveryDate || '-'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Form Data Summary */}
-        <div className="review-section">
-          <h4 className="review-section-title">
-            📝 Form Bilgileri
-            <button 
-              type="button" 
-              className="review-edit-btn"
-              onClick={() => setCurrentStep(2)}
-            >
-              Düzenle
-            </button>
-          </h4>
-          <div className="review-grid">
-            {formFields.map(field => {
-              const value = formData[field.id]
-              if (!value) return null
-              
-              return (
-                <div key={field.id} className="review-item">
-                  <span className="review-label">{field.label || field.id}:</span>
-                  <span className="review-value">
-                    {Array.isArray(value) ? value.join(', ') : value}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Files */}
-        <div className="review-section">
-          <h4 className="review-section-title">📎 Dosyalar</h4>
-          
-          <div className="files-upload-area">
-            <label className="form-label">Teknik Dosyalar</label>
-            <input
-              type="file"
-              multiple
-              accept={ACCEPT_EXT}
-              onChange={(e) => handleFileUpload(e, 'tech')}
-              className="file-input"
-            />
-            {techFiles.length > 0 && (
-              <div className="files-list">
-                {techFiles.map(file => (
-                  <div key={file.id} className="file-item">
-                    <span>{file.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleFileDelete(file.id, 'tech')}
-                      className="file-delete-btn"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="files-upload-area" style={{ marginTop: '16px' }}>
-            <label className="form-label">Ürün Görselleri</label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => handleFileUpload(e, 'product')}
-              className="file-input"
-            />
-            {prodImgs.length > 0 && (
-              <div className="images-grid">
-                {prodImgs.map(img => (
-                  <div key={img.id} className="image-item">
-                    <img src={img.url} alt={img.name} />
-                    <button
-                      type="button"
-                      onClick={() => handleFileDelete(img.id, 'product')}
-                      className="image-delete-btn"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="review-section">
-          <h4 className="review-section-title">📝 Notlar</h4>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Ek notlar..."
-            className="form-textarea"
-            rows={3}
-          />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div 
       className="modal-overlay" 
@@ -470,7 +326,20 @@ export default function AddQuoteModal({
             />
           )}
           
-          {currentStep === 3 && renderReviewStep()}
+          {currentStep === 3 && (
+            <QuoteReviewStep
+              customerStepData={customerStepData}
+              formData={formData}
+              formConfig={formConfig}
+              techFiles={techFiles}
+              prodImgs={prodImgs}
+              notes={notes}
+              onFilesChange={handleFilesChange}
+              onNotesChange={setNotes}
+              onEditStep={setCurrentStep}
+              t={t}
+            />
+          )}
         </div>
 
         {/* Footer Actions */}

@@ -80,8 +80,9 @@ export function setupFormRoutes(app) {
   // Get active template (MUST be before /:id route)
   app.get('/api/form-templates/active', requireAuth, async (req, res) => {
     try {
-      logger.info('GET /api/form-templates/active - Fetching active template');
+      logger.info('GET /api/form-templates/active - Fetching active template with fields');
       
+      // First get the active template
       const template = await FormTemplates.getActive();
       
       if (!template) {
@@ -89,8 +90,29 @@ export function setupFormRoutes(app) {
         return res.status(404).json({ error: 'No active form template found' });
       }
 
-      logger.success(`Active template found: ${template.id}`);
-      res.json(template);
+      // Now get it with fields for full data
+      const templateWithFields = await FormTemplates.getWithFields(template.id);
+      
+      // Format response with formStructure for frontend compatibility
+      const response = {
+        ...templateWithFields,
+        formStructure: {
+          fields: (templateWithFields.fields || []).map(field => ({
+            id: field.fieldCode,
+            label: field.fieldName,
+            type: field.fieldType,
+            required: field.isRequired,
+            placeholder: field.placeholder,
+            helpText: field.helpText,
+            defaultValue: field.defaultValue,
+            options: field.options?.filter(o => o.id !== null).map(o => o.value || o.label) || [],
+            sortOrder: field.sortOrder
+          }))
+        }
+      };
+
+      logger.success(`Active template found: ${template.id} with ${response.formStructure.fields.length} fields`);
+      res.json(response);
     } catch (error) {
       logger.error('Failed to fetch active template', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch active template', message: error.message });

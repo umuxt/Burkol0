@@ -39,11 +39,16 @@ export default function QuoteFormStep({
 
   // Handle field change
   function handleFieldChange(fieldId, value, field) {
-    // Update form data
-    onChange(prev => ({
-      ...prev,
-      [fieldId]: value
-    }))
+    // Create a synthetic event for compatibility with AddQuoteModal's handleInputChange
+    const syntheticEvent = {
+      target: {
+        name: fieldId,
+        value: value
+      }
+    }
+    
+    // Update form data via parent callback
+    onChange(syntheticEvent)
     
     // Clear error for this field if valid
     const validation = validateFieldValue(field, value)
