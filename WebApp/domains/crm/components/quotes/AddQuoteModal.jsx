@@ -234,6 +234,11 @@ export default function AddQuoteModal({
       if (response && (response.id || response.quote?.id || response.success)) {
         showToast('Teklif başarıyla oluşturuldu!', 'success')
         
+        // Eğer yeni müşteri oluşturulduysa, customers listesini yenilemek için event dispatch et
+        if (customerType === 'new') {
+          window.dispatchEvent(new CustomEvent('customerCreated'))
+        }
+        
         if (onSaved) {
           await onSaved()
         }

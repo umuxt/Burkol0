@@ -605,20 +605,14 @@ function App() {
   // Using showToast directly
 
   useEffect(() => {
-    async function checkLogin() {
-      try {
-        const token = localStorage.getItem('bp_admin_token');
-        if (token) {
-          await API.me();
-          setLoggedIn(true);
-        }
-      } catch (e) {
-        localStorage.removeItem('bp_admin_token');
-        setLoggedIn(false);
-      }
-    }
+    // Hibrit yaklaşım: Token varlığı kontrolü (hızlı)
+    // API.me() yerine sadece token varlığını kontrol ediyoruz
+    // Invalid token ilk API çağrısında 401 ile yakalanacak
     if (PAGE === 'admin') {
-      checkLogin();
+      const token = localStorage.getItem('bp_admin_token');
+      if (token) {
+        setLoggedIn(true);
+      }
     }
   }, []);
 

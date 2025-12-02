@@ -23,6 +23,17 @@ function CustomersManager({ t }) {
   // Load customers
   useEffect(() => {
     loadCustomers();
+    
+    // Yeni müşteri oluşturulduğunda listeyi yenile (AddQuoteModal'dan tetiklenir)
+    function handleCustomerCreated() {
+      loadCustomers();
+    }
+    
+    window.addEventListener('customerCreated', handleCustomerCreated);
+    
+    return () => {
+      window.removeEventListener('customerCreated', handleCustomerCreated);
+    };
   }, []);
 
   async function loadCustomers() {
