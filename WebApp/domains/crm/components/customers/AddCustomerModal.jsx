@@ -3,13 +3,28 @@ import customersService from '../../services/customers-service.js';
 
 export default function AddCustomerModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
+    // Temel Bilgiler
     name: '',
+    company: '',
+    // Yetkili Kişi
+    contactPerson: '',
+    contactTitle: '',
+    // İletişim Bilgileri
     email: '',
     phone: '',
-    company: '',
+    fax: '',
+    website: '',
+    // Adres Bilgileri
+    address: '',
+    city: '',
+    country: 'Türkiye',
+    postalCode: '',
+    // Fatura Bilgileri
     taxOffice: '',
     taxNumber: '',
-    address: '',
+    iban: '',
+    bankName: '',
+    // Notlar
     notes: ''
   });
   const [saving, setSaving] = useState(false);
@@ -46,7 +61,7 @@ export default function AddCustomerModal({ onClose, onSaved }) {
     React.createElement('div', {
       className: 'modal-content',
       onClick: (e) => e.stopPropagation(),
-      style: { maxWidth: '600px', width: '90%' }
+      style: { maxWidth: '700px', width: '90%', maxHeight: '90vh', overflow: 'auto' }
     },
       // Header
       React.createElement('div', { className: 'modal-header' },
@@ -62,10 +77,10 @@ export default function AddCustomerModal({ onClose, onSaved }) {
         className: 'modal-body',
         onSubmit: handleSubmit
       },
-        // Basic Info
+        // ===== TEMEL BİLGİLER =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600 } }, 
-            'Temel Bilgiler'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '📋 Temel Bilgiler'
           ),
           
           React.createElement('div', { className: 'form-group' },
@@ -93,10 +108,40 @@ export default function AddCustomerModal({ onClose, onSaved }) {
           )
         ),
 
-        // Contact Info
+        // ===== YETKİLİ KİŞİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600 } }, 
-            'İletişim Bilgileri'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '👤 Yetkili Kişi'
+          ),
+          
+          React.createElement('div', { className: 'form-row' },
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Yetkili Adı'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.contactPerson,
+                onChange: (e) => handleInputChange('contactPerson', e.target.value),
+                className: 'form-control',
+                placeholder: 'İletişim kurulacak kişi'
+              })
+            ),
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Unvan'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.contactTitle,
+                onChange: (e) => handleInputChange('contactTitle', e.target.value),
+                className: 'form-control',
+                placeholder: 'Örn: Satın Alma Müdürü'
+              })
+            )
+          )
+        ),
+
+        // ===== İLETİŞİM BİLGİLERİ =====
+        React.createElement('div', { className: 'form-section' },
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '📞 İletişim Bilgileri'
           ),
           
           React.createElement('div', { className: 'form-row' },
@@ -122,22 +167,94 @@ export default function AddCustomerModal({ onClose, onSaved }) {
             )
           ),
 
+          React.createElement('div', { className: 'form-row' },
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Faks'),
+              React.createElement('input', {
+                type: 'tel',
+                value: form.fax,
+                onChange: (e) => handleInputChange('fax', e.target.value),
+                className: 'form-control',
+                placeholder: '0212 555 55 55'
+              })
+            ),
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Website'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.website,
+                onChange: (e) => handleInputChange('website', e.target.value),
+                className: 'form-control',
+                placeholder: 'www.sirket.com'
+              })
+            )
+          )
+        ),
+
+        // ===== ADRES BİLGİLERİ =====
+        React.createElement('div', { className: 'form-section' },
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '📍 Adres Bilgileri'
+          ),
+
           React.createElement('div', { className: 'form-group' },
             React.createElement('label', null, 'Adres'),
             React.createElement('textarea', {
               value: form.address,
               onChange: (e) => handleInputChange('address', e.target.value),
               className: 'form-control',
-              placeholder: 'Adres bilgisi',
+              placeholder: 'Sokak, Mahalle, Cadde...',
               rows: 2
             })
+          ),
+
+          React.createElement('div', { className: 'form-row' },
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Şehir'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.city,
+                onChange: (e) => handleInputChange('city', e.target.value),
+                className: 'form-control',
+                placeholder: 'İstanbul'
+              })
+            ),
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Posta Kodu'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.postalCode,
+                onChange: (e) => handleInputChange('postalCode', e.target.value),
+                className: 'form-control',
+                placeholder: '34000'
+              })
+            )
+          ),
+
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', null, 'Ülke'),
+            React.createElement('select', {
+              value: form.country,
+              onChange: (e) => handleInputChange('country', e.target.value),
+              className: 'form-control'
+            },
+              React.createElement('option', { value: 'Türkiye' }, 'Türkiye'),
+              React.createElement('option', { value: 'Almanya' }, 'Almanya'),
+              React.createElement('option', { value: 'İngiltere' }, 'İngiltere'),
+              React.createElement('option', { value: 'Fransa' }, 'Fransa'),
+              React.createElement('option', { value: 'Hollanda' }, 'Hollanda'),
+              React.createElement('option', { value: 'İtalya' }, 'İtalya'),
+              React.createElement('option', { value: 'İspanya' }, 'İspanya'),
+              React.createElement('option', { value: 'ABD' }, 'ABD'),
+              React.createElement('option', { value: 'Diğer' }, 'Diğer')
+            )
           )
         ),
 
-        // Tax Info
+        // ===== FATURA BİLGİLERİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600 } }, 
-            'Fatura Bilgileri (Opsiyonel)'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '💰 Fatura Bilgileri'
           ),
           
           React.createElement('div', { className: 'form-row' },
@@ -161,13 +278,36 @@ export default function AddCustomerModal({ onClose, onSaved }) {
                 placeholder: 'Vergi Numarası'
               })
             )
+          ),
+
+          React.createElement('div', { className: 'form-row' },
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'IBAN'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.iban,
+                onChange: (e) => handleInputChange('iban', e.target.value),
+                className: 'form-control',
+                placeholder: 'TR00 0000 0000 0000 0000 0000 00'
+              })
+            ),
+            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
+              React.createElement('label', null, 'Banka Adı'),
+              React.createElement('input', {
+                type: 'text',
+                value: form.bankName,
+                onChange: (e) => handleInputChange('bankName', e.target.value),
+                className: 'form-control',
+                placeholder: 'Banka adı'
+              })
+            )
           )
         ),
 
-        // Notes
+        // ===== NOTLAR =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600 } }, 
-            'Notlar'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
+            '📝 Notlar'
           ),
           
           React.createElement('div', { className: 'form-group' },

@@ -1026,12 +1026,22 @@ static async launchProduction(workOrderCode) {
 3. **customers-table-utils güncelle**: 
    - Yeni alanları table columns'a ekle (opsiyonel, hangileri görünecek karar verilecek)
 
+4. **customers.js model güncelle**: `db/models/customers.js`
+   - `getAll()` metoduna quote count ekle (LEFT JOIN ile)
+   - Liste sayfasında teklif sayısı senkron gösterimi
+
 **Test Kriterleri**:
-- [ ] AddCustomerModal'da tüm yeni alanlar görünüyor
-- [ ] Yeni müşteri kaydı tüm alanlarla çalışıyor
-- [ ] CustomerDetailsPanel'de yeni alanlar görünüyor
-- [ ] Customer edit'te yeni alanlar düzenlenebiliyor
-- [ ] Form grupları mantıklı organize edilmiş
+- [x] AddCustomerModal'da tüm yeni alanlar görünüyor ✅ (3 Aralık 2025)
+- [x] Yeni müşteri kaydı tüm alanlarla çalışıyor ✅
+- [x] CustomerDetailsPanel'de yeni alanlar görünüyor ✅
+- [x] Customer edit'te yeni alanlar düzenlenebiliyor ✅
+- [x] Form grupları mantıklı organize edilmiş ✅ (Temel Bilgiler, Yetkili Kişi, İletişim, Adres, Fatura, Notlar)
+- [x] Customer listesinde quoteCount doğru gösteriliyor ✅ (getAll LEFT JOIN ile)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/customers/AddCustomerModal.jsx` - 9 yeni alan, gruplandırılmış form ✅
+- `domains/crm/components/customers/CustomerDetailsPanel.jsx` - 9 yeni alan, view/edit modları ✅
+- `db/models/customers.js` - getAll() metoduna quoteCount LEFT JOIN eklendi ✅
 
 ---
 

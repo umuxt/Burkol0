@@ -10,27 +10,41 @@ const TABLE = 'quotes.customers';
 
 const Customers = {
   /**
-   * Get all customers
+   * Get all customers with quote count
    */
   async getAll(filters = {}) {
-    let query = db(TABLE).where({ isActive: true });
+    let query = db(TABLE)
+      .select(
+        `${TABLE}.*`,
+        db.raw('COALESCE(quote_counts.count, 0)::integer as "quoteCount"')
+      )
+      .leftJoin(
+        db('quotes.quotes')
+          .select('customerId')
+          .count('* as count')
+          .groupBy('customerId')
+          .as('quote_counts'),
+        `${TABLE}.id`,
+        'quote_counts.customerId'
+      )
+      .where({ [`${TABLE}.isActive`]: true });
 
     // Apply filters
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
       query = query.where(function() {
-        this.where('name', 'ilike', searchTerm)
-          .orWhere('email', 'ilike', searchTerm)
-          .orWhere('phone', 'ilike', searchTerm)
-          .orWhere('company', 'ilike', searchTerm);
+        this.where(`${TABLE}.name`, 'ilike', searchTerm)
+          .orWhere(`${TABLE}.email`, 'ilike', searchTerm)
+          .orWhere(`${TABLE}.phone`, 'ilike', searchTerm)
+          .orWhere(`${TABLE}.company`, 'ilike', searchTerm);
       });
     }
 
     if (filters.company) {
-      query = query.where('company', 'ilike', `%${filters.company}%`);
+      query = query.where(`${TABLE}.company`, 'ilike', `%${filters.company}%`);
     }
 
-    return query.orderBy('createdAt', 'desc');
+    return query.orderBy(`${TABLE}.createdAt`, 'desc');
   },
 
   /**

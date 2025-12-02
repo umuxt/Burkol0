@@ -9,13 +9,28 @@ export default function CustomerDetailsPanel({
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
+    // Temel Bilgiler
     name: '',
+    company: '',
+    // Yetkili Kişi
+    contactPerson: '',
+    contactTitle: '',
+    // İletişim Bilgileri
     email: '',
     phone: '',
-    company: '',
+    fax: '',
+    website: '',
+    // Adres Bilgileri
+    address: '',
+    city: '',
+    country: '',
+    postalCode: '',
+    // Fatura Bilgileri
     taxOffice: '',
     taxNumber: '',
-    address: '',
+    iban: '',
+    bankName: '',
+    // Notlar
     notes: ''
   });
 
@@ -24,12 +39,21 @@ export default function CustomerDetailsPanel({
     if (customer) {
       setForm({
         name: customer.name || '',
+        company: customer.company || '',
+        contactPerson: customer.contactPerson || '',
+        contactTitle: customer.contactTitle || '',
         email: customer.email || '',
         phone: customer.phone || '',
-        company: customer.company || '',
+        fax: customer.fax || '',
+        website: customer.website || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        country: customer.country || '',
+        postalCode: customer.postalCode || '',
         taxOffice: customer.taxOffice || '',
         taxNumber: customer.taxNumber || '',
-        address: customer.address || '',
+        iban: customer.iban || '',
+        bankName: customer.bankName || '',
         notes: customer.notes || ''
       });
       setEditing(false);
@@ -59,12 +83,21 @@ export default function CustomerDetailsPanel({
     // Reset form
     setForm({
       name: customer.name || '',
+      company: customer.company || '',
+      contactPerson: customer.contactPerson || '',
+      contactTitle: customer.contactTitle || '',
       email: customer.email || '',
       phone: customer.phone || '',
-      company: customer.company || '',
+      fax: customer.fax || '',
+      website: customer.website || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      country: customer.country || '',
+      postalCode: customer.postalCode || '',
       taxOffice: customer.taxOffice || '',
       taxNumber: customer.taxNumber || '',
-      address: customer.address || '',
+      iban: customer.iban || '',
+      bankName: customer.bankName || '',
       notes: customer.notes || ''
     });
     setEditing(false);
@@ -207,7 +240,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, 'Temel Bilgiler'),
+          }, '📋 Temel Bilgiler'),
           
           // Name
           React.createElement('div', { 
@@ -266,6 +299,84 @@ export default function CustomerDetailsPanel({
           )
         ),
 
+        // ===== YETKİLİ KİŞİ =====
+        React.createElement('div', { 
+          style: { 
+            marginBottom: '16px', 
+            padding: '12px', 
+            background: 'white', 
+            borderRadius: '6px', 
+            border: '1px solid #e5e7eb' 
+          } 
+        },
+          React.createElement('h3', { 
+            style: { 
+              margin: '0 0 12px', 
+              fontSize: '14px', 
+              fontWeight: 600, 
+              color: '#111827', 
+              borderBottom: '1px solid #e5e7eb', 
+              paddingBottom: '6px' 
+            } 
+          }, '👤 Yetkili Kişi'),
+          
+          // Contact Person
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Yetkili Adı:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.contactPerson,
+                onChange: (e) => handleInputChange('contactPerson', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'İletişim kurulacak kişi'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.contactPerson || '-')
+            )
+          ),
+
+          // Contact Title
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Unvan:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.contactTitle,
+                onChange: (e) => handleInputChange('contactTitle', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'Örn: Satın Alma Müdürü'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.contactTitle || '-')
+            )
+          )
+        ),
+
         // Contact Info Section
         React.createElement('div', { 
           style: { 
@@ -285,7 +396,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, 'İletişim Bilgileri'),
+          }, '📞 İletişim Bilgileri'),
           
           // Email
           React.createElement('div', { 
@@ -343,6 +454,84 @@ export default function CustomerDetailsPanel({
             )
           ),
 
+          // Fax
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Faks:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'tel',
+                value: form.fax,
+                onChange: (e) => handleInputChange('fax', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: '0212 555 55 55'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.fax || '-')
+            )
+          ),
+
+          // Website
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Website:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.website,
+                onChange: (e) => handleInputChange('website', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'www.sirket.com'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.website || '-')
+            )
+          )
+        ),
+
+        // ===== ADRES BİLGİLERİ =====
+        React.createElement('div', { 
+          style: { 
+            marginBottom: '16px', 
+            padding: '12px', 
+            background: 'white', 
+            borderRadius: '6px', 
+            border: '1px solid #e5e7eb' 
+          } 
+        },
+          React.createElement('h3', { 
+            style: { 
+              margin: '0 0 12px', 
+              fontSize: '14px', 
+              fontWeight: 600, 
+              color: '#111827', 
+              borderBottom: '1px solid #e5e7eb', 
+              paddingBottom: '6px' 
+            } 
+          }, '📍 Adres Bilgileri'),
+
           // Address
           React.createElement('div', { 
             className: 'detail-item',
@@ -365,10 +554,103 @@ export default function CustomerDetailsPanel({
                   minHeight: '60px',
                   resize: 'vertical'
                 },
-                placeholder: 'Adres bilgisi'
+                placeholder: 'Sokak, Mahalle, Cadde...'
               })
             ) : (
               React.createElement('span', { style: { fontSize: '12px', color: '#111827', flex: 1 } }, form.address || '-')
+            )
+          ),
+
+          // City
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Şehir:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.city,
+                onChange: (e) => handleInputChange('city', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'İstanbul'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.city || '-')
+            )
+          ),
+
+          // Postal Code
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Posta Kodu:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.postalCode,
+                onChange: (e) => handleInputChange('postalCode', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: '34000'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.postalCode || '-')
+            )
+          ),
+
+          // Country
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Ülke:'),
+            editing ? (
+              React.createElement('select', {
+                value: form.country,
+                onChange: (e) => handleInputChange('country', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                }
+              },
+                React.createElement('option', { value: '' }, 'Seçiniz'),
+                React.createElement('option', { value: 'Türkiye' }, 'Türkiye'),
+                React.createElement('option', { value: 'Almanya' }, 'Almanya'),
+                React.createElement('option', { value: 'İngiltere' }, 'İngiltere'),
+                React.createElement('option', { value: 'Fransa' }, 'Fransa'),
+                React.createElement('option', { value: 'Hollanda' }, 'Hollanda'),
+                React.createElement('option', { value: 'İtalya' }, 'İtalya'),
+                React.createElement('option', { value: 'İspanya' }, 'İspanya'),
+                React.createElement('option', { value: 'ABD' }, 'ABD'),
+                React.createElement('option', { value: 'Diğer' }, 'Diğer')
+              )
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.country || '-')
             )
           )
         ),
@@ -392,7 +674,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, 'Fatura Bilgileri'),
+          }, '💰 Fatura Bilgileri'),
           
           // Tax Office
           React.createElement('div', { 
@@ -448,6 +730,62 @@ export default function CustomerDetailsPanel({
             ) : (
               React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.taxNumber || '-')
             )
+          ),
+
+          // IBAN
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'IBAN:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.iban,
+                onChange: (e) => handleInputChange('iban', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'TR00 0000 0000 0000 0000 0000 00'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.iban || '-')
+            )
+          ),
+
+          // Bank Name
+          React.createElement('div', { 
+            className: 'detail-item',
+            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+          },
+            React.createElement('span', { 
+              className: 'detail-label',
+              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
+            }, 'Banka Adı:'),
+            editing ? (
+              React.createElement('input', {
+                type: 'text',
+                value: form.bankName,
+                onChange: (e) => handleInputChange('bankName', e.target.value),
+                style: { 
+                  flex: 1, 
+                  padding: '6px 8px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: '4px', 
+                  fontSize: '12px' 
+                },
+                placeholder: 'Banka adı'
+              })
+            ) : (
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.bankName || '-')
+            )
           )
         ),
 
@@ -470,7 +808,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, 'Notlar'),
+          }, '📝 Notlar'),
           
           editing ? (
             React.createElement('textarea', {
