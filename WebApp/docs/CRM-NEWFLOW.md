@@ -981,12 +981,18 @@ static async launchProduction(workOrderCode) {
    - `.quote-edit-lock-banner.error` styles
 
 **Test Kriterleri**:
-- [ ] Quote seçilince edit status kontrol ediliyor
-- [ ] WO var ama launch yok → sarı uyarı banner görünüyor
-- [ ] WO launch edilmiş → kırmızı error banner görünüyor, edit disabled
-- [ ] WO yok → banner görünmüyor, edit enabled
-- [ ] Customer section'da yeni alanlar görünüyor
-- [ ] customerId varsa customer'a link çalışıyor
+- [x] Quote seçilince edit status kontrol ediliyor ✅
+- [x] WO var ama launch yok → sarı uyarı banner görünüyor ✅
+- [x] WO launch edilmiş → kırmızı error banner görünüyor, edit disabled ✅
+- [x] WO yok → banner görünmüyor, edit enabled ✅
+- [ ] Customer section'da yeni alanlar görünüyor (PROMPT-7'de)
+- [ ] customerId varsa customer'a link çalışıyor (PROMPT-7'de)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/QuoteEditLockBanner.jsx` - Edit lock banner component ✅
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - Edit status check, banner entegrasyonu ✅
+- `domains/crm/services/quotes-service.js` - getEditStatus metodu eklendi ✅
+- `domains/crm/styles/quotes.css` - Banner CSS stilleri ✅
 
 ---
 

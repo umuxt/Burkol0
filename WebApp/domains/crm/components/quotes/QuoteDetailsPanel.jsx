@@ -5,6 +5,8 @@ import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
 import { statusLabel } from '../../../../shared/i18n.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
+import { quotesService } from '../../services/quotes-service.js'
+import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
 
 export default function QuoteDetailsPanel({ 
   quote,
@@ -31,6 +33,28 @@ export default function QuoteDetailsPanel({
   const [manualNote, setManualNote] = useState(quote?.manualOverride?.note || '')
   const [manualLoading, setManualLoading] = useState(false)
   const [originalData, setOriginalData] = useState(null)
+  
+  // Edit lock state
+  const [editStatus, setEditStatus] = useState(null)
+  const [editStatusLoading, setEditStatusLoading] = useState(false)
+  
+  // Fetch edit status when quote changes
+  useEffect(() => {
+    if (quote?.id) {
+      setEditStatusLoading(true)
+      quotesService.getEditStatus(quote.id)
+        .then(status => {
+          setEditStatus(status)
+        })
+        .catch(err => {
+          console.error('Failed to fetch edit status:', err)
+          setEditStatus({ canEdit: true }) // Default to editable on error
+        })
+        .finally(() => {
+          setEditStatusLoading(false)
+        })
+    }
+  }, [quote?.id])
 
   // Initialize form data when quote changes
   useEffect(() => {
@@ -87,8 +111,16 @@ export default function QuoteDetailsPanel({
   }
 
   const handleUnlock = () => {
+    // Check if editing is locked
+    if (editStatus && !editStatus.canEdit) {
+      showToast('Bu teklif düzenlenemez - iş emri üretimde', 'error')
+      return
+    }
     setEditing(true)
   }
+  
+  // Computed: is editing disabled due to WO lock?
+  const isEditLocked = editStatus && !editStatus.canEdit
 
   const handleCancel = () => {
     setEditing(false)
@@ -266,9 +298,31 @@ export default function QuoteDetailsPanel({
   }
 
   const isLocked = manualOverride?.active === true
+  
+  // Handle navigation to work order
+  const handleViewWorkOrder = (woCode) => {
+    // Navigate to production page with work order filter
+    if (woCode) {
+      window.location.href = `/pages/production.html?tab=approved&wo=${woCode}`
+    }
+  }
+  
+  // Handle navigation to customer details
+  const handleViewCustomer = () => {
+    if (quote?.customerId) {
+      // Navigate to customers tab with customer selected
+      window.location.href = `/pages/quote-dashboard.html?tab=customers&id=${quote.customerId}`
+    }
+  }
 
   return (
     <div className="quote-detail-panel">
+      {/* Edit Lock Banner - Show when WO exists */}
+      <QuoteEditLockBanner 
+        editStatus={editStatus} 
+        onViewWorkOrder={handleViewWorkOrder}
+      />
+      
       {/* Header */}
       <div style={{ 
           padding: '16px 20px', 
@@ -295,24 +349,28 @@ export default function QuoteDetailsPanel({
             </button>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
               Teklif Detayları {isLocked && <span style={{ color: '#f59e0b', fontSize: '14px' }}>(Kilitli)</span>}
+              {isEditLocked && <span style={{ color: '#dc2626', fontSize: '14px', marginLeft: '8px' }}>(Düzenleme Kilitli)</span>}
             </h3>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {!editing ? (
               <button
                 onClick={handleUnlock}
+                disabled={isEditLocked}
                 style={{
                   padding: '6px 12px',
                   border: '1px solid #d1d5db',
                   borderRadius: '4px',
-                  background: 'white',
-                  color: '#374151',
-                  cursor: 'pointer',
+                  background: isEditLocked ? '#f3f4f6' : 'white',
+                  color: isEditLocked ? '#9ca3af' : '#374151',
+                  cursor: isEditLocked ? 'not-allowed' : 'pointer',
                   fontSize: '12px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '4px',
+                  opacity: isEditLocked ? 0.6 : 1
                 }}
+                title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Düzenle'}
               >
                 <Edit size={14} /> Düzenle
               </button>
@@ -540,6 +598,206 @@ export default function QuoteDetailsPanel({
                   </div>
                 )
               })}
+            </div>
+
+            {/* Müşteri Bilgileri */}
+            <div style={{ 
+              marginBottom: '16px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                margin: '0 0 12px 0', 
+                borderBottom: '1px solid #e5e7eb', 
+                paddingBottom: '6px' 
+              }}>
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: '#111827'
+                }}>
+                  Müşteri Bilgileri
+                  {quote.customerId && (
+                    <span style={{ 
+                      fontSize: '11px', 
+                      fontWeight: 'normal', 
+                      color: '#6b7280', 
+                      marginLeft: '8px' 
+                    }}>
+                      (Kayıtlı Müşteri)
+                    </span>
+                  )}
+                </h3>
+                {quote.customerId && (
+                  <button
+                    type="button"
+                    onClick={handleViewCustomer}
+                    style={{
+                      padding: '4px 8px',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '4px',
+                      background: 'white',
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    Müşteri Detayı →
+                  </button>
+                )}
+              </div>
+
+              {/* Temel Müşteri Bilgileri */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    Ad Soyad:
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                    {quote.customerName || '—'}
+                  </span>
+                </div>
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    Şirket:
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                    {quote.customerCompany || '—'}
+                  </span>
+                </div>
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    E-posta:
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                    {quote.customerEmail || '—'}
+                  </span>
+                </div>
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    Telefon:
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                    {quote.customerPhone || '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Adres */}
+              {quote.customerAddress && (
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginTop: '8px' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    Adres:
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#111827' }}>
+                    {quote.customerAddress}
+                  </span>
+                </div>
+              )}
+
+              {/* Ek Müşteri Bilgileri (Kayıtlı müşteri varsa) */}
+              {quote.customer && (
+                <>
+                  {/* İletişim Bilgileri */}
+                  {(quote.customer.contactPerson || quote.customer.contactTitle || quote.customer.website || quote.customer.fax) && (
+                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>İletişim</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        {quote.customer.contactPerson && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Yetkili: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.contactPerson}</span>
+                            {quote.customer.contactTitle && <span style={{ color: '#9ca3af' }}> ({quote.customer.contactTitle})</span>}
+                          </div>
+                        )}
+                        {quote.customer.website && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Web: </span>
+                            <a href={quote.customer.website} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>
+                              {quote.customer.website}
+                            </a>
+                          </div>
+                        )}
+                        {quote.customer.fax && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Fax: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.fax}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Finans Bilgileri */}
+                  {(quote.customer.iban || quote.customer.bankName || quote.customer.taxOffice || quote.customer.taxNumber) && (
+                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>Finans</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        {quote.customer.taxOffice && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Vergi Dairesi: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.taxOffice}</span>
+                          </div>
+                        )}
+                        {quote.customer.taxNumber && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Vergi No: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.taxNumber}</span>
+                          </div>
+                        )}
+                        {quote.customer.bankName && (
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#6b7280' }}>Banka: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.bankName}</span>
+                          </div>
+                        )}
+                        {quote.customer.iban && (
+                          <div style={{ fontSize: '12px', gridColumn: 'span 2' }}>
+                            <span style={{ color: '#6b7280' }}>IBAN: </span>
+                            <span style={{ color: '#111827', fontFamily: 'monospace' }}>{quote.customer.iban}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Adres Bilgileri */}
+                  {(quote.customer.city || quote.customer.country || quote.customer.postalCode) && (
+                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>Konum</div>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                        {quote.customer.city && (
+                          <div>
+                            <span style={{ color: '#6b7280' }}>Şehir: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.city}</span>
+                          </div>
+                        )}
+                        {quote.customer.country && (
+                          <div>
+                            <span style={{ color: '#6b7280' }}>Ülke: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.country}</span>
+                          </div>
+                        )}
+                        {quote.customer.postalCode && (
+                          <div>
+                            <span style={{ color: '#6b7280' }}>Posta Kodu: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.postalCode}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Fiyat Bilgileri */}

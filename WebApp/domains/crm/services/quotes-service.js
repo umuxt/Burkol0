@@ -125,5 +125,22 @@ export const quotesService = {
       }
     }
     return response.json()
+  },
+
+  /**
+   * Get edit status for a quote (checks work order lock)
+   * @param {string} id - Quote ID
+   * @returns {Promise<{canEdit: boolean, reason?: string, warning?: string, workOrderCode?: string, productionState?: string}>}
+   */
+  async getEditStatus(id) {
+    const response = await fetchWithTimeout(`/api/quotes/${id}/edit-status`, {
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      // Fallback - allow edit if API fails
+      console.warn('Edit status API failed, defaulting to editable')
+      return { canEdit: true }
+    }
+    return response.json()
   }
 }

@@ -511,7 +511,7 @@ class Quotes {
 
   /**
    * Check if quote can be edited
-   * Returns edit status based on work order state
+   * Returns edit status based on work order and production plan state
    */
   static async canEdit(id) {
     const quote = await this.getById(id);
@@ -531,23 +531,56 @@ class Quotes {
       return { canEdit: true, warning: 'wo_not_found', workOrderCode: quote.workOrderCode };
     }
 
-    // Production launched = locked
-    if (wo.productionLaunched) {
-      return { 
-        canEdit: false, 
-        reason: 'wo_launched', 
-        workOrderCode: wo.code,
-        productionState: wo.productionState,
-        launchedAt: wo.productionLaunchedAt
-      };
+    // Check if there's a production plan for this work order
+    const plan = await db('mes.production_plans')
+      .where('workOrderCode', quote.workOrderCode)
+      .first();
+
+    if (plan) {
+      // Check if plan is launched (active or completed)
+      if (plan.status === 'active' || plan.status === 'completed') {
+        // Check worker_assignments to determine actual production status
+        // Worker assignments represent the actual work packages being executed
+        const assignments = await db('mes.worker_assignments')
+          .where('planId', plan.id)
+          .select('status');
+        
+        const totalAssignments = assignments.length;
+        const completedAssignments = assignments.filter(a => a.status === 'completed').length;
+        const allCompleted = totalAssignments > 0 && completedAssignments === totalAssignments;
+        
+        if (allCompleted) {
+          // All work packages completed
+          return {
+            canEdit: false,
+            reason: 'production_completed',
+            workOrderCode: wo.code,
+            productionState: 'Tamamlandı',
+            planId: plan.id,
+            completedNodes: completedAssignments,
+            totalNodes: totalAssignments
+          };
+        } else {
+          // Production in progress (plan launched but not all assignments completed)
+          return {
+            canEdit: false,
+            reason: 'production_in_progress',
+            workOrderCode: wo.code,
+            productionState: 'Üretiliyor',
+            planId: plan.id,
+            completedNodes: completedAssignments,
+            totalNodes: totalAssignments
+          };
+        }
+      }
     }
 
-    // WO exists but not launched - allow edit with warning
+    // WO exists but plan not launched - allow edit with warning
     return { 
       canEdit: true, 
       warning: 'wo_exists', 
       workOrderCode: wo.code,
-      productionState: wo.productionState
+      productionState: wo.productionState || 'pending'
     };
   }
 
