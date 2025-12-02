@@ -884,13 +884,20 @@ static async launchProduction(workOrderCode) {
    - Field-level validation helpers
 
 **Test Kriterleri**:
-- [ ] Step 2'de aktif form template'in alanları görünüyor
-- [ ] Form alanları doğru tipte render ediliyor (text, select, number, etc.)
-- [ ] Zorunlu alanlar işaretli görünüyor
-- [ ] Boş zorunlu alan varsa validation error görünüyor
-- [ ] Form verisi state'e doğru kaydediliyor
-- [ ] "Sonraki" butonu validation geçerse Step 3'e geçiyor
-- [ ] "Geri" butonu Step 1'e dönüyor (veriler korunuyor)
+- [x] Step 2'de aktif form template'in alanları görünüyor ✅
+- [x] Form alanları doğru tipte render ediliyor (text, select, number, etc.) ✅
+- [x] Zorunlu alanlar işaretli görünüyor ✅
+- [x] Boş zorunlu alan varsa validation error görünüyor ✅
+- [x] Form verisi state'e doğru kaydediliyor ✅
+- [x] "Sonraki" butonu validation geçerse Step 3'e geçiyor ✅
+- [x] "Geri" butonu Step 1'e dönüyor (veriler korunuyor) ✅
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/utils/quote-validation.js` - Centralized validation utilities ✅
+- `domains/crm/components/quotes/QuoteFormStep.jsx` - Step 2 form component ✅
+- `domains/crm/components/quotes/AddQuoteModal.jsx` - QuoteFormStep entegrasyonu ✅
+
+**Not**: DynamicFormRenderer yerine QuoteFormStep içinde inline renderField kullanıldı - step yapısına özel optimizasyon için bilinçli tercih.
 
 ---
 

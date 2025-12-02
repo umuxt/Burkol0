@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import quotesApi from '../../../../shared/lib/api.js'
 import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES } from '../../../../shared/lib/utils.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 import QuoteCustomerStep from './QuoteCustomerStep.jsx'
+import QuoteFormStep from './QuoteFormStep.jsx'
+import { validateCustomerStep, validateFormStep } from '../../utils/quote-validation.js'
 
 /**
  * AddQuoteModal - Step-based quote creation modal
@@ -70,40 +72,19 @@ export default function AddQuoteModal({
     setFormData(initialForm)
   }, [formConfig])
 
-  // Validate Step 1
+  // Validate Step 1 - using validation utility
   function validateStep1() {
-    const newErrors = {}
-    
-    if (customerStepData.customerType === 'existing') {
-      if (!customerStepData.selectedCustomer) {
-        newErrors.selectedCustomer = 'Lütfen bir müşteri seçin'
-      }
-    } else {
-      // new or without - name is required
-      if (!customerStepData.customerData?.name?.trim()) {
-        newErrors.name = 'Müşteri adı zorunludur'
-      }
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    const result = validateCustomerStep(customerStepData)
+    setErrors(result.errors)
+    return result.isValid
   }
 
-  // Validate Step 2
+  // Validate Step 2 - using validation utility
   function validateStep2() {
     const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
-    const requiredFields = fields.filter(f => f.required)
-    const newErrors = {}
-    
-    for (const field of requiredFields) {
-      const value = formData[field.id]
-      if (!value || (typeof value === 'string' && value.trim() === '')) {
-        newErrors[field.id] = `${field.label || field.id} alanı zorunludur`
-      }
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    const result = validateFormStep(formData, fields)
+    setErrors(result.errors)
+    return result.isValid
   }
 
   // Handle next step
@@ -127,15 +108,18 @@ export default function AddQuoteModal({
     }
   }
 
-  // Handle form field change
-  function handleInputChange(e) {
+  // Handle form field change (memoized for QuoteFormStep)
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
     // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }))
-    }
-  }
+    setErrors(prev => {
+      if (prev[name]) {
+        return { ...prev, [name]: null }
+      }
+      return prev
+    })
+  }, [])
 
   // Handle file upload
   async function handleFileUpload(e, type = 'tech') {
@@ -284,82 +268,6 @@ export default function AddQuoteModal({
             )}
           </React.Fragment>
         ))}
-      </div>
-    )
-  }
-
-  // Render Step 2: Form fields
-  function renderFormStep() {
-    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
-    
-    return (
-      <div className="quote-form-step">
-        <div className="form-fields-grid">
-          {formFields.map(field => {
-            const label = field.label || field.id
-            const value = formData[field.id] || ''
-            const isRequired = field.required
-            const hasError = errors[field.id]
-
-            return (
-              <div key={field.id} className={`form-group ${field.type === 'textarea' ? 'full-width' : ''}`}>
-                <label className="form-label">
-                  {label} {isRequired && <span className="required">*</span>}
-                </label>
-                
-                {field.type === 'textarea' ? (
-                  <textarea
-                    name={field.id}
-                    value={value}
-                    onChange={handleInputChange}
-                    placeholder={field.placeholder}
-                    className={`form-textarea ${hasError ? 'error' : ''}`}
-                    rows={3}
-                  />
-                ) : field.type === 'radio' && field.options ? (
-                  <div className="radio-group">
-                    {field.options.map(option => (
-                      <label key={option} className="radio-option">
-                        <input
-                          type="radio"
-                          name={field.id}
-                          value={option}
-                          checked={value === option}
-                          onChange={handleInputChange}
-                        />
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : field.type === 'select' && field.options ? (
-                  <select
-                    name={field.id}
-                    value={value}
-                    onChange={handleInputChange}
-                    className={`form-select ${hasError ? 'error' : ''}`}
-                  >
-                    <option value="">Seçiniz...</option>
-                    {field.options.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-                    name={field.id}
-                    value={value}
-                    onChange={handleInputChange}
-                    placeholder={field.placeholder}
-                    step={field.type === 'number' ? 'any' : undefined}
-                    className={`form-input ${hasError ? 'error' : ''}`}
-                  />
-                )}
-                
-                {hasError && <span className="field-error">{hasError}</span>}
-              </div>
-            )
-          })}
-        </div>
       </div>
     )
   }
@@ -552,7 +460,15 @@ export default function AddQuoteModal({
             />
           )}
           
-          {currentStep === 2 && renderFormStep()}
+          {currentStep === 2 && (
+            <QuoteFormStep
+              formConfig={formConfig}
+              formData={formData}
+              onChange={handleInputChange}
+              errors={errors}
+              t={t}
+            />
+          )}
           
           {currentStep === 3 && renderReviewStep()}
         </div>
