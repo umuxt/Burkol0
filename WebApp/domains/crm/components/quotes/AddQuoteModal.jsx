@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react'
 import quotesApi from '../../../../shared/lib/api.js'
 import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES } from '../../../../shared/lib/utils.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
+import QuoteCustomerStep from './QuoteCustomerStep.jsx'
 
+/**
+ * AddQuoteModal - Step-based quote creation modal
+ * 
+ * Steps:
+ * 1. Customer Selection (existing/new/without)
+ * 2. Form Data (dynamic form fields)
+ * 3. Review & Submit
+ */
 export default function AddQuoteModal({ 
   onClose, 
   onSaved, 
@@ -11,12 +20,41 @@ export default function AddQuoteModal({
   globalProcessing,
   setGlobalProcessing
 }) {
-  const [form, setForm] = useState({})
+  // Current step (1, 2, 3)
+  const [currentStep, setCurrentStep] = useState(1)
+  
+  // Step 1: Customer data
+  const [customerStepData, setCustomerStepData] = useState({
+    customerType: 'existing',
+    selectedCustomer: null,
+    customerData: null,
+    deliveryDate: ''
+  })
+  
+  // Step 2: Form data
+  const [formData, setFormData] = useState({})
+  
+  // Step 3: Files
   const [techFiles, setTechFiles] = useState([])
   const [prodImgs, setProdImgs] = useState([])
+  
+  // Notes (shown in step 3)
+  const [notes, setNotes] = useState('')
+  
+  // Validation errors
+  const [errors, setErrors] = useState({})
+  
+  // Saving state
   const [saving, setSaving] = useState(false)
 
-  // Initialize form with default values
+  // Steps configuration
+  const steps = [
+    { number: 1, label: 'Müşteri', icon: '👤' },
+    { number: 2, label: 'Form Bilgileri', icon: '📝' },
+    { number: 3, label: 'Önizleme', icon: '✅' }
+  ]
+
+  // Initialize form with default values when formConfig loads
   useEffect(() => {
     const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
     const initialForm = {}
@@ -29,15 +67,78 @@ export default function AddQuoteModal({
       }
     })
     
-    setForm(initialForm)
+    setFormData(initialForm)
   }, [formConfig])
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+  // Validate Step 1
+  function validateStep1() {
+    const newErrors = {}
+    
+    if (customerStepData.customerType === 'existing') {
+      if (!customerStepData.selectedCustomer) {
+        newErrors.selectedCustomer = 'Lütfen bir müşteri seçin'
+      }
+    } else {
+      // new or without - name is required
+      if (!customerStepData.customerData?.name?.trim()) {
+        newErrors.name = 'Müşteri adı zorunludur'
+      }
+    }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
-  const handleFileUpload = async (e, type = 'tech') => {
+  // Validate Step 2
+  function validateStep2() {
+    const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    const requiredFields = fields.filter(f => f.required)
+    const newErrors = {}
+    
+    for (const field of requiredFields) {
+      const value = formData[field.id]
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        newErrors[field.id] = `${field.label || field.id} alanı zorunludur`
+      }
+    }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  // Handle next step
+  function handleNext() {
+    if (currentStep === 1) {
+      if (validateStep1()) {
+        setCurrentStep(2)
+      }
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        setCurrentStep(3)
+      }
+    }
+  }
+
+  // Handle back
+  function handleBack() {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+      setErrors({})
+    }
+  }
+
+  // Handle form field change
+  function handleInputChange(e) {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }))
+    }
+  }
+
+  // Handle file upload
+  async function handleFileUpload(e, type = 'tech') {
     const files = Array.from(e.target.files)
     
     if (files.length === 0) return
@@ -82,7 +183,8 @@ export default function AddQuoteModal({
     }
   }
 
-  const handleFileDelete = (fileId, type = 'tech') => {
+  // Handle file delete
+  function handleFileDelete(fileId, type = 'tech') {
     if (type === 'tech') {
       setTechFiles(prev => prev.filter(f => f.id !== fileId))
     } else {
@@ -90,37 +192,52 @@ export default function AddQuoteModal({
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    // Validate required fields
-    const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
-    const requiredFields = fields.filter(f => f.required)
-    
-    for (const field of requiredFields) {
-      if (!form[field.id] || form[field.id].trim() === '') {
-        showToast(`${field.label || field.id} alanı zorunludur`, 'error')
-        return
-      }
-    }
-    
+  // Handle submit
+  async function handleSubmit() {
     try {
       setSaving(true)
       if (setGlobalProcessing) {
         setGlobalProcessing(true)
       }
       
-      const quoteData = {
-        customFields: form,
+      // Build quote data based on customer type
+      const { customerType, selectedCustomer, customerData, deliveryDate } = customerStepData
+      
+      const quotePayload = {
+        // Customer type for new flow
+        customerType,
+        
+        // Existing customer
+        customerId: customerType === 'existing' ? selectedCustomer?.id : null,
+        
+        // New customer data
+        newCustomerData: customerType === 'new' ? customerData : null,
+        
+        // Customer fields for display
+        customerName: customerData?.name || selectedCustomer?.name || '',
+        customerEmail: customerData?.email || selectedCustomer?.email || '',
+        customerPhone: customerData?.phone || selectedCustomer?.phone || '',
+        customerCompany: customerData?.company || selectedCustomer?.company || '',
+        customerAddress: customerData?.address || selectedCustomer?.address || '',
+        
+        // Form data
+        formData,
+        
+        // Files
         files: techFiles,
         productImages: prodImgs,
-        status: 'new',
-        createdAt: new Date().toISOString()
+        
+        // Other
+        deliveryDate: deliveryDate || null,
+        notes,
+        status: 'new'
       }
       
-      const response = await quotesApi.create(quoteData)
+      console.log('🔧 Creating quote with payload:', quotePayload)
       
-      if (response && response.id) {
+      const response = await quotesApi.addQuote(quotePayload)
+      
+      if (response && (response.id || response.quote?.id || response.success)) {
         showToast('Teklif başarıyla oluşturuldu!', 'success')
         
         if (onSaved) {
@@ -129,7 +246,7 @@ export default function AddQuoteModal({
         
         onClose()
       } else {
-        throw new Error('Teklif oluşturulamadı')
+        throw new Error(response?.error || 'Teklif oluşturulamadı')
       }
     } catch (error) {
       console.error('Create quote error:', error)
@@ -142,274 +259,213 @@ export default function AddQuoteModal({
     }
   }
 
-  const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+  // Render step indicator
+  function renderStepIndicator() {
+    return (
+      <div className="quote-step-indicator">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.number}>
+            <div 
+              className={`quote-step-item ${currentStep === step.number ? 'active' : ''} ${currentStep > step.number ? 'completed' : ''}`}
+              onClick={() => {
+                // Allow clicking to go back to completed steps
+                if (step.number < currentStep) {
+                  setCurrentStep(step.number)
+                }
+              }}
+            >
+              <span className="quote-step-number">
+                {currentStep > step.number ? '✓' : step.number}
+              </span>
+              <span className="quote-step-label">{step.label}</span>
+            </div>
+            {index < steps.length - 1 && (
+              <div className={`quote-step-connector ${currentStep > step.number ? 'completed' : ''}`} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    )
+  }
 
-  return (
-    <div 
-      className="modal-overlay" 
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-      }}
-    >
-      <div 
-        className="card detail-modal" 
-        onClick={(e) => e.stopPropagation()}
-        style={{ 
-          width: 'min(600px, 90vw)',
-          maxHeight: '85vh',
-          overflowY: 'auto',
-          position: 'relative',
-          padding: '20px',
-          margin: '20px',
-          background: 'white',
-          borderRadius: '8px'
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px',
-          paddingBottom: '12px',
-          borderBottom: '2px solid #e5e7eb'
-        }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-            Yeni Teklif Oluştur
-          </h2>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            style={{
-              padding: '4px 8px',
-              border: 'none',
-              background: 'transparent',
-              color: '#6b7280',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: '20px'
-            }}
-          >
-            ✕
-          </button>
+  // Render Step 2: Form fields
+  function renderFormStep() {
+    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    
+    return (
+      <div className="quote-form-step">
+        <div className="form-fields-grid">
+          {formFields.map(field => {
+            const label = field.label || field.id
+            const value = formData[field.id] || ''
+            const isRequired = field.required
+            const hasError = errors[field.id]
+
+            return (
+              <div key={field.id} className={`form-group ${field.type === 'textarea' ? 'full-width' : ''}`}>
+                <label className="form-label">
+                  {label} {isRequired && <span className="required">*</span>}
+                </label>
+                
+                {field.type === 'textarea' ? (
+                  <textarea
+                    name={field.id}
+                    value={value}
+                    onChange={handleInputChange}
+                    placeholder={field.placeholder}
+                    className={`form-textarea ${hasError ? 'error' : ''}`}
+                    rows={3}
+                  />
+                ) : field.type === 'radio' && field.options ? (
+                  <div className="radio-group">
+                    {field.options.map(option => (
+                      <label key={option} className="radio-option">
+                        <input
+                          type="radio"
+                          name={field.id}
+                          value={option}
+                          checked={value === option}
+                          onChange={handleInputChange}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : field.type === 'select' && field.options ? (
+                  <select
+                    name={field.id}
+                    value={value}
+                    onChange={handleInputChange}
+                    className={`form-select ${hasError ? 'error' : ''}`}
+                  >
+                    <option value="">Seçiniz...</option>
+                    {field.options.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                    name={field.id}
+                    value={value}
+                    onChange={handleInputChange}
+                    placeholder={field.placeholder}
+                    step={field.type === 'number' ? 'any' : undefined}
+                    className={`form-input ${hasError ? 'error' : ''}`}
+                  />
+                )}
+                
+                {hasError && <span className="field-error">{hasError}</span>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // Render Step 3: Review
+  function renderReviewStep() {
+    const { customerType, selectedCustomer, customerData, deliveryDate } = customerStepData
+    const displayCustomer = customerData || selectedCustomer || {}
+    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    
+    return (
+      <div className="quote-review-step">
+        {/* Customer Summary */}
+        <div className="review-section">
+          <h4 className="review-section-title">
+            👤 Müşteri Bilgileri
+            <button 
+              type="button" 
+              className="review-edit-btn"
+              onClick={() => setCurrentStep(1)}
+            >
+              Düzenle
+            </button>
+          </h4>
+          <div className="review-grid">
+            <div className="review-item">
+              <span className="review-label">Müşteri Tipi:</span>
+              <span className="review-value">
+                {customerType === 'existing' ? 'Mevcut Müşteri' : 
+                 customerType === 'new' ? 'Yeni Müşteri' : 'Müşterisiz'}
+              </span>
+            </div>
+            <div className="review-item">
+              <span className="review-label">Ad Soyad:</span>
+              <span className="review-value">{displayCustomer.name || '-'}</span>
+            </div>
+            <div className="review-item">
+              <span className="review-label">Şirket:</span>
+              <span className="review-value">{displayCustomer.company || '-'}</span>
+            </div>
+            <div className="review-item">
+              <span className="review-label">E-posta:</span>
+              <span className="review-value">{displayCustomer.email || '-'}</span>
+            </div>
+            <div className="review-item">
+              <span className="review-label">Telefon:</span>
+              <span className="review-value">{displayCustomer.phone || '-'}</span>
+            </div>
+            <div className="review-item">
+              <span className="review-label">Teslim Tarihi:</span>
+              <span className="review-value">{deliveryDate || '-'}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}>
+        {/* Form Data Summary */}
+        <div className="review-section">
+          <h4 className="review-section-title">
+            📝 Form Bilgileri
+            <button 
+              type="button" 
+              className="review-edit-btn"
+              onClick={() => setCurrentStep(2)}
+            >
+              Düzenle
+            </button>
+          </h4>
+          <div className="review-grid">
             {formFields.map(field => {
-              const label = field.label || field.id
-              const value = form[field.id] || ''
-              const isRequired = field.required
-
+              const value = formData[field.id]
+              if (!value) return null
+              
               return (
-                <div key={field.id} style={{ marginBottom: '16px' }}>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '13px', 
-                    fontWeight: '600', 
-                    color: '#374151',
-                    marginBottom: '6px'
-                  }}>
-                    {label} {isRequired && <span style={{ color: '#dc2626' }}>*</span>}
-                  </label>
-                  
-                  {field.type === 'textarea' ? (
-                    <textarea
-                      name={field.id}
-                      value={value}
-                      onChange={handleInputChange}
-                      required={isRequired}
-                      placeholder={field.placeholder}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        minHeight: '80px',
-                        resize: 'vertical',
-                        fontFamily: 'inherit'
-                      }}
-                    />
-                  ) : field.type === 'radio' && field.options ? (
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      {field.options.map(option => (
-                        <label key={option} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '6px',
-                          cursor: 'pointer'
-                        }}>
-                          <input
-                            type="radio"
-                            name={field.id}
-                            value={option}
-                            checked={value === option}
-                            onChange={handleInputChange}
-                            required={isRequired}
-                          />
-                          <span style={{ fontSize: '14px' }}>{option}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : field.type === 'select' && field.options ? (
-                    <select
-                      name={field.id}
-                      value={value}
-                      onChange={handleInputChange}
-                      required={isRequired}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        background: 'white'
-                      }}
-                    >
-                      <option value="">Seçiniz...</option>
-                      {field.options.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-                      name={field.id}
-                      value={value}
-                      onChange={handleInputChange}
-                      required={isRequired}
-                      placeholder={field.placeholder}
-                      step={field.type === 'number' ? 'any' : undefined}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '14px'
-                      }}
-                    />
-                  )}
+                <div key={field.id} className="review-item">
+                  <span className="review-label">{field.label || field.id}:</span>
+                  <span className="review-value">
+                    {Array.isArray(value) ? value.join(', ') : value}
+                  </span>
                 </div>
               )
             })}
           </div>
+        </div>
 
-          {/* Teknik Dosyalar */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: '#374151',
-              marginBottom: '6px'
-            }}>
-              Teknik Dosyalar
-            </label>
+        {/* Files */}
+        <div className="review-section">
+          <h4 className="review-section-title">📎 Dosyalar</h4>
+          
+          <div className="files-upload-area">
+            <label className="form-label">Teknik Dosyalar</label>
             <input
               type="file"
               multiple
               accept={ACCEPT_EXT}
               onChange={(e) => handleFileUpload(e, 'tech')}
-              style={{ fontSize: '12px', marginBottom: '8px' }}
+              className="file-input"
             />
             {techFiles.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+              <div className="files-list">
                 {techFiles.map(file => (
-                  <div key={file.id} style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '6px 8px',
-                    background: '#f9fafb',
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}>
+                  <div key={file.id} className="file-item">
                     <span>{file.name}</span>
                     <button
                       type="button"
                       onClick={() => handleFileDelete(file.id, 'tech')}
-                      style={{
-                        padding: '2px 6px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        background: '#dc2626',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: '10px'
-                      }}
-                    >
-                      Sil
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Ürün Görselleri */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: '#374151',
-              marginBottom: '6px'
-            }}>
-              Ürün Görselleri
-            </label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => handleFileUpload(e, 'product')}
-              style={{ fontSize: '12px', marginBottom: '8px' }}
-            />
-            {prodImgs.length > 0 && (
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', 
-                gap: '8px',
-                marginTop: '8px'
-              }}>
-                {prodImgs.map(img => (
-                  <div key={img.id} style={{ position: 'relative' }}>
-                    <img 
-                      src={img.url} 
-                      alt={img.name}
-                      style={{ 
-                        width: '100%', 
-                        height: '80px', 
-                        objectFit: 'cover', 
-                        borderRadius: '4px',
-                        border: '1px solid #e5e7eb'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleFileDelete(img.id, 'product')}
-                      style={{
-                        position: 'absolute',
-                        top: '2px',
-                        right: '2px',
-                        padding: '2px 4px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        background: '#dc2626',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: '10px'
-                      }}
+                      className="file-delete-btn"
                     >
                       ✕
                     </button>
@@ -419,47 +475,133 @@ export default function AddQuoteModal({
             )}
           </div>
 
-          {/* Actions */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '12px', 
-            justifyContent: 'flex-end',
-            paddingTop: '20px',
-            borderTop: '1px solid #e5e7eb'
-          }}>
+          <div className="files-upload-area" style={{ marginTop: '16px' }}>
+            <label className="form-label">Ürün Görselleri</label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => handleFileUpload(e, 'product')}
+              className="file-input"
+            />
+            {prodImgs.length > 0 && (
+              <div className="images-grid">
+                {prodImgs.map(img => (
+                  <div key={img.id} className="image-item">
+                    <img src={img.url} alt={img.name} />
+                    <button
+                      type="button"
+                      onClick={() => handleFileDelete(img.id, 'product')}
+                      className="image-delete-btn"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="review-section">
+          <h4 className="review-section-title">📝 Notlar</h4>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Ek notlar..."
+            className="form-textarea"
+            rows={3}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div 
+      className="modal-overlay" 
+      onClick={onClose}
+    >
+      <div 
+        className="quote-modal-container" 
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="quote-modal-header">
+          <h2>Yeni Teklif Oluştur</h2>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="modal-close-btn"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Step Indicator */}
+        {renderStepIndicator()}
+
+        {/* Step Content */}
+        <div className="quote-modal-content">
+          {currentStep === 1 && (
+            <QuoteCustomerStep
+              data={customerStepData}
+              onChange={setCustomerStepData}
+              errors={errors}
+            />
+          )}
+          
+          {currentStep === 2 && renderFormStep()}
+          
+          {currentStep === 3 && renderReviewStep()}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="quote-modal-footer">
+          <div className="footer-left">
+            {currentStep > 1 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={saving}
+                className="btn-secondary"
+              >
+                ← Geri
+              </button>
+            )}
+          </div>
+          
+          <div className="footer-right">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              style={{
-                padding: '8px 16px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                background: 'white',
-                color: '#374151',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                fontSize: '14px'
-              }}
+              className="btn-cancel"
             >
               İptal
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                background: saving ? '#93c5fd' : '#3b82f6',
-                color: 'white',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              {saving ? 'Kaydediliyor...' : 'Teklif Oluştur'}
-            </button>
+            
+            {currentStep < 3 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="btn-primary"
+              >
+                Sonraki →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="btn-success"
+              >
+                {saving ? 'Kaydediliyor...' : 'Teklif Oluştur'}
+              </button>
+            )}
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )

@@ -781,7 +781,7 @@ static async launchProduction(workOrderCode) {
 
 ### PROMPT-3: Frontend - AddQuoteModal ve Step Yapısı
 
-**Amaç**: Yeni step-based quote oluşturma modal'ını implement etmek
+**Amaç**: Yeni step-based quote oluşturma modal'ını implement etmek ve QuotesManager'a entegre etmek
 
 **Ön Araştırma** (İlk yapılacak adımlar):
 1. `read_file` ile mevcut AddQuoteModal'ı oku: `/WebApp/domains/crm/components/quotes/AddQuoteModal.jsx`
@@ -821,16 +821,32 @@ static async launchProduction(workOrderCode) {
    - `.customer-search-*` styles
    - `.customer-form-*` styles
 
+5. **QuotesManager.js güncelle**: Eski inline modal'ı kaldır, yeni AddQuoteModal'ı entegre et
+   - `AddQuoteModal` import et
+   - Eski `AddRecordModal` inline fonksiyonunu kaldır
+   - `showAddModal` state'i ile yeni modal'ı render et
+   - `handleAddRecord` yerine `onSaved` callback kullan
+
 **Test Kriterleri**:
-- [ ] Modal açılıyor ve 3 step indicator görünüyor
-- [ ] Step 1'de customer type seçenekleri görünüyor
-- [ ] "Mevcut Müşteri" seçince autocomplete input görünüyor
-- [ ] Autocomplete arama yapıldığında sonuçlar dropdown'da görünüyor
-- [ ] Müşteri seçilince form alanları otomatik dolduruluyor (readonly)
-- [ ] "Yeni Müşteri" seçince boş form görünüyor (editable)
-- [ ] "Müşterisiz" seçince boş form görünüyor (editable)
-- [ ] Teslim tarihi seçilebiliyor
-- [ ] "Sonraki" butonu validation geçerse Step 2'ye geçiyor
+- [x] Modal açılıyor ve 3 step indicator görünüyor ✅ (AddQuoteModal.jsx - renderStepIndicator)
+- [x] Step 1'de customer type seçenekleri görünüyor ✅ (QuoteCustomerStep.jsx - customer-type-selector)
+- [x] "Mevcut Müşteri" seçince autocomplete input görünüyor ✅ (CustomerSearchInput.jsx)
+- [x] Autocomplete arama yapıldığında sonuçlar dropdown'da görünüyor ✅ (debounced search, dropdown)
+- [x] Müşteri seçilince form alanları otomatik dolduruluyor (readonly) ✅ (populateFromCustomer, readOnly={isExisting})
+- [x] "Yeni Müşteri" seçince boş form görünüyor (editable) ✅ (customerType='new', editable fields)
+- [x] "Müşterisiz" seçince boş form görünüyor (editable) ✅ (customerType='without', editable fields)
+- [x] Teslim tarihi seçilebiliyor ✅ (deliveryDate field in QuoteCustomerStep)
+- [x] "Sonraki" butonu validation geçerse Step 2'ye geçiyor ✅ (validateStep1, handleNext)
+- [x] QuotesManager'da "Yeni Teklif" butonuna basınca yeni AddQuoteModal açılıyor ✅ (showAddModal state)
+- [x] Eski inline "Yeni Kayıt Ekle" modal'ı kaldırıldı ✅ (AddRecordModal function removed)
+- [x] Build hatasız tamamlanıyor ✅ (vite build successful)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/CustomerSearchInput.jsx` - Debounced autocomplete bileşeni ✅
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx` - Step 1 müşteri seçimi bileşeni ✅
+- `domains/crm/components/quotes/AddQuoteModal.jsx` - 3 step'li ana modal bileşeni ✅
+- `domains/crm/styles/quotes.css` - Step modal ve customer form CSS stilleri ✅
+- `domains/crm/components/quotes/QuotesManager.js` - Eski AddRecordModal kaldırıldı, yeni modal entegre ✅
 
 ---
 
