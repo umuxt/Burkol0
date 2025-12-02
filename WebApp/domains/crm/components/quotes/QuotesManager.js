@@ -15,6 +15,7 @@ import { FilterPopup } from '../../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
 import PricingManager from '../pricing/PricingManager.jsx'
 import FormManager from '../forms/FormManager.jsx'
+import CustomersManager from '../customers/CustomersManager.jsx'
 import { showToast } from '../../../../shared/components/MESToast.js'
 
 const { useState, useEffect, useMemo, useRef } = React;
@@ -1436,7 +1437,12 @@ function QuotesManager({ t, onLogout }) {
     ), // End of quotes-container
     ), // End of Tab 1: Teklifler content
     
-    // Tab 2: Fiyatlandırma
+    // Tab 2: Müşteriler
+    React.createElement(CustomersManager, {
+      t: t
+    }),
+    
+    // Tab 3: Fiyatlandırma
     React.createElement(PricingManager, {
       t: t,
       globalProcessing: globalProcessing,
@@ -1451,7 +1457,7 @@ function QuotesManager({ t, onLogout }) {
       }
     }),
     
-    // Tab 3: Form Yapısı
+    // Tab 4: Form Yapısı
     React.createElement(FormManager, {
       t: t,
       renderHeaderActions: (actions) => {

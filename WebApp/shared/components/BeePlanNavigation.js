@@ -37,9 +37,10 @@ class BeePlanNavigation {
       },
       {
         id: 'quote',
-        label: isEnglish ? 'Quote Management' : 'Teklif Yönetimi',
+        label: isEnglish ? 'CRM' : 'CRM',
         href: './quote-dashboard.html',
-        icon: '<i class="fa-solid fa-clipboard-list"></i>'
+        icon: '<i class="fa-solid fa-users"></i>',
+        description: isEnglish ? 'Customers, Quotes, Pricing, Forms' : 'Müşteriler, Teklifler, Fiyatlandırma, Formlar'
       },
       {
         id: 'production',
@@ -586,7 +587,7 @@ class BeePlanNavigation {
     const langTexts = {
       tr: {
         home: 'Yönetim Paneli',
-        quotes: 'Teklif Yönetimi', 
+        quotes: 'CRM', 
         production: 'Üretim Yönetimi',
         materials: 'Malzeme Yönetimi',
         settings: 'Ayarlar',
@@ -594,7 +595,7 @@ class BeePlanNavigation {
       },
       en: {
         home: 'Admin Panel',
-        quotes: 'Quote Management',
+        quotes: 'CRM',
         production: 'Production Management', 
         materials: 'Material Management',
         settings: 'Settings',

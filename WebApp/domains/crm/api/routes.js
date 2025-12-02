@@ -8,6 +8,7 @@
 import { setupQuotesRoutes } from './controllers/quoteController.js';
 import { setupPriceRoutes } from './controllers/priceController.js';
 import { setupFormRoutes } from './controllers/formController.js';
+import { setupCustomerRoutes } from './controllers/customerController.js';
 
 /**
  * Setup all CRM routes
@@ -17,6 +18,7 @@ export function setupCRMRoutes(app) {
   setupQuotesRoutes(app);
   setupPriceRoutes(app);
   setupFormRoutes(app);
+  setupCustomerRoutes(app);
   
   console.log('✓ CRM routes configured');
 }

@@ -110,7 +110,7 @@ export function setupQuotesRoutes(app) {
       // Get active form template if not specified
       let templateId = formTemplateId;
       if (!templateId) {
-        const activeTemplate = await FormTemplates.getActive();
+        const activeTemplate = await quoteService.getActiveFormTemplate();
         if (!activeTemplate) {
           return res.status(400).json({ 
             error: 'No active form template found',
@@ -123,7 +123,7 @@ export function setupQuotesRoutes(app) {
       // Get active price formula if not specified
       let formulaId = priceFormulaId;
       if (!formulaId) {
-        const activeFormula = await PriceFormulas.getActive();
+        const activeFormula = await quoteService.getActivePriceFormula();
         if (activeFormula) {
           formulaId = activeFormula.id;
         }
@@ -144,7 +144,7 @@ export function setupQuotesRoutes(app) {
       }
 
       // Create quote
-      const quote = await Quotes.create({
+      const quote = await quoteService.createQuote({
         customerName,
         customerEmail,
         customerPhone,
@@ -155,6 +155,8 @@ export function setupQuotesRoutes(app) {
         priceFormulaId: formulaId,
         notes,
         formData,
+        isCustomer: req.body.isCustomer || false,
+        customerId: req.body.customerId || null,
         createdBy: req.user?.email || 'system'
       });
 
@@ -197,10 +199,12 @@ export function setupQuotesRoutes(app) {
         deliveryDate,
         notes: req.body.notes,
         formData: req.body.formData,
+        isCustomer: req.body.isCustomer,
+        customerId: req.body.customerId,
         updatedBy: req.user?.email || 'system'
       };
 
-      const quote = await Quotes.update(id, updates);
+      const quote = await quoteService.updateQuote(id, updates);
 
       if (!quote) {
         logger.warning(`Quote not found: ${id}`);
@@ -232,7 +236,7 @@ export function setupQuotesRoutes(app) {
         });
       }
 
-      const quote = await Quotes.updateStatus(id, status, req.user?.email || 'system');
+      const quote = await quoteService.updateQuoteStatus(id, status, req.user?.email || 'system');
 
       if (!quote) {
         logger.warning(`Quote not found: ${id}`);
@@ -268,7 +272,7 @@ export function setupQuotesRoutes(app) {
         });
       }
 
-      const quote = await Quotes.setManualPrice(
+      const quote = await quoteService.setManualPrice(
         id, 
         parseFloat(manualPrice), 
         reason || 'Manuel fiyat belirlendi',
@@ -301,7 +305,7 @@ export function setupQuotesRoutes(app) {
 
       logger.info(`POST /api/quotes/${id}/files - Adding file: ${fileName}`);
 
-      const file = await Quotes.addFile({
+      const file = await quoteService.addFile({
         quoteId: id,
         fileType,
         fileName,
@@ -331,7 +335,7 @@ export function setupQuotesRoutes(app) {
 
       logger.info(`DELETE /api/quotes/:id/files/${fileId} - Deleting file`);
 
-      const deleted = await Quotes.deleteFile(fileId);
+      const deleted = await quoteService.deleteFile(fileId);
 
       if (!deleted) {
         logger.warning(`File not found: ${fileId}`);
@@ -353,7 +357,7 @@ export function setupQuotesRoutes(app) {
 
       logger.info(`DELETE /api/quotes/${id} - Deleting quote`);
 
-      const deleted = await Quotes.delete(id);
+      const deleted = await quoteService.deleteQuote(id);
 
       if (!deleted) {
         logger.warning(`Quote not found: ${id}`);

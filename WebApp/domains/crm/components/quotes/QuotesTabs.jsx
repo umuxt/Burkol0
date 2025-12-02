@@ -26,6 +26,15 @@ const LayersIcon = (props) => (
   </svg>
 )
 
+const UsersIcon = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+)
+
 export default function QuotesTabs({ children, activeTab, onTabChange, headerActions, headerContent }) {
   // Eğer prop'lar verilmemişse internal state kullan (backward compatibility)
   const [internalActiveTab, setInternalActiveTab] = useState('quotes')
@@ -37,12 +46,14 @@ export default function QuotesTabs({ children, activeTab, onTabChange, headerAct
 
   const tabs = [
     { id: 'quotes', label: 'Teklifler', icon: FileTextIcon },
+    { id: 'customers', label: 'Müşteriler', icon: UsersIcon },
     { id: 'pricing', label: 'Fiyatlandırma', icon: DollarSignIcon },
     { id: 'form', label: 'Form Yapısı', icon: LayersIcon }
   ]
 
   const tabTitles = {
     quotes: 'Teklif Yönetimi',
+    customers: 'Müşteri Yönetimi',
     pricing: 'Fiyatlandırma Ayarları',
     form: 'Form Yapısı Yönetimi'
   }
@@ -88,7 +99,7 @@ export default function QuotesTabs({ children, activeTab, onTabChange, headerAct
       
       <div className="quotes-tab-content">
         {React.Children.map(children, (child, index) => {
-          const tabIds = ['quotes', 'pricing', 'form']
+          const tabIds = ['quotes', 'customers', 'pricing', 'form']
           const tabId = tabIds[index]
           
           return (

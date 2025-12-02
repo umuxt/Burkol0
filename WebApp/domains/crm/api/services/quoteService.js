@@ -43,6 +43,9 @@ export async function createQuote(data) {
     notes: data.notes,
     formData: data.formData,
     deliveryDate: data.deliveryDate,
+    isCustomer: data.isCustomer,
+    customerId: data.customerId,
+    createdBy: data.createdBy,
     status: data.status || 'draft'
   };
 
@@ -66,8 +69,43 @@ export async function deleteQuote(id) {
 /**
  * Update quote status
  */
-export async function updateQuoteStatus(id, status) {
-  return Quotes.updateStatus(id, status);
+export async function updateQuoteStatus(id, status, updatedBy) {
+  return Quotes.updateStatus(id, status, updatedBy);
+}
+
+/**
+ * Set manual price
+ */
+export async function setManualPrice(id, manualPrice, reason, updatedBy) {
+  return Quotes.setManualPrice(id, manualPrice, reason, updatedBy);
+}
+
+/**
+ * Add file to quote
+ */
+export async function addFile(data) {
+  return Quotes.addFile(data);
+}
+
+/**
+ * Delete file from quote
+ */
+export async function deleteFile(fileId) {
+  return Quotes.deleteFile(fileId);
+}
+
+/**
+ * Get active form template
+ */
+export async function getActiveFormTemplate() {
+  return FormTemplates.getActive();
+}
+
+/**
+ * Get active price formula
+ */
+export async function getActivePriceFormula() {
+  return PriceFormulas.getActive();
 }
 
 /**

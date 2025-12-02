@@ -1,0 +1,240 @@
+/* Customers Management - MES Design System */
+
+/* Customers Container */
+.customers-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+  flex: 1;
+}
+
+/* Customers Layout - Table on left, Detail Panel on right */
+.customers-container-layout {
+  display: flex;
+  gap: 12px;
+  height: calc(100vh - 200px);
+  flex-direction: row;
+}
+
+.customers-table-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+/* Customer Detail Panel - Uses quote-detail-panel styles */
+/* No custom styles needed - reusing quote styles for standardization */
+
+/* MES Filter Bar is used from main MES styles */
+
+/* Customers Table Container */
+.customers-table-container {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid rgb(229, 231, 235);
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Customers Table - MES Style (Same as Quotes) */
+.customers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.customers-table th,
+.customers-table td {
+  padding: 2px 8px !important;
+  text-align: left;
+  border-bottom: 1px solid rgb(243, 244, 246);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+  height: 25px !important;
+  line-height: 1.2 !important;
+  vertical-align: middle;
+}
+
+.customers-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  text-transform: none;
+  letter-spacing: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.customers-table td {
+  color: rgb(17, 24, 39);
+  max-width: 0;
+}
+
+.customers-table th:first-child {
+  width: 40px;
+  text-align: center;
+  padding: 2px 4px !important;
+}
+
+.customers-table td:first-child {
+  text-align: center;
+  padding: 2px 4px !important;
+}
+
+/* Table Body */
+.customers-table tbody tr {
+  background-color: #ffffff;
+  transition: background-color 0.1s ease;
+}
+
+.customers-table tbody tr:hover {
+  background: rgb(249, 250, 251);
+}
+
+.customers-table tbody tr.selected {
+  background: rgb(239, 246, 255);
+}
+
+.customers-table tbody tr.selected:hover {
+  background: rgb(219, 234, 254);
+}
+
+/* Customer Name Cell */
+.customer-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+/* Customer Company */
+.customer-company {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* Customer Contact */
+.customer-email,
+.customer-phone {
+  color: rgb(0, 123, 255);
+  font-size: 13px;
+}
+
+/* Quote Count Badge */
+.customer-quote-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Empty State */
+.customers-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.customers-empty-icon {
+  font-size: 3rem;
+  color: #d1d5db;
+  margin-bottom: 1rem;
+}
+
+.customers-empty h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.customers-empty p {
+  margin: 0 0 1.5rem 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.customers-empty .btn-add-customer {
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.customers-empty .btn-add-customer:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading State */
+.customers-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .customers-container-layout {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .customers-table-panel {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .customers-table th,
+  .customers-table td {
+    padding: 2px 6px !important;
+    font-size: 12px;
+  }
+}

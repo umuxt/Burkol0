@@ -27,7 +27,7 @@ class Quotes {
   /**
    * Create a new quote
    */
-  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceFormulaId, notes, formData, createdBy }) {
+  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceFormulaId, notes, formData, createdBy, isCustomer, customerId }) {
     const trx = await db.transaction();
     
     try {
@@ -68,6 +68,8 @@ class Quotes {
           status: 'new',
           notes,
           createdBy: createdBy,
+          isCustomer: isCustomer || false,
+          customerId: customerId || null,
           createdAt: db.fn.now(),
           updatedAt: db.fn.now()
         })
@@ -235,6 +237,8 @@ class Quotes {
       if (updates.deliveryDate !== undefined) updateData.deliveryDate = updates.deliveryDate;
       if (updates.notes !== undefined) updateData.notes = updates.notes;
       if (updates.updatedBy) updateData.updatedBy = updates.updatedBy;
+      if (updates.isCustomer !== undefined) updateData.isCustomer = updates.isCustomer;
+      if (updates.customerId !== undefined) updateData.customerId = updates.customerId;
       
       updateData.updatedAt = db.fn.now();
 
