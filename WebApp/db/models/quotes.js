@@ -508,6 +508,56 @@ class Quotes {
       throw error;
     }
   }
+
+  /**
+   * Check if quote can be edited
+   * Returns edit status based on work order state
+   */
+  static async canEdit(id) {
+    const quote = await this.getById(id);
+    if (!quote) {
+      return { canEdit: false, reason: 'not_found' };
+    }
+
+    // No work order = fully editable
+    if (!quote.workOrderCode) {
+      return { canEdit: true };
+    }
+
+    // Work order exists, check launch status
+    const wo = await WorkOrders.getByCode(quote.workOrderCode);
+    if (!wo) {
+      // WO reference exists but WO not found - allow edit
+      return { canEdit: true, warning: 'wo_not_found', workOrderCode: quote.workOrderCode };
+    }
+
+    // Production launched = locked
+    if (wo.productionLaunched) {
+      return { 
+        canEdit: false, 
+        reason: 'wo_launched', 
+        workOrderCode: wo.code,
+        productionState: wo.productionState,
+        launchedAt: wo.productionLaunchedAt
+      };
+    }
+
+    // WO exists but not launched - allow edit with warning
+    return { 
+      canEdit: true, 
+      warning: 'wo_exists', 
+      workOrderCode: wo.code,
+      productionState: wo.productionState
+    };
+  }
+
+  /**
+   * Get edit status for API response
+   * Alias for canEdit with consistent response structure
+   */
+  static async getEditStatus(id) {
+    return await this.canEdit(id);
+  }
 }
 
 export default Quotes;

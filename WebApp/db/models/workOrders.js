@@ -51,6 +51,7 @@ class WorkOrders {
 
   /**
    * Create work order from approved quote
+   * UPDATED: Simplified data - only stores quoteId and customerId
    */
   static async createFromQuote(quoteId) {
     const code = await this.generateWorkOrderCode();
@@ -63,35 +64,23 @@ class WorkOrders {
       throw new Error(`Quote ${quoteId} not found`);
     }
     
-    // Format delivery date for JSON storage
-    let deliveryDate = null;
-    if (quoteData.delivery_date) {
-      deliveryDate = new Date(quoteData.delivery_date).toISOString();
-    } else if (quoteData.deliveryDate) {
-      deliveryDate = new Date(quoteData.deliveryDate).toISOString();
-    }
-    
     const workOrder = {
       id: code,
       code: code,
       quoteId: quoteId,
       status: 'approved',
       productionState: 'pending',
+      productionLaunched: false,
       productionStateUpdatedAt: db.fn.now(),
       productionStateHistory: JSON.stringify([{
         state: 'pending',
         timestamp: new Date().toISOString(),
         note: 'Work order created from approved quote'
       }]),
+      // SIMPLIFIED DATA: Only store references, fetch details on demand
       data: JSON.stringify({
-        customer: quoteData.customer_name || quoteData.name,
-        company: quoteData.customer_company || quoteData.company,
-        email: quoteData.customer_email || quoteData.email,
-        phone: quoteData.customer_phone || quoteData.phone,
-        deliveryDate,
-        price: quoteData.final_price ?? quoteData.price ?? quoteData.calculatedPrice,
-        formData: quoteData.formData || {},
-        quoteSnapshot: quoteData
+        quoteId: quoteId,
+        customerId: quoteData.customerId || null
       }),
       createdAt: db.fn.now(),
       updatedAt: db.fn.now()
@@ -198,6 +187,79 @@ class WorkOrders {
 
     console.log(`✅ Production state updated: ${code} -> ${newState}`);
     return updated;
+  }
+
+  /**
+   * Launch production for a work order
+   * Sets productionLaunched flag to true - this locks the quote from editing
+   */
+  static async launchProduction(code, launchedBy = null) {
+    const workOrder = await this.getByCode(code);
+    if (!workOrder) {
+      throw new Error(`Work order ${code} not found`);
+    }
+
+    // Update production state and set launched flag
+    const [updated] = await db('mes.work_orders')
+      .where('code', code)
+      .update({
+        productionLaunched: true,
+        productionLaunchedAt: db.fn.now(),
+        productionState: 'Üretiliyor',
+        productionStateUpdatedAt: db.fn.now(),
+        productionStateUpdatedBy: launchedBy,
+        updatedAt: db.fn.now()
+      })
+      .returning('*');
+
+    console.log(`🚀 Production launched for work order: ${code}`);
+    return updated;
+  }
+
+  /**
+   * Check if production has been launched for a quote's work order
+   */
+  static async isProductionLaunched(quoteId) {
+    const workOrder = await this.getByQuoteId(quoteId);
+    return workOrder?.productionLaunched === true;
+  }
+
+  /**
+   * Get work order with full quote and customer data
+   * Fetches related data instead of reading from JSON snapshot
+   */
+  static async getWithQuoteAndCustomer(code) {
+    const workOrder = await this.getByCode(code);
+    if (!workOrder) {
+      return null;
+    }
+
+    // Import models
+    const Quotes = (await import('./quotes.js')).default;
+    const Customers = (await import('./customers.js')).default;
+
+    // Get quote data
+    const quote = await Quotes.getById(workOrder.quoteId);
+
+    // Get customer data if exists
+    let customer = null;
+    if (quote?.customerId) {
+      customer = await Customers.getById(quote.customerId);
+    }
+
+    return {
+      workOrder,
+      quote,
+      customer,
+      // Computed fields for backward compatibility
+      customerName: customer?.name || quote?.customerName,
+      customerCompany: customer?.company || quote?.customerCompany,
+      customerEmail: customer?.email || quote?.customerEmail,
+      customerPhone: customer?.phone || quote?.customerPhone,
+      deliveryDate: quote?.deliveryDate,
+      price: quote?.finalPrice || quote?.calculatedPrice,
+      formData: quote?.formData || {}
+    };
   }
 }
 

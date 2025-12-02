@@ -59,7 +59,17 @@ const Customers = {
       taxOffice,
       taxNumber,
       address,
-      notes
+      notes,
+      // New fields
+      website,
+      fax,
+      iban,
+      bankName,
+      contactPerson,
+      contactTitle,
+      country,
+      city,
+      postalCode
     } = customerData;
 
     const [customer] = await db(TABLE)
@@ -72,6 +82,16 @@ const Customers = {
         taxNumber: taxNumber || null,
         address: address || null,
         notes: notes || null,
+        // New fields
+        website: website || null,
+        fax: fax || null,
+        iban: iban || null,
+        bankName: bankName || null,
+        contactPerson: contactPerson || null,
+        contactTitle: contactTitle || null,
+        country: country || 'Türkiye',
+        city: city || null,
+        postalCode: postalCode || null,
         isActive: true,
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
@@ -94,7 +114,17 @@ const Customers = {
       'taxNumber',
       'address',
       'notes',
-      'isActive'
+      'isActive',
+      // New fields
+      'website',
+      'fax',
+      'iban',
+      'bankName',
+      'contactPerson',
+      'contactTitle',
+      'country',
+      'city',
+      'postalCode'
     ];
 
     const updateData = {};
