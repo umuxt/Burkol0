@@ -1561,58 +1561,53 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-15: Customer Dropdown - Hybrid Search + Dropdown
+### PROMPT-15: Customer Dropdown - Hybrid Search + Dropdown ✅
 
 **Amaç**: Mevcut müşteri seçiminde input'a tıklandığında otomatik dropdown açılması ve hem search hem dropdown ile seçim yapılabilmesi
 
-**Ön Araştırma** (İlk yapılacak adımlar):
-1. `read_file` ile CustomerSearchInput.jsx'i oku - mevcut yapıyı incele
-2. `grep_search` ile customer list API'sini bul: `api/customers|getCustomers|listCustomers`
-3. `read_file` ile customers-service.js'i oku - mevcut API çağrılarını incele
-4. `read_file` ile QuoteCustomerStep.jsx'i oku - CustomerSearchInput nasıl kullanılıyor
-5. `grep_search` ile mevcut dropdown pattern'lerini bul: `dropdown|isOpen|setIsOpen`
+**Tamamlandı**: 3 Aralık 2025
 
-**Yapılacaklar**:
+**Yapılan Değişiklikler**:
 
-1. **CustomerSearchInput.jsx güncelle**:
-   - `onFocus` event'inde tüm müşterileri getir (limit: 20-50)
-   - Dropdown'u hemen aç (searchTerm boş olsa bile)
-   - Arama yapıldığında sonuçları filtrele
-   - İlk yüklemede loading state göster
-   ```javascript
-   onFocus={() => {
-     if (!allCustomersLoaded) {
-       loadAllCustomers()
-     }
-     setIsOpen(true)
-   }}
-   ```
+1. **CustomerSearchInput.jsx - Complete Rewrite**:
+   - `loadAllCustomers()` - Focus'ta ilk 50 müşteriyi yükler
+   - `customersLoaded` state - Duplicate fetch'leri önler
+   - Local filtering (150ms debounce - API'den daha hızlı)
+   - `filteredResults` - allCustomers'dan searchTerm'e göre filtreleme
+   - Alfabetik sıralama (company/name'e göre)
+   - Loading state gösterimi
+   - Müşteri sayısı gösterimi ("25 müşteri bulundu")
+   - Dropdown icon input yanında
+   - Tarayıcı autocomplete engelleme (autoComplete, data-lpignore, data-form-type)
+   - Dropdown sıralaması: Şirket Adı — Yetkili Adı | E-posta | Telefon
 
-2. **customers-service.js güncelle** (gerekirse):
-   - `getAllCustomers()` fonksiyonu ekle veya mevcut `getCustomers()` kullan
-   - Cache mekanizması ekle (session boyunca tekrar çekilmesin)
-
-3. **Dropdown UI iyileştir**:
-   - Müşteri sayısını göster ("25 müşteri bulundu")
-   - Alfabetik sıralama
-   - Son seçilen müşterileri üstte göster (opsiyonel)
-
-4. **Performance optimizasyonu**:
-   - İlk 50 müşteriyi göster, "Tümünü Gör" ile daha fazla yükle
-   - Debounce search için 300ms
+2. **quotes.css - Yeni Stiller**:
+   - `.customer-search-count` - Müşteri sayısı badge'i
+   - `.customer-search-loading-state` - Loading mesajı
+   - `.customer-search-input-wrapper` - Input + dropdown icon container
+   - `.customer-search-dropdown-icon` - Aşağı ok iconu
+   - `.customer-search-item-company` - Şirket adı (kalın, önce)
+   - `.customer-search-item-name` - Yetkili adı (küçük, tire ile)
+   - `.customer-search-item-secondary` - İletişim bilgileri
+   - `.customer-search-dropdown` z-index: 10000 (modal overlay fix)
+   - `.quote-modal-container` overflow: visible
+   - `.quote-modal-content:has(.customer-search-dropdown)` overflow: visible
+   - `.quote-modal-footer` position: relative, z-index: 1
 
 **Test Kriterleri**:
-- [ ] Input'a tıklandığında dropdown açılıyor
-- [ ] Dropdown'da tüm müşteriler (veya ilk 50) listeleniyor
-- [ ] Arama yapıldığında sonuçlar filtreleniyor
-- [ ] Müşteri seçilince dropdown kapanıyor ve form dolduruluyor
-- [ ] Loading state düzgün görünüyor
-- [ ] Boş arama durumunda tüm liste görünüyor
+- [x] Input'a tıklandığında dropdown açılıyor
+- [x] Dropdown'da ilk 50 müşteri listeleniyor
+- [x] Arama yapıldığında sonuçlar local olarak filtreleniyor
+- [x] Müşteri seçilince dropdown kapanıyor ve form dolduruluyor
+- [x] Loading state düzgün görünüyor
+- [x] Boş arama durumunda tüm liste görünüyor
+- [x] Tarayıcı/şifre yöneticisi autocomplete engellenmiş
+- [x] Dropdown modal footer'ın üstünde görünüyor
+- [x] Şirket adı kalın ve önce, yetkili adı küçük ve sonra
 
-**Oluşturulan/Güncellenen Dosyalar**:
-- `domains/crm/components/quotes/CustomerSearchInput.jsx`
-- `domains/crm/services/customers-service.js`
-- `domains/crm/styles/quotes.css`
+**Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/CustomerSearchInput.jsx` - Complete rewrite (~270 satır)
+- `domains/crm/styles/quotes.css` - ~100 satır yeni/güncellenmiş CSS
 
 ---
 

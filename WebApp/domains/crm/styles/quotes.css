@@ -1365,6 +1365,7 @@ label.mes-btn {
   flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   animation: modalSlideIn 0.25s ease-out;
+  overflow: visible;
 }
 
 @keyframes modalSlideIn {
@@ -1498,7 +1499,13 @@ label.mes-btn {
 .quote-modal-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 24px;
+}
+
+/* Customer search dropdown overflow fix */
+.quote-modal-content:has(.customer-search-dropdown) {
+  overflow: visible;
 }
 
 /* Step 1: Customer Selection */
@@ -1610,7 +1617,7 @@ label.mes-btn {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
   max-height: 280px;
   overflow-y: auto;
-  z-index: 100;
+  z-index: 10000;
 }
 
 .customer-search-item {
@@ -1674,6 +1681,95 @@ label.mes-btn {
   text-align: center;
   color: #6b7280;
   font-size: 13px;
+}
+
+/* Customer Search Count - PROMPT-15 */
+.customer-search-count {
+  padding: 8px 14px;
+  font-size: 11px;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 500;
+}
+
+/* Customer Search Loading State - PROMPT-15 */
+.customer-search-loading-state {
+  padding: 20px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Customer Search Input Wrapper - PROMPT-15 */
+.customer-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.customer-search-input-wrapper .customer-search-input {
+  padding-right: 32px;
+}
+
+.customer-search-input-wrapper .customer-search-loading,
+.customer-search-input-wrapper .customer-search-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+/* Customer Search Item Layout - PROMPT-15 */
+.customer-search-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-search-item-company {
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-search-item-name {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-search-item-name::before {
+  content: '—';
+  margin: 0 6px;
+  color: #d1d5db;
+}
+
+.customer-search-item-secondary {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.customer-search-item-email,
+.customer-search-item-phone {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Selected Customer Display */
@@ -2165,6 +2261,8 @@ label.mes-btn {
   border-top: 1px solid #e5e7eb;
   background: #f9fafb;
   border-radius: 0 0 12px 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .footer-left,

@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import API from '../../../../shared/lib/api.js'
+import { customersService } from '../../services/customers-service.js'
 
 /**
- * CustomerSearchInput - Autocomplete component for customer search
+ * CustomerSearchInput - Hybrid Autocomplete/Dropdown component for customer search
+ * 
+ * Features:
+ * - On focus: Shows all customers (up to 50) as dropdown
+ * - On typing: Filters customers with search
+ * - Keyboard navigation support
+ * - Loading states
  * 
  * @param {Object} props
  * @param {Function} props.onSelect - Called when a customer is selected
@@ -14,13 +21,16 @@ export default function CustomerSearchInput({
   onSelect,
   selectedCustomer,
   disabled = false,
-  placeholder = 'Müşteri ara...'
+  placeholder = 'Müşteri ara veya listeden seç...'
 }) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [results, setResults] = useState([])
+  const [allCustomers, setAllCustomers] = useState([])
+  const [filteredResults, setFilteredResults] = useState([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const [customersLoaded, setCustomersLoaded] = useState(false)
   
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
@@ -43,69 +53,101 @@ export default function CustomerSearchInput({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Debounced search
+  // Load all customers on first focus
+  async function loadAllCustomers() {
+    if (customersLoaded || initialLoading) return
+    
+    setInitialLoading(true)
+    try {
+      const customers = await customersService.getCustomers({ limit: 50 })
+      // Sort alphabetically by company then name
+      const sorted = (customers || []).sort((a, b) => {
+        const companyA = (a.company || a.name || '').toLowerCase()
+        const companyB = (b.company || b.name || '').toLowerCase()
+        return companyA.localeCompare(companyB, 'tr')
+      })
+      setAllCustomers(sorted)
+      setFilteredResults(sorted)
+      setCustomersLoaded(true)
+    } catch (error) {
+      console.error('Failed to load customers:', error)
+      setAllCustomers([])
+      setFilteredResults([])
+    } finally {
+      setInitialLoading(false)
+    }
+  }
+
+  // Filter customers based on search term
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current)
     }
 
-    if (searchTerm.length < 2) {
-      setResults([])
-      setIsOpen(false)
+    // If no search term, show all customers
+    if (!searchTerm.trim()) {
+      setFilteredResults(allCustomers)
+      setHighlightedIndex(-1)
       return
     }
 
-    debounceRef.current = setTimeout(async () => {
+    debounceRef.current = setTimeout(() => {
       setLoading(true)
-      try {
-        const response = await fetch(`/api/customers/search?q=${encodeURIComponent(searchTerm)}&limit=10`, {
-          credentials: 'include'
-        })
+      const term = searchTerm.toLowerCase().trim()
+      
+      const filtered = allCustomers.filter(customer => {
+        const name = (customer.name || '').toLowerCase()
+        const company = (customer.company || '').toLowerCase()
+        const email = (customer.email || '').toLowerCase()
+        const phone = (customer.phone || '').toLowerCase()
         
-        if (response.ok) {
-          const data = await response.json()
-          setResults(data)
-          setIsOpen(data.length > 0)
-          setHighlightedIndex(-1)
-        } else {
-          setResults([])
-        }
-      } catch (error) {
-        console.error('Customer search error:', error)
-        setResults([])
-      } finally {
-        setLoading(false)
-      }
-    }, 300)
+        return name.includes(term) || 
+               company.includes(term) || 
+               email.includes(term) ||
+               phone.includes(term)
+      })
+      
+      setFilteredResults(filtered)
+      setHighlightedIndex(-1)
+      setLoading(false)
+    }, 150) // Faster debounce for local filtering
 
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
     }
-  }, [searchTerm])
+  }, [searchTerm, allCustomers])
+
+  // Handle input focus
+  function handleFocus() {
+    if (!customersLoaded) {
+      loadAllCustomers()
+    }
+    setIsOpen(true)
+  }
 
   // Handle keyboard navigation
   function handleKeyDown(e) {
-    if (!isOpen || results.length === 0) return
+    if (!isOpen || filteredResults.length === 0) return
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
         setHighlightedIndex(prev => 
-          prev < results.length - 1 ? prev + 1 : 0
+          prev < filteredResults.length - 1 ? prev + 1 : 0
         )
         break
       case 'ArrowUp':
         e.preventDefault()
         setHighlightedIndex(prev => 
-          prev > 0 ? prev - 1 : results.length - 1
+          prev > 0 ? prev - 1 : filteredResults.length - 1
         )
         break
       case 'Enter':
         e.preventDefault()
-        if (highlightedIndex >= 0 && results[highlightedIndex]) {
-          handleSelect(results[highlightedIndex])
+        if (highlightedIndex >= 0 && filteredResults[highlightedIndex]) {
+          handleSelect(filteredResults[highlightedIndex])
         }
         break
       case 'Escape':
@@ -118,7 +160,6 @@ export default function CustomerSearchInput({
     onSelect(customer)
     setSearchTerm('')
     setIsOpen(false)
-    setResults([])
   }
 
   function handleClear() {
@@ -151,6 +192,9 @@ export default function CustomerSearchInput({
     )
   }
 
+  const showDropdown = isOpen && (filteredResults.length > 0 || initialLoading || loading)
+  const showEmpty = isOpen && !initialLoading && !loading && filteredResults.length === 0 && customersLoaded
+
   return (
     <div className="customer-search-container">
       <div className="customer-search-input-wrapper">
@@ -160,54 +204,69 @@ export default function CustomerSearchInput({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (results.length > 0) setIsOpen(true)
-          }}
+          onFocus={handleFocus}
           placeholder={placeholder}
           disabled={disabled}
           className="customer-search-input"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+          data-form-type="other"
+          data-lpignore="true"
+          name={`customer-search-${Date.now()}`}
         />
-        {loading && (
+        {(loading || initialLoading) && (
           <span className="customer-search-loading">⏳</span>
         )}
-        {!loading && searchTerm.length >= 2 && (
-          <span className="customer-search-icon">🔍</span>
+        {!loading && !initialLoading && (
+          <span className="customer-search-icon" style={{ opacity: 0.5 }}>▼</span>
         )}
       </div>
 
-      {isOpen && results.length > 0 && (
+      {showDropdown && (
         <div ref={dropdownRef} className="customer-search-dropdown">
-          {results.map((customer, index) => (
-            <div
-              key={customer.id}
-              className={`customer-search-item ${index === highlightedIndex ? 'highlighted' : ''}`}
-              onClick={() => handleSelect(customer)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-            >
-              <div className="customer-search-item-main">
-                <span className="customer-search-item-name">{customer.name}</span>
-                {customer.company && (
-                  <span className="customer-search-item-company">{customer.company}</span>
-                )}
-              </div>
-              <div className="customer-search-item-secondary">
-                {customer.email && (
-                  <span className="customer-search-item-email">{customer.email}</span>
-                )}
-                {customer.phone && (
-                  <span className="customer-search-item-phone">{customer.phone}</span>
-                )}
-              </div>
+          {initialLoading ? (
+            <div className="customer-search-loading-state">
+              Müşteriler yükleniyor...
             </div>
-          ))}
+          ) : (
+            <>
+              <div className="customer-search-count">
+                {filteredResults.length} müşteri {searchTerm ? 'bulundu' : 'mevcut'}
+              </div>
+              {filteredResults.map((customer, index) => (
+                <div
+                  key={customer.id}
+                  className={`customer-search-item ${index === highlightedIndex ? 'highlighted' : ''}`}
+                  onClick={() => handleSelect(customer)}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                >
+                  <div className="customer-search-item-main">
+                    {customer.company && (
+                      <span className="customer-search-item-company">{customer.company}</span>
+                    )}
+                    <span className="customer-search-item-name">{customer.name}</span>
+                  </div>
+                  <div className="customer-search-item-secondary">
+                    {customer.email && (
+                      <span className="customer-search-item-email">{customer.email}</span>
+                    )}
+                    {customer.phone && (
+                      <span className="customer-search-item-phone">{customer.phone}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
 
-      {isOpen && searchTerm.length >= 2 && results.length === 0 && !loading && (
+      {showEmpty && (
         <div ref={dropdownRef} className="customer-search-dropdown">
           <div className="customer-search-empty">
-            Müşteri bulunamadı
+            {searchTerm ? `"${searchTerm}" için müşteri bulunamadı` : 'Henüz müşteri eklenmemiş'}
           </div>
         </div>
       )}
