@@ -170,45 +170,97 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
 
 **Yapılacaklar**:
 
-1. **Button text değişiklikleri**:
-   - "Yeni Taslak Oluştur" → "+Yeni Taslak"
-   - "Kaydet" → "Taslağı Kaydet" (sarı renk)
-
-2. **Yeni "Aktif Et" butonu ekle** (yeşil renk):
-   - "Taslağı Kaydet" butonundan sonra
-   - "Dışa Aktar" butonundan önce
-
-3. **Taslak kaydetme mantığı**:
-   ```javascript
-   // Eğer açık olan isActive=false ise:
-   //   → Mevcut taslağı güncelle (isActive=false kalır)
-   
-   // Eğer açık olan isActive=true ise:
-   //   → Yeni kayıt oluştur (isActive=false)
-   //   → Mevcut aktif kalır
+1. **Header Buton Sıralaması**:
+   ```
+   {Durum Badge} [Dinamik Butonlar...] [+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]
    ```
 
-4. **Aktif etme mantığı**:
+2. **Buton Görünürlük Matrisi**:
+
+   | isActive | Değişiklik | Görünen Dinamik Butonlar |
+   |----------|------------|--------------------------|
+   | `true` | Hayır | ❌ Yok |
+   | `true` | Evet | `[Değişiklikleri Geri Al]` `[Yeni Taslak Olarak Kaydet]` |
+   | `false` | Hayır | `[Aktif Et]` |
+   | `false` | Evet | `[Değişiklikleri Geri Al]` `[Taslağı Güncelle]` |
+
+3. **Buton Tanımları**:
+
+   | Buton | Renk | Görünürlük Koşulu | Fonksiyon |
+   |-------|------|-------------------|-----------|
+   | `+Yeni Taslak` | Beyaz/outline | `!hasChanges` | Modal açar, yeni boş taslak oluşturur |
+   | `Değişiklikleri Geri Al` | Kırmızı/outline (#ef4444) | `hasChanges` | Formu orijinal haline döndürür |
+   | `Yeni Taslak Olarak Kaydet` | Sarı (#f59e0b) | `isActive && hasChanges` | Değişikliklerle yeni taslak oluşturur |
+   | `Taslağı Güncelle` | Sarı (#f59e0b) | `!isActive && hasChanges` | Mevcut taslağı günceller |
+   | `Aktif Et` | Yeşil (#10b981) | `!isActive && !hasChanges` | Taslağı aktif yapar |
+
+4. **State Yönetimi**:
    ```javascript
-   // Eğer açık olan isActive=false ise:
-   //   → Değişiklikleri kaydet
-   //   → Bu kaydı isActive=true yap
-   //   → Diğer tüm template'leri isActive=false yap
-   
-   // Eğer açık olan isActive=true ise:
-   //   → Yeni kayıt oluştur (değişikliklerle)
-   //   → Yeni kaydı isActive=true yap
-   //   → Eskiyi isActive=false yap
+   const [isCurrentDraft, setIsCurrentDraft] = useState(false) // isActive=false ise true
+   const [hasChanges, setHasChanges] = useState(false) // Form değişikliği var mı
+   const [originalFields, setOriginalFields] = useState([]) // Geri almak için orijinal
    ```
 
-5. **Kaydetme akışı özet tablosu**:
+5. **Değişiklik Algılama**:
+   ```javascript
+   // fields değiştiğinde hasChanges güncelle
+   useEffect(() => {
+     const changed = JSON.stringify(fields) !== JSON.stringify(originalFields)
+     setHasChanges(changed)
+   }, [fields, originalFields])
+   ```
+
+6. **Buton Fonksiyonları**:
+   ```javascript
+   // Değişiklikleri Geri Al
+   function handleRevertChanges() {
+     setFields([...originalFields])
+     setHasChanges(false)
+   }
    
-   | Mevcut Form Durumu | Buton | Sonuç |
-   |--------------------|-------|-------|
-   | isActive=false (taslak) | "Taslağı Kaydet" | Mevcut taslak güncellenir |
-   | isActive=false (taslak) | "Aktif Et" | Taslak kaydedilir + isActive=true yapılır |
-   | isActive=true (aktif) | "Taslağı Kaydet" | YENİ kayıt oluşur (isActive=false) |
-   | isActive=true (aktif) | "Aktif Et" | YENİ kayıt oluşur + hemen isActive=true yapılır |
+   // Yeni Taslak Olarak Kaydet (isActive=true iken değişiklik var)
+   async function handleSaveAsNewDraft() {
+     // Yeni template oluştur (isActive=false)
+     // originalFields'ı güncelle
+     // hasChanges=false yap
+   }
+   
+   // Taslağı Güncelle (isActive=false iken değişiklik var)
+   async function handleUpdateDraft() {
+     // Mevcut taslağı güncelle
+     // originalFields'ı güncelle
+     // hasChanges=false yap
+     // Sonra "Aktif Et" butonu görünür olacak
+   }
+   
+   // Aktif Et (isActive=false ve değişiklik yok)
+   async function handleActivate() {
+     // Template'i aktif yap
+     // isCurrentDraft=false yap
+     // Artık isActive=true olduğu için butonlar gizlenecek
+   }
+   ```
+
+7. **Akış Senaryoları**:
+
+   **Senaryo A: Aktif formu görüntüleme (değişiklik yok)**
+   - Durum: `isActive=true`, `hasChanges=false`
+   - Görünen: `[+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   
+   **Senaryo B: Aktif formda değişiklik yapma**
+   - Durum: `isActive=true`, `hasChanges=true`
+   - Görünen: `[Değişiklikleri Geri Al] [Yeni Taslak Olarak Kaydet] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   - "Yeni Taslak Olarak Kaydet" → Yeni taslak oluşur, ekran taslağa geçer
+   
+   **Senaryo C: Taslağı görüntüleme (değişiklik yok)**
+   - Durum: `isActive=false`, `hasChanges=false`
+   - Görünen: `[Aktif Et] [+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   - "Aktif Et" → Taslak aktif olur, artık Senaryo A
+   
+   **Senaryo D: Taslakta değişiklik yapma**
+   - Durum: `isActive=false`, `hasChanges=true`
+   - Görünen: `[Değişiklikleri Geri Al] [Taslağı Güncelle] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   - "Taslağı Güncelle" → Kaydedilir, `hasChanges=false`, artık Senaryo C
 
 **Değişecek Dosyalar**:
 - `domains/crm/components/forms/FormManager.jsx`
@@ -223,6 +275,9 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
    - Template yüklenirken `isCurrentDraft` state güncelleniyor
    - API response parsing düzeltildi (`response.template || response`)
    - Template ismi `formConfig.settings.title`'a eklendi
+   - ✅ `hasChanges` ve `originalFields` state'leri eklendi (PROMPT-A1.1)
+   - ✅ `handleFieldsChange()` callback'i eklendi (PROMPT-A1.1)
+   - ✅ `handleRevertChanges()` fonksiyonu eklendi (PROMPT-A1.1)
 
 2. **FormBuilderCompact.js**:
    - `onActivate` prop eklendi (satır 14)
@@ -230,10 +285,15 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
    - "+Yeni Taslak" butonu (satır 118-141)
    - "Taslağı Kaydet" butonu - SARI #f59e0b (satır 143-166)
    - "Aktif Et" butonu - YEŞİL #10b981 (satır 168-188)
-   - Durum badge'i: "📝 Taslak" veya "✓ Aktif" (satır 106)
    - `handleSaveDraft()` fonksiyonu (satır 277-287)
    - `handleActivate()` fonksiyonu (satır 289-304)
    - `is_active` → `isActive` property düzeltmesi (satır 961, 978)
+   - ✅ `onRevertChanges`, `onFieldsChange`, `hasChanges`, `originalFields` prop'ları eklendi (PROMPT-A1.1)
+   - ✅ Buton görünürlük mantığı matrise göre güncellendi (PROMPT-A1.1)
+   - ✅ "Değişiklikleri Geri Al" butonu eklendi - KIRMIZI outline (PROMPT-A1.1)
+   - ✅ "Yeni Taslak Olarak Kaydet" / "Taslağı Güncelle" dinamik isimlendirme (PROMPT-A1.1)
+   - ✅ Durum badge'i form adı gösteriyor: `Taslak **Form Adı**` veya `Aktif **Form Adı**` (PROMPT-A1.2)
+   - ✅ Lucide ikonlar: Pencil (taslak), Check (aktif) - SVG inline (PROMPT-A1.2)
 
 3. **forms-service.js**:
    - `getTemplateWithFields` endpoint düzeltildi: `/api/form-templates/${id}/with-fields`
@@ -243,13 +303,45 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
    - `GET /api/form-templates/:id/fields` endpoint eklendi (satır 144-158)
    - Bu endpoint frontend'in field silme işlemi için gerekli
 
-**Test Kriterleri**:
+**PROMPT-A1.1 Tamamlandı** ✅ (4 Aralık 2025):
+
+> Buton görünürlük revizyonu başarıyla uygulandı.
+
+1. ✅ `hasChanges` state eklendi
+2. ✅ `originalFields` state eklendi (geri alma için)
+3. ✅ Buton görünürlük mantığı matrise göre güncellendi
+4. ✅ "Değişiklikleri Geri Al" butonu eklendi (kırmızı/outline)
+5. ✅ Dinamik buton isimlendirmesi: "Yeni Taslak Olarak Kaydet" vs "Taslağı Güncelle"
+
+**PROMPT-A1.2 Tamamlandı** ✅ (4 Aralık 2025):
+
+> Kozmetik güncellemeler başarıyla uygulandı.
+
+1. ✅ Durum badge'inde form adı gösteriliyor
+2. ✅ Taslak ikonu → Lucide Pencil (SVG)
+3. ✅ Aktif ikonu → Lucide Check (SVG)
+
+**Test Kriterleri** (Mevcut - 3 Aralık):
 - [x] "+Yeni Taslak" butonu çalışıyor ✅ (Modal açılıyor, yeni taslak oluşturuluyor)
 - [x] "Taslağı Kaydet" sarı renkte (#f59e0b) görünüyor ✅
 - [x] "Aktif Et" yeşil renkte (#10b981) görünüyor ✅
 - [x] Taslak (isActive=false) açıkken "Taslağı Kaydet" mevcut kaydı güncelliyor ✅
 - [x] Aktif form açıkken "Taslağı Kaydet" yeni taslak oluşturuyor ✅
 - [x] "Aktif Et" doğru versiyonu aktif yapıyor ✅ (API: PATCH /api/form-templates/:id/activate)
+
+**Test Kriterleri** (Buton Görünürlük Revizyonu - PROMPT-A1.1) ✅ 4 Aralık 2025:
+- [x] isActive=true, hasChanges=false → Sadece `+Yeni Taslak` görünür ✅
+- [x] isActive=true, hasChanges=true → `Değişiklikleri Geri Al` + `Yeni Taslak Olarak Kaydet` görünür ✅
+- [x] isActive=false, hasChanges=false → `Aktif Et` + `+Yeni Taslak` görünür ✅
+- [x] isActive=false, hasChanges=true → `Değişiklikleri Geri Al` + `Taslağı Güncelle` görünür ✅
+- [x] "Değişiklikleri Geri Al" formu orijinal haline döndürüyor ✅
+- [x] "Yeni Taslak Olarak Kaydet" yeni taslak oluşturup ekranı taslağa geçiriyor ✅
+- [x] "Taslağı Güncelle" sonrası "Aktif Et" butonu görünür oluyor ✅
+
+**Test Kriterleri** (Kozmetik - PROMPT-A1.2) ✅ 4 Aralık 2025:
+- [x] Durum badge'inde form adı gösteriliyor: `Taslak **Form Adı**` veya `Aktif **Form Adı**` ✅
+- [x] Taslak ikonu Lucide Pencil ikonu olarak güncellendi ✅
+- [x] Aktif ikonu Lucide Check ikonu olarak güncellendi ✅
 
 **API Endpoint Testleri** (3 Aralık 2025):
 ```bash
@@ -1428,6 +1520,15 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 | 23 | Dinamik fiyat hesaplamada debounce olmalı | PROMPT-E1 |
 | 24 | Modal'larda loading state gösterilmeli | PROMPT-E1, E2 |
 | 25 | Modal'larda error handling olmalı | PROMPT-E1, E2 |
+| 26 | isActive=true ve değişiklik yoksa kaydetme butonları gizli olmalı | PROMPT-A1 |
+| 27 | isActive=true ve değişiklik varsa "Yeni Taslak Olarak Kaydet" görünmeli | PROMPT-A1 |
+| 28 | isActive=false ve değişiklik yoksa "Aktif Et" görünmeli | PROMPT-A1 |
+| 29 | isActive=false ve değişiklik varsa "Taslağı Güncelle" görünmeli | PROMPT-A1 |
+| 30 | "Değişiklikleri Geri Al" butonu formu orijinal haline döndürmeli | PROMPT-A1 |
+| 31 | Değişiklik varsa "+Yeni Taslak" yerine "Değişiklikleri Geri Al" görünmeli | PROMPT-A1 |
+| 32 | Durum badge'inde form adı gösterilmeli: `Taslak **Form Adı**` | PROMPT-A1.2 |
+| 33 | Taslak ikonu Lucide Pencil olmalı | PROMPT-A1.2 |
+| 34 | Aktif ikonu Lucide Check olmalı | PROMPT-A1.2 |
 
 ---
 
@@ -1439,6 +1540,8 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [ ] **PROMPT-B2**: Quote create/update'de code kaydetme
 - [ ] **PROMPT-F1**: Calculate-price API endpoint
 - [x] **PROMPT-A1**: Form Manager UI değişiklikleri ✅ (3 Aralık 2025)
+- [x] **PROMPT-A1.1**: Buton görünürlük revizyonu ✅ (4 Aralık 2025)
+- [x] **PROMPT-A1.2**: Kozmetik güncellemeler (form adı, Lucide ikonlar) ✅ (4 Aralık 2025)
 - [ ] **PROMPT-A2**: Pricing Manager UI değişiklikleri
 - [ ] **PROMPT-C1**: canEdit optimizasyonu
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu

@@ -12,6 +12,10 @@ export function FormBuilderCompact({
   formConfig, 
   onSave, 
   onActivate, // PROMPT-A1: Aktif Et callback
+  onRevertChanges, // PROMPT-A1.1: Değişiklikleri Geri Al callback
+  onFieldsChange, // PROMPT-A1.1: Fields change detection callback
+  hasChanges = false, // PROMPT-A1.1: From parent - whether form has unsaved changes
+  originalFields = [], // PROMPT-A1.1: From parent - original fields for revert
   isDarkMode, 
   t, 
   showNotification, 
@@ -81,15 +85,30 @@ export function FormBuilderCompact({
     }
   }, [formConfig])
 
+  // PROMPT-A1.1: Notify parent when fields change for hasChanges tracking
+  useEffect(() => {
+    if (onFieldsChange) {
+      onFieldsChange(fields)
+    }
+  }, [fields, onFieldsChange])
+
   // Memoize header buttons to prevent infinite re-renders
+  // PROMPT-A1.1: Button visibility matrix
+  // | isActive | hasChanges | Visible Buttons |
+  // |----------|------------|-----------------|
+  // | true     | false      | [+Yeni Taslak] |
+  // | true     | true       | [Değişiklikleri Geri Al] [Yeni Taslak Olarak Kaydet] |
+  // | false    | false      | [Aktif Et] [+Yeni Taslak] |
+  // | false    | true       | [Değişiklikleri Geri Al] [Taslağı Güncelle] |
   const headerButtons = useMemo(() => {
-    const hasUnsavedChanges = FormBuilderUtils.hasUnsavedChanges(fields, savedFields)
-    const isViewingActive = currentTemplateId === activeTemplateId
-    // PROMPT-A1: "Taslağı Kaydet" disabled logic - only disabled if no changes AND viewing draft
-    const isSaveDraftDisabled = !hasUnsavedChanges && isCurrentDraft
+    const isActive = !isCurrentDraft // isActive = NOT draft
     
-    return [
-      // PROMPT-A1: Current template status indicator
+    // Build dynamic buttons based on matrix
+    const dynamicButtons = []
+    
+    // Status Badge - always visible with form name
+    const formName = formSettings?.title || 'Form'
+    dynamicButtons.push(
       React.createElement('span', {
         key: 'status-badge',
         style: {
@@ -101,92 +120,160 @@ export function FormBuilderCompact({
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
-          gap: '4px'
-        }
-      }, isCurrentDraft ? '📝 Taslak' : '✓ Aktif'),
-
-      // Unsaved changes indicator
-      hasUnsavedChanges && React.createElement('span', {
-        key: 'unsaved-badge',
-        style: {
-          padding: '6px 12px',
-          background: '#fef3c7',
-          color: '#92400e',
-          borderRadius: '6px',
-          fontSize: '12px',
-          fontWeight: 500
-        }
-      }, '● Kaydedilmemiş değişiklikler'),
-
-      // PROMPT-A1: "+Yeni Taslak" button (shortened from "Yeni Taslak Oluştur")
-      React.createElement('button', {
-        key: 'new-draft',
-        onClick: onOpenNewDraftModal,
-        className: 'mes-btn mes-btn-lg',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          background: 'rgb(255, 255, 255)',
-          color: 'rgb(0, 0, 0)',
-          border: '1px solid rgb(229, 231, 235)'
+          gap: '5px'
         }
       },
+        // Icon: Pencil for draft, Check for active
         React.createElement('span', {
-          key: 'draft-icon',
+          key: 'status-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>' }
+          dangerouslySetInnerHTML: { 
+            __html: isCurrentDraft 
+              ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
+              : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+          }
         }),
-        'Yeni Taslak'
-      ),
-
-      // PROMPT-A1: "Taslağı Kaydet" button (SARI - #f59e0b)
-      React.createElement('button', {
-        key: 'save-draft',
-        onClick: handleSaveDraft,
-        className: 'mes-btn mes-btn-lg',
-        disabled: isSaveDraftDisabled,
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: '#f59e0b', // Sarı
-          color: '#fff',
-          border: 'none',
-          opacity: isSaveDraftDisabled ? 0.5 : 1,
-          cursor: isSaveDraftDisabled ? 'not-allowed' : 'pointer'
-        }
-      },
-        React.createElement('span', {
-          key: 'save-icon',
-          style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
-        }),
-        'Taslağı Kaydet'
-      ),
-
-      // PROMPT-A1: "Aktif Et" button (YEŞİL - #10b981)
-      React.createElement('button', {
-        key: 'activate',
-        onClick: handleActivate,
-        className: 'mes-btn mes-btn-lg',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: '#10b981', // Yeşil
-          color: '#fff',
-          border: 'none'
-        }
-      },
-        React.createElement('span', {
-          key: 'activate-icon',
-          style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' }
-        }),
-        'Aktif Et'
-      ),
-
+        // Status text
+        React.createElement('span', { key: 'status-text' }, isCurrentDraft ? 'Taslak' : 'Aktif'),
+        // Separator
+        React.createElement('span', { key: 'separator', style: { opacity: 0.6 } }, '•'),
+        // Form name (bold)
+        React.createElement('strong', { key: 'form-name' }, formName)
+      )
+    )
+    
+    // "Değişiklikleri Geri Al" - visible when hasChanges=true (any isActive state)
+    if (hasChanges) {
+      dynamicButtons.push(
+        React.createElement('button', {
+          key: 'revert-changes',
+          onClick: () => onRevertChanges && onRevertChanges(),
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#fff',
+            color: '#ef4444', // Red
+            border: '2px solid #ef4444',
+            fontWeight: 500
+          }
+        },
+          React.createElement('span', {
+            key: 'revert-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>' }
+          }),
+          'Değişiklikleri Geri Al'
+        )
+      )
+    }
+    
+    // Buttons based on isActive + hasChanges combinations
+    if (isActive && hasChanges) {
+      // isActive=true, hasChanges=true: "Yeni Taslak Olarak Kaydet" (yellow)
+      dynamicButtons.push(
+        React.createElement('button', {
+          key: 'save-as-new-draft',
+          onClick: handleSaveDraft,
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#f59e0b', // Yellow
+            color: '#fff',
+            border: 'none'
+          }
+        },
+          React.createElement('span', {
+            key: 'save-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
+          }),
+          'Yeni Taslak Olarak Kaydet'
+        )
+      )
+    } else if (!isActive && hasChanges) {
+      // isActive=false, hasChanges=true: "Taslağı Güncelle" (yellow)
+      dynamicButtons.push(
+        React.createElement('button', {
+          key: 'update-draft',
+          onClick: handleSaveDraft,
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#f59e0b', // Yellow
+            color: '#fff',
+            border: 'none'
+          }
+        },
+          React.createElement('span', {
+            key: 'save-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
+          }),
+          'Taslağı Güncelle'
+        )
+      )
+    }
+    
+    // "Aktif Et" - visible when isActive=false AND hasChanges=false
+    if (!isActive && !hasChanges) {
+      dynamicButtons.push(
+        React.createElement('button', {
+          key: 'activate',
+          onClick: handleActivate,
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#10b981', // Green
+            color: '#fff',
+            border: 'none'
+          }
+        },
+          React.createElement('span', {
+            key: 'activate-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' }
+          }),
+          'Aktif Et'
+        )
+      )
+    }
+    
+    // "+Yeni Taslak" - visible when hasChanges=false (any isActive state)
+    if (!hasChanges) {
+      dynamicButtons.push(
+        React.createElement('button', {
+          key: 'new-draft',
+          onClick: onOpenNewDraftModal,
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            background: 'rgb(255, 255, 255)',
+            color: 'rgb(0, 0, 0)',
+            border: '1px solid rgb(229, 231, 235)'
+          }
+        },
+          React.createElement('span', {
+            key: 'draft-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>' }
+          }),
+          'Yeni Taslak'
+        )
+      )
+    }
+    
+    // Static buttons: Geçmiş, Dışa Aktar, İçe Aktar (always visible)
+    dynamicButtons.push(
       // History button
       React.createElement('button', {
         key: 'history',
@@ -263,8 +350,10 @@ export function FormBuilderCompact({
           style: { display: 'none' }
         })
       )
-    ].filter(Boolean) // Remove null/false items
-  }, [fields, savedFields, currentTemplateId, activeTemplateId, isCurrentDraft])
+    )
+    
+    return dynamicButtons
+  }, [fields, savedFields, currentTemplateId, activeTemplateId, isCurrentDraft, hasChanges, onRevertChanges])
 
   // Send header actions to parent via callback
   useEffect(() => {
