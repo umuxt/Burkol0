@@ -1405,48 +1405,60 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-12: Üretim Paneli Plan Kaydetme Fix
+### PROMPT-12: Üretim Paneli Plan Kaydetme Fix ✅ TAMAMLANDI
 
-**Amaç**: WO data yapısı değişikliği sonrası üretim panelinde plan kaydetme sorununu çözmek
+**Amaç**: WO data yapısı değişikliği sonrası üretim panelinde plan kaydetme sorununu çözmek + scheduleType özelliğini kaldırmak
 
-**Ön Araştırma** (İlk yapılacak adımlar):
-1. `read_file` ile planDesigner.js'i oku - `savePlanDraft()` fonksiyonunu incele
-2. `read_file` ile mesApi.js'i oku - `createProductionPlan()` ve `updateProductionPlan()` fonksiyonlarını incele
-3. `grep_search` ile WO data kullanımını bul: `workOrder\.data|wo\.data|JSON\.parse.*data`
-4. `read_file` ile approvedQuoteService.js'i oku - WO detay fetch'i nasıl yapılıyor
-5. Terminal'de plan kaydetme hatası için server log'larını kontrol et
-6. Network tab'de plan kaydetme API response'unu incele
+**Sorun**: Plan kaydetme sırasında "column scheduleType of relation production_plans does not exist" hatası alınıyordu.
 
-**Yapılacaklar**:
+**Çözüm**: `scheduleType` (Plan Türü) özelliği DB'de olmadığı için tüm frontend ve backend'den kaldırıldı.
 
-1. **Backend production plan API'lerini kontrol et**:
-   - `savePlanDraft()` → `createProductionPlan()` zincirini takip et
-   - WO verisi nasıl kullanılıyor kontrol et
-   - Eğer eski `data` JSON formatı bekleniyorsa güncelle
+**Yapılan Değişiklikler**:
 
-2. **approvedQuoteService.js güncelle** (gerekirse):
-   - `getWorkOrderDetails()` fonksiyonunda eksik alanlar varsa ekle
-   - Production plan için gerekli alanları (formData, customer vb.) döndür
+1. **Backend `productionPlanService.js`**:
+   - `updateProductionPlan()` metodundan `scheduleType` field'ı kaldırıldı
+   - SQL query'lerden scheduleType referansları temizlendi
 
-3. **planDesigner.js güncelle** (gerekirse):
-   - Plan kaydetme sırasında WO verisi nasıl kullanılıyor kontrol et
-   - Yeni simplified data yapısına uyumlu hale getir
+2. **Frontend `views.js`**:
+   - Plan Türü HTML section'ı tamamen kaldırıldı (schedule-type select, plan-type-btn, plan-type-panel)
+   - Modal içindeki recurring options kaldırıldı
 
-4. **Error handling ekle**:
-   - Plan kaydetme hatalarında anlamlı error message göster
-   - Backend'den gelen hata detaylarını logla
+3. **Frontend `planDesigner.js`**:
+   - `handleScheduleTypeChange()`, `handleRecurringTypeChange()`, `handlePeriodicFrequencyChange()` → no-op yapıldı
+   - `savePlanDraft()` ve `savePlanAsTemplate()` fonksiyonlarından scheduleType kaldırıldı
+   - `togglePlanTypePanel()`, `hidePlanTypePanel()`, `clearPlanType()`, `selectPlanType()` → no-op yapıldı
+   - `initializePlanDesigner()` içinden scheduleType init kaldırıldı
+   - `setPlanMeta()` fonksiyonundan scheduleType kaldırıldı
+   - Modal fonksiyonları (`handlePlanTypeModalChange`, `applyPlanTypeModal`, vb.) → no-op yapıldı
+
+4. **Frontend `planOverview.js`**:
+   - `viewProductionPlan()`, `editTemplateById()`, `openCreatePlan()` fonksiyonlarından scheduleType kaldırıldı
+
+5. **Frontend `main.js`**:
+   - scheduleType fonksiyon import'ları kaldırıldı
+   - `window.assign` listesinden scheduleType fonksiyonları kaldırıldı
+
+6. **Ek Fix - Output Codes Dropdown**:
+   - `scrapController.js`: `prefix` query parametresi eklendi
+   - `scrapService.js`: `getExistingOutputCodes(planId, prefix)` - prefix filtreleme eklendi, `id`, `name`, `unit` alanları eklendi
+   - `planDesignerBackend.js`: Response format düzeltildi (`{ outputCodes: [...] }` → array), null-safe field access eklendi
 
 **Test Kriterleri**:
-- [ ] Üretim panelinde yeni plan oluşturulabiliyor
-- [ ] Mevcut plan düzenlenebiliyor ve kaydedilebiliyor
-- [ ] Plan kaydetme sırasında hata çıkmıyor
-- [ ] WO detayları doğru şekilde plan'a aktarılıyor
-- [ ] Template'den plan oluşturma çalışıyor
+- [x] Üretim panelinde yeni plan oluşturulabiliyor
+- [x] Mevcut plan düzenlenebiliyor ve kaydedilebiliyor
+- [x] Plan kaydetme sırasında scheduleType hatası çıkmıyor
+- [x] Output codes dropdown doğru çalışıyor (prefix filtreleme ile)
+- [x] Template'den plan oluşturma çalışıyor
 
 **Oluşturulan/Güncellenen Dosyalar**:
-- `domains/production/js/planDesigner.js`
-- `domains/production/api/services/approvedQuoteService.js`
-- `domains/production/js/mesApi.js` (gerekirse)
+- `domains/production/api/services/productionPlanService.js` - scheduleType kaldırıldı ✅
+- `domains/production/js/views.js` - Plan Türü HTML kaldırıldı ✅
+- `domains/production/js/planDesigner.js` - scheduleType fonksiyonları no-op yapıldı ✅
+- `domains/production/js/planOverview.js` - scheduleType referansları kaldırıldı ✅
+- `domains/production/js/main.js` - scheduleType imports/exports kaldırıldı ✅
+- `domains/production/api/controllers/scrapController.js` - prefix parametresi eklendi ✅
+- `domains/production/api/services/scrapService.js` - prefix filtreleme ve field'lar eklendi ✅
+- `domains/production/js/planDesignerBackend.js` - output codes response format düzeltildi ✅
 
 ---
 

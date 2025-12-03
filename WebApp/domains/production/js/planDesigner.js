@@ -56,7 +56,9 @@ export const planDesignerState = {
   timingSummary: null,
   // Dropdown debounce timestamps
   _orderPanelLastToggle: 0,
-  _typePanelLastToggle: 0
+  _typePanelLastToggle: 0,
+  // Cache for available orders (Work Orders) to look up details like quoteId
+  availableOrders: new Map()
 };
 
 function escapeHtml(str) {
@@ -2486,54 +2488,18 @@ export function handleOrderChange() {
   }
 }
 
-// Schedule type UI handlers (frontend-only)
+// Schedule type UI handlers - DEPRECATED (scheduleType feature removed)
+// These functions are kept as no-ops for backwards compatibility
 export function handleScheduleTypeChange() {
-  const type = document.getElementById('schedule-type')?.value;
-  const recurringBox = document.getElementById('recurring-subtype-container');
-  const periodicBox = document.getElementById('periodic-frequency-container');
-  const customBox = document.getElementById('custom-frequency-container');
-  if (!recurringBox || !periodicBox || !customBox) return;
-  if (type === 'recurring') {
-    recurringBox.style.display = '';
-    // default to periodic
-    const recurringType = document.getElementById('recurring-type');
-    if (recurringType) recurringType.value = recurringType.value || 'periodic';
-    handleRecurringTypeChange();
-  } else {
-    recurringBox.style.display = 'none';
-    periodicBox.style.display = 'none';
-    customBox.style.display = 'none';
-  }
+  // No-op: scheduleType feature removed
 }
 
 export function handleRecurringTypeChange() {
-  const recurringType = document.getElementById('recurring-type')?.value;
-  const periodicBox = document.getElementById('periodic-frequency-container');
-  const customBox = document.getElementById('custom-frequency-container');
-  if (!periodicBox || !customBox) return;
-  if (recurringType === 'periodic') {
-    periodicBox.style.display = '';
-    // ensure custom input hidden by default
-    const freq = document.getElementById('periodic-frequency');
-    if (freq) {
-      if (!freq.value) freq.value = 'daily';
-    }
-    handlePeriodicFrequencyChange();
-  } else {
-    periodicBox.style.display = 'none';
-    customBox.style.display = 'none';
-  }
+  // No-op: scheduleType feature removed
 }
 
 export function handlePeriodicFrequencyChange() {
-  const freq = document.getElementById('periodic-frequency')?.value;
-  const customBox = document.getElementById('custom-frequency-container');
-  if (!customBox) return;
-  if (freq === 'custom') {
-    customBox.style.display = '';
-  } else {
-    customBox.style.display = 'none';
-  }
+  // No-op: scheduleType feature removed
 }
 
 export function savePlanAsTemplate() {
@@ -2548,16 +2514,13 @@ export function savePlanAsTemplate() {
   const planNameInput = document.getElementById('plan-name');
   const planDescInput = document.getElementById('plan-description');
   const orderSelect = document.getElementById('order-select');
-  const scheduleTypeSelect = document.getElementById('schedule-type');
   
   let planName = planNameInput ? planNameInput.value : '';
   const planDesc = planDescInput?.value || '';
   let workOrderCode = orderSelect ? orderSelect.value : '';
-  const scheduleType = scheduleTypeSelect ? scheduleTypeSelect.value : 'one-time';
   
-  // Get quantity from modal input if available, fallback to state
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
+  // Get quantity - default to 1 since modal is removed
+  const planQuantity = planDesignerState.planQuantity || 1;
   
   if (planDesignerState.readOnly) {
     const base = (planDesignerState.currentPlanMeta?.name) || planName || 'Untitled';
@@ -2576,7 +2539,7 @@ export function savePlanAsTemplate() {
     name: planName,
     description: planDesc,
     workOrderCode: workOrderCode || null,  // null for templates without work order
-    scheduleType: scheduleType,
+    // scheduleType removed - not used anymore
     quantity: planQuantity,
     steps: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
@@ -2589,7 +2552,6 @@ export function savePlanAsTemplate() {
   console.log('🔍 TEMPLATE BEING SAVED:', {
     templateId: template.id,
     workOrderCode: template.workOrderCode,
-    scheduleType: template.scheduleType,
     quantity: template.quantity,
     name: template.name,
     description: template.description,
@@ -2819,10 +2781,9 @@ export async function savePlanDraft() {
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
   const workOrderCode = document.getElementById('order-select')?.value || '';
-  const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
   
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
+  // Get quantity - default to 1 since modal is removed
+  const planQuantity = planDesignerState.planQuantity || 1;
   
   console.log('📝 Plan data:', { planName, workOrderCode, planQuantity });
   
@@ -2921,7 +2882,7 @@ export async function savePlanDraft() {
       name: planName,
       description: planDesc,
       workOrderCode,
-      scheduleType,
+      // scheduleType removed - not used anymore
       quantity: planQuantity,
       nodes: sanitizedNodes,  // CANONICAL: Sanitized nodes with canonical field names
       status: 'production',
@@ -2961,7 +2922,7 @@ export async function savePlanDraft() {
     name: planName,
     description: planDesc,
     workOrderCode,
-    scheduleType,
+    // scheduleType removed - not used anymore
     quantity: planQuantity,
     nodes: sanitizedNodes,  // CANONICAL: Use sanitized nodes
     createdAt: new Date().toISOString(),
@@ -3096,26 +3057,21 @@ export async function initializePlanDesigner() {
     // Load orders into the dropdown
     await loadOrdersIntoSelect();
     
-    handleScheduleTypeChange();
+    // handleScheduleTypeChange removed - scheduleType feature removed
 
     // Wire dropdowns programmatically (we removed inline onclick in views)
     try { wirePlanDropdownsOnce(); } catch {}
     // Pre-render order list from select for immediate interaction
     try { renderPlanOrderListFromSelect(); } catch {}
     
-    // Initialize order/type dropdown button labels from hidden selects
+    // Initialize order dropdown button label from hidden select
     try {
       const orderSelect = document.getElementById('order-select');
       const orderLabel = document.getElementById('plan-order-label');
       const selOpt = orderSelect && orderSelect.options ? orderSelect.options[orderSelect.selectedIndex] : null;
       if (orderLabel) orderLabel.textContent = selOpt && selOpt.value ? (selOpt.text || selOpt.value) : 'Select an order...';
     } catch {}
-    try {
-      const typeSelect = document.getElementById('schedule-type');
-      const typeLabel = document.getElementById('plan-type-label');
-      const val = typeSelect ? typeSelect.value : 'one-time';
-      if (typeLabel) typeLabel.textContent = val === 'recurring' ? 'Devirli' : 'Tek seferlik';
-    } catch {}
+    // Plan type initialization removed - scheduleType feature removed
   }, 100);
 }
 
@@ -3127,30 +3083,14 @@ function wirePlanDropdownsOnce() {
   const orderSearch = document.getElementById('plan-order-search');
   const orderClear = document.getElementById('plan-order-clear');
   const orderClose = document.getElementById('plan-order-close');
-  const typeBtn = document.getElementById('plan-type-btn');
-  const typePanel = document.getElementById('plan-type-panel');
-  const typeClear = document.getElementById('plan-type-clear');
-  const typeClose = document.getElementById('plan-type-close');
+  // Plan type elements removed - scheduleType feature removed
 
   if (orderBtn) orderBtn.addEventListener('click', togglePlanOrderPanel);
   if (orderSearch) orderSearch.addEventListener('input', filterPlanOrderList);
   if (orderClear) orderClear.addEventListener('click', clearPlanOrder);
   if (orderClose) orderClose.addEventListener('click', hidePlanOrderPanel);
 
-  if (typeBtn) typeBtn.addEventListener('click', togglePlanTypePanel);
-  if (typeClear) typeClear.addEventListener('click', () => selectPlanType('one-time', 'Tek seferlik'));
-  if (typeClose) typeClose.addEventListener('click', hidePlanTypePanel);
-
-  // Attach change listeners to type radios
-  if (typePanel) {
-    typePanel.addEventListener('change', (e) => {
-      const t = e.target;
-      if (t && t.name === 'plan-type-radio') {
-        const val = t.value;
-        selectPlanType(val, val === 'recurring' ? 'Devirli' : 'Tek seferlik');
-      }
-    });
-  }
+  // Plan type listeners removed - scheduleType feature removed
 
   // Click-outside to close panels
   document.addEventListener('click', (e) => {
@@ -3160,15 +3100,10 @@ function wirePlanDropdownsOnce() {
         hidePlanOrderPanel();
       }
     }
-    if (typePanel && typePanel.style.display === 'block') {
-      if (!typePanel.contains(target) && target !== typeBtn && !typeBtn.contains(target)) {
-        hidePlanTypePanel();
-      }
-    }
   });
   // ESC to close
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { hidePlanOrderPanel(); hidePlanTypePanel(); }
+    if (e.key === 'Escape') { hidePlanOrderPanel(); }
   });
 }
 
@@ -3271,96 +3206,19 @@ export function renderPlanOrderListFromSelect() {
   });
 }
 
-// Plan Type dropdown (button + panel) helpers
+// Plan Type dropdown functions - DEPRECATED (scheduleType feature removed)
+// These functions are kept as no-ops for backwards compatibility
 export function togglePlanTypePanel() {
-  console.warn('DEBUG: togglePlanTypePanel function was successfully called!');
-  console.log('togglePlanTypePanel called');
-  const now = Date.now();
-  if (now - (planDesignerState._typePanelLastToggle || 0) < 150) { console.log('debounced type panel toggle'); return; }
-  planDesignerState._typePanelLastToggle = now;
-  
-  const panel = document.getElementById('plan-type-panel');
-  const button = document.getElementById('plan-type-btn');
-  console.log('plan-type-panel found:', panel);
-  
-  if (!panel || !button) return;
-  
-  const isOpen = (typeof window !== 'undefined' ? window.getComputedStyle(panel).display : panel.style.display) !== 'none';
-  console.log('isOpen:', isOpen, 'current display:', panel.style.display);
-  
-  if (isOpen) {
-    panel.style.display = 'none';
-  } else {
-    // Initialize modal state before showing
-    initializePlanTypeModal();
-    
-    // Force positioning and visibility  
-    const buttonRect = button.getBoundingClientRect();
-    panel.style.position = 'fixed';
-    panel.style.top = (buttonRect.bottom + 6) + 'px';
-    panel.style.left = (buttonRect.right - 320) + 'px'; // Adjusted for wider modal
-    panel.style.zIndex = '9999';
-    panel.style.display = 'block';
-    panel.style.visibility = 'visible';
-    panel.style.opacity = '1';
-    console.log('Panel positioned at:', {
-      top: panel.style.top,
-      left: panel.style.left,
-      display: panel.style.display
-    });
-  }
-  
-  console.log('new display:', panel.style.display);
-  
-  if (panel.style.display === 'block') {
-    const other = document.getElementById('plan-order-panel');
-    if (other) other.style.display = 'none';
-  }
+  // No-op: scheduleType feature removed
 }
-export function hidePlanTypePanel() { const p = document.getElementById('plan-type-panel'); if (p) p.style.display = 'none'; }
-export function clearPlanType() { selectPlanType('one-time', 'Tek seferlik'); }
+export function hidePlanTypePanel() {
+  // No-op: scheduleType feature removed
+}
+export function clearPlanType() {
+  // No-op: scheduleType feature removed
+}
 export function selectPlanType(value, labelText) {
-  const sel = document.getElementById('schedule-type');
-  const label = document.getElementById('plan-type-label');
-  const planTypeButton = document.getElementById('plan-type-btn');
-  
-  if (sel) sel.value = value;
-  if (label) label.textContent = labelText || (value === 'recurring' ? 'Devirli' : 'Tek seferlik');
-  
-  // Update the plan type button text
-  if (planTypeButton) {
-    const displayText = labelText || (value === 'recurring' ? 'Devirli' : 'Tek seferlik');
-    planTypeButton.innerHTML = `<span>${displayText}</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  }
-  
-  // Update state
-  if (planDesignerState.currentPlanMeta) {
-    planDesignerState.currentPlanMeta.scheduleType = value;
-  }
-  
-  // Also update quantity from modal if available
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  if (quantityInput) {
-    const quantity = parseInt(quantityInput.value) || 1;
-    planDesignerState.planQuantity = quantity;
-    if (planDesignerState.currentPlanMeta) {
-      planDesignerState.currentPlanMeta.quantity = quantity;
-    }
-  }
-  
-  // Sync modal radio buttons
-  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
-  radioButtons.forEach(radio => {
-    radio.checked = radio.value === value;
-  });
-  
-  // Only close panel if "Tek seferlik" is selected
-  // Keep panel open for "Devirli" so user can fill additional fields
-  if (value !== 'recurring') {
-    hidePlanTypePanel();
-  }
-  
-  try { if (typeof window.handleScheduleTypeChange === 'function') window.handleScheduleTypeChange(); } catch {}
+  // No-op: scheduleType feature removed
 }
 
 // Fullscreen Canvas Functions
@@ -3825,11 +3683,7 @@ export function setPlanMeta(meta = {}) {
       }
     }
     
-    if (typeSel) typeSel.value = meta.scheduleType || 'one-time';
-    if (typeLabel) typeLabel.textContent = (meta.scheduleType === 'recurring') ? 'Devirli' : 'Tek seferlik';
-    
-    // Update recurring UI visibility
-    try { if (typeof window.handleScheduleTypeChange === 'function') window.handleScheduleTypeChange(); } catch {}
+    // scheduleType removed - feature no longer used
     // Apply read-only state to config fields
     setPlanConfigReadOnly(!!planDesignerState.readOnly);
     configurePlanActionButtons();
@@ -3841,15 +3695,10 @@ function setPlanConfigReadOnly(flag) {
     const nameEl = document.getElementById('plan-name');
     const descEl = document.getElementById('plan-description');
     const orderBtn = document.getElementById('plan-order-btn');
-    const typeBtn = document.getElementById('plan-type-btn');
+    // Plan type button removed - scheduleType feature removed
     if (nameEl) nameEl.disabled = flag;
     if (descEl) descEl.disabled = flag;
     if (orderBtn) { orderBtn.style.pointerEvents = flag ? 'none' : ''; orderBtn.style.opacity = flag ? '0.6' : ''; }
-    // Plan type button should still be clickable in read-only mode to view details
-    if (typeBtn) { 
-      typeBtn.style.opacity = flag ? '0.8' : '1';
-      // Remove pointer-events restriction so modal can open in read-only mode
-    }
   } catch {}
 }
 
@@ -3947,10 +3796,13 @@ export async function loadOrdersIntoSelect() {
       options.push('<option value="" disabled>No unplanned work orders available</option>');
     }
 
+    // Clear and populate orders cache
+    planDesignerState.availableOrders.clear();
     ensuredList.forEach(quote => {
       const rawCode = quote?.workOrderCode || quote?.id || quote?.quoteId;
       const code = (rawCode || '').trim();
       if (!code) return;
+      planDesignerState.availableOrders.set(code, quote);
       const label = `${escapeHtml(code)} — ${escapeHtml(quote?.companyName || quote?.company || quote?.customerName || quote?.customer || quote?.name || '-')}`;
       options.push(`<option value="${escapeHtml(code)}">${label}</option>`);
     });
@@ -3987,322 +3839,43 @@ export function initializePlanOrdersDropdown() {
   loadOrdersIntoSelect();
 }
 
-// Modal functions for plan type panel
+// Modal functions for plan type panel - DEPRECATED (scheduleType feature removed)
+// These functions are kept as no-ops for backwards compatibility
 window.handlePlanTypeModalChange = function(planType) {
-  console.log('handlePlanTypeModalChange called with:', planType);
-  const recurringOptions = document.getElementById('modal-recurring-options');
-  console.log('Found modal-recurring-options element:', recurringOptions);
-  
-  if (planType === 'recurring') {
-    if (recurringOptions) {
-      recurringOptions.style.display = 'block';
-      console.log('Showing recurring options');
-    } else {
-      console.warn('modal-recurring-options element not found!');
-    }
-  } else {
-    if (recurringOptions) {
-      recurringOptions.style.display = 'none';
-      console.log('Hiding recurring options');
-    }
-  }
+  // No-op: scheduleType feature removed
 };
 
 window.handleModalRecurringTypeChange = function() {
-  console.log('handleModalRecurringTypeChange called');
-  const recurringType = document.getElementById('modal-recurring-type');
-  const periodicContainer = document.getElementById('modal-periodic-frequency-container');
-  
-  console.log('Found elements:', { recurringType, periodicContainer });
-  
-  if (recurringType && periodicContainer) {
-    console.log('Recurring type value:', recurringType.value);
-    if (recurringType.value === 'periodic') {
-      periodicContainer.style.display = 'block';
-      console.log('Showing periodic frequency container');
-    } else {
-      periodicContainer.style.display = 'none';
-      console.log('Hiding periodic frequency container');
-    }
-  }
+  // No-op: scheduleType feature removed
 };
 
 window.handleModalPeriodicFrequencyChange = function() {
-  console.log('handleModalPeriodicFrequencyChange called');
-  const periodicFrequency = document.getElementById('modal-periodic-frequency');
-  const customContainer = document.getElementById('modal-custom-frequency-container');
-  
-  console.log('Found elements:', { periodicFrequency, customContainer });
-  
-  if (periodicFrequency && customContainer) {
-    console.log('Periodic frequency value:', periodicFrequency.value);
-    if (periodicFrequency.value === 'custom') {
-      customContainer.style.display = 'block';
-      console.log('Showing custom frequency container');
-    } else {
-      customContainer.style.display = 'none';
-      console.log('Hiding custom frequency container');
-    }
-  }
+  // No-op: scheduleType feature removed
 };
 
 window.clearPlanType = function() {
-  // Clear radio buttons
-  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
-  radioButtons.forEach(radio => radio.checked = false);
-  
-  // Hide recurring options
-  const recurringOptions = document.getElementById('modal-recurring-options');
-  if (recurringOptions) {
-    recurringOptions.style.display = 'none';
-  }
-  
-  // Reset plan quantity to 1
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  if (quantityInput) {
-    quantityInput.value = 1;
-  }
-  planDesignerState.planQuantity = 1;
-  
-  // Reset plan type in state
-  if (planDesignerState.currentPlanMeta) {
-    planDesignerState.currentPlanMeta.scheduleType = null;
-    planDesignerState.currentPlanMeta.quantity = 1;
-  }
-  
-  // Update button text
-  const planTypeButton = document.getElementById('plan-type-selector');
-  if (planTypeButton) {
-    planTypeButton.innerHTML = `<span>Plan Türü</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  }
+  // No-op: scheduleType feature removed
 };
 
 window.hidePlanTypePanel = function() {
-  const panel = document.getElementById('plan-type-panel');
-  if (panel) {
-    panel.style.display = 'none';
-  }
+  // No-op: scheduleType feature removed
 };
 
-// Apply plan type modal selections and close
 window.applyPlanTypeModal = function() {
-  console.log('applyPlanTypeModal called');
-  
-  // Get selected plan type
-  const selectedRadio = document.querySelector('input[name="plan-type-radio"]:checked');
-  if (!selectedRadio) {
-    console.warn('No plan type selected');
-    return;
-  }
-  
-  const planType = selectedRadio.value;
-  console.log('Selected plan type:', planType);
-  
-  // Get and save plan quantity
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  if (quantityInput) {
-    const quantity = parseInt(quantityInput.value) || 1;
-    planDesignerState.planQuantity = quantity;
-    if (planDesignerState.currentPlanMeta) {
-      planDesignerState.currentPlanMeta.quantity = quantity;
-    }
-    console.log('Applied plan quantity:', quantity);
-  }
-  
-  // Get recurring options if applicable
-  if (planType === 'recurring') {
-    const recurringType = document.getElementById('modal-recurring-type')?.value;
-    const periodicFrequency = document.getElementById('modal-periodic-frequency')?.value;
-    const customFrequency = document.getElementById('modal-custom-frequency')?.value;
-    
-    console.log('Recurring options:', {
-      recurringType,
-      periodicFrequency,
-      customFrequency
-    });
-    
-    // Save recurring options to state
-    if (planDesignerState.currentPlanMeta) {
-      planDesignerState.currentPlanMeta.recurringType = recurringType;
-      planDesignerState.currentPlanMeta.periodicFrequency = periodicFrequency;
-      planDesignerState.currentPlanMeta.customFrequency = customFrequency;
-    }
-    
-    // Update button text to show more detail
-    const planTypeButton = document.getElementById('plan-type-btn');
-    if (planTypeButton && recurringType) {
-      let displayText = 'Devirli';
-      if (recurringType === 'periodic' && periodicFrequency) {
-        const frequencyLabels = {
-          'daily': 'Günlük',
-          'weekly': 'Haftalık', 
-          'biweekly': '2 haftalık',
-          'monthly': 'Aylık',
-          'custom': 'Custom'
-        };
-        displayText += ` (${frequencyLabels[periodicFrequency] || periodicFrequency})`;
-      } else if (recurringType === 'indefinite') {
-        displayText += ' (Süresiz)';
-      }
-      planTypeButton.innerHTML = `<span>${displayText}</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    }
-  }
-  
-  // Close the modal
-  hidePlanTypePanel();
-  console.log('Plan type modal applied and closed');
+  // No-op: scheduleType feature removed
 };
 
-// Initialize plan type modal with current values
+// Initialize plan type modal - DEPRECATED
 function initializePlanTypeModal() {
-  console.log('initializePlanTypeModal called');
-  const currentType = planDesignerState.currentPlanMeta?.scheduleType || 'one-time';
-  console.log('Current plan type:', currentType);
-  
-  // Set radio buttons
-  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
-  console.log('Found radio buttons:', radioButtons.length);
-  radioButtons.forEach(radio => {
-    radio.checked = radio.value === currentType;
-    console.log(`Radio button ${radio.value} checked:`, radio.checked);
-  });
-  
-  // Show/hide recurring options
-  const recurringOptions = document.getElementById('modal-recurring-options');
-  console.log('Found recurring options element:', recurringOptions);
-  if (recurringOptions) {
-    recurringOptions.style.display = currentType === 'recurring' ? 'block' : 'none';
-    console.log('Recurring options display:', recurringOptions.style.display);
-  }
-  
-  // If recurring, initialize sub-options
-  if (currentType === 'recurring') {
-    console.log('Initializing recurring sub-options');
-    // Initialize recurring type (default to periodic)
-    const recurringType = document.getElementById('modal-recurring-type');
-    if (recurringType && !recurringType.value) {
-      recurringType.value = 'periodic';
-      console.log('Set recurring type to:', recurringType.value);
-    }
-    
-    // Show/hide periodic frequency based on recurring type
-    window.handleModalRecurringTypeChange();
-    
-    // Initialize periodic frequency (default to daily)
-    const periodicFrequency = document.getElementById('modal-periodic-frequency');
-    if (periodicFrequency && !periodicFrequency.value) {
-      periodicFrequency.value = 'daily';
-      console.log('Set periodic frequency to:', periodicFrequency.value);
-    }
-    
-    // Show/hide custom frequency based on periodic frequency
-    window.handleModalPeriodicFrequencyChange();
-  }
-  
-  // Initialize plan quantity - use meta first, then state, then default
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  if (quantityInput) {
-    const currentQuantity = planDesignerState.currentPlanMeta?.quantity || planDesignerState.planQuantity || 1;
-    quantityInput.value = currentQuantity;
-    planDesignerState.planQuantity = currentQuantity; // Sync state
-    console.log('Set plan quantity to:', quantityInput.value, 'from meta:', planDesignerState.currentPlanMeta?.quantity);
-  }
-  
-  // Set modal elements to read-only if in view mode
-  const isReadOnly = planDesignerState.readOnly;
-  if (isReadOnly) {
-    setPlanTypeModalReadOnly(true);
-    
-    // Update modal title for view mode
-    const modalTitle = document.getElementById('plan-type-modal-title');
-    if (modalTitle) {
-      modalTitle.textContent = 'Plan Türü Detayları (Görüntüleme)';
-    }
-  } else {
-    // Update modal title for edit mode
-    const modalTitle = document.getElementById('plan-type-modal-title');
-    if (modalTitle) {
-      modalTitle.textContent = 'Plan Türü Ayarları';
-    }
-  }
+  // No-op: scheduleType feature removed
 }
 
-// Set plan type modal elements to read-only state
+// Set plan type modal read-only - DEPRECATED
 function setPlanTypeModalReadOnly(flag) {
-  try {
-    // Disable radio buttons
-    const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
-    radioButtons.forEach(radio => {
-      radio.disabled = flag;
-      if (flag) radio.style.pointerEvents = 'none';
-    });
-    
-    // Disable quantity input
-    const quantityInput = document.getElementById('modal-plan-quantity');
-    if (quantityInput) {
-      quantityInput.readOnly = flag;
-      if (flag) {
-        quantityInput.style.backgroundColor = '#f9fafb';
-        quantityInput.style.cursor = 'not-allowed';
-      }
-    }
-    
-    // Disable recurring selects
-    const recurringType = document.getElementById('modal-recurring-type');
-    if (recurringType) {
-      recurringType.disabled = flag;
-      if (flag) recurringType.style.backgroundColor = '#f9fafb';
-    }
-    
-    const periodicFreq = document.getElementById('modal-periodic-frequency');
-    if (periodicFreq) {
-      periodicFreq.disabled = flag;
-      if (flag) periodicFreq.style.backgroundColor = '#f9fafb';
-    }
-    
-    const customFreq = document.getElementById('modal-custom-frequency');
-    if (customFreq) {
-      customFreq.readOnly = flag;
-      if (flag) {
-        customFreq.style.backgroundColor = '#f9fafb';
-        customFreq.style.cursor = 'not-allowed';
-      }
-    }
-    
-    // Hide action buttons in read-only mode
-    const clearBtn = document.getElementById('plan-type-clear');
-    const applyBtn = document.getElementById('modal-apply-btn');
-    if (flag) {
-      if (clearBtn) clearBtn.style.display = 'none';
-      if (applyBtn) applyBtn.style.display = 'none';
-    } else {
-      if (clearBtn) clearBtn.style.display = '';
-      if (applyBtn) applyBtn.style.display = '';
-    }
-  } catch (e) {
-    console.warn('Error setting plan type modal read-only state:', e);
-  }
+  // No-op: scheduleType feature removed
 }
 
-// Handle plan quantity change
+// Handle plan quantity change - DEPRECATED
 window.handlePlanQuantityChange = function() {
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  if (!quantityInput) return;
-  
-  const newQuantity = parseInt(quantityInput.value) || 1;
-  
-  // Ensure minimum value is 1
-  if (newQuantity < 1) {
-    quantityInput.value = 1;
-    planDesignerState.planQuantity = 1;
-  } else {
-    planDesignerState.planQuantity = newQuantity;
-  }
-  
-  // Save to current plan meta if exists
-  if (planDesignerState.currentPlanMeta) {
-    planDesignerState.currentPlanMeta.quantity = planDesignerState.planQuantity;
-  }
-  
-  console.log('Plan quantity changed to:', planDesignerState.planQuantity);
+  // No-op: scheduleType modal removed, quantity is set to 1 by default
 };

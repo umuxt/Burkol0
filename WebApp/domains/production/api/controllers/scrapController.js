@@ -91,11 +91,14 @@ export async function validateOutputCode(req, res) {
 
 /**
  * GET /api/mes/output-codes/existing
+ * Query params:
+ * - prefix: Filter by output code prefix (e.g., "Cu" for Kesim operation)
+ * - planId: Filter by specific plan (optional)
  */
 export async function getExistingOutputCodes(req, res) {
   try {
-    const { planId } = req.query;
-    const result = await scrapService.getExistingOutputCodes(planId);
+    const { planId, prefix } = req.query;
+    const result = await scrapService.getExistingOutputCodes(planId, prefix);
     res.json(result);
   } catch (error) {
     console.error('❌ Error fetching output codes:', error);

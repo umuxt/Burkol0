@@ -219,7 +219,7 @@ export const updateProductionPlan = async (id, data) => {
     status, 
     nodes, 
     quantity, 
-    scheduleType, 
+    // scheduleType - not in DB schema, ignored
     materialSummary, 
     timingSummary 
   } = data;
@@ -241,7 +241,7 @@ export const updateProductionPlan = async (id, data) => {
   if (quoteId !== undefined) updateFields.quoteId = quoteId;
   if (status !== undefined) updateFields.status = status;
   if (quantity !== undefined) updateFields.quantity = quantity;
-  if (scheduleType !== undefined) updateFields.scheduleType = scheduleType;
+  // scheduleType removed - column does not exist in mes.production_plans
   if (materialSummary !== undefined) updateFields.materialSummary = JSON.stringify(materialSummary);
   if (timingSummary !== undefined) updateFields.timingSummary = JSON.stringify(timingSummary);
   

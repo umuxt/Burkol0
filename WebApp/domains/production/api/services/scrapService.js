@@ -177,8 +177,10 @@ export async function validateOutputCode(code, excludePlanId = null) {
 
 /**
  * Get existing output codes
+ * @param {number|null} planId - Filter by specific plan
+ * @param {string|null} prefix - Filter by output code prefix (e.g., "Cu" for Kesim)
  */
-export async function getExistingOutputCodes(planId = null) {
+export async function getExistingOutputCodes(planId = null, prefix = null) {
   let query = db('mes.production_plan_nodes')
     .whereNotNull('outputCode')
     .select('outputCode', 'planId', 'name as nodeName')
@@ -188,25 +190,38 @@ export async function getExistingOutputCodes(planId = null) {
     query = query.where('planId', planId);
   }
   
+  // Filter by prefix if provided (e.g., "Cu" shows only codes starting with "Cu")
+  if (prefix) {
+    query = query.where('outputCode', 'like', `${prefix}%`);
+  }
+  
   const nodes = await query;
   
-  // Get material info for each code
+  // Get material info for each code (include id and unit)
   const codes = nodes.map(n => n.outputCode);
+  
+  // If no codes found, return empty array
+  if (codes.length === 0) {
+    return { outputCodes: [] };
+  }
+  
   const materials = await db('materials.materials')
     .whereIn('code', codes)
-    .select('code', 'name');
+    .select('id', 'code', 'name', 'unit');
   
   const materialMap = materials.reduce((acc, m) => {
-    acc[m.code] = m.name;
+    acc[m.code] = { id: m.id, name: m.name, unit: m.unit };
     return acc;
   }, {});
   
   return {
     outputCodes: nodes.map(n => ({
       code: n.outputCode,
+      name: materialMap[n.outputCode]?.name || n.nodeName || n.outputCode,
+      unit: materialMap[n.outputCode]?.unit || 'adet',
+      id: materialMap[n.outputCode]?.id || null,
       planId: n.planId,
       nodeName: n.nodeName,
-      materialName: materialMap[n.outputCode] || null,
       isMaterial: !!materialMap[n.outputCode]
     }))
   };

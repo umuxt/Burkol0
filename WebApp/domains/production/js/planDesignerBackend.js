@@ -2356,7 +2356,9 @@ window.openOutputSelectionDropdown = async function() {
       throw new Error('Failed to fetch existing outputs');
     }
     
-    const outputs = await response.json();
+    const data = await response.json();
+    // Backend returns { outputCodes: [...] } format
+    const outputs = Array.isArray(data) ? data : (data.outputCodes || []);
     
     if (outputs.length === 0) {
       listContainer.innerHTML = '<div class="pdb-empty">No existing outputs found</div>';
@@ -2365,14 +2367,19 @@ window.openOutputSelectionDropdown = async function() {
     }
     
     // Render output list
-    listContainer.innerHTML = outputs.map(o => `
-      <div onclick="selectExistingOutput('${o.code}', '${o.name.replace(/'/g, "\\'")}', '${o.unit}', ${o.id})" 
+    listContainer.innerHTML = outputs.map(o => {
+      const name = o.name || o.nodeName || o.code;
+      const unit = o.unit || 'adet';
+      const id = o.id || 'null';
+      return `
+      <div onclick="selectExistingOutput('${o.code}', '${name.replace(/'/g, "\\'")}', '${unit}', ${id})" 
            class="pdb-dropdown-item-alt"
            onmouseover="this.style.background='rgb(249, 250, 251)'" 
            onmouseout="this.style.background='white'">
-        <span class="font-weight-600">${o.code}</span> · <span>${o.name}</span> · <span class="text-muted">${o.unit}</span>
+        <span class="font-weight-600">${o.code}</span> · <span>${name}</span> · <span class="text-muted">${unit}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
     listContainer.style.display = 'block';
     
   } catch (error) {

@@ -232,7 +232,7 @@ export async function viewProductionPlan(id) {
       name: p.name, 
       description: p.description, 
       workOrderCode: p.workOrderCode, 
-      scheduleType: p.scheduleType, 
+      // scheduleType removed - feature no longer used
       quantity: p.quantity || 1,
       mode: 'view',
       status: p.status || 'production',
@@ -368,7 +368,7 @@ export function editTemplateById(id) {
         name: tpl.name || tpl.workOrderCode || tpl.id, 
         description: tpl.description || '',
         workOrderCode: tpl.workOrderCode || '',
-        scheduleType: tpl.scheduleType || 'one-time',
+        // scheduleType removed - feature no longer used
         quantity: tpl.quantity || 1,
         mode: 'edit',
         status: 'template', 
@@ -518,7 +518,7 @@ export function openCreatePlan() {
       name: '', 
       description: '', 
       workOrderCode: '', 
-      scheduleType: 'one-time',
+      // scheduleType removed - feature no longer used
       quantity: 1,
       mode: 'create',
       status: null,
