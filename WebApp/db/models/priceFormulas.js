@@ -57,6 +57,19 @@ class PriceFormulas {
   }
 
   /**
+   * Get formula by setting ID
+   */
+  static async getBySettingId(settingId) {
+    const formula = await db('quotes.price_formulas')
+      .where('settingId', settingId)
+      .where('isActive', true)
+      .orderBy('version', 'desc')
+      .first();
+    
+    return formula;
+  }
+
+  /**
    * Get formula by code
    */
   static async getByCode(code) {

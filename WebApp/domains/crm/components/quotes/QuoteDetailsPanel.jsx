@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet } from '../../../../shared/components/Icons.jsx'
 import { PriceStatusBadge } from '../pricing/PriceStatusBadge.js'
 import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
@@ -367,6 +367,60 @@ export default function QuoteDetailsPanel({
   // PROMPT-13: Check if deliveryDate is missing for approve validation warning
   const missingDeliveryDate = !quote?.deliveryDate
   
+  // PROMPT-14: Get price warning info for banner display
+  const getPriceWarningInfo = () => {
+    if (!quote || !quote.priceStatus) {
+      return { type: 'none', color: null, priority: 0 }
+    }
+
+    const status = quote.priceStatus.status
+    const diffSummary = quote.priceStatus.differenceSummary
+    const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
+    
+    // Eğer uyarı gizlenmişse warning yok
+    if (quote.versionWarningHidden === true) {
+      return { type: 'none', color: null, priority: 0 }
+    }
+
+    // Kırmızı uyarı: Fiyat farkı var
+    if (priceDiff > 0 || status === 'price-drift') {
+      return { 
+        type: 'price', 
+        color: '#dc3545',
+        bgColor: 'rgba(220, 53, 69, 0.1)',
+        borderColor: '#fecaca',
+        icon: Wallet,
+        message: `Fiyat güncel değil! Fark: ₺${priceDiff.toFixed(2)}`,
+        priority: 2 
+      }
+    }
+
+    // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
+    if (status === 'content-drift' || status === 'outdated') {
+      const hasParameterChanges = diffSummary?.parameterChanges && 
+        (diffSummary.parameterChanges.added?.length > 0 ||
+         diffSummary.parameterChanges.removed?.length > 0 ||
+         diffSummary.parameterChanges.modified?.length > 0)
+      const hasFormulaChange = diffSummary?.formulaChanged === true
+      
+      if (hasParameterChanges || hasFormulaChange) {
+        return { 
+          type: 'version', 
+          color: '#ffc107',
+          bgColor: 'rgba(255, 193, 7, 0.1)',
+          borderColor: '#fde68a',
+          icon: RefreshCw,
+          message: 'Formül veya parametreler güncellendi. Fiyat kontrolü önerilir.',
+          priority: 1 
+        }
+      }
+    }
+
+    return { type: 'none', color: null, priority: 0 }
+  }
+  
+  const priceWarningInfo = getPriceWarningInfo()
+  
   // Handle navigation to work order
   const handleViewWorkOrder = (woCode) => {
     // Navigate to production page with work order filter
@@ -395,9 +449,26 @@ export default function QuoteDetailsPanel({
           alignItems: 'center',
           gap: '8px'
         }}>
-          <span style={{ fontSize: '16px' }}>⚠️</span>
+          <AlertTriangle size={16} style={{ color: '#dc2626' }} />
           <span style={{ fontSize: '13px', color: '#dc2626', fontWeight: '500' }}>
             Teslimat tarihi belirtilmemiş. Teklifi onaylamak için teslimat tarihi gereklidir.
+          </span>
+        </div>
+      )}
+      
+      {/* PROMPT-14: Price Warning Banner */}
+      {priceWarningInfo.priority > 0 && (
+        <div style={{
+          padding: '12px 16px',
+          background: priceWarningInfo.bgColor,
+          borderBottom: `1px solid ${priceWarningInfo.borderColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          {priceWarningInfo.icon && <priceWarningInfo.icon size={16} style={{ color: priceWarningInfo.color }} />}
+          <span style={{ fontSize: '13px', color: priceWarningInfo.color, fontWeight: '500' }}>
+            {priceWarningInfo.message}
           </span>
         </div>
       )}
@@ -968,8 +1039,9 @@ export default function QuoteDetailsPanel({
                 border: `1px solid ${isLocked ? '#fbbf24' : '#d1d5db'}`
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
-                    {isLocked ? '🔒 Manuel Fiyat Aktif' : '🔓 Otomatik Fiyatlandırma'}
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {isLocked ? <Lock size={12} style={{ color: '#f59e0b' }} /> : <Unlock size={12} style={{ color: '#6b7280' }} />}
+                    {isLocked ? 'Manuel Fiyat Aktif' : 'Otomatik Fiyatlandırma'}
                   </span>
                   <button
                     type="button"

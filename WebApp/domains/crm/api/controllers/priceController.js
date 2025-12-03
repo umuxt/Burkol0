@@ -636,7 +636,7 @@ export function setupPriceRoutes(app) {
         });
       }
 
-      // Update parameters
+      // Update parameters - parameters are not referenced by FK, safe to delete/recreate
       if (parameters) {
         // Delete existing parameters for this setting
         await db('quotes.price_parameters')
@@ -659,15 +659,43 @@ export function setupPriceRoutes(app) {
         }
       }
 
-      // Update formula
+      // Update formula - UPDATE instead of DELETE to avoid FK violation
+      // quotes.priceFormulaId references price_formulas.id
       if (formula !== undefined) {
-        // Delete existing formula
-        await db('quotes.price_formulas')
+        // Get existing formula for this setting
+        const existingFormula = await db('quotes.price_formulas')
           .where({ settingId: parseInt(id) })
-          .delete();
+          .first();
 
-        // Insert new formula if not empty
-        if (formula && formula.trim()) {
+        if (existingFormula) {
+          // Update existing formula instead of deleting
+          if (formula && formula.trim()) {
+            await db('quotes.price_formulas')
+              .where({ id: existingFormula.id })
+              .update({
+                formulaExpression: formula,
+                version: existingFormula.version + 1,
+                updatedAt: new Date()
+              });
+            
+            // Mark quotes using this formula as needing recalculation
+            await db('quotes.quotes')
+              .where({ priceFormulaId: existingFormula.id })
+              .update({
+                priceStatus: 'outdated',
+                needsRecalculation: true,
+                updatedAt: new Date()
+              });
+            
+            logger.info(`Marked quotes with priceFormulaId=${existingFormula.id} as outdated`);
+          } else {
+            // Formula cleared - just deactivate, don't delete
+            await db('quotes.price_formulas')
+              .where({ id: existingFormula.id })
+              .update({ isActive: false, updatedAt: new Date() });
+          }
+        } else if (formula && formula.trim()) {
+          // No existing formula, create new one
           await db('quotes.price_formulas').insert({
             settingId: parseInt(id),
             code: 'MAIN_FORMULA',

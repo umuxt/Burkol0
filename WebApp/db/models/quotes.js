@@ -29,6 +29,42 @@ class Quotes {
   }
 
   /**
+   * Helper to normalize priceStatus from string to object format
+   * Frontend expects priceStatus as an object with { status, differenceSummary, ... }
+   * But database stores it as a simple string ('current', 'outdated', 'price-drift', etc.)
+   */
+  static normalizePriceStatus(quote) {
+    if (quote && quote.priceStatus) {
+      // If it's already an object, keep it
+      if (typeof quote.priceStatus === 'object' && quote.priceStatus !== null) {
+        return quote;
+      }
+      
+      // Convert string to object format
+      const statusString = quote.priceStatus;
+      quote.priceStatus = {
+        status: statusString,
+        differenceSummary: null,
+        calculatedPrice: quote.calculatedPrice || null,
+        settingsVersion: quote.priceFormulaVersion || null,
+        formVersion: quote.formTemplateVersion || null
+      };
+      
+      // If there's priceDifferenceSummary stored separately, parse it
+      if (quote.priceDifferenceSummary) {
+        try {
+          quote.priceStatus.differenceSummary = typeof quote.priceDifferenceSummary === 'string' 
+            ? JSON.parse(quote.priceDifferenceSummary) 
+            : quote.priceDifferenceSummary;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    return quote;
+  }
+
+  /**
    * Generate quote ID (TKF-YYYYMMDD-NNNN)
    */
   static async generateQuoteId() {
@@ -198,8 +234,11 @@ class Quotes {
 
     const quotes = await query.orderBy('createdAt', 'desc');
     
-    // Normalize deliveryDate for all quotes
-    quotes.forEach(quote => this.normalizeDeliveryDate(quote));
+    // Normalize deliveryDate and priceStatus for all quotes
+    quotes.forEach(quote => {
+      this.normalizeDeliveryDate(quote);
+      this.normalizePriceStatus(quote);
+    });
     
     return quotes;
   }
@@ -235,8 +274,9 @@ class Quotes {
       .where('quoteId', id)
       .orderBy('createdAt');
 
-    // Normalize deliveryDate to prevent timezone issues
+    // Normalize deliveryDate and priceStatus
     this.normalizeDeliveryDate(quote);
+    this.normalizePriceStatus(quote);
 
     return {
       ...quote,
@@ -397,8 +437,36 @@ class Quotes {
       })
       .returning('*');
     
-    // Normalize deliveryDate before returning
+    // Normalize deliveryDate and priceStatus before returning
     this.normalizeDeliveryDate(quote);
+    this.normalizePriceStatus(quote);
+    
+    return quote;
+  }
+
+  /**
+   * Clear manual price - revert to calculated price
+   */
+  static async clearManualPrice(id, reason, updatedBy) {
+    // Get the current quote to get calculatedPrice
+    const currentQuote = await db('quotes.quotes').where('id', id).first();
+    if (!currentQuote) return null;
+
+    const [quote] = await db('quotes.quotes')
+      .where('id', id)
+      .update({
+        manualPrice: null,
+        manualPriceReason: null,
+        finalPrice: currentQuote.calculatedPrice || currentQuote.price || 0,
+        priceStatus: 'current',
+        updatedBy: updatedBy,
+        updatedAt: db.fn.now()
+      })
+      .returning('*');
+    
+    // Normalize deliveryDate and priceStatus before returning
+    this.normalizeDeliveryDate(quote);
+    this.normalizePriceStatus(quote);
     
     return quote;
   }

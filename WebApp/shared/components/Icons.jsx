@@ -26,10 +26,10 @@ import {
   Users,
   ShoppingCart,
   Settings as SettingsIcon,
-  Truck, // Added Truck
-  Loader2, // Added Loader2
-  ChevronDown, // Added ChevronDown
-  Search, // Added Search
+  Truck,
+  Loader2,
+  ChevronDown,
+  Search,
   
   // Production
   Play,
@@ -58,6 +58,11 @@ import {
   Info,
   Lock,
   Unlock,
+  
+  // Price warnings (PROMPT-14)
+  AlertTriangle,
+  RefreshCw,
+  Wallet,
   
 } from 'lucide-react';
 
@@ -86,10 +91,10 @@ export const Icons = {
   Users,
   ShoppingCart,
   Settings: SettingsIcon,
-  Truck, // Added Truck
-  Loader2, // Added Loader2
-  ChevronDown, // Added ChevronDown
-  Search, // Added Search
+  Truck,
+  Loader2,
+  ChevronDown,
+  Search,
   
   // Production
   Play,
@@ -118,6 +123,11 @@ export const Icons = {
   Info,
   Lock,
   Unlock,
+  
+  // Price warnings (PROMPT-14)
+  AlertTriangle,
+  RefreshCw,
+  Wallet,
 };
 
 // Helper component for consistent icon rendering
@@ -153,10 +163,10 @@ export {
   Users,
   ShoppingCart,
   SettingsIcon,
-  Truck, // Added Truck
-  Loader2, // Added Loader2
-  ChevronDown, // Added ChevronDown
-  Search, // Added Search
+  Truck,
+  Loader2,
+  ChevronDown,
+  Search,
   Play,
   Pause,
   CheckCircle,
@@ -181,6 +191,10 @@ export {
   Info,
   Lock,
   Unlock,
+  // Price warnings (PROMPT-14)
+  AlertTriangle,
+  RefreshCw,
+  Wallet,
 };
 
 export default Icons;

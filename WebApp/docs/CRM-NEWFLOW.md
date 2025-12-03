@@ -1507,53 +1507,57 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-14: Fiyat Sistemi ve Uyarı Entegrasyonu
+### PROMPT-14: Fiyat Sistemi ve Uyarı Entegrasyonu ✅
+
+**Durum**: TAMAMLANDI (3 Aralık 2025)
 
 **Amaç**: QuoteDetailsPanel'de fiyat uyarı sistemini (sarı/kırmızı banner) entegre etmek ve emoji'leri Lucide ikonlarla değiştirmek
 
-**Ön Araştırma** (İlk yapılacak adımlar):
-1. `read_file` ile QuotesManager.js'i oku - `getQuoteWarningInfo()` fonksiyonunu bul
-2. `read_file` ile PriceStatusBadge.js'i oku - mevcut badge yapısını incele
-3. `grep_search` ile fiyat uyarı pattern'lerini bul: `price-drift|content-drift|priceStatus`
-4. `read_file` ile QuoteDetailsPanel.jsx - fiyat bölümünü incele
-5. `grep_search` ile openPriceReview çağrılarını bul
-6. `read_file` ile Icons.jsx - mevcut Lucide ikonları kontrol et
+**Yapılan Değişiklikler**:
 
-**Yapılacaklar**:
+1. **Icons.jsx güncellendi** ✅:
+   - `AlertTriangle`, `RefreshCw`, `Wallet` ikonları eklendi
+   - Export listesi güncellendi
 
-1. **QuoteDetailsPanel.jsx güncelle**:
-   - `getQuoteWarningInfo()` fonksiyonunu import et veya inline tanımla
-   - Fiyat bölümüne sarı/kırmızı uyarı banner ekle
-   - Manuel fiyat toggle'da emoji yerine `Lock`/`Unlock` Lucide ikonları kullan
-   - "Fiyat Güncelle" butonu ekle (drift durumunda)
+2. **QuoteDetailsPanel.jsx güncellendi** ✅:
+   - `getPriceWarningInfo()` fonksiyonu eklendi (inline)
+   - Fiyat uyarı banner'ı eklendi (kırmızı: price-drift, sarı: version-drift)
+   - Manuel fiyat toggle'da 🔒/🔓 emoji yerine `Lock`/`Unlock` Lucide ikonları kullanıldı
+   - Teslimat tarihi uyarısında ⚠️ emoji yerine `AlertTriangle` ikonu kullanıldı
 
-2. **Icons.jsx güncelle**:
-   - Eksik ikonları ekle: `Wallet`, `AlertTriangle`, `RefreshCw`
-   - Export listesini güncelle
+3. **priceController.js güncellendi** ✅:
+   - Price settings güncellemesinde formül DELETE yerine UPDATE yapılıyor (FK violation fix)
+   - Formül güncellendiğinde quotes otomatik olarak `priceStatus = 'outdated'` işaretleniyor
 
-3. **PriceWarningBanner component oluştur** (opsiyonel):
-   - Sarı banner: Versiyon farkı var, fiyat aynı
-   - Kırmızı banner: Fiyat farkı var
-   - "Fiyatı Güncelle" ve "Versiyonu Güncelle" butonları
+4. **quoteController.js güncellendi** ✅:
+   - `POST /api/quotes/:id/manual-price` - Hem `{ price, note }` hem `{ manualPrice, reason }` destekleniyor
+   - `DELETE /api/quotes/:id/manual-price` - Yeni endpoint eklendi
+   - `GET /api/quotes/:id/price-comparison` - Yeni endpoint eklendi
 
-4. **CSS güncelle**:
-   - `.price-warning-banner` stilleri
-   - `.price-warning-banner.warning` (sarı)
-   - `.price-warning-banner.error` (kırmızı)
+5. **quotes.js (model) güncellendi** ✅:
+   - `normalizePriceStatus()` helper eklendi - string priceStatus'u objeye dönüştürür
+   - `clearManualPrice()` fonksiyonu eklendi
+   - `getAll()` ve `getById()` çağrılarında priceStatus normalize ediliyor
 
-**Test Kriterleri**:
-- [ ] Quote'ta fiyat farkı varsa kırmızı uyarı banner görünüyor
-- [ ] Quote'ta sadece versiyon farkı varsa sarı uyarı banner görünüyor
-- [ ] Manuel fiyat aktifken Lock ikonu görünüyor (emoji değil)
-- [ ] Manuel fiyat pasifken Unlock ikonu görünüyor (emoji değil)
-- [ ] "Fiyatı Güncelle" butonuna basınca fiyat güncelleniyor
-- [ ] Fiyat güncel olduğunda banner görünmüyor
+6. **priceFormulas.js güncellendi** ✅:
+   - `getBySettingId()` fonksiyonu eklendi
+
+7. **quoteService.js güncellendi** ✅:
+   - `clearManualPrice()` fonksiyonu eklendi
 
 **Oluşturulan/Güncellenen Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
-- `shared/components/Icons.jsx`
-- `domains/crm/components/pricing/PriceWarningBanner.jsx` (yeni - opsiyonel)
-- `domains/crm/styles/quotes.css`
+- `shared/components/Icons.jsx` ✅
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` ✅
+- `domains/crm/api/controllers/priceController.js` ✅
+- `domains/crm/api/controllers/quoteController.js` ✅
+- `domains/crm/api/services/quoteService.js` ✅
+- `db/models/quotes.js` ✅
+- `db/models/priceFormulas.js` ✅
+
+**Teknik Notlar**:
+- `priceStatus` veritabanında string olarak saklanıyor ama frontend obje bekliyor
+- `normalizePriceStatus()` bu dönüşümü otomatik yapıyor
+- Formül güncellendiğinde eski formülü silmek yerine güncelliyoruz (FK constraint)
 
 ---
 

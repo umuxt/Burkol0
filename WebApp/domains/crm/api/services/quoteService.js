@@ -119,6 +119,13 @@ export async function setManualPrice(id, manualPrice, reason, updatedBy) {
 }
 
 /**
+ * Clear manual price
+ */
+export async function clearManualPrice(id, reason, updatedBy) {
+  return Quotes.clearManualPrice(id, reason, updatedBy);
+}
+
+/**
  * Add file to quote
  */
 export async function addFile(data) {

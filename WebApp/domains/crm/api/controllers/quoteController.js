@@ -8,6 +8,8 @@ import * as quoteService from '../services/quoteService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
 import Quotes from '../../../../db/models/quotes.js';
+import PriceFormulas from '../../../../db/models/priceFormulas.js';
+import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
 
 /**
@@ -101,6 +103,92 @@ export function setupQuotesRoutes(app) {
     } catch (error) {
       logger.error('Failed to fetch edit status', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch edit status', message: error.message });
+    }
+  });
+
+  // ==================== GET QUOTE PRICE COMPARISON ====================
+  app.get('/api/quotes/:id/price-comparison', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/quotes/${id}/price-comparison - Getting price comparison`);
+      
+      const quote = await Quotes.getById(id);
+      
+      if (!quote) {
+        logger.warning(`Quote not found: ${id}`);
+        return res.status(404).json({ error: 'Quote not found' });
+      }
+
+      // Get current formula and settings for comparison
+      const currentFormula = quote.priceFormulaId 
+        ? await PriceFormulas.getById(quote.priceFormulaId)
+        : null;
+      
+      // Get active price settings to compare versions
+      const activeSetting = await PriceSettings.getActive();
+      const activeFormula = activeSetting 
+        ? await PriceFormulas.getBySettingId(activeSetting.id)
+        : null;
+
+      const quoteFormulaVersion = quote.priceFormulaVersion || currentFormula?.version || 1;
+      const latestFormulaVersion = activeFormula?.version || currentFormula?.version || 1;
+      
+      // Calculate if update needed
+      const versionMismatch = quoteFormulaVersion !== latestFormulaVersion;
+      const formulaIdMismatch = quote.priceFormulaId !== activeFormula?.id;
+      const needsUpdate = versionMismatch || formulaIdMismatch;
+
+      // Build versions object
+      const versions = {
+        original: {
+          version: quote.priceFormulaVersion || 'N/A',
+          versionId: quote.priceFormulaId || null,
+          timestamp: quote.createdAt
+        },
+        applied: {
+          version: currentFormula?.version || quote.priceFormulaVersion || 'N/A',
+          versionId: quote.priceFormulaId || null,
+          timestamp: quote.priceCalculatedAt || quote.updatedAt
+        },
+        latest: {
+          version: activeFormula?.version || 'N/A',
+          versionId: activeFormula?.id || null,
+          timestamp: activeFormula?.updatedAt || new Date().toISOString()
+        }
+      };
+
+      // Build difference summary
+      const differenceSummary = {
+        priceDiff: 0, // Would need recalculation to determine actual diff
+        oldPrice: quote.finalPrice || quote.calculatedPrice || 0,
+        newPrice: quote.finalPrice || quote.calculatedPrice || 0, // Same until recalculated
+        reasons: [],
+        parameterChanges: { added: [], removed: [], modified: [] },
+        formulaChanged: formulaIdMismatch || versionMismatch,
+        comparisonBaseline: 'applied'
+      };
+
+      if (versionMismatch) {
+        differenceSummary.reasons.push(`Formül versiyonu güncellendi: v${quoteFormulaVersion} → v${latestFormulaVersion}`);
+      }
+
+      logger.success(`Price comparison fetched: ${id}`, { needsUpdate, versionMismatch });
+      
+      res.json({
+        quote: {
+          id: quote.id,
+          appliedPrice: quote.finalPrice || quote.calculatedPrice || 0,
+          latestPrice: quote.finalPrice || quote.calculatedPrice || 0,
+          priceStatus: quote.priceStatus
+        },
+        needsUpdate,
+        versions,
+        differenceSummary,
+        comparisonBaseline: 'applied'
+      });
+    } catch (error) {
+      logger.error('Failed to get price comparison', { error: error.message });
+      res.status(500).json({ error: 'Failed to get price comparison', message: error.message });
     }
   });
 
@@ -359,7 +447,9 @@ export function setupQuotesRoutes(app) {
   app.post('/api/quotes/:id/manual-price', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { manualPrice, reason } = req.body;
+      // Support both { price, note } and { manualPrice, reason } formats
+      const manualPrice = req.body.price ?? req.body.manualPrice;
+      const reason = req.body.note ?? req.body.reason;
 
       logger.info(`POST /api/quotes/${id}/manual-price - Setting manual price: ${manualPrice}`);
 
@@ -388,10 +478,52 @@ export function setupQuotesRoutes(app) {
         finalPrice: quote.finalPrice
       });
 
-      res.json({ success: true, quote });
+      // Return manualOverride object for frontend compatibility
+      res.json({ 
+        success: true, 
+        quote,
+        manualOverride: {
+          active: true,
+          price: quote.manualPrice,
+          note: reason || 'Manuel fiyat belirlendi',
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
       logger.error('Failed to set manual price', { error: error.message });
       res.status(500).json({ error: 'Failed to set manual price', message: error.message });
+    }
+  });
+
+  // ==================== CLEAR MANUAL PRICE ====================
+  app.delete('/api/quotes/:id/manual-price', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body || {};
+
+      logger.info(`DELETE /api/quotes/${id}/manual-price - Clearing manual price`);
+
+      const quote = await quoteService.clearManualPrice(
+        id, 
+        reason || 'Manuel fiyat kaldırıldı',
+        req.user?.email || 'system'
+      );
+
+      if (!quote) {
+        logger.warning(`Quote not found: ${id}`);
+        return res.status(404).json({ error: 'Quote not found' });
+      }
+
+      logger.success('Manual price cleared', { quoteId: id });
+
+      res.json({ 
+        success: true, 
+        quote,
+        manualOverride: null
+      });
+    } catch (error) {
+      logger.error('Failed to clear manual price', { error: error.message });
+      res.status(500).json({ error: 'Failed to clear manual price', message: error.message });
     }
   });
 
