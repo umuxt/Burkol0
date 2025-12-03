@@ -177,16 +177,20 @@ export function formatFieldValue(value, column, item, context) {
     
     switch (column.id) {
       case 'date':
-        const dateStr = value || '';
-        if (dateStr) {
-          // YYYY-MM-DD formatından DD-MM-YYYY formatına çevir
-          const datePart = dateStr.slice(0, 10);
-          if (datePart.includes('-') && datePart.length === 10) {
-            const [year, month, day] = datePart.split('-');
-            return `${day}-${month}-${year}`;
+        if (value) {
+          // Convert to local date/time using toLocaleString
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleString('tr-TR', { 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
           }
         }
-        return dateStr.slice(0, 10);
+        return '';
         
       case 'customer':
         return (item.customerName || '') + (item.customerCompany ? ' — ' + item.customerCompany : '');
@@ -276,13 +280,22 @@ export function formatFieldValue(value, column, item, context) {
           return '';
         }
         
-        const deliveryDate = new Date(value);
+        // Parse date - if it's just a date string (YYYY-MM-DD), create date at noon local time
+        // to avoid timezone issues
+        let deliveryDate;
+        if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const [year, month, day] = value.split('-').map(Number);
+          deliveryDate = new Date(year, month - 1, day, 12, 0, 0);
+        } else {
+          deliveryDate = new Date(value);
+        }
+        
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        deliveryDate.setHours(0, 0, 0, 0);
+        today.setHours(12, 0, 0, 0);
+        deliveryDate.setHours(12, 0, 0, 0);
         
         const diffTime = deliveryDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
         
         let displayText = '';
         let style = {};

@@ -70,7 +70,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, f
     // Add system fields first
     fields.push(
       info('ID', item.id),
-      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16))
+      info(t.th_date || 'Tarih', item.createdAt ? new Date(item.createdAt).toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '')
     )
     
     // Add dynamic fields from form config
@@ -157,7 +157,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, f
     // Add system fields first
     fields.push(
       info('ID', item.id),
-      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16))
+      info(t.th_date || 'Tarih', item.createdAt ? new Date(item.createdAt).toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '')
     )
     
     // Add default fields (company, proj, etc.) - always show these

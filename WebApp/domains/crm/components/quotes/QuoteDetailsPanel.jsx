@@ -100,6 +100,15 @@ export default function QuoteDetailsPanel({
         })
       }
       
+      // Add customer fields to initialForm
+      initialForm.customerName = quote.customerName || ''
+      initialForm.customerEmail = quote.customerEmail || ''
+      initialForm.customerPhone = quote.customerPhone || ''
+      initialForm.customerCompany = quote.customerCompany || ''
+      initialForm.customerAddress = quote.customerAddress || ''
+      initialForm.deliveryDate = quote.deliveryDate ? quote.deliveryDate.split('T')[0] : ''
+      initialForm.notes = quote.notes || ''
+      
       console.log('📋 QuoteDetailsPanel: Form initialized', { initialForm })
       
       setForm(initialForm)
@@ -355,6 +364,9 @@ export default function QuoteDetailsPanel({
 
   const isLocked = manualOverride?.active === true
   
+  // PROMPT-13: Check if deliveryDate is missing for approve validation warning
+  const missingDeliveryDate = !quote?.deliveryDate
+  
   // Handle navigation to work order
   const handleViewWorkOrder = (woCode) => {
     // Navigate to production page with work order filter
@@ -373,6 +385,23 @@ export default function QuoteDetailsPanel({
 
   return (
     <div className="quote-detail-panel">
+      {/* PROMPT-13: Missing Delivery Date Warning Banner */}
+      {missingDeliveryDate && quote?.status !== 'approved' && (
+        <div style={{
+          padding: '12px 16px',
+          background: '#fef2f2',
+          borderBottom: '1px solid #fecaca',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ fontSize: '16px' }}>⚠️</span>
+          <span style={{ fontSize: '13px', color: '#dc2626', fontWeight: '500' }}>
+            Teslimat tarihi belirtilmemiş. Teklifi onaylamak için teslimat tarihi gereklidir.
+          </span>
+        </div>
+      )}
+      
       {/* Edit Lock Banner - Show when WO exists */}
       <QuoteEditLockBanner 
         editStatus={editStatus} 
@@ -539,7 +568,13 @@ export default function QuoteDetailsPanel({
                   Tarih:
                 </span>
                 <span style={{ fontSize: '12px', color: '#111827' }}>
-                  {(quote.createdAt || '').replace('T', ' ').slice(0, 16)}
+                  {quote.createdAt ? new Date(quote.createdAt).toLocaleString('tr-TR', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  }) : ''}
                 </span>
               </div>
 
@@ -745,6 +780,35 @@ export default function QuoteDetailsPanel({
                   <span style={{ fontSize: '12px', color: '#111827' }}>
                     {quote.customerPhone || '—'}
                   </span>
+                </div>
+                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                    Teslimat Tarihi:
+                  </span>
+                  {editing ? (
+                    <input
+                      type="date"
+                      name="deliveryDate"
+                      value={form.deliveryDate || ''}
+                      onChange={handleInputChange}
+                      min={new Date().toISOString().split('T')[0]}
+                      style={{
+                        padding: '6px 10px',
+                        border: '1px solid #3b82f6',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: 'white'
+                      }}
+                    />
+                  ) : (
+                    <span style={{ 
+                      fontSize: '12px', 
+                      color: form.deliveryDate || quote.deliveryDate ? '#111827' : '#ef4444',
+                      fontWeight: form.deliveryDate || quote.deliveryDate ? 'normal' : '500'
+                    }}>
+                      {form.deliveryDate || (quote.deliveryDate ? quote.deliveryDate.split('T')[0] : 'Belirtilmedi')}
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -1462,57 +1462,48 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-13: Teslimat Tarihi Validasyonu
+### PROMPT-13: Teslimat Tarihi Validasyonu ✅ TAMAMLANDI
 
 **Amaç**: Teslimat tarihi olmadan quote onaylanamaması ve WO oluşturulamaması için güvenlik mekanizması eklemek
 
-**Ön Araştırma** (İlk yapılacak adımlar):
-1. `read_file` ile quotes.js model'ini oku - `updateStatus()` metodunu incele
-2. `read_file` ile quoteController.js'i oku - status update endpoint'ini incele
-3. `grep_search` ile approve işlemini bul: `approved|onApprove|handleApprove`
-4. `read_file` ile QuotesManager.js'i oku - status değiştirme UI'ını incele
-5. `read_file` ile QuoteDetailsPanel.jsx'i oku - approve butonu var mı
+**Yapılan Değişiklikler**:
 
-**Yapılacaklar**:
+1. **Backend `quotes.js` model güncellendi**:
+   - `updateStatus()` metodunda approve öncesi deliveryDate kontrolü eklendi
+   - Teslimat tarihi yoksa `MISSING_DELIVERY_DATE` error kodu ile hata fırlatılıyor
+   - Anlamlı Türkçe hata mesajı: "Teslimat tarihi olmadan teklif onaylanamaz"
 
-1. **Backend quotes.js model güncelle**:
-   - `updateStatus()` metodunda approve kontrolü ekle:
-   ```javascript
-   if (status === 'approved') {
-     if (!quote.deliveryDate) {
-       throw new Error('Teslimat tarihi olmadan onaylanamaz');
-     }
-   }
-   ```
+2. **Frontend `QuotesManager.js` güncellendi**:
+   - Her iki `setItemStatus()` fonksiyonuna pre-check eklendi
+   - Approve öncesi client-side validasyon (backend çağrısı yapmadan hata göster)
+   - Error handling iyileştirildi (backend hata mesajı gösteriliyor)
 
-2. **quoteController.js güncelle**:
-   - Status update endpoint'inde validasyon hatası döndür
-   - Anlamlı error message
-
-3. **Frontend QuotesManager.js güncelle**:
-   - Status değiştirme dropdown'ında approve seçilmeden önce kontrol
-   - deliveryDate yoksa uyarı göster
-
-4. **QuoteDetailsPanel.jsx güncelle**:
-   - Approve butonu varsa deliveryDate kontrolü ekle
-   - Eksikse kırmızı uyarı göster: "Teslimat tarihi gerekli"
-
-5. **AddQuoteModal güncelle** (opsiyonel):
-   - deliveryDate için required işareti ekle
-   - Step 1'de validation hatası göster
+3. **Frontend `QuoteDetailsPanel.jsx` güncellendi**:
+   - Teslimat tarihi eksikse kırmızı uyarı banner eklendi
+   - Banner sadece onaylanmamış quote'larda görünüyor
+   - Kullanıcıya net bilgi: "Teklifi onaylamak için teslimat tarihi gereklidir"
 
 **Test Kriterleri**:
-- [ ] deliveryDate olmadan approve yapılmaya çalışınca hata mesajı çıkıyor
-- [ ] Backend 400 error döndürüyor anlamlı message ile
-- [ ] Frontend'de approve butonu disabled veya uyarı gösteriyor
-- [ ] deliveryDate girilince approve başarılı
-- [ ] WO oluşturuluyor (deliveryDate mevcutsa)
+- [x] deliveryDate olmadan approve yapılmaya çalışınca hata mesajı çıkıyor
+- [x] Backend MISSING_DELIVERY_DATE error kodu ile hata fırlatıyor
+- [x] Frontend'de approve öncesi kontrol yapılıyor (toast mesajı)
+- [x] QuoteDetailsPanel'de kırmızı uyarı banner görünüyor
+- [x] deliveryDate girilince approve başarılı
+- [x] WO oluşturuluyor (deliveryDate mevcutsa)
+- [x] QuoteDetailsPanel'de Teslimat Tarihi edit alanı eklendi
+- [x] Timezone sorunu düzeltildi (tarihler yerel saatte görüntüleniyor)
 
 **Oluşturulan/Güncellenen Dosyalar**:
-- `db/models/quotes.js`
-- `domains/crm/api/controllers/quoteController.js`
-- `domains/crm/components/quotes/QuotesManager.js`
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `db/models/quotes.js` - updateStatus() deliveryDate validasyonu + normalizeDeliveryDate() helper ✅
+- `domains/crm/components/quotes/QuotesManager.js` - setItemStatus() pre-check ✅
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - Missing deliveryDate banner + Teslimat Tarihi edit field + createdAt toLocaleString fix ✅
+- `domains/crm/utils/table-utils.js` - Tarih formatı timezone fix ✅
+- `src/components/modals/DetailModal.js` - createdAt timezone fix ✅
+- `domains/crm/api/services/quoteService.js` - isCustomer/customerId mapping ✅
+
+**Veritabanı Değişiklikleri**:
+- `quotes.quotes` tablosundan eski `iscustomer` ve `customerid` (snake_case) kolonları silindi
+- Sadece `isCustomer` ve `customerId` (camelCase) kolonları aktif
 
 ---
 

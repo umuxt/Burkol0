@@ -303,6 +303,20 @@ function QuotesManager({ t, onLogout }) {
 
   async function setItemStatus(itemId, newStatus) {
     try {
+      // PROMPT-13: Pre-check deliveryDate before approve
+      const isApprove = String(newStatus).toLowerCase() === 'approved' || 
+                        String(newStatus).toLowerCase() === 'onaylandı' || 
+                        String(newStatus).toLowerCase() === 'onaylandi'
+      
+      if (isApprove) {
+        // Find the quote in the list or use selectedQuote
+        const quote = selectedQuote?.id === itemId ? selectedQuote : list.find(q => q.id === itemId)
+        if (quote && !quote.deliveryDate) {
+          showToast('Teslimat tarihi olmadan teklif onaylanamaz. Lütfen önce teslimat tarihi ekleyin.', 'error')
+          return
+        }
+      }
+      
       await quotesService.updateStatus(itemId, newStatus)
       
       // Update the detail item if it's currently being viewed
@@ -642,13 +656,32 @@ function QuotesManager({ t, onLogout }) {
     setPagination(prev => ({ ...prev, totalItems: totalItems }))
   }, [totalItems])
 
-  async function setItemStatus(id, st) { 
-    await quotesService.updateStatus(id, st)
-    // Update the specific quote in the list instead of full refresh
-    setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
-    showToast('Kayıt durumu güncellendi!', 'success')
+  async function setItemStatus(id, st) {
+    // PROMPT-13: Pre-check deliveryDate before approve
+    const isApprove = String(st).toLowerCase() === 'approved' || 
+                      String(st).toLowerCase() === 'onaylandı' || 
+                      String(st).toLowerCase() === 'onaylandi'
+    
+    if (isApprove) {
+      const quote = list.find(q => q.id === id)
+      if (quote && !quote.deliveryDate) {
+        showToast('Teslimat tarihi olmadan teklif onaylanamaz. Lütfen önce teslimat tarihi ekleyin.', 'error')
+        return
+      }
+    }
+    
+    try {
+      await quotesService.updateStatus(id, st)
+      // Update the specific quote in the list instead of full refresh
+      setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
+      showToast('Kayıt durumu güncellendi!', 'success')
+    } catch (error) {
+      console.error('Error updating status:', error)
+      showToast(error?.message || 'Durum güncellenirken hata oluştu', 'error')
+      return
+    }
     // If approved, notify MES Approved Quotes to refresh
-    if (String(st).toLowerCase() === 'approved' || String(st).toLowerCase() === 'onaylandı' || String(st).toLowerCase() === 'onaylandi') {
+    if (isApprove) {
       try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
       try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch {}
     }

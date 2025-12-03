@@ -9,6 +9,26 @@ import WorkOrders from './workOrders.js';
 
 class Quotes {
   /**
+   * Helper to normalize deliveryDate to YYYY-MM-DD string format
+   * Prevents timezone issues when date is stored as DATE type in PostgreSQL
+   */
+  static normalizeDeliveryDate(quote) {
+    if (quote && quote.deliveryDate) {
+      // If it's a Date object, convert to YYYY-MM-DD string
+      if (quote.deliveryDate instanceof Date) {
+        const year = quote.deliveryDate.getFullYear();
+        const month = String(quote.deliveryDate.getMonth() + 1).padStart(2, '0');
+        const day = String(quote.deliveryDate.getDate()).padStart(2, '0');
+        quote.deliveryDate = `${year}-${month}-${day}`;
+      } else if (typeof quote.deliveryDate === 'string' && quote.deliveryDate.includes('T')) {
+        // If it's an ISO string, extract just the date part
+        quote.deliveryDate = quote.deliveryDate.split('T')[0];
+      }
+    }
+    return quote;
+  }
+
+  /**
    * Generate quote ID (TKF-YYYYMMDD-NNNN)
    */
   static async generateQuoteId() {
@@ -177,6 +197,10 @@ class Quotes {
     }
 
     const quotes = await query.orderBy('createdAt', 'desc');
+    
+    // Normalize deliveryDate for all quotes
+    quotes.forEach(quote => this.normalizeDeliveryDate(quote));
+    
     return quotes;
   }
 
@@ -210,6 +234,9 @@ class Quotes {
     const files = await db('quotes.quote_files')
       .where('quoteId', id)
       .orderBy('createdAt');
+
+    // Normalize deliveryDate to prevent timezone issues
+    this.normalizeDeliveryDate(quote);
 
     return {
       ...quote,
@@ -295,6 +322,19 @@ class Quotes {
    * Update quote status
    */
   static async updateStatus(id, status, updatedBy) {
+    // PROMPT-13: Validate deliveryDate before approval
+    if (status === 'approved') {
+      const quote = await db('quotes.quotes').where('id', id).first();
+      if (!quote) {
+        throw new Error('Teklif bulunamadı');
+      }
+      if (!quote.deliveryDate) {
+        const error = new Error('Teslimat tarihi olmadan teklif onaylanamaz. Lütfen önce teslimat tarihi ekleyin.');
+        error.code = 'MISSING_DELIVERY_DATE';
+        throw error;
+      }
+    }
+
     const updateData = {
       status,
       updatedBy: updatedBy,
@@ -335,6 +375,9 @@ class Quotes {
       }
     }
     
+    // Normalize deliveryDate before returning
+    this.normalizeDeliveryDate(quote);
+    
     return quote;
   }
 
@@ -353,6 +396,9 @@ class Quotes {
         updatedAt: db.fn.now()
       })
       .returning('*');
+    
+    // Normalize deliveryDate before returning
+    this.normalizeDeliveryDate(quote);
     
     return quote;
   }
