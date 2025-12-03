@@ -1301,66 +1301,543 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-11: [PLACEHOLDER - Kullanıcıdan bekleniyor]
+### PROMPT-11: Quote Edit Panel - Form Data Güncelleme Fix
 
-**Amaç**: [Açıklama eklenecek]
+**Amaç**: QuoteDetailsPanel'de edit modunda dinamik form alanlarının (formData) düzgün güncellenmesini sağlamak
 
-**Ön Araştırma**:
-1. [Adımlar eklenecek]
-
-**Yapılacaklar**:
-1. [Görevler eklenecek]
-
-**Test Kriterleri**:
-- [ ] [Kriterler eklenecek]
-
----
-
-### PROMPT-12: [PLACEHOLDER - Kullanıcıdan bekleniyor]
-
-**Amaç**: [Açıklama eklenecek]
-
-**Ön Araştırma**:
-1. [Adımlar eklenecek]
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile QuoteDetailsPanel.jsx'i oku - handleSubmit fonksiyonunu incele
+2. `read_file` ile quotes.js model'ini oku - update() metodunda formData nasıl işleniyor
+3. `grep_search` ile formData update pattern'lerini bul: `formData|_saveFormData`
+4. `read_file` ile quoteController.js - PATCH endpoint'ini incele
+5. `grep_search` ile quote update API çağrılarını bul: `updateQuote|PATCH.*quotes`
+6. Console'da edit/save işlemi sırasında gönderilen payload'u kontrol et
 
 **Yapılacaklar**:
-1. [Görevler eklenecek]
+
+1. **QuoteDetailsPanel.jsx güncelle**:
+   - `handleSubmit()` fonksiyonunda `formData` objesini de gönder
+   - Form state'inden dinamik alanları topla ve quoteData'ya ekle
+   - Edit mode'da değişen alanları track et
+   ```javascript
+   const quoteData = {
+     ...form,
+     formData: { /* dinamik form alanları */ },
+     status: currStatus
+   }
+   ```
+
+2. **QuotesManager.js güncelle**:
+   - `onSave` callback'inde formData'yı handle et
+   - `quotesService.updateQuote()` çağrısında formData gönderildiğinden emin ol
+
+3. **Backend quotes.js model güncelle** (gerekirse):
+   - `update()` metodunda formData güncellemesini kontrol et
+   - Transaction içinde `_saveFormData()` çağrısının yapıldığını doğrula
+
+4. **quoteService.js güncelle** (gerekirse):
+   - `updateQuote()` fonksiyonunda formData'yı kabul et
 
 **Test Kriterleri**:
-- [ ] [Kriterler eklenecek]
+- [ ] Quote detay panelinde "Düzenle" butonuna basınca form alanları editable oluyor
+- [ ] Dinamik form alanlarını değiştirip kaydet → değişiklikler DB'ye yazılıyor
+- [ ] Kayıt sonrası liste refresh ediliyor ve güncel değerler görünüyor
+- [ ] Customer bilgileri (name, email, phone) de düzenlenebiliyor
+- [ ] deliveryDate düzenlenebiliyor
+- [ ] notes alanı düzenlenebiliyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `domains/crm/components/quotes/QuotesManager.js`
+- `db/models/quotes.js` (gerekirse)
+- `domains/crm/api/services/quoteService.js` (gerekirse)
 
 ---
 
-### PROMPT-13: [PLACEHOLDER - Kullanıcıdan bekleniyor]
+### PROMPT-12: Üretim Paneli Plan Kaydetme Fix
 
-**Amaç**: [Açıklama eklenecek]
+**Amaç**: WO data yapısı değişikliği sonrası üretim panelinde plan kaydetme sorununu çözmek
 
-**Ön Araştırma**:
-1. [Adımlar eklenecek]
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile planDesigner.js'i oku - `savePlanDraft()` fonksiyonunu incele
+2. `read_file` ile mesApi.js'i oku - `createProductionPlan()` ve `updateProductionPlan()` fonksiyonlarını incele
+3. `grep_search` ile WO data kullanımını bul: `workOrder\.data|wo\.data|JSON\.parse.*data`
+4. `read_file` ile approvedQuoteService.js'i oku - WO detay fetch'i nasıl yapılıyor
+5. Terminal'de plan kaydetme hatası için server log'larını kontrol et
+6. Network tab'de plan kaydetme API response'unu incele
 
 **Yapılacaklar**:
-1. [Görevler eklenecek]
+
+1. **Backend production plan API'lerini kontrol et**:
+   - `savePlanDraft()` → `createProductionPlan()` zincirini takip et
+   - WO verisi nasıl kullanılıyor kontrol et
+   - Eğer eski `data` JSON formatı bekleniyorsa güncelle
+
+2. **approvedQuoteService.js güncelle** (gerekirse):
+   - `getWorkOrderDetails()` fonksiyonunda eksik alanlar varsa ekle
+   - Production plan için gerekli alanları (formData, customer vb.) döndür
+
+3. **planDesigner.js güncelle** (gerekirse):
+   - Plan kaydetme sırasında WO verisi nasıl kullanılıyor kontrol et
+   - Yeni simplified data yapısına uyumlu hale getir
+
+4. **Error handling ekle**:
+   - Plan kaydetme hatalarında anlamlı error message göster
+   - Backend'den gelen hata detaylarını logla
 
 **Test Kriterleri**:
-- [ ] [Kriterler eklenecek]
+- [ ] Üretim panelinde yeni plan oluşturulabiliyor
+- [ ] Mevcut plan düzenlenebiliyor ve kaydedilebiliyor
+- [ ] Plan kaydetme sırasında hata çıkmıyor
+- [ ] WO detayları doğru şekilde plan'a aktarılıyor
+- [ ] Template'den plan oluşturma çalışıyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/production/js/planDesigner.js`
+- `domains/production/api/services/approvedQuoteService.js`
+- `domains/production/js/mesApi.js` (gerekirse)
 
 ---
 
-### İyileştirme Kategorileri
+### PROMPT-13: Teslimat Tarihi Validasyonu
 
-| Kategori | Açıklama | Öncelik |
-|----------|----------|---------|
-| UX İyileştirmeleri | Form validasyonları, error messages, loading states | Yüksek |
-| Performance | Lazy loading, caching, query optimization | Orta |
-| Edge Cases | Null handling, empty states, error recovery | Yüksek |
-| Mobile | Responsive düzenlemeler, touch interactions | Orta |
-| Accessibility | ARIA labels, keyboard navigation | Düşük |
+**Amaç**: Teslimat tarihi olmadan quote onaylanamaması ve WO oluşturulamaması için güvenlik mekanizması eklemek
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile quotes.js model'ini oku - `updateStatus()` metodunu incele
+2. `read_file` ile quoteController.js'i oku - status update endpoint'ini incele
+3. `grep_search` ile approve işlemini bul: `approved|onApprove|handleApprove`
+4. `read_file` ile QuotesManager.js'i oku - status değiştirme UI'ını incele
+5. `read_file` ile QuoteDetailsPanel.jsx'i oku - approve butonu var mı
+
+**Yapılacaklar**:
+
+1. **Backend quotes.js model güncelle**:
+   - `updateStatus()` metodunda approve kontrolü ekle:
+   ```javascript
+   if (status === 'approved') {
+     if (!quote.deliveryDate) {
+       throw new Error('Teslimat tarihi olmadan onaylanamaz');
+     }
+   }
+   ```
+
+2. **quoteController.js güncelle**:
+   - Status update endpoint'inde validasyon hatası döndür
+   - Anlamlı error message
+
+3. **Frontend QuotesManager.js güncelle**:
+   - Status değiştirme dropdown'ında approve seçilmeden önce kontrol
+   - deliveryDate yoksa uyarı göster
+
+4. **QuoteDetailsPanel.jsx güncelle**:
+   - Approve butonu varsa deliveryDate kontrolü ekle
+   - Eksikse kırmızı uyarı göster: "Teslimat tarihi gerekli"
+
+5. **AddQuoteModal güncelle** (opsiyonel):
+   - deliveryDate için required işareti ekle
+   - Step 1'de validation hatası göster
+
+**Test Kriterleri**:
+- [ ] deliveryDate olmadan approve yapılmaya çalışınca hata mesajı çıkıyor
+- [ ] Backend 400 error döndürüyor anlamlı message ile
+- [ ] Frontend'de approve butonu disabled veya uyarı gösteriyor
+- [ ] deliveryDate girilince approve başarılı
+- [ ] WO oluşturuluyor (deliveryDate mevcutsa)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `db/models/quotes.js`
+- `domains/crm/api/controllers/quoteController.js`
+- `domains/crm/components/quotes/QuotesManager.js`
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
 
 ---
+
+### PROMPT-14: Fiyat Sistemi ve Uyarı Entegrasyonu
+
+**Amaç**: QuoteDetailsPanel'de fiyat uyarı sistemini (sarı/kırmızı banner) entegre etmek ve emoji'leri Lucide ikonlarla değiştirmek
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile QuotesManager.js'i oku - `getQuoteWarningInfo()` fonksiyonunu bul
+2. `read_file` ile PriceStatusBadge.js'i oku - mevcut badge yapısını incele
+3. `grep_search` ile fiyat uyarı pattern'lerini bul: `price-drift|content-drift|priceStatus`
+4. `read_file` ile QuoteDetailsPanel.jsx - fiyat bölümünü incele
+5. `grep_search` ile openPriceReview çağrılarını bul
+6. `read_file` ile Icons.jsx - mevcut Lucide ikonları kontrol et
+
+**Yapılacaklar**:
+
+1. **QuoteDetailsPanel.jsx güncelle**:
+   - `getQuoteWarningInfo()` fonksiyonunu import et veya inline tanımla
+   - Fiyat bölümüne sarı/kırmızı uyarı banner ekle
+   - Manuel fiyat toggle'da emoji yerine `Lock`/`Unlock` Lucide ikonları kullan
+   - "Fiyat Güncelle" butonu ekle (drift durumunda)
+
+2. **Icons.jsx güncelle**:
+   - Eksik ikonları ekle: `Wallet`, `AlertTriangle`, `RefreshCw`
+   - Export listesini güncelle
+
+3. **PriceWarningBanner component oluştur** (opsiyonel):
+   - Sarı banner: Versiyon farkı var, fiyat aynı
+   - Kırmızı banner: Fiyat farkı var
+   - "Fiyatı Güncelle" ve "Versiyonu Güncelle" butonları
+
+4. **CSS güncelle**:
+   - `.price-warning-banner` stilleri
+   - `.price-warning-banner.warning` (sarı)
+   - `.price-warning-banner.error` (kırmızı)
+
+**Test Kriterleri**:
+- [ ] Quote'ta fiyat farkı varsa kırmızı uyarı banner görünüyor
+- [ ] Quote'ta sadece versiyon farkı varsa sarı uyarı banner görünüyor
+- [ ] Manuel fiyat aktifken Lock ikonu görünüyor (emoji değil)
+- [ ] Manuel fiyat pasifken Unlock ikonu görünüyor (emoji değil)
+- [ ] "Fiyatı Güncelle" butonuna basınca fiyat güncelleniyor
+- [ ] Fiyat güncel olduğunda banner görünmüyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `shared/components/Icons.jsx`
+- `domains/crm/components/pricing/PriceWarningBanner.jsx` (yeni - opsiyonel)
+- `domains/crm/styles/quotes.css`
+
+---
+
+### PROMPT-15: Customer Dropdown - Hybrid Search + Dropdown
+
+**Amaç**: Mevcut müşteri seçiminde input'a tıklandığında otomatik dropdown açılması ve hem search hem dropdown ile seçim yapılabilmesi
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile CustomerSearchInput.jsx'i oku - mevcut yapıyı incele
+2. `grep_search` ile customer list API'sini bul: `api/customers|getCustomers|listCustomers`
+3. `read_file` ile customers-service.js'i oku - mevcut API çağrılarını incele
+4. `read_file` ile QuoteCustomerStep.jsx'i oku - CustomerSearchInput nasıl kullanılıyor
+5. `grep_search` ile mevcut dropdown pattern'lerini bul: `dropdown|isOpen|setIsOpen`
+
+**Yapılacaklar**:
+
+1. **CustomerSearchInput.jsx güncelle**:
+   - `onFocus` event'inde tüm müşterileri getir (limit: 20-50)
+   - Dropdown'u hemen aç (searchTerm boş olsa bile)
+   - Arama yapıldığında sonuçları filtrele
+   - İlk yüklemede loading state göster
+   ```javascript
+   onFocus={() => {
+     if (!allCustomersLoaded) {
+       loadAllCustomers()
+     }
+     setIsOpen(true)
+   }}
+   ```
+
+2. **customers-service.js güncelle** (gerekirse):
+   - `getAllCustomers()` fonksiyonu ekle veya mevcut `getCustomers()` kullan
+   - Cache mekanizması ekle (session boyunca tekrar çekilmesin)
+
+3. **Dropdown UI iyileştir**:
+   - Müşteri sayısını göster ("25 müşteri bulundu")
+   - Alfabetik sıralama
+   - Son seçilen müşterileri üstte göster (opsiyonel)
+
+4. **Performance optimizasyonu**:
+   - İlk 50 müşteriyi göster, "Tümünü Gör" ile daha fazla yükle
+   - Debounce search için 300ms
+
+**Test Kriterleri**:
+- [ ] Input'a tıklandığında dropdown açılıyor
+- [ ] Dropdown'da tüm müşteriler (veya ilk 50) listeleniyor
+- [ ] Arama yapıldığında sonuçlar filtreleniyor
+- [ ] Müşteri seçilince dropdown kapanıyor ve form dolduruluyor
+- [ ] Loading state düzgün görünüyor
+- [ ] Boş arama durumunda tüm liste görünüyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/CustomerSearchInput.jsx`
+- `domains/crm/services/customers-service.js`
+- `domains/crm/styles/quotes.css`
+
+---
+
+### PROMPT-16: Quote Detaylarında Dosya Görüntüleme
+
+**Amaç**: Quote detay panelinde yüklenen dosyaların (teknik dosyalar ve ürün görselleri) düzgün görüntülenmesini sağlamak
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile QuoteDetailsPanel.jsx'i oku - dosya bölümlerini incele
+2. `read_file` ile quotes.js model'ini oku - `getById()` metodunda files nasıl çekiliyor
+3. `grep_search` ile file handling pattern'lerini bul: `quote_files|techFiles|prodImgs`
+4. Database'de quote_files tablosunu kontrol et: `psql -c "\d quotes.quote_files"`
+5. `grep_search` ile file upload/download pattern'lerini bul: `handleFileUpload|downloadDataUrl`
+
+**Yapılacaklar**:
+
+1. **quotes.js model güncelle** (gerekirse):
+   - `getById()` metodunda files'ı fileType'a göre ayır
+   - `technicalFiles` ve `productImages` olarak döndür
+
+2. **QuoteDetailsPanel.jsx güncelle**:
+   - `quote.files` array'ini type'a göre ayır
+   - View modda da dosyaları göster (sadece edit modda değil)
+   - Dosya önizleme için thumbnail göster (image ise)
+   - Download butonu her zaman görünür olsun
+
+3. **File display UI iyileştir**:
+   - Dosya adı, boyutu, yüklenme tarihi göster
+   - Image dosyaları için küçük önizleme
+   - PDF için ikon göster
+   - "Dosya yok" durumu için placeholder
+
+4. **File operations**:
+   - Download butonu düzgün çalışsın
+   - Edit modda silme butonu
+   - Edit modda yeni dosya ekleme
+
+**Test Kriterleri**:
+- [ ] Quote detayında teknik dosyalar bölümü görünüyor
+- [ ] Quote detayında ürün görselleri bölümü görünüyor
+- [ ] Yüklü dosyalar listeleniyor (view modda)
+- [ ] Dosya indirme çalışıyor
+- [ ] Image dosyaları için thumbnail görünüyor
+- [ ] Edit modda dosya silinebiliyor
+- [ ] Edit modda yeni dosya eklenebiliyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `db/models/quotes.js` (gerekirse)
+- `domains/crm/styles/quotes.css`
+
+---
+
+### PROMPT-17: Türkiye Adres Dropdown Sistemi (Cascading)
+
+**Amaç**: Ülke seçimi Türkiye olduğunda İl → İlçe → Mahalle cascading dropdown sistemi ve otomatik posta kodu
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `list_dir` ile shared klasörünü incele - data klasörü var mı
+2. `grep_search` ile mevcut country/city pattern'lerini bul: `country|city|district`
+3. `read_file` ile AddCustomerModal.jsx'i oku - adres alanlarını incele
+4. `read_file` ile QuoteCustomerStep.jsx'i oku - adres alanlarını incele
+5. Türkiye il/ilçe/mahalle JSON verisi için kaynak araştır (örn: GitHub'daki açık veri setleri)
+
+**Yapılacaklar**:
+
+1. **Türkiye adres verisi oluştur**:
+   - `shared/data/turkey-addresses.json` dosyası oluştur
+   - İl listesi (81 il)
+   - İlçe listesi (il bazında)
+   - Mahalle listesi (ilçe bazında) - opsiyonel, çok büyük olabilir
+   - Posta kodları (ilçe bazında)
+
+2. **AddressDropdown component oluştur**:
+   - `shared/components/AddressDropdown.jsx`
+   - Ülke dropdown (Türkiye en üstte)
+   - Türkiye seçilince: İl → İlçe → Mahalle cascading
+   - Diğer ülke seçilince: Serbest text input
+   - Posta kodu otomatik set (değiştirilebilir)
+
+3. **AddCustomerModal.jsx güncelle**:
+   - Adres bölümünde AddressDropdown kullan
+   - Form state'i güncelle
+
+4. **QuoteCustomerStep.jsx güncelle**:
+   - Adres bölümünde AddressDropdown kullan (yeni müşteri için)
+
+5. **CustomerDetailsPanel.jsx güncelle** (gerekirse):
+   - Edit modda AddressDropdown kullan
+
+**Test Kriterleri**:
+- [ ] Ülke dropdown'da Türkiye en üstte görünüyor
+- [ ] Türkiye seçilince İl dropdown aktif oluyor
+- [ ] İl seçilince İlçe dropdown aktif ve filtrelenmiş
+- [ ] İlçe seçilince Mahalle dropdown aktif (varsa)
+- [ ] İlçe seçilince posta kodu otomatik dolduruluyor
+- [ ] Posta kodu manuel değiştirilebiliyor
+- [ ] Diğer ülke seçilince text inputlar görünüyor
+- [ ] Form submit'te tüm adres verileri kaydediliyor
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `shared/data/turkey-addresses.json` (yeni)
+- `shared/components/AddressDropdown.jsx` (yeni)
+- `domains/crm/components/customers/AddCustomerModal.jsx`
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx`
+- `domains/crm/components/customers/CustomerDetailsPanel.jsx`
+
+---
+
+### PROMPT-18: CRM İsimlendirme Tutarlılığı
+
+**Amaç**: AddCustomerModal, QuoteCustomerStep ve CustomerDetailsPanel'de alan isimlerinin tutarlı hale getirilmesi
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `read_file` ile AddCustomerModal.jsx'i oku - tüm label'ları listele
+2. `read_file` ile QuoteCustomerStep.jsx'i oku - tüm label'ları listele
+3. `read_file` ile CustomerDetailsPanel.jsx'i oku - tüm label'ları listele
+4. `grep_search` ile label pattern'lerini bul: `label.*Müşteri|label.*Yetkili|label.*İletişim`
+5. Mevcut tutarsızlıkları listele ve standart belirle
+
+**Yapılacaklar**:
+
+1. **İsimlendirme standardı belirle**:
+   ```
+   | Alan | Standart İsim |
+   |------|---------------|
+   | name | Müşteri Adı |
+   | company | Şirket |
+   | contactPerson | Yetkili Kişi |
+   | contactTitle | Ünvan |
+   | email | E-posta |
+   | phone | Telefon |
+   | fax | Faks |
+   | website | Website |
+   | address | Adres |
+   | city | Şehir |
+   | country | Ülke |
+   | postalCode | Posta Kodu |
+   | taxOffice | Vergi Dairesi |
+   | taxNumber | Vergi No |
+   | iban | IBAN |
+   | bankName | Banka Adı |
+   | notes | Notlar |
+   ```
+
+2. **AddCustomerModal.jsx güncelle**:
+   - Tüm label'ları standarda göre düzenle
+   - Section başlıklarını standartlaştır
+
+3. **QuoteCustomerStep.jsx güncelle**:
+   - Tüm label'ları standarda göre düzenle
+   - AddCustomerModal ile aynı sıralama
+
+4. **CustomerDetailsPanel.jsx güncelle**:
+   - Tüm label'ları standarda göre düzenle
+   - View ve edit modda tutarlı isimler
+
+5. **Placeholder text'leri standartlaştır**:
+   - Tüm formlarda aynı placeholder'lar
+
+**Test Kriterleri**:
+- [ ] AddCustomerModal'daki tüm label'lar standart
+- [ ] QuoteCustomerStep'teki tüm label'lar standart
+- [ ] CustomerDetailsPanel'deki tüm label'lar standart
+- [ ] Section başlıkları tutarlı
+- [ ] Placeholder text'ler tutarlı
+- [ ] Form sıralaması tutarlı (Temel → İletişim → Adres → Finans → Notlar)
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `domains/crm/components/customers/AddCustomerModal.jsx`
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx`
+- `domains/crm/components/customers/CustomerDetailsPanel.jsx`
+
+---
+
+### PROMPT-19: CRM Emoji → Lucide İkon Değişimi
+
+**Amaç**: CRM arayüzündeki tüm emoji'lerin Lucide ikonlarla değiştirilmesi
+
+**Ön Araştırma** (İlk yapılacak adımlar):
+1. `grep_search` ile CRM'deki tüm emoji kullanımlarını bul: `📋|👤|📞|💰|📍|📝|✕|➕|🔍|🔒|⏳|📊|🗑️`
+2. `read_file` ile Icons.jsx'i oku - mevcut Lucide ikonları listele
+3. `list_dir` ile domains/crm/components'ı incele - hangi dosyalarda emoji var
+4. Lucide icon library'de karşılık gelen ikonları bul
+
+**Yapılacaklar**:
+
+1. **Icons.jsx güncelle** - Eksik ikonları ekle:
+   ```javascript
+   import {
+     User,              // 👤
+     UserPlus,          // ➕ (yeni müşteri)
+     FileText,          // 📋
+     Phone,             // 📞
+     Wallet,            // 💰
+     MapPin,            // 📍
+     FileEdit,          // 📝
+     X,                 // ✕
+     Search,            // 🔍
+     Lock,              // 🔒
+     Unlock,            // 🔓
+     Loader2,           // ⏳
+     BarChart3,         // 📊
+     Trash2,            // 🗑️
+     Calendar,          // 📅
+     Building,          // 🏢 (şirket için)
+     CreditCard,        // 💳 (finans için)
+   } from 'lucide-react'
+   ```
+
+2. **QuoteCustomerStep.jsx güncelle**:
+   - Customer type selector ikonları: User, UserPlus, FileText
+   - Section başlıkları: User, Wallet, MapPin, Phone
+
+3. **QuoteReviewStep.jsx güncelle**:
+   - Section ikonları: User, FileEdit
+   - Close butonu: X
+
+4. **QuoteFormStep.jsx güncelle**:
+   - Empty state ikonu: FileEdit
+
+5. **AddQuoteModal.jsx güncelle**:
+   - Step indicator ikonları: User, FileText, CheckCircle
+
+6. **CustomerSearchInput.jsx güncelle**:
+   - Search ikonu: Search
+   - Loading ikonu: Loader2
+   - Clear butonu: X
+
+7. **AddCustomerModal.jsx güncelle**:
+   - Section başlıkları: FileText, User, Phone, MapPin, Wallet, FileEdit
+
+8. **QuotesManager.js güncelle**:
+   - Action butonları: Plus, BarChart3, Trash2, Lock
+
+9. **PriceStatusBadge.js güncelle**:
+   - Lock ikonu: Lock
+
+**Test Kriterleri**:
+- [ ] CRM arayüzünde hiç emoji kalmadı
+- [ ] Tüm ikonlar Lucide'dan geliyor
+- [ ] İkonlar doğru boyutta görünüyor (14-16px)
+- [ ] İkon renkleri tema ile uyumlu
+- [ ] Build hatasız tamamlanıyor
+- [ ] Console'da ikon uyarısı yok
+
+**Oluşturulan/Güncellenen Dosyalar**:
+- `shared/components/Icons.jsx`
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx`
+- `domains/crm/components/quotes/QuoteReviewStep.jsx`
+- `domains/crm/components/quotes/QuoteFormStep.jsx`
+- `domains/crm/components/quotes/AddQuoteModal.jsx`
+- `domains/crm/components/quotes/CustomerSearchInput.jsx`
+- `domains/crm/components/customers/AddCustomerModal.jsx`
+- `domains/crm/components/quotes/QuotesManager.js`
+- `domains/crm/components/pricing/PriceStatusBadge.js`
+
+---
+
+### Prompt Özet Tablosu
+
+| Prompt | Konu | Öncelik | Bağımlılık |
+|--------|------|---------|------------|
+| PROMPT-11 | Quote Edit Panel Fix | Yüksek | - |
+| PROMPT-12 | Üretim Plan Kaydetme Fix | Yüksek | - |
+| PROMPT-13 | Teslimat Validasyonu | Yüksek | - |
+| PROMPT-14 | Fiyat Sistemi Entegrasyonu | Yüksek | PROMPT-11 |
+| PROMPT-15 | Customer Dropdown | Orta | - |
+| PROMPT-16 | Dosya Görüntüleme | Orta | - |
+| PROMPT-17 | Türkiye Adres Dropdown | Orta | - |
+| PROMPT-18 | İsimlendirme Tutarlılığı | Düşük | - |
+| PROMPT-19 | Emoji → Lucide İkon | Düşük | - |
+
+### Önerilen Uygulama Sırası
+
+1. **Kritik Fixler** (önce): PROMPT-11, PROMPT-12, PROMPT-13
+2. **UX İyileştirmeleri** (sonra): PROMPT-14, PROMPT-15, PROMPT-16
+3. **Polish** (en son): PROMPT-17, PROMPT-18, PROMPT-19
 
 ### Notlar
 
-- Her prompt için bağımlılıklar belirtilecek
-- Test kriterleri spesifik ve ölçülebilir olacak
-- Commit stratejisi ana refactor ile aynı: `feat(crm): [PROMPT-XX] description`
+- Her prompt için bağımlılıklar belirtildi
+- Test kriterleri spesifik ve ölçülebilir
+- Commit stratejisi: `feat(crm): [PROMPT-XX] description`
+- PROMPT-17 için Türkiye adres verisi harici kaynak gerekebilir
 
