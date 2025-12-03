@@ -224,7 +224,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           <div className="customer-form-grid">
             <div className="form-group">
               <label className="form-label">
-                Ad Soyad <span className="required">*</span>
+                Müşteri Adı <span className="required">*</span>
               </label>
               <input
                 type="text"
@@ -289,7 +289,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           {/* Tax & Financial Info (only for new customer) */}
           {customerType === 'new' && (
             <>
-              <h4 className="form-section-title">💰 Finansal Bilgiler</h4>
+              <h4 className="form-section-title">💰 Fatura Bilgileri</h4>
               <div className="customer-form-grid">
                 <div className="form-group">
                   <label className="form-label">Vergi Dairesi</label>
@@ -298,7 +298,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                     value={customerData.taxOffice || ''}
                     onChange={(e) => handleFieldChange('taxOffice', e.target.value)}
                     className="form-input"
-                    placeholder="Vergi dairesi"
+                    placeholder="Vergi dairesi adı"
                   />
                 </div>
 
@@ -325,7 +325,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Banka Adı</label>
+                  <label className="form-label">Banka</label>
                   <input
                     type="text"
                     value={customerData.bankName || ''}
@@ -368,16 +368,16 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                 }}
               />
 
-              <h4 className="form-section-title">📞 İletişim Bilgileri</h4>
+              <h4 className="form-section-title">👤 Yetkili Kişi</h4>
               <div className="customer-form-grid">
                 <div className="form-group">
-                  <label className="form-label">İletişim Kişisi</label>
+                  <label className="form-label">Yetkili Kişi</label>
                   <input
                     type="text"
                     value={customerData.contactPerson || ''}
                     onChange={(e) => handleFieldChange('contactPerson', e.target.value)}
                     className="form-input"
-                    placeholder="İletişim kişisi"
+                    placeholder="Yetkili kişi adı"
                   />
                 </div>
 
@@ -388,29 +388,29 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                     value={customerData.contactTitle || ''}
                     onChange={(e) => handleFieldChange('contactTitle', e.target.value)}
                     className="form-input"
-                    placeholder="Ünvan (Satış Müdürü, vb.)"
+                    placeholder="Ünvan (örn: Satın Alma Müdürü)"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Website</label>
+                  <label className="form-label">Web Sitesi</label>
                   <input
                     type="url"
                     value={customerData.website || ''}
                     onChange={(e) => handleFieldChange('website', e.target.value)}
                     className="form-input"
-                    placeholder="https://example.com"
+                    placeholder="www.sirket.com"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Fax</label>
+                  <label className="form-label">Faks</label>
                   <input
                     type="text"
                     value={customerData.fax || ''}
                     onChange={(e) => handleFieldChange('fax', e.target.value)}
                     className="form-input"
-                    placeholder="Fax numarası"
+                    placeholder="0212 555 55 55"
                   />
                 </div>
               </div>

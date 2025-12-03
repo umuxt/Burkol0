@@ -334,7 +334,7 @@ export default function CustomerDetailsPanel({
             React.createElement('span', { 
               className: 'detail-label',
               style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Yetkili Adı:'),
+            }, 'Yetkili Kişi:'),
             editing ? (
               React.createElement('input', {
                 type: 'text',
@@ -347,7 +347,7 @@ export default function CustomerDetailsPanel({
                   borderRadius: '4px', 
                   fontSize: '12px' 
                 },
-                placeholder: 'İletişim kurulacak kişi'
+                placeholder: 'Yetkili kişi adı'
               })
             ) : (
               React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.contactPerson || '-')
@@ -362,7 +362,7 @@ export default function CustomerDetailsPanel({
             React.createElement('span', { 
               className: 'detail-label',
               style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Unvan:'),
+            }, 'Ünvan:'),
             editing ? (
               React.createElement('input', {
                 type: 'text',
@@ -375,7 +375,7 @@ export default function CustomerDetailsPanel({
                   borderRadius: '4px', 
                   fontSize: '12px' 
                 },
-                placeholder: 'Örn: Satın Alma Müdürü'
+                placeholder: 'Ünvan (örn: Satın Alma Müdürü)'
               })
             ) : (
               React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.contactTitle || '-')
@@ -496,7 +496,7 @@ export default function CustomerDetailsPanel({
             React.createElement('span', { 
               className: 'detail-label',
               style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Website:'),
+            }, 'Web Sitesi:'),
             editing ? (
               React.createElement('input', {
                 type: 'text',
@@ -672,7 +672,7 @@ export default function CustomerDetailsPanel({
             React.createElement('span', { 
               className: 'detail-label',
               style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Vergi Numarası:'),
+            }, 'Vergi No:'),
             editing ? (
               React.createElement('input', {
                 type: 'text',
@@ -685,7 +685,7 @@ export default function CustomerDetailsPanel({
                   borderRadius: '4px', 
                   fontSize: '12px' 
                 },
-                placeholder: 'Vergi No'
+                placeholder: 'Vergi numarası'
               })
             ) : (
               React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.taxNumber || '-')
@@ -728,7 +728,7 @@ export default function CustomerDetailsPanel({
             React.createElement('span', { 
               className: 'detail-label',
               style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Banka Adı:'),
+            }, 'Banka:'),
             editing ? (
               React.createElement('input', {
                 type: 'text',

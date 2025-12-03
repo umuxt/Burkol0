@@ -119,23 +119,23 @@ export default function AddCustomerModal({ onClose, onSaved }) {
           
           React.createElement('div', { className: 'form-row' },
             React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Yetkili Adı'),
+              React.createElement('label', null, 'Yetkili Kişi'),
               React.createElement('input', {
                 type: 'text',
                 value: form.contactPerson,
                 onChange: (e) => handleInputChange('contactPerson', e.target.value),
                 className: 'form-control',
-                placeholder: 'İletişim kurulacak kişi'
+                placeholder: 'Yetkili kişi adı'
               })
             ),
             React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Unvan'),
+              React.createElement('label', null, 'Ünvan'),
               React.createElement('input', {
                 type: 'text',
                 value: form.contactTitle,
                 onChange: (e) => handleInputChange('contactTitle', e.target.value),
                 className: 'form-control',
-                placeholder: 'Örn: Satın Alma Müdürü'
+                placeholder: 'Ünvan (örn: Satın Alma Müdürü)'
               })
             )
           )
@@ -182,7 +182,7 @@ export default function AddCustomerModal({ onClose, onSaved }) {
               })
             ),
             React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Website'),
+              React.createElement('label', null, 'Web Sitesi'),
               React.createElement('input', {
                 type: 'text',
                 value: form.website,
@@ -238,7 +238,7 @@ export default function AddCustomerModal({ onClose, onSaved }) {
                 value: form.taxOffice,
                 onChange: (e) => handleInputChange('taxOffice', e.target.value),
                 className: 'form-control',
-                placeholder: 'Vergi Dairesi'
+                placeholder: 'Vergi dairesi adı'
               })
             ),
             React.createElement('div', { className: 'form-group', style: { flex: 1 } },
@@ -248,7 +248,7 @@ export default function AddCustomerModal({ onClose, onSaved }) {
                 value: form.taxNumber,
                 onChange: (e) => handleInputChange('taxNumber', e.target.value),
                 className: 'form-control',
-                placeholder: 'Vergi Numarası'
+                placeholder: 'Vergi numarası'
               })
             )
           ),
@@ -265,7 +265,7 @@ export default function AddCustomerModal({ onClose, onSaved }) {
               })
             ),
             React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Banka Adı'),
+              React.createElement('label', null, 'Banka'),
               React.createElement('input', {
                 type: 'text',
                 value: form.bankName,
