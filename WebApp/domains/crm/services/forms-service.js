@@ -29,7 +29,7 @@ export const formsService = {
   },
   
   async getTemplateWithFields(id) {
-    const response = await fetchWithTimeout(`/api/form-templates/${id}`, { headers: withAuth() }, 10000)
+    const response = await fetchWithTimeout(`/api/form-templates/${id}/with-fields`, { headers: withAuth() }, 10000)
     if (!response.ok) return null
     return response.json()
   },
@@ -64,9 +64,16 @@ export const formsService = {
   },
   
   async getFields(templateId) {
+    console.log(`📋 getFields called for templateId: ${templateId}`)
     const response = await fetchWithTimeout(`/api/form-templates/${templateId}/fields`, { headers: withAuth() }, 10000)
-    if (!response.ok) return []
-    return response.json()
+    console.log(`📋 getFields response status: ${response.status}`)
+    if (!response.ok) {
+      console.warn(`⚠️ getFields failed with status ${response.status}`)
+      return []
+    }
+    const fields = await response.json()
+    console.log(`📋 getFields returned ${fields.length} fields`)
+    return fields
   },
   
   async createField(data) {

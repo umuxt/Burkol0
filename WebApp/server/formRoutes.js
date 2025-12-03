@@ -146,6 +146,45 @@ export function setupFormRoutes(app) {
     }
   });
 
+  // ==================== ACTIVATE TEMPLATE ====================
+  app.patch('/api/form-templates/:id/activate', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      logger.info(`PATCH /api/form-templates/${id}/activate - Activating template`);
+
+      // FormTemplates modelindeki activateVersion metodunu kullan
+      const template = await FormTemplates.activateVersion(id);
+
+      if (!template) {
+        logger.warning(`Template not found: ${id}`);
+        return res.status(404).json({ error: 'Template not found' });
+      }
+
+      logger.success('Template activated', { templateId: id });
+      res.json({ success: true, template });
+    } catch (error) {
+      logger.error('Failed to activate template', { error: error.message });
+      res.status(500).json({ error: 'Failed to activate template', message: error.message });
+    }
+  });
+
+  // ==================== GET TEMPLATE FIELDS ====================
+  app.get('/api/form-templates/:id/fields', async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/form-templates/${id}/fields - Fetching template fields`);
+
+      const fields = await FormFields.getByTemplateId(id);
+
+      logger.success(`Found ${fields.length} fields for template ${id}`);
+      res.json(fields);
+    } catch (error) {
+      logger.error('Failed to fetch template fields', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch template fields', message: error.message });
+    }
+  });
+
   // ==================== ADD FIELD TO TEMPLATE ====================
   app.post('/api/form-templates/:id/fields', requireAuth, async (req, res) => {
     try {
@@ -235,6 +274,73 @@ export function setupFormRoutes(app) {
     } catch (error) {
       logger.error('Failed to delete field', { error: error.message });
       res.status(500).json({ error: 'Failed to delete field', message: error.message });
+    }
+  });
+
+  // ==================== CREATE FIELD (standalone) ====================
+  app.post('/api/form-fields', requireAuth, async (req, res) => {
+    try {
+      const { templateId, fieldCode, fieldName, fieldType, sortOrder, isRequired, placeholder, helpText, validationRule, defaultValue } = req.body;
+
+      logger.info(`POST /api/form-fields - Creating field: ${fieldCode} for template ${templateId}`);
+
+      if (!templateId || !fieldCode || !fieldName || !fieldType) {
+        return res.status(400).json({ 
+          error: 'Missing required fields', 
+          details: ['templateId, fieldCode, fieldName, and fieldType are required'] 
+        });
+      }
+
+      const field = await FormFields.create({
+        templateId,
+        fieldCode,
+        fieldName,
+        fieldType,
+        sortOrder: sortOrder || 0,
+        isRequired: isRequired || false,
+        placeholder,
+        helpText,
+        validationRule,
+        defaultValue
+      });
+
+      logger.success('Field created', { fieldId: field.id });
+      res.status(201).json({ success: true, field, id: field.id });
+    } catch (error) {
+      logger.error('Failed to create field', { error: error.message });
+      res.status(500).json({ error: 'Failed to create field', message: error.message });
+    }
+  });
+
+  // ==================== ADD OPTION TO FIELD ====================
+  app.post('/api/form-fields/:fieldId/options', requireAuth, async (req, res) => {
+    try {
+      const { fieldId } = req.params;
+      const { optionValue, optionLabel, sortOrder, priceValue } = req.body;
+
+      logger.info(`POST /api/form-fields/${fieldId}/options - Adding option: ${optionValue}`);
+
+      if (!optionValue || !optionLabel) {
+        return res.status(400).json({ 
+          error: 'Missing required fields', 
+          details: ['optionValue and optionLabel are required'] 
+        });
+      }
+
+      const option = await FormFields.addOption({
+        fieldId,
+        optionValue,
+        optionLabel,
+        sortOrder: sortOrder || 0,
+        priceValue: priceValue || null,
+        isActive: true
+      });
+
+      logger.success('Option added to field', { optionId: option.id });
+      res.status(201).json({ success: true, option });
+    } catch (error) {
+      logger.error('Failed to add option', { error: error.message });
+      res.status(500).json({ error: 'Failed to add option', message: error.message });
     }
   });
 }

@@ -11,6 +11,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 export function FormBuilderCompact({ 
   formConfig, 
   onSave, 
+  onActivate, // PROMPT-A1: Aktif Et callback
   isDarkMode, 
   t, 
   showNotification, 
@@ -19,6 +20,7 @@ export function FormBuilderCompact({
   allTemplates = [],
   activeTemplateId = null,
   currentTemplateId = null,
+  isCurrentDraft = false, // PROMPT-A1: Track if current is draft
   isNewDraftModalOpen = false,
   isHistoryModalOpen = false,
   newDraftName = '',
@@ -83,10 +85,40 @@ export function FormBuilderCompact({
   const headerButtons = useMemo(() => {
     const hasUnsavedChanges = FormBuilderUtils.hasUnsavedChanges(fields, savedFields)
     const isViewingActive = currentTemplateId === activeTemplateId
-    const saveButtonText = isViewingActive ? 'Kaydet' : 'Sürümü Değiştir'
+    // PROMPT-A1: "Taslağı Kaydet" disabled logic - only disabled if no changes AND viewing draft
+    const isSaveDraftDisabled = !hasUnsavedChanges && isCurrentDraft
     
     return [
-      // New Draft button
+      // PROMPT-A1: Current template status indicator
+      React.createElement('span', {
+        key: 'status-badge',
+        style: {
+          padding: '6px 12px',
+          background: isCurrentDraft ? '#fef3c7' : '#d1fae5',
+          color: isCurrentDraft ? '#92400e' : '#065f46',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
+        }
+      }, isCurrentDraft ? '📝 Taslak' : '✓ Aktif'),
+
+      // Unsaved changes indicator
+      hasUnsavedChanges && React.createElement('span', {
+        key: 'unsaved-badge',
+        style: {
+          padding: '6px 12px',
+          background: '#fef3c7',
+          color: '#92400e',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: 500
+        }
+      }, '● Kaydedilmemiş değişiklikler'),
+
+      // PROMPT-A1: "+Yeni Taslak" button (shortened from "Yeni Taslak Oluştur")
       React.createElement('button', {
         key: 'new-draft',
         onClick: onOpenNewDraftModal,
@@ -94,6 +126,7 @@ export function FormBuilderCompact({
         style: {
           display: 'flex',
           alignItems: 'center',
+          gap: '4px',
           background: 'rgb(255, 255, 255)',
           color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
@@ -102,9 +135,56 @@ export function FormBuilderCompact({
         React.createElement('span', {
           key: 'draft-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>' }
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>' }
         }),
-        'Yeni Taslak Oluştur'
+        'Yeni Taslak'
+      ),
+
+      // PROMPT-A1: "Taslağı Kaydet" button (SARI - #f59e0b)
+      React.createElement('button', {
+        key: 'save-draft',
+        onClick: handleSaveDraft,
+        className: 'mes-btn mes-btn-lg',
+        disabled: isSaveDraftDisabled,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: '#f59e0b', // Sarı
+          color: '#fff',
+          border: 'none',
+          opacity: isSaveDraftDisabled ? 0.5 : 1,
+          cursor: isSaveDraftDisabled ? 'not-allowed' : 'pointer'
+        }
+      },
+        React.createElement('span', {
+          key: 'save-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
+        }),
+        'Taslağı Kaydet'
+      ),
+
+      // PROMPT-A1: "Aktif Et" button (YEŞİL - #10b981)
+      React.createElement('button', {
+        key: 'activate',
+        onClick: handleActivate,
+        className: 'mes-btn mes-btn-lg',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: '#10b981', // Yeşil
+          color: '#fff',
+          border: 'none'
+        }
+      },
+        React.createElement('span', {
+          key: 'activate-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' }
+        }),
+        'Aktif Et'
       ),
 
       // History button
@@ -115,6 +195,7 @@ export function FormBuilderCompact({
         style: {
           display: 'flex',
           alignItems: 'center',
+          gap: '4px',
           background: 'rgb(255, 255, 255)',
           color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
@@ -123,30 +204,9 @@ export function FormBuilderCompact({
         React.createElement('span', {
           key: 'history-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' }
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' }
         }),
-        'Geçmiş Taslaklar'
-      ),
-
-      // Save / Activate button
-      React.createElement('button', {
-        key: 'save',
-        onClick: isViewingActive ? saveFormConfig : onActivateTemplate,
-        className: 'mes-btn mes-btn-lg mes-btn-success',
-        disabled: isViewingActive && !hasUnsavedChanges,
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          opacity: (isViewingActive && !hasUnsavedChanges) ? 0.5 : 1,
-          cursor: (isViewingActive && !hasUnsavedChanges) ? 'not-allowed' : 'pointer'
-        }
-      },
-        React.createElement('span', {
-          key: 'save-icon',
-          style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
-        }),
-        saveButtonText
+        'Geçmiş'
       ),
       
       React.createElement('button', {
@@ -156,6 +216,7 @@ export function FormBuilderCompact({
         style: {
           display: 'flex',
           alignItems: 'center',
+          gap: '4px',
           background: 'rgb(255, 255, 255)',
           color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
@@ -164,7 +225,7 @@ export function FormBuilderCompact({
         React.createElement('span', {
           key: 'export-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' }
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' }
         }),
         'Dışa Aktar'
       ),
@@ -176,6 +237,7 @@ export function FormBuilderCompact({
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
+          gap: '4px',
           background: 'rgb(255, 255, 255)',
           color: 'rgb(0, 0, 0) !important',
           border: '1px solid rgb(229, 231, 235)'
@@ -188,7 +250,7 @@ export function FormBuilderCompact({
             alignItems: 'center',
             color: 'rgb(0, 0, 0)'
           },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' }
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' }
         }),
         React.createElement('span', {
           key: 'import-text',
@@ -201,8 +263,8 @@ export function FormBuilderCompact({
           style: { display: 'none' }
         })
       )
-    ]
-  }, [fields, savedFields, currentTemplateId, activeTemplateId])
+    ].filter(Boolean) // Remove null/false items
+  }, [fields, savedFields, currentTemplateId, activeTemplateId, isCurrentDraft])
 
   // Send header actions to parent via callback
   useEffect(() => {
@@ -210,6 +272,37 @@ export function FormBuilderCompact({
       renderHeaderActions(headerButtons)
     }
   }, [headerButtons])
+
+  // PROMPT-A1: Handle "Taslağı Kaydet"
+  function handleSaveDraft() {
+    if (onSave) {
+      const config = {
+        name: formSettings.title || 'Teklif Formu',
+        description: formSettings.description,
+        fields: fields
+      }
+      onSave(config)
+      setSavedFields([...fields])
+    }
+  }
+
+  // PROMPT-A1: Handle "Aktif Et"
+  function handleActivate() {
+    const config = {
+      name: formSettings.title || 'Teklif Formu',
+      description: formSettings.description,
+      fields: fields
+    }
+    
+    if (onActivate) {
+      onActivate(config)
+      setSavedFields([...fields])
+    } else if (onSave) {
+      // Fallback: use onSave if onActivate not provided
+      onSave(config)
+      setSavedFields([...fields])
+    }
+  }
 
   async function loadFormConfig() {
     try {
@@ -865,7 +958,7 @@ export function FormBuilderCompact({
                     border: `2px solid ${template.id === currentTemplateId ? '#3b82f6' : '#e5e7eb'}`,
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    background: template.is_active ? '#f0f9ff' : '#fff',
+                    background: template.isActive ? '#f0f9ff' : '#fff',
                     transition: 'all 0.2s'
                   },
                   onClick: () => onSwitchTemplate(template.id)
@@ -881,16 +974,28 @@ export function FormBuilderCompact({
                         style: { fontSize: '12px', color: '#6b7280', marginTop: '4px' }
                       }, `Versiyon: ${template.version}`)
                     ),
-                    template.is_active && React.createElement('span', {
-                      style: {
-                        background: '#10b981',
-                        color: '#fff',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 600
-                      }
-                    }, 'AKTİF')
+                    // PROMPT-A1: Status badges
+                    template.isActive 
+                      ? React.createElement('span', {
+                          style: {
+                            background: '#10b981', // Yeşil - Aktif
+                            color: '#fff',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600
+                          }
+                        }, 'AKTİF')
+                      : React.createElement('span', {
+                          style: {
+                            background: '#f59e0b', // Sarı - Taslak
+                            color: '#fff',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600
+                          }
+                        }, 'TASLAK')
                   )
                 )
               )

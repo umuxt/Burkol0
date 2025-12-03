@@ -214,13 +214,49 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
 - `domains/crm/components/forms/FormManager.jsx`
 - `domains/crm/components/forms/formBuilder/FormBuilderCompact.js`
 
+**Gerçekleştirilen Değişiklikler** (3 Aralık 2025):
+
+1. **FormManager.jsx**:
+   - `isCurrentDraft` state eklendi (satır 21)
+   - `saveDraft()` fonksiyonu eklendi (satır 141-243) - Taslak kaydetme mantığı
+   - `activateTemplate()` fonksiyonu eklendi (satır 252-365) - Aktif etme mantığı
+   - Template yüklenirken `isCurrentDraft` state güncelleniyor
+   - API response parsing düzeltildi (`response.template || response`)
+   - Template ismi `formConfig.settings.title`'a eklendi
+
+2. **FormBuilderCompact.js**:
+   - `onActivate` prop eklendi (satır 14)
+   - `isCurrentDraft` prop eklendi (satır 15)
+   - "+Yeni Taslak" butonu (satır 118-141)
+   - "Taslağı Kaydet" butonu - SARI #f59e0b (satır 143-166)
+   - "Aktif Et" butonu - YEŞİL #10b981 (satır 168-188)
+   - Durum badge'i: "📝 Taslak" veya "✓ Aktif" (satır 106)
+   - `handleSaveDraft()` fonksiyonu (satır 277-287)
+   - `handleActivate()` fonksiyonu (satır 289-304)
+   - `is_active` → `isActive` property düzeltmesi (satır 961, 978)
+
+3. **forms-service.js**:
+   - `getTemplateWithFields` endpoint düzeltildi: `/api/form-templates/${id}/with-fields`
+   - `getFields` fonksiyonuna debug log eklendi
+
+4. **formController.js** (Backend):
+   - `GET /api/form-templates/:id/fields` endpoint eklendi (satır 144-158)
+   - Bu endpoint frontend'in field silme işlemi için gerekli
+
 **Test Kriterleri**:
-- [ ] "+Yeni Taslak" butonu çalışıyor
-- [ ] "Taslağı Kaydet" sarı renkte görünüyor
-- [ ] "Aktif Et" yeşil renkte görünüyor
-- [ ] Taslak (isActive=false) açıkken "Taslağı Kaydet" mevcut kaydı güncelliyor
-- [ ] Aktif form açıkken "Taslağı Kaydet" yeni taslak oluşturuyor
-- [ ] "Aktif Et" doğru versiyonu aktif yapıyor
+- [x] "+Yeni Taslak" butonu çalışıyor ✅ (Modal açılıyor, yeni taslak oluşturuluyor)
+- [x] "Taslağı Kaydet" sarı renkte (#f59e0b) görünüyor ✅
+- [x] "Aktif Et" yeşil renkte (#10b981) görünüyor ✅
+- [x] Taslak (isActive=false) açıkken "Taslağı Kaydet" mevcut kaydı güncelliyor ✅
+- [x] Aktif form açıkken "Taslağı Kaydet" yeni taslak oluşturuyor ✅
+- [x] "Aktif Et" doğru versiyonu aktif yapıyor ✅ (API: PATCH /api/form-templates/:id/activate)
+
+**API Endpoint Testleri** (3 Aralık 2025):
+```bash
+# GET /api/form-templates - 200 OK ✅
+# GET /api/form-templates/:id/fields - 200 OK ✅
+# PATCH /api/form-templates/:id/activate - 200 OK ✅
+```
 
 ---
 
@@ -1402,7 +1438,7 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [ ] **PROMPT-B1**: Database migration (formTemplateCode, priceSettingCode)
 - [ ] **PROMPT-B2**: Quote create/update'de code kaydetme
 - [ ] **PROMPT-F1**: Calculate-price API endpoint
-- [ ] **PROMPT-A1**: Form Manager UI değişiklikleri
+- [x] **PROMPT-A1**: Form Manager UI değişiklikleri ✅ (3 Aralık 2025)
 - [ ] **PROMPT-A2**: Pricing Manager UI değişiklikleri
 - [ ] **PROMPT-C1**: canEdit optimizasyonu
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu

@@ -140,6 +140,22 @@ export function setupFormRoutes(app) {
     }
   });
 
+  // Get fields for a template (by path param) - MUST be before /:id route
+  app.get('/api/form-templates/:id/fields', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/form-templates/${id}/fields`);
+      
+      const fields = await FormFields.getByTemplateId(id);
+      
+      logger.success(`Found ${fields.length} fields for template ${id}`);
+      res.json(fields);
+    } catch (error) {
+      logger.error('Failed to fetch fields for template', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch fields', message: error.message });
+    }
+  });
+
   // Get single template
   app.get('/api/form-templates/:id', requireAuth, async (req, res) => {
     try {
