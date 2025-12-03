@@ -1313,6 +1313,13 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 5. `grep_search` ile quote update API çağrılarını bul: `updateQuote|PATCH.*quotes`
 6. Console'da edit/save işlemi sırasında gönderilen payload'u kontrol et
 
+**Ön Araştırma Sonuçları** (3 Aralık 2025):
+- `QuoteDetailsPanel.jsx handleSubmit()`: Sadece `{...form, status}` gönderiyordu → formData eksikti
+- `quotes.js update()`: formData varsa `_saveFormData()` çağırıyor ✅ Backend hazır
+- `quoteController.js PATCH`: `req.body.formData` alıyor ✅ Backend hazır
+- `quotes-service.js updateQuote()`: `JSON.stringify(updates)` ile tüm data gönderiliyor ✅
+- **Sorun**: Frontend handleSubmit() fonksiyonu formData'yı ayrıştırıp göndermiyordu
+
 **Yapılacaklar**:
 
 1. **QuoteDetailsPanel.jsx güncelle**:
@@ -1339,18 +1346,62 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
    - `updateQuote()` fonksiyonunda formData'yı kabul et
 
 **Test Kriterleri**:
-- [ ] Quote detay panelinde "Düzenle" butonuna basınca form alanları editable oluyor
-- [ ] Dinamik form alanlarını değiştirip kaydet → değişiklikler DB'ye yazılıyor
-- [ ] Kayıt sonrası liste refresh ediliyor ve güncel değerler görünüyor
-- [ ] Customer bilgileri (name, email, phone) de düzenlenebiliyor
-- [ ] deliveryDate düzenlenebiliyor
-- [ ] notes alanı düzenlenebiliyor
+- [x] Quote detay panelinde "Düzenle" butonuna basınca form alanları editable oluyor ✅ (3 Aralık 2025)
+- [x] Dinamik form alanlarını değiştirip kaydet → değişiklikler DB'ye yazılıyor ✅
+- [x] Kayıt sonrası liste refresh ediliyor ve güncel değerler görünüyor ✅
+- [x] Customer bilgileri (name, email, phone) de düzenlenebiliyor ✅
+- [x] deliveryDate düzenlenebiliyor ✅
+- [x] notes alanı düzenlenebiliyor ✅
+
+**Değişiklik Detayları** (3 Aralık 2025):
+
+1. **QuotesManager.js - handleRowClick() eklendi**:
+   ```javascript
+   // Satır tıklamasında getQuote API çağrısı ile tam detay fetch
+   async function handleRowClick(item) {
+     try {
+       const fullQuote = await quotesService.getQuote(item.id);
+       setSelectedQuote(fullQuote);  // formData dahil tüm detaylar
+     } catch (error) {
+       setSelectedQuote(item);  // Fallback
+     }
+   }
+   ```
+   - **Sorun**: `getAll()` sadece quotes tablosunu döndürüyor, `formData` yok
+   - **Çözüm**: Satıra tıklandığında `getQuote(id)` ile tam detayları fetch et
+
+2. **QuoteDetailsPanel.jsx - handleSubmit() güncellendi**:
+   ```javascript
+   // field.id → field.fieldCode mapping eklendi
+   const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
+   const fieldIdToCode = {}
+   fields.forEach(field => {
+     fieldIdToCode[field.id] = field.fieldCode || field.id
+   })
+   
+   // formData oluştururken fieldCode kullan
+   const formData = {}
+   Object.entries(form).forEach(([key, value]) => {
+     if (!customerFields.includes(key)) {
+       const fieldCode = fieldIdToCode[key] || key
+       formData[fieldCode] = value  // Backend fieldCode bekliyor
+     }
+   })
+   ```
+   - **Sorun**: Form state `field.id` (11, 12) kullanıyor, backend `fieldCode` bekliyor
+   - **Çözüm**: Submit sırasında `field.id` → `field.fieldCode` dönüşümü
+
+3. **QuoteDetailsPanel.jsx - form initialization**:
+   ```javascript
+   // formData okurken fieldCode kullan
+   const fieldCode = field.fieldCode || field.id
+   let value = quote.formData?.[fieldCode] || quote.formData?.[field.id] || ''
+   initialForm[field.id] = value  // Form state field.id ile çalışıyor
+   ```
 
 **Oluşturulan/Güncellenen Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
-- `domains/crm/components/quotes/QuotesManager.js`
-- `db/models/quotes.js` (gerekirse)
-- `domains/crm/api/services/quoteService.js` (gerekirse)
+- `domains/crm/components/quotes/QuotesManager.js` - handleRowClick() eklendi ✅
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - handleSubmit() fieldCode mapping ✅
 
 ---
 

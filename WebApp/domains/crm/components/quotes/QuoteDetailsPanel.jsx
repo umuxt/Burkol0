@@ -67,9 +67,27 @@ export default function QuoteDetailsPanel({
       // Support both old and new formConfig structures
       const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
       
+      // Debug log to see what data we have
+      console.log('📋 QuoteDetailsPanel: Initializing form', {
+        quoteId: quote.id,
+        formData: quote.formData,
+        customFields: quote.customFields,
+        fields: fields.map(f => ({ id: f.id, fieldCode: f.fieldCode, label: f.label }))
+      })
+      
       if (fields && fields.length > 0) {
         fields.forEach(field => {
-          let value = quote.customFields?.[field.id] || quote[field.id] || ''
+          // Check multiple sources for the value:
+          // 1. quote.formData[field.fieldCode] - backend uses fieldCode
+          // 2. quote.formData[field.id] - fallback to field.id
+          // 3. quote.customFields[field.id] - legacy support
+          // 4. quote[field.id] - direct property
+          const fieldCode = field.fieldCode || field.id
+          let value = quote.formData?.[fieldCode] || 
+                      quote.formData?.[field.id] || 
+                      quote.customFields?.[field.id] || 
+                      quote[field.id] || 
+                      ''
           
           // Handle special field types
           if (field.type === 'multiselect' && Array.isArray(value)) {
@@ -82,6 +100,8 @@ export default function QuoteDetailsPanel({
         })
       }
       
+      console.log('📋 QuoteDetailsPanel: Form initialized', { initialForm })
+      
       setForm(initialForm)
       setOriginalData(initialForm)
       setTechFiles(quote.files || [])
@@ -89,12 +109,14 @@ export default function QuoteDetailsPanel({
 
       const override = quote.manualOverride || null
       setManualOverride(override)
-      const initialManualPrice = override?.price ?? quote.price
+      // Use finalPrice or calculatedPrice as fallback for price
+      const quotePrice = quote.finalPrice || quote.calculatedPrice || quote.price
+      const initialManualPrice = override?.price ?? quotePrice
       setManualPriceInput(formatManualPriceInput(initialManualPrice))
       setManualNote(override?.note || '')
       setEditing(false)
     }
-  }, [quote?.id, quote?.status, quote?.price, quote?.manualOverride, formConfig])
+  }, [quote?.id, quote?.status, quote?.finalPrice, quote?.calculatedPrice, quote?.price, quote?.manualOverride, formConfig])
 
   const formatManualPriceInput = (price) => {
     if (price === null || price === undefined || price === '') return ''
@@ -133,11 +155,44 @@ export default function QuoteDetailsPanel({
     if (!editing) return
 
     try {
-      // Prepare quote data for update
+      // Separate form fields into customer fields and dynamic form fields
+      const customerFields = ['customerName', 'customerEmail', 'customerPhone', 'customerCompany', 'customerAddress', 'deliveryDate', 'notes']
+      
+      // Get form field definitions to map field.id -> field.fieldCode
+      const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
+      const fieldIdToCode = {}
+      fields.forEach(field => {
+        fieldIdToCode[field.id] = field.fieldCode || field.id
+      })
+      
+      // Build formData object from dynamic fields (excluding customer fields)
+      // Convert field.id keys to field.fieldCode for backend compatibility
+      const formData = {}
+      Object.entries(form).forEach(([key, value]) => {
+        if (!customerFields.includes(key)) {
+          // Map field.id to field.fieldCode if mapping exists
+          const fieldCode = fieldIdToCode[key] || key
+          formData[fieldCode] = value
+        }
+      })
+
+      // Prepare quote data for update with formData
       const quoteData = {
-        ...form,
+        // Customer fields
+        customerName: form.customerName || quote.customerName,
+        customerEmail: form.customerEmail || quote.customerEmail,
+        customerPhone: form.customerPhone || quote.customerPhone,
+        customerCompany: form.customerCompany || quote.customerCompany,
+        customerAddress: form.customerAddress || quote.customerAddress,
+        deliveryDate: form.deliveryDate || quote.deliveryDate,
+        notes: form.notes || quote.notes,
+        // Dynamic form fields
+        formData: formData,
+        // Status
         status: currStatus
       }
+
+      console.log('💾 QuoteDetailsPanel: Saving quote with formData:', { quoteId: quote.id, formData, quoteData })
 
       // Save the quote
       await onSave(quote.id, quoteData)
@@ -198,7 +253,8 @@ export default function QuoteDetailsPanel({
         
         if (response.success) {
           setManualOverride(null)
-          setManualPriceInput(formatManualPriceInput(quote.price))
+          const quotePrice = quote.finalPrice || quote.calculatedPrice || quote.price
+          setManualPriceInput(formatManualPriceInput(quotePrice))
           setManualNote('')
           showToast('Manuel fiyat kaldırıldı', 'success')
           
@@ -831,7 +887,7 @@ export default function QuoteDetailsPanel({
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                   <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
-                    {formatPriceDisplay(quote.price)}
+                    {formatPriceDisplay(quote.finalPrice || quote.calculatedPrice || quote.price)}
                   </span>
                   {quote.priceStatus && (
                     <PriceStatusBadge priceStatus={quote.priceStatus} />

@@ -325,6 +325,22 @@ function QuotesManager({ t, onLogout }) {
     }
   }
 
+  // Handle row click - fetch full quote details via API
+  async function handleRowClick(item) {
+    console.log('🔧 DEBUG: Row clicked for item:', item.id);
+    try {
+      // Fetch full quote details including formData
+      const fullQuote = await quotesService.getQuote(item.id);
+      console.log('📋 Full quote details fetched:', fullQuote);
+      setSelectedQuote(fullQuote);
+    } catch (error) {
+      console.error('Error fetching quote details:', error);
+      // Fallback to list item if API fails
+      setSelectedQuote(item);
+      showToast('Detay bilgileri yüklenirken hata oluştu', 'error');
+    }
+  }
+
   function exportToCSV() {
     try {
       // Seçili kayıtlar varsa onları kullan, yoksa filtrelenmiş tüm kayıtları kullan
@@ -1317,10 +1333,7 @@ function QuotesManager({ t, onLogout }) {
               
               return React.createElement('tr', { 
                 key: item.id,
-                onClick: () => {
-                  console.log('🔧 DEBUG: Row clicked for item:', item.id, item);
-                  setSelectedQuote(item);
-                },
+                onClick: () => handleRowClick(item),
                 className: selected.has(item.id) ? 'selected' : '',
                 style: { cursor: 'pointer' }
               },
