@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import CustomerSearchInput from './CustomerSearchInput.jsx'
+import TurkeyAddressDropdown from '../../../../shared/components/TurkeyAddressDropdown.jsx'
 
 /**
  * QuoteCustomerStep - Step 1 of Quote Creation
@@ -38,6 +39,8 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
     contactTitle: '',
     country: 'Türkiye',
     city: '',
+    district: '',
+    neighbourhood: '',
     postalCode: '',
     notes: ''
   }
@@ -66,6 +69,8 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
         contactTitle: '',
         country: 'Türkiye',
         city: '',
+        district: '',
+        neighbourhood: '',
         postalCode: '',
         notes: ''
       },
@@ -95,6 +100,8 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           contactTitle: customer.contactTitle || '',
           country: customer.country || 'Türkiye',
           city: customer.city || '',
+          district: customer.district || '',
+          neighbourhood: customer.neighbourhood || '',
           postalCode: customer.postalCode || '',
           notes: customer.notes || ''
         },
@@ -330,40 +337,36 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
               </div>
 
               <h4 className="form-section-title">📍 Adres Bilgileri</h4>
-              <div className="customer-form-grid">
-                <div className="form-group">
-                  <label className="form-label">Ülke</label>
-                  <input
-                    type="text"
-                    value={customerData.country || 'Türkiye'}
-                    onChange={(e) => handleFieldChange('country', e.target.value)}
-                    className="form-input"
-                    placeholder="Ülke"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Şehir</label>
-                  <input
-                    type="text"
-                    value={customerData.city || ''}
-                    onChange={(e) => handleFieldChange('city', e.target.value)}
-                    className="form-input"
-                    placeholder="Şehir"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Posta Kodu</label>
-                  <input
-                    type="text"
-                    value={customerData.postalCode || ''}
-                    onChange={(e) => handleFieldChange('postalCode', e.target.value)}
-                    className="form-input"
-                    placeholder="Posta kodu"
-                  />
-                </div>
+              <div className="form-group full-width">
+                <label className="form-label">Adres</label>
+                <textarea
+                  value={customerData.address || ''}
+                  onChange={(e) => handleFieldChange('address', e.target.value)}
+                  className="form-textarea"
+                  placeholder="Sokak, Cadde, Bina No, Daire No..."
+                  rows={2}
+                />
               </div>
+              <TurkeyAddressDropdown
+                country={customerData.country || 'Türkiye'}
+                city={customerData.city || ''}
+                district={customerData.district || ''}
+                neighbourhood={customerData.neighbourhood || ''}
+                postalCode={customerData.postalCode || ''}
+                onChange={({ country, city, district, neighbourhood, postalCode }) => {
+                  onChange({
+                    ...data,
+                    customerData: {
+                      ...customerData,
+                      country,
+                      city,
+                      district,
+                      neighbourhood,
+                      postalCode
+                    }
+                  })
+                }}
+              />
 
               <h4 className="form-section-title">📞 İletişim Bilgileri</h4>
               <div className="customer-form-grid">

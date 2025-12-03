@@ -23,6 +23,8 @@ export default function CustomerDetailsPanel({
     // Adres Bilgileri
     address: '',
     city: '',
+    district: '',
+    neighbourhood: '',
     country: '',
     postalCode: '',
     // Fatura Bilgileri
@@ -48,6 +50,8 @@ export default function CustomerDetailsPanel({
         website: customer.website || '',
         address: customer.address || '',
         city: customer.city || '',
+        district: customer.district || '',
+        neighbourhood: customer.neighbourhood || '',
         country: customer.country || '',
         postalCode: customer.postalCode || '',
         taxOffice: customer.taxOffice || '',
@@ -92,6 +96,8 @@ export default function CustomerDetailsPanel({
       website: customer.website || '',
       address: customer.address || '',
       city: customer.city || '',
+      district: customer.district || '',
+      neighbourhood: customer.neighbourhood || '',
       country: customer.country || '',
       postalCode: customer.postalCode || '',
       taxOffice: customer.taxOffice || '',
@@ -561,96 +567,50 @@ export default function CustomerDetailsPanel({
             )
           ),
 
-          // City
+          // Ülke / İl / İlçe - Compact Row
           React.createElement('div', { 
-            className: 'detail-item',
-            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
+            style: { display: 'flex', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' } 
           },
-            React.createElement('span', { 
-              className: 'detail-label',
-              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Şehir:'),
-            editing ? (
-              React.createElement('input', {
-                type: 'text',
-                value: form.city,
-                onChange: (e) => handleInputChange('city', e.target.value),
-                style: { 
-                  flex: 1, 
-                  padding: '6px 8px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '4px', 
-                  fontSize: '12px' 
-                },
-                placeholder: 'İstanbul'
-              })
-            ) : (
-              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.city || '-')
-            )
-          ),
-
-          // Postal Code
-          React.createElement('div', { 
-            className: 'detail-item',
-            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
-          },
-            React.createElement('span', { 
-              className: 'detail-label',
-              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Posta Kodu:'),
-            editing ? (
-              React.createElement('input', {
-                type: 'text',
-                value: form.postalCode,
-                onChange: (e) => handleInputChange('postalCode', e.target.value),
-                style: { 
-                  flex: 1, 
-                  padding: '6px 8px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '4px', 
-                  fontSize: '12px' 
-                },
-                placeholder: '34000'
-              })
-            ) : (
-              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.postalCode || '-')
-            )
-          ),
-
-          // Country
-          React.createElement('div', { 
-            className: 'detail-item',
-            style: { display: 'flex', alignItems: 'center', marginBottom: '8px' } 
-          },
-            React.createElement('span', { 
-              className: 'detail-label',
-              style: { fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' } 
-            }, 'Ülke:'),
-            editing ? (
-              React.createElement('select', {
-                value: form.country,
-                onChange: (e) => handleInputChange('country', e.target.value),
-                style: { 
-                  flex: 1, 
-                  padding: '6px 8px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: '4px', 
-                  fontSize: '12px' 
-                }
-              },
-                React.createElement('option', { value: '' }, 'Seçiniz'),
-                React.createElement('option', { value: 'Türkiye' }, 'Türkiye'),
-                React.createElement('option', { value: 'Almanya' }, 'Almanya'),
-                React.createElement('option', { value: 'İngiltere' }, 'İngiltere'),
-                React.createElement('option', { value: 'Fransa' }, 'Fransa'),
-                React.createElement('option', { value: 'Hollanda' }, 'Hollanda'),
-                React.createElement('option', { value: 'İtalya' }, 'İtalya'),
-                React.createElement('option', { value: 'İspanya' }, 'İspanya'),
-                React.createElement('option', { value: 'ABD' }, 'ABD'),
-                React.createElement('option', { value: 'Diğer' }, 'Diğer')
-              )
-            ) : (
+            // Ülke
+            React.createElement('div', { style: { flex: 1, minWidth: '100px' } },
+              React.createElement('span', { 
+                style: { fontWeight: 600, fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' } 
+              }, 'Ülke'),
               React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.country || '-')
+            ),
+            // İl
+            React.createElement('div', { style: { flex: 1, minWidth: '100px' } },
+              React.createElement('span', { 
+                style: { fontWeight: 600, fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' } 
+              }, 'İl'),
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.city || '-')
+            ),
+            // İlçe
+            React.createElement('div', { style: { flex: 1, minWidth: '100px' } },
+              React.createElement('span', { 
+                style: { fontWeight: 600, fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' } 
+              }, 'İlçe'),
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.district || '-')
+            )
+          ),
+
+          // Mahalle / Posta Kodu - Compact Row
+          React.createElement('div', { 
+            style: { display: 'flex', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' } 
+          },
+            // Mahalle
+            React.createElement('div', { style: { flex: 2, minWidth: '150px' } },
+              React.createElement('span', { 
+                style: { fontWeight: 600, fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' } 
+              }, 'Mahalle'),
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.neighbourhood || '-')
+            ),
+            // Posta Kodu
+            React.createElement('div', { style: { flex: 1, minWidth: '80px' } },
+              React.createElement('span', { 
+                style: { fontWeight: 600, fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' } 
+              }, 'Posta Kodu'),
+              React.createElement('span', { style: { fontSize: '12px', color: '#111827' } }, form.postalCode || '-')
             )
           )
         ),

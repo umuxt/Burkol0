@@ -83,6 +83,8 @@ const Customers = {
       contactTitle,
       country,
       city,
+      district,
+      neighbourhood,
       postalCode
     } = customerData;
 
@@ -105,6 +107,8 @@ const Customers = {
         contactTitle: contactTitle || null,
         country: country || 'Türkiye',
         city: city || null,
+        district: district || null,
+        neighbourhood: neighbourhood || null,
         postalCode: postalCode || null,
         isActive: true,
         createdAt: db.fn.now(),
@@ -138,6 +142,8 @@ const Customers = {
       'contactTitle',
       'country',
       'city',
+      'district',
+      'neighbourhood',
       'postalCode'
     ];
 

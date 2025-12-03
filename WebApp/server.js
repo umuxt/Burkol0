@@ -115,6 +115,10 @@ app.use('/api/mes', mesRoutes);
 import settingsRoutes from './server/settingsRoutes.js'
 app.use('/api/settings', settingsRoutes)
 
+// Address data routes (Turkey address system)
+import addressRoutes from './server/addressRoutes.js'
+app.use('/api/address', addressRoutes)
+
 
 // Expose migration management API routes used by admin tooling
 // (disabled by default above; enable with MIGRATION_ROUTES_ENABLED=true)

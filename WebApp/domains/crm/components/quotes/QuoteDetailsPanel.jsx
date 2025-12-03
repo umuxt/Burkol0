@@ -1015,13 +1015,34 @@ export default function QuoteDetailsPanel({
                   )}
 
                   {/* Adres Bilgileri */}
-                  {(quote.customer.city || quote.customer.country || quote.customer.postalCode) && (
+                  {(quote.customer.city || quote.customer.country || quote.customer.postalCode || quote.customer.district || quote.customer.neighbourhood || quote.customer.address) && (
                     <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>Konum</div>
-                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>📍 Adres Bilgileri</div>
+                      
+                      {/* Açık Adres */}
+                      {quote.customer.address && (
+                        <div style={{ fontSize: '12px', marginBottom: '8px', color: '#111827' }}>
+                          {quote.customer.address}
+                        </div>
+                      )}
+                      
+                      {/* Konum Bilgileri - Compact */}
+                      <div style={{ display: 'flex', gap: '12px', fontSize: '12px', flexWrap: 'wrap' }}>
+                        {quote.customer.neighbourhood && (
+                          <div>
+                            <span style={{ color: '#6b7280' }}>Mahalle: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.neighbourhood}</span>
+                          </div>
+                        )}
+                        {quote.customer.district && (
+                          <div>
+                            <span style={{ color: '#6b7280' }}>İlçe: </span>
+                            <span style={{ color: '#111827' }}>{quote.customer.district}</span>
+                          </div>
+                        )}
                         {quote.customer.city && (
                           <div>
-                            <span style={{ color: '#6b7280' }}>Şehir: </span>
+                            <span style={{ color: '#6b7280' }}>İl: </span>
                             <span style={{ color: '#111827' }}>{quote.customer.city}</span>
                           </div>
                         )}

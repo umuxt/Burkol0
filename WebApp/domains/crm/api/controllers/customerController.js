@@ -112,6 +112,8 @@ export function setupCustomerRoutes(app) {
         contactTitle,
         country,
         city,
+        district,
+        neighbourhood,
         postalCode
       } = req.body;
 
@@ -142,6 +144,8 @@ export function setupCustomerRoutes(app) {
         contactTitle,
         country,
         city,
+        district,
+        neighbourhood,
         postalCode
       });
 
@@ -176,6 +180,8 @@ export function setupCustomerRoutes(app) {
         contactTitle,
         country,
         city,
+        district,
+        neighbourhood,
         postalCode
       } = req.body;
       
@@ -200,6 +206,8 @@ export function setupCustomerRoutes(app) {
       if (contactTitle !== undefined) updates.contactTitle = contactTitle;
       if (country !== undefined) updates.country = country;
       if (city !== undefined) updates.city = city;
+      if (district !== undefined) updates.district = district;
+      if (neighbourhood !== undefined) updates.neighbourhood = neighbourhood;
       if (postalCode !== undefined) updates.postalCode = postalCode;
 
       const customer = await customerService.updateCustomer(id, updates);

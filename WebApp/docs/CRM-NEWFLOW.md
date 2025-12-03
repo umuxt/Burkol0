@@ -2031,3 +2031,61 @@ Kapsamlı frontend-backend-db senkronizasyon analizi sonucu tespit edilen kritik
 - [x] Büyük dosyalar (13MB+) yüklenebiliyor
 - [x] Farklı teklif seçilince dosyalar doğru yükleniyor
 - [x] Customer bilgileri QuoteDetailsPanel'de görünüyor
+
+---
+
+## PROMPT-17: Türkiye Adres Dropdown Sistemi ✅ TAMAMLANDI (3 Aralık 2025)
+
+### Yapılan Değişiklikler
+
+1. **turkey-addresses.js** - Türkiye il/ilçe verileri oluşturuldu:
+   - 81 il listesi (TURKEY_CITIES)
+   - 12 büyük şehir için ilçe verileri (TURKEY_DISTRICTS)
+   - Posta kodları (il ve ilçe bazında)
+   - 22 ülke listesi (COUNTRIES - Türkiye en üstte)
+   - Helper fonksiyonlar: getDistrictsByCity, getCityByName, getDistrictsByCityName
+
+2. **TurkeyAddressDropdown.jsx** - Cascading dropdown component:
+   - Ülke dropdown (Türkiye seçilince cascading aktif)
+   - İl dropdown (81 il)
+   - İlçe dropdown (seçili ile göre filtrelenir)
+   - Posta kodu (otomatik doldurulur, manuel değiştirilebilir)
+   - Diğer ülke seçilince: serbest text input
+
+3. **AddCustomerModal.jsx** güncellendi:
+   - TurkeyAddressDropdown entegre edildi
+   - Form state'e `district` alanı eklendi
+
+4. **QuoteCustomerStep.jsx** güncellendi:
+   - TurkeyAddressDropdown entegre edildi
+   - customerData'ya `district` alanı eklendi
+
+### Test Kriterleri
+
+- [x] Ülke dropdown'da Türkiye en üstte görünüyor
+- [x] Türkiye seçilince İl dropdown aktif oluyor
+- [x] İl seçilince İlçe dropdown aktif ve filtrelenmiş
+- [x] İlçe seçilince posta kodu otomatik dolduruluyor
+- [x] Posta kodu manuel değiştirilebiliyor
+- [x] Diğer ülke seçilince text input görünüyor
+- [x] Form submit'te tüm adres verileri kaydediliyor
+
+### Desteklenen İller (İlçe verisi mevcut)
+
+- İstanbul (39 ilçe)
+- Ankara (25 ilçe)
+- İzmir (30 ilçe)
+- Bursa (17 ilçe)
+- Antalya (19 ilçe)
+- Kocaeli (12 ilçe)
+- Gaziantep (9 ilçe)
+- Konya (31 ilçe)
+- Adana (15 ilçe)
+- Mersin (13 ilçe)
+
+### Oluşturulan/Güncellenen Dosyalar
+
+- `shared/data/turkey-addresses.js` (yeni) ✅
+- `shared/components/TurkeyAddressDropdown.jsx` (yeni) ✅
+- `domains/crm/components/customers/AddCustomerModal.jsx` ✅
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx` ✅

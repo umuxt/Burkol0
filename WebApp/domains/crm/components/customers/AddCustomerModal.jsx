@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import customersService from '../../services/customers-service.js';
+import TurkeyAddressDropdown from '../../../../shared/components/TurkeyAddressDropdown.jsx';
 
 export default function AddCustomerModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -17,6 +18,8 @@ export default function AddCustomerModal({ onClose, onSaved }) {
     // Adres Bilgileri
     address: '',
     city: '',
+    district: '',
+    neighbourhood: '',
     country: 'Türkiye',
     postalCode: '',
     // Fatura Bilgileri
@@ -208,47 +211,17 @@ export default function AddCustomerModal({ onClose, onSaved }) {
             })
           ),
 
-          React.createElement('div', { className: 'form-row' },
-            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Şehir'),
-              React.createElement('input', {
-                type: 'text',
-                value: form.city,
-                onChange: (e) => handleInputChange('city', e.target.value),
-                className: 'form-control',
-                placeholder: 'İstanbul'
-              })
-            ),
-            React.createElement('div', { className: 'form-group', style: { flex: 1 } },
-              React.createElement('label', null, 'Posta Kodu'),
-              React.createElement('input', {
-                type: 'text',
-                value: form.postalCode,
-                onChange: (e) => handleInputChange('postalCode', e.target.value),
-                className: 'form-control',
-                placeholder: '34000'
-              })
-            )
-          ),
-
-          React.createElement('div', { className: 'form-group' },
-            React.createElement('label', null, 'Ülke'),
-            React.createElement('select', {
-              value: form.country,
-              onChange: (e) => handleInputChange('country', e.target.value),
-              className: 'form-control'
-            },
-              React.createElement('option', { value: 'Türkiye' }, 'Türkiye'),
-              React.createElement('option', { value: 'Almanya' }, 'Almanya'),
-              React.createElement('option', { value: 'İngiltere' }, 'İngiltere'),
-              React.createElement('option', { value: 'Fransa' }, 'Fransa'),
-              React.createElement('option', { value: 'Hollanda' }, 'Hollanda'),
-              React.createElement('option', { value: 'İtalya' }, 'İtalya'),
-              React.createElement('option', { value: 'İspanya' }, 'İspanya'),
-              React.createElement('option', { value: 'ABD' }, 'ABD'),
-              React.createElement('option', { value: 'Diğer' }, 'Diğer')
-            )
-          )
+          // Türkiye Adres Dropdown
+          React.createElement(TurkeyAddressDropdown, {
+            country: form.country,
+            city: form.city,
+            district: form.district || '',
+            neighbourhood: form.neighbourhood || '',
+            postalCode: form.postalCode,
+            onChange: ({ country, city, district, neighbourhood, postalCode }) => {
+              setForm(prev => ({ ...prev, country, city, district, neighbourhood, postalCode }));
+            }
+          })
         ),
 
         // ===== FATURA BİLGİLERİ =====
