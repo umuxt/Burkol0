@@ -26,7 +26,8 @@ export default function QuoteDetailsPanel({
   const [currStatus, setCurrStatus] = useState(quote?.status || 'new')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
-  const [techFiles, setTechFiles] = useState(quote?.files || [])
+  // PROMPT-16: Dosyalar backend'den technicalFiles/productImages olarak ayrılmış geliyor
+  const [techFiles, setTechFiles] = useState(quote?.technicalFiles || quote?.files || [])
   const [prodImgs, setProdImgs] = useState(quote?.productImages || [])
   const [manualOverride, setManualOverride] = useState(quote?.manualOverride || null)
   const [manualPriceInput, setManualPriceInput] = useState('')
@@ -113,8 +114,6 @@ export default function QuoteDetailsPanel({
       
       setForm(initialForm)
       setOriginalData(initialForm)
-      setTechFiles(quote.files || [])
-      setProdImgs(quote.productImages || [])
 
       const override = quote.manualOverride || null
       setManualOverride(override)
@@ -126,6 +125,22 @@ export default function QuoteDetailsPanel({
       setEditing(false)
     }
   }, [quote?.id, quote?.status, quote?.finalPrice, quote?.calculatedPrice, quote?.price, quote?.manualOverride, formConfig])
+
+  // Dosya state'lerini SADECE quote.id değiştiğinde güncelle
+  // Bu sayede dosya yükleme sonrası local state korunur
+  const prevQuoteIdRef = React.useRef(null)
+  React.useEffect(() => {
+    if (quote?.id && quote.id !== prevQuoteIdRef.current) {
+      console.log('📁 QuoteDetailsPanel: Setting files (quote changed)', {
+        technicalFiles: quote.technicalFiles,
+        files: quote.files,
+        productImages: quote.productImages
+      })
+      setTechFiles(quote.technicalFiles || quote.files || [])
+      setProdImgs(quote.productImages || [])
+      prevQuoteIdRef.current = quote.id
+    }
+  }, [quote?.id, quote?.technicalFiles, quote?.productImages, quote?.files])
 
   const formatManualPriceInput = (price) => {
     if (price === null || price === undefined || price === '') return ''
@@ -316,24 +331,45 @@ export default function QuoteDetailsPanel({
     if (files.length === 0) return
     
     try {
-      const uploadPromises = files.map(async (file) => {
+      for (const file of files) {
         const dataUrl = await readFileAsDataUrl(file)
-        return {
-          id: uid(),
-          name: file.name,
-          url: dataUrl,
-          type: file.type,
-          size: file.size,
-          uploadedAt: new Date().toISOString()
+        
+        // Backend API'ye kaydet
+        const fileData = {
+          fileType: type === 'tech' ? 'technical' : 'product',
+          fileName: file.name,
+          filePath: dataUrl, // data URL olarak kaydet
+          mimeType: file.type,
+          fileSize: file.size,
+          description: null
         }
-      })
-      
-      const uploadedFiles = await Promise.all(uploadPromises)
-      
-      if (type === 'tech') {
-        setTechFiles(prev => [...prev, ...uploadedFiles])
-      } else {
-        setProdImgs(prev => [...prev, ...uploadedFiles])
+        
+        console.log('📁 Uploading file to backend:', { quoteId: quote.id, fileName: file.name, type })
+        
+        const response = await API.addQuoteFile(quote.id, fileData)
+        
+        console.log('📁 API Response:', response)
+        
+        if (response.success && response.file) {
+          // Backend'den dönen dosyayı state'e ekle
+          const newFile = response.file
+          console.log('📁 Adding file to state:', newFile, 'type:', type)
+          
+          if (type === 'tech') {
+            setTechFiles(prev => {
+              console.log('📁 techFiles before:', prev.length, 'after:', prev.length + 1)
+              return [...prev, newFile]
+            })
+          } else {
+            setProdImgs(prev => {
+              console.log('📁 prodImgs before:', prev.length, 'after:', prev.length + 1)
+              return [...prev, newFile]
+            })
+          }
+          console.log('✅ File saved to backend:', response.file)
+        } else {
+          throw new Error('File save failed')
+        }
       }
       
       showToast(`${files.length} dosya yüklendi`, 'success')
@@ -343,11 +379,28 @@ export default function QuoteDetailsPanel({
     }
   }
 
-  const handleFileDelete = (fileId, type = 'tech') => {
-    if (type === 'tech') {
-      setTechFiles(prev => prev.filter(f => f.id !== fileId))
-    } else {
-      setProdImgs(prev => prev.filter(f => f.id !== fileId))
+  const handleFileDelete = async (fileId, type = 'tech') => {
+    try {
+      console.log('🗑️ Deleting file from backend:', { quoteId: quote.id, fileId, type })
+      
+      // Backend API'den sil
+      const response = await API.deleteQuoteFile(quote.id, fileId)
+      
+      if (response.success) {
+        // State'den kaldır
+        if (type === 'tech') {
+          setTechFiles(prev => prev.filter(f => f.id !== fileId))
+        } else {
+          setProdImgs(prev => prev.filter(f => f.id !== fileId))
+        }
+        showToast('Dosya silindi', 'success')
+        console.log('✅ File deleted from backend')
+      } else {
+        throw new Error('File delete failed')
+      }
+    } catch (error) {
+      console.error('File delete error:', error)
+      showToast('Dosya silinirken hata oluştu', 'error')
     }
   }
 
@@ -1107,7 +1160,7 @@ export default function QuoteDetailsPanel({
               </div>
             </div>
 
-            {/* Dosyalar */}
+            {/* Dosyalar - PROMPT-16: Geliştirilmiş dosya görüntüleme */}
             <div style={{ 
               marginBottom: '16px', 
               padding: '12px', 
@@ -1115,16 +1168,36 @@ export default function QuoteDetailsPanel({
               borderRadius: '6px',
               border: '1px solid #e5e7eb'
             }}>
-              <h3 style={{ 
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 margin: '0 0 12px 0', 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                color: '#111827', 
                 borderBottom: '1px solid #e5e7eb', 
                 paddingBottom: '6px' 
               }}>
-                Teknik Dosyalar
-              </h3>
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: '#111827'
+                }}>
+                  Teknik Dosyalar
+                  {techFiles.length > 0 && (
+                    <span style={{ 
+                      marginLeft: '8px', 
+                      fontSize: '11px', 
+                      fontWeight: 'normal', 
+                      color: '#6b7280',
+                      background: '#f3f4f6',
+                      padding: '2px 6px',
+                      borderRadius: '10px'
+                    }}>
+                      {techFiles.length}
+                    </span>
+                  )}
+                </h3>
+              </div>
 
               {editing && (
                 <div style={{ marginBottom: '12px' }}>
@@ -1140,60 +1213,130 @@ export default function QuoteDetailsPanel({
 
               {techFiles.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {techFiles.map(file => (
-                    <div key={file.id} style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between',
-                      padding: '8px',
-                      background: '#f9fafb',
-                      borderRadius: '4px',
-                      border: '1px solid #e5e7eb'
-                    }}>
-                      <span style={{ fontSize: '12px' }}>{file.name}</span>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button
-                          type="button"
-                          onClick={() => downloadDataUrl(file.url, file.name)}
-                          style={{
-                            padding: '4px 8px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            background: '#3b82f6',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '11px'
-                          }}
-                        >
-                          İndir
-                        </button>
-                        {editing && (
+                  {console.log('🔍 Rendering techFiles:', techFiles.length, techFiles)}
+                  {techFiles.map(file => {
+                    const fileName = file.fileName || file.name || 'Dosya'
+                    const fileUrl = file.filePath || file.url
+                    const fileSize = file.fileSize || file.size
+                    const uploadDate = file.createdAt || file.uploadedAt
+                    const isImage = file.mimeType?.startsWith('image/') || isImageExt(fileName)
+                    
+                    // Format file size
+                    const formatSize = (bytes) => {
+                      if (!bytes) return ''
+                      if (bytes < 1024) return bytes + ' B'
+                      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+                      return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+                    }
+                    
+                    // Get file icon based on extension
+                    const getFileIcon = (name) => {
+                      const ext = name?.split('.').pop()?.toLowerCase()
+                      if (['pdf'].includes(ext)) return '📄'
+                      if (['dxf', 'dwg', 'step', 'stp', 'iges', 'igs'].includes(ext)) return '📐'
+                      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return '🖼️'
+                      return '📎'
+                    }
+                    
+                    return (
+                      <div key={file.id} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        background: '#f9fafb',
+                        borderRadius: '6px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '18px' }}>{getFileIcon(fileName)}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ 
+                              fontSize: '12px', 
+                              fontWeight: '500', 
+                              color: '#111827',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}>
+                              {fileName}
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#6b7280', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                              {fileSize && <span>{formatSize(fileSize)}</span>}
+                              {uploadDate && <span>{new Date(uploadDate).toLocaleDateString('tr-TR')}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button
                             type="button"
-                            onClick={() => handleFileDelete(file.id, 'tech')}
+                            onClick={() => {
+                              if (fileUrl?.startsWith('data:')) {
+                                downloadDataUrl(fileUrl, fileName)
+                              } else if (fileUrl) {
+                                window.open(`${API_BASE}${fileUrl}`, '_blank')
+                              }
+                            }}
                             style={{
-                              padding: '4px 8px',
+                              padding: '5px 10px',
                               border: 'none',
                               borderRadius: '4px',
-                              background: '#dc2626',
+                              background: '#3b82f6',
                               color: 'white',
                               cursor: 'pointer',
-                              fontSize: '11px'
+                              fontSize: '11px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
                             }}
                           >
-                            Sil
+                            <Download size={12} /> İndir
                           </button>
-                        )}
+                          {editing && (
+                            <button
+                              type="button"
+                              onClick={() => handleFileDelete(file.id, 'tech')}
+                              style={{
+                                padding: '5px 10px',
+                                border: 'none',
+                                borderRadius: '4px',
+                                background: '#dc2626',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Trash2 size={12} /> Sil
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Dosya yok</p>
+                <div style={{ 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  background: '#f9fafb', 
+                  borderRadius: '6px',
+                  border: '1px dashed #d1d5db'
+                }}>
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📁</span>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Teknik dosya yüklenmemiş</p>
+                  {editing && (
+                    <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
+                      PDF, DXF, DWG, STEP dosyaları yükleyebilirsiniz
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Ürün Görselleri */}
+            {/* Ürün Görselleri - PROMPT-16: Geliştirilmiş görsel görüntüleme */}
             <div style={{ 
               marginBottom: '16px', 
               padding: '12px', 
@@ -1201,16 +1344,36 @@ export default function QuoteDetailsPanel({
               borderRadius: '6px',
               border: '1px solid #e5e7eb'
             }}>
-              <h3 style={{ 
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 margin: '0 0 12px 0', 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                color: '#111827', 
                 borderBottom: '1px solid #e5e7eb', 
                 paddingBottom: '6px' 
               }}>
-                Ürün Görselleri
-              </h3>
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: '#111827'
+                }}>
+                  Ürün Görselleri
+                  {prodImgs.length > 0 && (
+                    <span style={{ 
+                      marginLeft: '8px', 
+                      fontSize: '11px', 
+                      fontWeight: 'normal', 
+                      color: '#6b7280',
+                      background: '#f3f4f6',
+                      padding: '2px 6px',
+                      borderRadius: '10px'
+                    }}>
+                      {prodImgs.length}
+                    </span>
+                  )}
+                </h3>
+              </div>
 
               {editing && (
                 <div style={{ marginBottom: '12px' }}>
@@ -1225,45 +1388,87 @@ export default function QuoteDetailsPanel({
               )}
 
               {prodImgs.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '8px' }}>
-                  {prodImgs.map(img => (
-                    <div key={img.id} style={{ position: 'relative' }}>
-                      <img 
-                        src={img.url} 
-                        alt={img.name}
-                        style={{ 
-                          width: '100%', 
-                          height: '100px', 
-                          objectFit: 'cover', 
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb'
-                        }}
-                      />
-                      {editing && (
-                        <button
-                          type="button"
-                          onClick={() => handleFileDelete(img.id, 'product')}
-                          style={{
-                            position: 'absolute',
-                            top: '4px',
-                            right: '4px',
-                            padding: '4px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            background: '#dc2626',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '10px'
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px' }}>
+                  {prodImgs.map(img => {
+                    const imgName = img.fileName || img.name || 'Görsel'
+                    const imgUrl = img.filePath || img.url
+                    const imgSrc = imgUrl?.startsWith('data:') ? imgUrl : `${API_BASE}${imgUrl}`
+                    
+                    return (
+                      <div key={img.id} style={{ 
+                        position: 'relative',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                        border: '1px solid #e5e7eb',
+                        background: '#f9fafb'
+                      }}>
+                        <img 
+                          src={imgSrc} 
+                          alt={imgName}
+                          style={{ 
+                            width: '100%', 
+                            height: '100px', 
+                            objectFit: 'cover',
+                            cursor: 'pointer'
                           }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          onClick={() => window.open(imgSrc, '_blank')}
+                          title="Tam boyut görmek için tıklayın"
+                        />
+                        <div style={{
+                          padding: '6px 8px',
+                          background: 'white',
+                          borderTop: '1px solid #e5e7eb',
+                          fontSize: '10px',
+                          color: '#6b7280',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {imgName}
+                        </div>
+                        {editing && (
+                          <button
+                            type="button"
+                            onClick={() => handleFileDelete(img.id, 'product')}
+                            style={{
+                              position: 'absolute',
+                              top: '6px',
+                              right: '6px',
+                              padding: '4px 6px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              background: 'rgba(220, 38, 38, 0.9)',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '2px'
+                            }}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Görsel yok</p>
+                <div style={{ 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  background: '#f9fafb', 
+                  borderRadius: '6px',
+                  border: '1px dashed #d1d5db'
+                }}>
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🖼️</span>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Ürün görseli yüklenmemiş</p>
+                  {editing && (
+                    <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
+                      PNG, JPG formatında görseller yükleyebilirsiniz
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </form>

@@ -580,6 +580,37 @@ export const API = {
       return { ok: true, local: true }
     }
   },
+  
+  // Quote File Operations
+  async addQuoteFile(quoteId, fileData) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/files`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(fileData)
+      })
+      if (!res.ok) throw new Error('add file failed')
+      return await res.json()
+    } catch (e) {
+      console.error('Add quote file error:', e)
+      throw e
+    }
+  },
+  
+  async deleteQuoteFile(quoteId, fileId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: withAuth()
+      })
+      if (!res.ok) throw new Error('delete file failed')
+      return await res.json()
+    } catch (e) {
+      console.error('Delete quote file error:', e)
+      throw e
+    }
+  },
+  
   downloadTxt(id, data, showNotification) {
     const url = `${API_BASE}/api/quotes/${id}/txt`
     fetchWithTimeout(url, { headers: withAuth() }, 2500).then(async (res) => {

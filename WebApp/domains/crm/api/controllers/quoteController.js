@@ -11,6 +11,19 @@ import Quotes from '../../../../db/models/quotes.js';
 import PriceFormulas from '../../../../db/models/priceFormulas.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, '../../../../uploads/quotes');
+
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
 /**
  * Setup quotes routes
@@ -212,7 +225,10 @@ export function setupQuotesRoutes(app) {
         priceFormulaId,
         notes,
         formData,
-        deliveryDate
+        deliveryDate,
+        // FILES - yeni eklendi
+        files,
+        productImages
       } = req.body;
 
       logger.info('POST /api/quotes - Creating new quote', {
@@ -334,14 +350,63 @@ export function setupQuotesRoutes(app) {
         createdBy: req.user?.email || 'system'
       });
 
+      // DOSYALARI KAYDET - Quote oluşturulduktan sonra
+      const uploadedBy = req.user?.email || 'system';
+      
+      // Teknik dosyalar
+      if (files && Array.isArray(files) && files.length > 0) {
+        for (const file of files) {
+          try {
+            await quoteService.addFile({
+              quoteId: quote.id,
+              fileType: 'technical',
+              fileName: file.name || file.fileName,
+              filePath: file.url || file.filePath, // data URL veya path
+              mimeType: file.type || file.mimeType,
+              fileSize: file.size || file.fileSize,
+              description: file.description || null,
+              uploadedBy
+            });
+          } catch (fileError) {
+            logger.warning(`Failed to save technical file: ${file.name}`, { error: fileError.message });
+          }
+        }
+        logger.info(`Saved ${files.length} technical files for quote ${quote.id}`);
+      }
+      
+      // Ürün görselleri
+      if (productImages && Array.isArray(productImages) && productImages.length > 0) {
+        for (const img of productImages) {
+          try {
+            await quoteService.addFile({
+              quoteId: quote.id,
+              fileType: 'product',
+              fileName: img.name || img.fileName,
+              filePath: img.url || img.filePath, // data URL veya path
+              mimeType: img.type || img.mimeType,
+              fileSize: img.size || img.fileSize,
+              description: img.description || null,
+              uploadedBy
+            });
+          } catch (fileError) {
+            logger.warning(`Failed to save product image: ${img.name}`, { error: fileError.message });
+          }
+        }
+        logger.info(`Saved ${productImages.length} product images for quote ${quote.id}`);
+      }
+
       logger.success('Quote created successfully', {
         quoteId: quote.id,
         customerId: resolvedCustomerId,
         customerType: customerType || 'legacy',
-        calculatedPrice: quote.calculatedPrice
+        calculatedPrice: quote.calculatedPrice,
+        filesCount: (files?.length || 0) + (productImages?.length || 0)
       });
 
-      res.status(201).json({ success: true, quote });
+      // Quote'u dosyalarla birlikte yeniden getir
+      const fullQuote = await quoteService.getQuoteById(quote.id);
+
+      res.status(201).json({ success: true, quote: fullQuote });
     } catch (error) {
       logger.error('Failed to create quote', { error: error.message });
       res.status(500).json({ error: 'Failed to create quote', message: error.message });
@@ -531,15 +596,41 @@ export function setupQuotesRoutes(app) {
   app.post('/api/quotes/:id/files', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { fileType, fileName, filePath, mimeType, fileSize, description } = req.body;
+      const { fileType, fileName, filePath: dataUrl, mimeType, fileSize, description } = req.body;
 
       logger.info(`POST /api/quotes/${id}/files - Adding file: ${fileName}`);
+
+      // Data URL'den dosyayı disk'e kaydet
+      let savedFilePath = dataUrl;
+      
+      if (dataUrl && dataUrl.startsWith('data:')) {
+        // Base64 data URL'i çöz
+        const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          // Benzersiz dosya adı oluştur
+          const uniqueId = crypto.randomBytes(8).toString('hex');
+          const ext = path.extname(fileName) || '';
+          const safeFileName = `${id}_${uniqueId}${ext}`;
+          const fullPath = path.join(UPLOADS_DIR, safeFileName);
+          
+          // Dosyayı kaydet
+          fs.writeFileSync(fullPath, buffer);
+          
+          // DB'ye kaydedilecek relative path
+          savedFilePath = `/uploads/quotes/${safeFileName}`;
+          
+          logger.info(`File saved to disk: ${savedFilePath}`);
+        }
+      }
 
       const file = await quoteService.addFile({
         quoteId: id,
         fileType,
         fileName,
-        filePath,
+        filePath: savedFilePath,
         mimeType,
         fileSize,
         description,

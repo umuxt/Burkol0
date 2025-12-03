@@ -272,12 +272,29 @@ function QuotesManager({ t, onLogout }) {
   }
 
   // Update detail panel when list changes
+  // NOT: list sadece temel bilgileri içerir, dosyalar/customer detayları yok
+  // Bu yüzden sadece temel alanları güncelliyoruz, detayları koruyoruz
   React.useEffect(() => {
     if (selectedQuote && selectedQuote.id && list && list.length > 0) {
       const updatedItem = list.find(item => item.id === selectedQuote.id)
-      if (updatedItem && JSON.stringify(updatedItem) !== JSON.stringify(selectedQuote)) {
-        console.log('🔧 Updating detail panel with refreshed data from list change')
-        setSelectedQuote(updatedItem)
+      if (updatedItem) {
+        // Sadece temel alanları güncelle, dosyalar ve customer gibi detayları koru
+        const mergedQuote = {
+          ...selectedQuote,  // Mevcut detayları koru (files, customer, formData, etc.)
+          ...updatedItem,    // Temel alanları güncelle (status, price, dates, etc.)
+          // Detayları kesinlikle koru - list bunları içermiyor
+          technicalFiles: selectedQuote.technicalFiles,
+          productImages: selectedQuote.productImages,
+          files: selectedQuote.files,
+          formData: selectedQuote.formData,
+          customer: selectedQuote.customer
+        }
+        
+        // Sadece gerçekten bir değişiklik varsa güncelle
+        if (JSON.stringify(mergedQuote) !== JSON.stringify(selectedQuote)) {
+          console.log('🔧 Updating detail panel - preserving files and details')
+          setSelectedQuote(mergedQuote)
+        }
       }
     }
   }, [list, selectedQuote])

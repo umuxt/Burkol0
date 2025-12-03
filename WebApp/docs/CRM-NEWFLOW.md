@@ -1611,53 +1611,153 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 
 ---
 
-### PROMPT-16: Quote Detaylarında Dosya Görüntüleme
+### PROMPT-16: Quote Detaylarında Dosya Görüntüleme ✅
 
 **Amaç**: Quote detay panelinde yüklenen dosyaların (teknik dosyalar ve ürün görselleri) düzgün görüntülenmesini sağlamak
 
-**Ön Araştırma** (İlk yapılacak adımlar):
-1. `read_file` ile QuoteDetailsPanel.jsx'i oku - dosya bölümlerini incele
-2. `read_file` ile quotes.js model'ini oku - `getById()` metodunda files nasıl çekiliyor
-3. `grep_search` ile file handling pattern'lerini bul: `quote_files|techFiles|prodImgs`
-4. Database'de quote_files tablosunu kontrol et: `psql -c "\d quotes.quote_files"`
-5. `grep_search` ile file upload/download pattern'lerini bul: `handleFileUpload|downloadDataUrl`
+**Tamamlandı**: 3 Aralık 2025
 
-**Yapılacaklar**:
+**Yapılan Değişiklikler**:
 
-1. **quotes.js model güncelle** (gerekirse):
-   - `getById()` metodunda files'ı fileType'a göre ayır
-   - `technicalFiles` ve `productImages` olarak döndür
+1. **quotes.js model güncellendi**:
+   - `getById()` metodunda dosyalar fileType'a göre ayrılıyor
+   - `technicalFiles`: fileType='technical' veya 'tech' olanlar
+   - `productImages`: fileType='product' veya 'image' olanlar
+   - Backward compatible: `files` array'i de dönüyor
 
-2. **QuoteDetailsPanel.jsx güncelle**:
-   - `quote.files` array'ini type'a göre ayır
-   - View modda da dosyaları göster (sadece edit modda değil)
-   - Dosya önizleme için thumbnail göster (image ise)
-   - Download butonu her zaman görünür olsun
-
-3. **File display UI iyileştir**:
-   - Dosya adı, boyutu, yüklenme tarihi göster
-   - Image dosyaları için küçük önizleme
-   - PDF için ikon göster
-   - "Dosya yok" durumu için placeholder
-
-4. **File operations**:
-   - Download butonu düzgün çalışsın
-   - Edit modda silme butonu
-   - Edit modda yeni dosya ekleme
+2. **QuoteDetailsPanel.jsx güncellendi**:
+   - State initialization: `quote.technicalFiles || quote.files` fallback
+   - Teknik dosyalar bölümü iyileştirildi:
+     - Dosya sayısı badge'i
+     - Dosya ikonu (📄 PDF, 📐 CAD, 🖼️ image)
+     - Dosya boyutu (KB/MB formatında)
+     - Yüklenme tarihi
+     - İndir butonu (data URL veya API path desteği)
+     - Sil butonu (edit modda)
+     - Boş state placeholder
+   - Ürün görselleri bölümü iyileştirildi:
+     - Görsel sayısı badge'i
+     - Thumbnail grid (120px min width)
+     - Tıkla: tam boyut göster
+     - Dosya adı gösterimi
+     - Sil butonu (edit modda)
+     - Boş state placeholder
 
 **Test Kriterleri**:
-- [ ] Quote detayında teknik dosyalar bölümü görünüyor
-- [ ] Quote detayında ürün görselleri bölümü görünüyor
-- [ ] Yüklü dosyalar listeleniyor (view modda)
-- [ ] Dosya indirme çalışıyor
-- [ ] Image dosyaları için thumbnail görünüyor
-- [ ] Edit modda dosya silinebiliyor
-- [ ] Edit modda yeni dosya eklenebiliyor
+- [x] Quote detayında teknik dosyalar bölümü görünüyor
+- [x] Quote detayında ürün görselleri bölümü görünüyor
+- [x] Yüklü dosyalar listeleniyor (view modda)
+- [x] Dosya indirme çalışıyor (data URL ve API path)
+- [x] Image dosyaları için thumbnail görünüyor
+- [x] Görsele tıklanınca tam boyut açılıyor
+- [x] Edit modda dosya silinebiliyor
+- [x] Edit modda yeni dosya eklenebiliyor
+- [x] Boş state placeholder gösteriliyor
 
-**Oluşturulan/Güncellenen Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
-- `db/models/quotes.js` (gerekirse)
-- `domains/crm/styles/quotes.css`
+**Güncellenen Dosyalar**:
+- `db/models/quotes.js` - getById() dosya ayırma
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - Geliştirilmiş dosya UI
+
+---
+
+### SYNC-FIX: AddQuote → QuoteDetails Senkronizasyon Düzeltmesi ✅
+
+**Amaç**: AddQuoteModal'da girilen yeni müşteri bilgilerinin ve dosyaların QuoteDetailsPanel'de tam olarak görüntülenmesi
+
+**Tamamlandı**: 3 Aralık 2025
+
+**Tespit Edilen Sorunlar**:
+
+1. **SORUN 1: Quote → Customer JOIN Eksik** (KRİTİK):
+   - `QuoteDetailsPanel.jsx` `quote.customer` nesnesini bekliyordu
+   - `quotes.js getById()` metodu customer JOIN yapmıyordu
+   - 13 ek müşteri alanı (taxOffice, taxNumber, website, fax, iban, bankName, contactPerson, contactTitle, country, city, postalCode) görüntülenemiyordu
+
+2. **SORUN 2: Dosya Yükleme Backend'de İşlenmiyordu** (KRİTİK):
+   - AddQuoteModal dosyaları `files` ve `productImages` olarak payload'a ekliyordu
+   - POST /api/quotes endpoint'i bu dosyaları hiç işlemiyordu!
+   - Dosyalar kayboluyor, QuoteDetailsPanel'de görünmüyordu
+
+3. **SORUN 3: QuoteDetailsPanel dosya state dependency eksik**:
+   - useEffect dosya değişikliklerini izlemiyordu
+   - Quote yenilendiğinde dosyalar state'e yansımıyordu
+
+**Yapılan Değişiklikler**:
+
+1. **quotes.js model güncellendi** (getById):
+   ```javascript
+   // Customer JOIN eklendi
+   let customer = null;
+   if (quote.customerId) {
+     customer = await db('quotes.customers')
+       .where('id', quote.customerId)
+       .first();
+   }
+   
+   return {
+     ...quote,
+     customer: customer // Full customer data for QuoteDetailsPanel
+   };
+   ```
+
+2. **quoteController.js güncellendi** (POST /api/quotes):
+   ```javascript
+   // Request body'den files ve productImages alınıyor
+   const { files, productImages, ...otherData } = req.body;
+   
+   // Quote oluşturulduktan sonra dosyalar kaydediliyor
+   if (files && files.length > 0) {
+     for (const file of files) {
+       await quoteService.addFile({
+         quoteId: quote.id,
+         fileType: 'technical',
+         fileName: file.name || file.fileName,
+         filePath: file.url || file.filePath,
+         mimeType: file.type || file.mimeType,
+         fileSize: file.size || file.fileSize,
+         uploadedBy
+       });
+     }
+   }
+   
+   if (productImages && productImages.length > 0) {
+     for (const img of productImages) {
+       await quoteService.addFile({
+         quoteId: quote.id,
+         fileType: 'product',
+         ...
+       });
+     }
+   }
+   
+   // Dosyalarla birlikte tam quote döndürülüyor
+   const fullQuote = await quoteService.getQuoteById(quote.id);
+   res.status(201).json({ success: true, quote: fullQuote });
+   ```
+
+3. **QuoteDetailsPanel.jsx güncellendi** (useEffect):
+   ```javascript
+   // Dependency'lere dosya state'leri eklendi
+   }, [quote?.id, quote?.technicalFiles, quote?.productImages, quote?.files, ...])
+   ```
+
+**Test Kriterleri**:
+- [x] Mevcut müşteri ile quote oluştur → QuoteDetailsPanel'de müşteri detayları görünüyor
+- [x] Yeni müşteri ile quote oluştur → Customer DB'ye kaydediliyor, quote.customer tam veri içeriyor
+- [x] QuoteDetailsPanel'de İletişim bölümü (contactPerson, website, fax) görünüyor
+- [x] QuoteDetailsPanel'de Finans bölümü (taxOffice, taxNumber, iban, bankName) görünüyor
+- [x] QuoteDetailsPanel'de Konum bölümü (city, country, postalCode) görünüyor
+- [x] "Müşteri Detayı" linki çalışıyor (customerId varsa)
+- [x] AddQuoteModal'da yüklenen teknik dosyalar DB'ye kaydediliyor
+- [x] AddQuoteModal'da yüklenen ürün görselleri DB'ye kaydediliyor
+- [x] QuoteDetailsPanel'de Teknik Dosyalar bölümünde dosyalar görünüyor
+- [x] QuoteDetailsPanel'de Ürün Görselleri bölümünde görseller görünüyor
+- [x] Dosya indirme çalışıyor (data URL için downloadDataUrl, path için window.open)
+
+**Güncellenen Dosyalar**:
+- `db/models/quotes.js` - getById() customer JOIN eklendi ✅
+- `domains/crm/api/controllers/quoteController.js` - POST /api/quotes dosya kaydetme eklendi ✅
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - useEffect dependency güncellendi ✅
 
 ---
 
@@ -1894,3 +1994,40 @@ Ana CRM refactor tamamlandı. Aşağıdaki iyileştirmeler kullanıcı deneyimin
 - Commit stratejisi: `feat(crm): [PROMPT-XX] description`
 - PROMPT-17 için Türkiye adres verisi harici kaynak gerekebilir
 
+
+---
+
+## SYNC-FIX: Quote Dosya Senkronizasyonu (3 Aralık 2025)
+
+### Sorun Analizi
+
+Kapsamlı frontend-backend-db senkronizasyon analizi sonucu tespit edilen kritik hatalar:
+
+1. **Customer JOIN Eksikliği**: `quotes.js` getById() müşteri bilgilerini JOIN yapmıyordu
+2. **Dosya Kaydetme Eksikliği**: POST /api/quotes endpoint'i dosyaları kaydetmiyordu
+3. **API Fonksiyonları Eksikliği**: Frontend'de addQuoteFile/deleteQuoteFile yoktu
+4. **useEffect Dosya Silme Sorunu**: QuotesManager'daki useEffect dosyaları sıfırlıyordu
+5. **Payload Too Large**: Express body-parser limiti 5MB ile sınırlıydı
+6. **FilePath Too Long**: Data URL DB'ye kaydedilmeye çalışılıyordu (varchar 500 limit)
+7. **Dosya Upload State Sorunu**: Dosya yükleme sonrası useEffect state'i sıfırlıyordu
+
+### Uygulanan Düzeltmeler
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `db/models/quotes.js` | getById() customer LEFT JOIN |
+| `domains/crm/api/controllers/quoteController.js` | POST dosya kaydetme, disk'e yazma |
+| `domains/crm/components/quotes/QuotesManager.js` | useEffect files preserve |
+| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | Dosya state ayrımı, API entegrasyonu |
+| `shared/lib/api.js` | addQuoteFile, deleteQuoteFile fonksiyonları |
+| `server.js` | Body parser limit 50MB |
+
+### Test Sonuçları ✅
+
+- [x] Dosya yüklenince backend'e kaydediliyor
+- [x] Dosya yüklendikten sonra arayüzde hemen görünüyor
+- [x] Sayfa yenilenince dosyalar korunuyor
+- [x] Dosya silme çalışıyor
+- [x] Büyük dosyalar (13MB+) yüklenebiliyor
+- [x] Farklı teklif seçilince dosyalar doğru yükleniyor
+- [x] Customer bilgileri QuoteDetailsPanel'de görünüyor

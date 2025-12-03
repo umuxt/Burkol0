@@ -269,10 +269,24 @@ class Quotes {
     // Note: quote_price_details table removed - details not stored in DB anymore
     const priceDetails = [];
 
-    // Get files
-    const files = await db('quotes.quote_files')
+    // Get files and separate by type
+    const allFiles = await db('quotes.quote_files')
       .where('quoteId', id)
       .orderBy('createdAt');
+    
+    // Separate files by type
+    const technicalFiles = allFiles.filter(f => f.fileType === 'technical' || f.fileType === 'tech');
+    const productImages = allFiles.filter(f => f.fileType === 'product' || f.fileType === 'image');
+    // Files without specific type go to technical files
+    const otherFiles = allFiles.filter(f => !f.fileType || (f.fileType !== 'technical' && f.fileType !== 'tech' && f.fileType !== 'product' && f.fileType !== 'image'));
+
+    // SYNC-FIX: Get full customer data if customerId exists
+    let customer = null;
+    if (quote.customerId) {
+      customer = await db('quotes.customers')
+        .where('id', quote.customerId)
+        .first();
+    }
 
     // Normalize deliveryDate and priceStatus
     this.normalizeDeliveryDate(quote);
@@ -282,7 +296,10 @@ class Quotes {
       ...quote,
       formData: formDataObj,
       priceDetails,
-      files
+      files: [...technicalFiles, ...otherFiles], // Backward compatible - all tech files
+      technicalFiles: [...technicalFiles, ...otherFiles],
+      productImages: productImages,
+      customer: customer // SYNC-FIX: Include full customer data for QuoteDetailsPanel
     };
   }
 
