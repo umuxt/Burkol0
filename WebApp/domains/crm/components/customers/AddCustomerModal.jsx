@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import customersService from '../../services/customers-service.js';
 import TurkeyAddressDropdown from '../../../../shared/components/TurkeyAddressDropdown.jsx';
+import { FileText, User, Phone, MapPin, Wallet, FileEdit } from '../../../../shared/components/Icons.jsx';
 
 export default function AddCustomerModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -82,8 +83,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
       },
         // ===== TEMEL BİLGİLER =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '📋 Temel Bilgiler'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(FileText, { size: 16 }),
+            'Temel Bilgiler'
           ),
           
           React.createElement('div', { className: 'form-group' },
@@ -113,8 +115,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
 
         // ===== YETKİLİ KİŞİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '👤 Yetkili Kişi'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(User, { size: 16 }),
+            'Yetkili Kişi'
           ),
           
           React.createElement('div', { className: 'form-row' },
@@ -143,8 +146,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
 
         // ===== İLETİŞİM BİLGİLERİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '📞 İletişim Bilgileri'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(Phone, { size: 16 }),
+            'İletişim Bilgileri'
           ),
           
           React.createElement('div', { className: 'form-row' },
@@ -196,8 +200,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
 
         // ===== ADRES BİLGİLERİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '📍 Adres Bilgileri'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(MapPin, { size: 16 }),
+            'Adres Bilgileri'
           ),
 
           React.createElement('div', { className: 'form-group' },
@@ -226,8 +231,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
 
         // ===== FATURA BİLGİLERİ =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '💰 Fatura Bilgileri'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(Wallet, { size: 16 }),
+            'Fatura Bilgileri'
           ),
           
           React.createElement('div', { className: 'form-row' },
@@ -279,8 +285,9 @@ export default function AddCustomerModal({ onClose, onSaved }) {
 
         // ===== NOTLAR =====
         React.createElement('div', { className: 'form-section' },
-          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937' } }, 
-            '📝 Notlar'
+          React.createElement('h3', { style: { marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement(FileEdit, { size: 16 }),
+            'Notlar'
           ),
           
           React.createElement('div', { className: 'form-group' },

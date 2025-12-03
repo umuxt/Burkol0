@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool } from '../../../../shared/components/Icons.jsx'
 import { PriceStatusBadge } from '../pricing/PriceStatusBadge.js'
 import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
@@ -1017,7 +1017,7 @@ export default function QuoteDetailsPanel({
                   {/* Adres Bilgileri */}
                   {(quote.customer.city || quote.customer.country || quote.customer.postalCode || quote.customer.district || quote.customer.neighbourhood || quote.customer.address) && (
                     <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>📍 Adres Bilgileri</div>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> Adres Bilgileri</div>
                       
                       {/* Açık Adres */}
                       {quote.customer.address && (
@@ -1253,10 +1253,10 @@ export default function QuoteDetailsPanel({
                     // Get file icon based on extension
                     const getFileIcon = (name) => {
                       const ext = name?.split('.').pop()?.toLowerCase()
-                      if (['pdf'].includes(ext)) return '📄'
-                      if (['dxf', 'dwg', 'step', 'stp', 'iges', 'igs'].includes(ext)) return '📐'
-                      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return '🖼️'
-                      return '📎'
+                      if (['pdf'].includes(ext)) return <FileText size={18} />
+                      if (['dxf', 'dwg', 'step', 'stp', 'iges', 'igs'].includes(ext)) return <PenTool size={18} />
+                      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <Image size={18} />
+                      return <Paperclip size={18} />
                     }
                     
                     return (
@@ -1270,7 +1270,7 @@ export default function QuoteDetailsPanel({
                         border: '1px solid #e5e7eb'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '18px' }}>{getFileIcon(fileName)}</span>
+                          <span style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>{getFileIcon(fileName)}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ 
                               fontSize: '12px', 
@@ -1346,7 +1346,7 @@ export default function QuoteDetailsPanel({
                   borderRadius: '6px',
                   border: '1px dashed #d1d5db'
                 }}>
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📁</span>
+                  <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><FolderOpen size={24} /></span>
                   <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Teknik dosya yüklenmemiş</p>
                   {editing && (
                     <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
@@ -1482,7 +1482,7 @@ export default function QuoteDetailsPanel({
                   borderRadius: '6px',
                   border: '1px dashed #d1d5db'
                 }}>
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🖼️</span>
+                  <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Image size={24} /></span>
                   <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Ürün görseli yüklenmemiş</p>
                   {editing && (
                     <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>

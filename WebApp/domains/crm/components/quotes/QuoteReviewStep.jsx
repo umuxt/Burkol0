@@ -1,6 +1,7 @@
 import React from 'react'
 import { uid, readFileAsDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES } from '../../../../shared/lib/utils.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
+import { User, FileEdit, Pencil, Calendar, FileText, Paperclip, FolderOpen, Image, MessageSquare, X } from '../../../../shared/components/Icons.jsx'
 
 /**
  * QuoteReviewStep - Step 3: Review and submit
@@ -129,7 +130,7 @@ export default function QuoteReviewStep({
       <div className="review-section">
         <div className="review-section-header">
           <h4 className="review-section-title">
-            <span className="section-icon">👤</span>
+            <span className="section-icon"><User size={16} /></span>
             Müşteri Bilgileri
           </h4>
           <button
@@ -137,7 +138,7 @@ export default function QuoteReviewStep({
             className="review-edit-btn"
             onClick={() => onEditStep?.(1)}
           >
-            ✏️ Düzenle
+            <Pencil size={12} style={{ marginRight: '4px' }} /> Düzenle
           </button>
         </div>
 
@@ -170,7 +171,7 @@ export default function QuoteReviewStep({
           </div>
           {deliveryDate && (
             <div className="review-item full-width">
-              <span className="review-label">📅 Teslim Tarihi:</span>
+              <span className="review-label"><Calendar size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />Teslim Tarihi:</span>
               <span className="review-value highlight">{deliveryDate}</span>
             </div>
           )}
@@ -181,7 +182,7 @@ export default function QuoteReviewStep({
       <div className="review-section">
         <div className="review-section-header">
           <h4 className="review-section-title">
-            <span className="section-icon">📝</span>
+            <span className="section-icon"><FileEdit size={16} /></span>
             Form Bilgileri
             <span className="field-count">({filledFields.length}/{formFields.length} alan dolduruldu)</span>
           </h4>
@@ -190,7 +191,7 @@ export default function QuoteReviewStep({
             className="review-edit-btn"
             onClick={() => onEditStep?.(2)}
           >
-            ✏️ Düzenle
+            <Pencil size={12} style={{ marginRight: '4px' }} /> Düzenle
           </button>
         </div>
 
@@ -221,7 +222,7 @@ export default function QuoteReviewStep({
       <div className="review-section">
         <div className="review-section-header">
           <h4 className="review-section-title">
-            <span className="section-icon">📎</span>
+            <span className="section-icon"><Paperclip size={16} /></span>
             Dosyalar
           </h4>
         </div>
@@ -242,14 +243,14 @@ export default function QuoteReviewStep({
               id="tech-files-input"
             />
             <label htmlFor="tech-files-input" className="file-input-label">
-              📁 Dosya Seç
+              <FolderOpen size={14} style={{ marginRight: '4px' }} /> Dosya Seç
             </label>
           </div>
           {techFiles.length > 0 && (
             <div className="files-list">
               {techFiles.map(file => (
                 <div key={file.id} className="file-item">
-                  <span className="file-icon">📄</span>
+                  <span className="file-icon"><FileText size={14} /></span>
                   <span className="file-name">{file.name}</span>
                   <span className="file-size">{formatFileSize(file.size)}</span>
                   <button
@@ -258,7 +259,7 @@ export default function QuoteReviewStep({
                     className="file-delete-btn"
                     title="Dosyayı sil"
                   >
-                    ✕
+                    <X size={12} />
                   </button>
                 </div>
               ))}
@@ -282,7 +283,7 @@ export default function QuoteReviewStep({
               id="product-images-input"
             />
             <label htmlFor="product-images-input" className="file-input-label">
-              🖼️ Görsel Seç
+              <Image size={14} style={{ marginRight: '4px' }} /> Görsel Seç
             </label>
           </div>
           {prodImgs.length > 0 && (
@@ -298,7 +299,7 @@ export default function QuoteReviewStep({
                       className="image-delete-btn"
                       title="Görseli sil"
                     >
-                      ✕
+                      <X size={12} />
                     </button>
                   </div>
                 </div>
@@ -312,7 +313,7 @@ export default function QuoteReviewStep({
       <div className="review-section">
         <div className="review-section-header">
           <h4 className="review-section-title">
-            <span className="section-icon">💬</span>
+            <span className="section-icon"><MessageSquare size={16} /></span>
             Notlar
           </h4>
         </div>
@@ -328,7 +329,7 @@ export default function QuoteReviewStep({
       {/* Summary Stats */}
       <div className="review-summary">
         <div className="summary-item">
-          <span className="summary-icon">👤</span>
+          <span className="summary-icon"><User size={16} /></span>
           <span className="summary-text">
             {customerType === 'existing' ? 'Mevcut müşteri seçildi' :
              customerType === 'new' ? 'Yeni müşteri kaydedilecek' :
@@ -336,11 +337,11 @@ export default function QuoteReviewStep({
           </span>
         </div>
         <div className="summary-item">
-          <span className="summary-icon">📝</span>
+          <span className="summary-icon"><FileEdit size={16} /></span>
           <span className="summary-text">{filledFields.length} alan dolduruldu</span>
         </div>
         <div className="summary-item">
-          <span className="summary-icon">📎</span>
+          <span className="summary-icon"><Paperclip size={16} /></span>
           <span className="summary-text">{techFiles.length + prodImgs.length} dosya eklendi</span>
         </div>
       </div>

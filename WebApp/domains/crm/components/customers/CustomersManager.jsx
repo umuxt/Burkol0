@@ -5,6 +5,7 @@ import CustomerDetailsPanel from './CustomerDetailsPanel.jsx';
 import AddCustomerModal from './AddCustomerModal.jsx';
 import { showToast } from '../../../../shared/components/MESToast.js';
 import { getCustomersTableColumns, getCustomerFieldValue, formatCustomerFieldValue } from '../../utils/customers-table-utils.js';
+import { Search, Users, Check, FileSpreadsheet } from '../../../../shared/components/Icons.jsx';
 
 const { useState, useEffect } = React;
 
@@ -132,7 +133,7 @@ function CustomersManager({ t }) {
         title: `${filteredCustomers.length} kaydı dışa aktar`,
         onClick: () => showToast('CSV export çok yakında!', 'info')
       },
-        React.createElement('span', null, '📊'),
+        React.createElement(FileSpreadsheet, { size: 14 }),
         React.createElement('span', null, 'CSV')
       ),
       
@@ -142,7 +143,7 @@ function CustomersManager({ t }) {
         title: 'Sadece aktif müşterileri göster',
         onClick: () => showToast('Filtreleme özelliği çok yakında!', 'info')
       },
-        React.createElement('span', null, '✓')
+        React.createElement(Check, { size: 14 })
       ),
       
       // Search Input
@@ -160,7 +161,7 @@ function CustomersManager({ t }) {
           className: 'mes-filter-button is-compact',
           onClick: () => showToast('Gelişmiş filtreler çok yakında!', 'info')
         },
-          React.createElement('span', null, '🔍'),
+          React.createElement(Search, { size: 14 }),
           React.createElement('span', null, 'Filtreler')
         )
       )
@@ -177,7 +178,7 @@ function CustomersManager({ t }) {
             )
           ) : filteredCustomers.length === 0 ? (
             React.createElement('div', { className: 'customers-empty' },
-              React.createElement('div', { className: 'customers-empty-icon' }, '👥'),
+              React.createElement('div', { className: 'customers-empty-icon' }, React.createElement(Users, { size: 48 })),
               React.createElement('h3', null, searchTerm ? 'Müşteri bulunamadı' : 'Henüz müşteri yok'),
               React.createElement('p', null, 
                 searchTerm 

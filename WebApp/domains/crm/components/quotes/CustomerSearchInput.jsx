@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import API from '../../../../shared/lib/api.js'
 import { customersService } from '../../services/customers-service.js'
+import { X, Loader2 } from '../../../../shared/components/Icons.jsx'
 
 /**
  * CustomerSearchInput - Hybrid Autocomplete/Dropdown component for customer search
@@ -185,7 +186,7 @@ export default function CustomerSearchInput({
             className="customer-search-clear-btn"
             title="Seçimi kaldır"
           >
-            ✕
+            <X size={14} />
           </button>
         )}
       </div>
@@ -217,7 +218,7 @@ export default function CustomerSearchInput({
           name={`customer-search-${Date.now()}`}
         />
         {(loading || initialLoading) && (
-          <span className="customer-search-loading">⏳</span>
+          <span className="customer-search-loading"><Loader2 size={14} className="spinner" /></span>
         )}
         {!loading && !initialLoading && (
           <span className="customer-search-icon" style={{ opacity: 0.5 }}>▼</span>

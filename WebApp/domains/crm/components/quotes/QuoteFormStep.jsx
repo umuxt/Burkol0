@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { validateFieldValue } from '../../utils/quote-validation.js'
+import { Paperclip, FileEdit } from '../../../../shared/components/Icons.jsx'
 
 /**
  * QuoteFormStep - Step 2 of quote creation
@@ -237,7 +238,7 @@ export default function QuoteFormStep({
         // File upload - handled separately in review step
         inputElement = (
           <div className="file-field-notice">
-            <span className="file-icon">📎</span>
+            <span className="file-icon"><Paperclip size={14} /></span>
             <span>Dosyalar Önizleme adımında yüklenebilir</span>
           </div>
         )
@@ -343,7 +344,7 @@ export default function QuoteFormStep({
       
       {fields.length === 0 && (
         <div className="form-empty-state">
-          <span className="empty-icon">📝</span>
+          <span className="empty-icon"><FileEdit size={24} /></span>
           <span>Henüz form alanı tanımlanmamış.</span>
           <span className="empty-hint">Admin panelinden form alanları ekleyebilirsiniz.</span>
         </div>

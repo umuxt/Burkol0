@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import CustomerSearchInput from './CustomerSearchInput.jsx'
 import TurkeyAddressDropdown from '../../../../shared/components/TurkeyAddressDropdown.jsx'
+import { User, UserPlus, FileText, Wallet, MapPin, Calendar } from '../../../../shared/components/Icons.jsx'
 
 /**
  * QuoteCustomerStep - Step 1 of Quote Creation
@@ -154,7 +155,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
             checked={customerType === 'existing'}
             onChange={() => handleTypeChange('existing')}
           />
-          <span className="customer-type-icon">👤</span>
+          <span className="customer-type-icon"><User size={20} /></span>
           <div className="customer-type-content">
             <span className="customer-type-title">Mevcut Müşteri</span>
             <span className="customer-type-desc">Kayıtlı müşterilerden seç</span>
@@ -172,7 +173,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
             checked={customerType === 'new'}
             onChange={() => handleTypeChange('new')}
           />
-          <span className="customer-type-icon">➕</span>
+          <span className="customer-type-icon"><UserPlus size={20} /></span>
           <div className="customer-type-content">
             <span className="customer-type-title">Yeni Müşteri</span>
             <span className="customer-type-desc">Bilgileri gir ve kaydet</span>
@@ -190,7 +191,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
             checked={customerType === 'without'}
             onChange={() => handleTypeChange('without')}
           />
-          <span className="customer-type-icon">📋</span>
+          <span className="customer-type-icon"><FileText size={20} /></span>
           <div className="customer-type-content">
             <span className="customer-type-title">Müşterisiz</span>
             <span className="customer-type-desc">Sadece teklif için bilgi gir</span>
@@ -217,7 +218,10 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
       {(customerType !== 'existing' || selectedCustomer) && (
         <div className="customer-form-section">
           <h4 className="form-section-title">
-            {customerType === 'existing' ? '📋 Müşteri Bilgileri (Seçili)' : '👤 Müşteri Bilgileri'}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              {customerType === 'existing' ? <FileText size={16} /> : <User size={16} />}
+              {customerType === 'existing' ? 'Müşteri Bilgileri (Seçili)' : 'Müşteri Bilgileri'}
+            </span>
           </h4>
 
           {/* Basic Info */}
@@ -289,7 +293,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           {/* Tax & Financial Info (only for new customer) */}
           {customerType === 'new' && (
             <>
-              <h4 className="form-section-title">💰 Fatura Bilgileri</h4>
+              <h4 className="form-section-title"><span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Wallet size={16} />Fatura Bilgileri</span></h4>
               <div className="customer-form-grid">
                 <div className="form-group">
                   <label className="form-label">Vergi Dairesi</label>
@@ -336,7 +340,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                 </div>
               </div>
 
-              <h4 className="form-section-title">📍 Adres Bilgileri</h4>
+              <h4 className="form-section-title"><span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><MapPin size={16} />Adres Bilgileri</span></h4>
               <div className="form-group full-width">
                 <label className="form-label">Adres</label>
                 <textarea
@@ -368,7 +372,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                 }}
               />
 
-              <h4 className="form-section-title">👤 Yetkili Kişi</h4>
+              <h4 className="form-section-title"><span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><User size={16} />Yetkili Kişi</span></h4>
               <div className="customer-form-grid">
                 <div className="form-group">
                   <label className="form-label">Yetkili Kişi</label>
@@ -421,7 +425,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
 
       {/* Delivery Date */}
       <div className="delivery-date-section">
-        <h4 className="form-section-title">📅 Teslimat Bilgileri</h4>
+        <h4 className="form-section-title"><span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Calendar size={16} />Teslimat Bilgileri</span></h4>
         <div className="form-group" style={{ maxWidth: '300px' }}>
           <label className="form-label">Teslim Tarihi</label>
           <input

@@ -982,7 +982,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
             React.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
             formFields.length === 0 ? 
               React.createElement('div', { className: 'pricing-alert pricing-alert-warning' },
-                React.createElement('strong', null, '⚠️ Form alanı bulunamadı'),
+                React.createElement('strong', null, 'Form alanı bulunamadı'),
                 React.createElement('br'),
                 'Aktif form şablonu bulunamadı. Önce Form Düzenleme menüsünden form alanları oluşturun.',
                 React.createElement('br'),
@@ -990,7 +990,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
               ) :
               React.createElement('div', null,
                 React.createElement('div', { className: 'pricing-alert pricing-alert-info', style: { fontSize: '13px', padding: '8px', marginBottom: '8px' } },
-                  `✅ ${formFields.length} form alanı yüklendi`
+                  `${formFields.length} form alanı yüklendi`
                 ),
                 React.createElement('select', {
                   value: selectedFormField,
@@ -1022,9 +1022,9 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
           // Lookup table for fields with options
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
           React.createElement('div', { className: 'form-group' },
-            React.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
+            React.createElement('label', null, 'Değer Eşleştirme Tablosu'),
             React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
-              '📝 Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
+              'Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
             ),
             
             lookupTable.length > 0 && React.createElement('table', { className: 'table table-sm' },
@@ -1091,7 +1091,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         ),
       
       isLoadingFields && React.createElement('div', { className: 'pricing-alert pricing-alert-info' },
-        '📝 Form alanları yükleniyor...'
+        'Form alanları yükleniyor...'
       ),
 
       // Parameters list with user-friendly IDs
@@ -1099,7 +1099,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         
         // Orphan parameter uyarı sistemi
         parameters.length > 0 && !systemIntegrity.isValid && React.createElement('div', { className: 'pricing-alert pricing-alert-danger', style: { marginBottom: '15px' } },
-          React.createElement('h5', { style: { margin: '0 0 10px 0' } }, '🚨 SİSTEM BÜTÜNLÜK HATASI'),
+          React.createElement('h5', { style: { margin: '0 0 10px 0' } }, 'SİSTEM BÜTÜNLÜK HATASI'),
           React.createElement('div', { style: { marginBottom: '10px' } },
             React.createElement('strong', null, 'Aşağıdaki parametreler artık form alanında bulunmuyor:')
           ),
@@ -1112,12 +1112,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
             )
           ),
           systemIntegrity.orphansInFormula.length > 0 && React.createElement('div', { style: { marginTop: '3px', padding: '8px', backgroundColor: '#dc3545', color: 'white', borderRadius: '4px' } },
-            React.createElement('strong', null, '⚠️ Bu parametreler hala formülde kullanılıyor!'),
+            React.createElement('strong', null, 'Bu parametreler hala formülde kullanılıyor!'),
             React.createElement('br'),
             'Önce formülden kaldırın, sonra parametreyi silin.'
           ),
           React.createElement('div', { style: { marginTop: '3px', fontSize: '0.9em' } },
-            React.createElement('strong', null, '🔒 Bloke Edilen İşlemler:'),
+            React.createElement('strong', null, 'Bloke Edilen İşlemler:'),
             React.createElement('br'),
             '• Form kaydetme engellenmiştir',
             React.createElement('br'),
@@ -1231,7 +1231,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
                       )
                     : (param.type === 'fixed' ? param.value : 
                         (isOrphan ? React.createElement('span', { style: { color: '#f44336', fontWeight: 'bold' } },
-                          '❌ ', param.formField, ' (ALAN MEVCUT DEĞİL)'
+                          param.formField, ' (ALAN MEVCUT DEĞİL)'
                         ) : (formFields.find(f => f.value === param.formField)?.label || param.formField))
                     )
                 ),
@@ -1282,9 +1282,9 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
             return React.createElement('tr', { key: param.id + '-lookup' },
               React.createElement('td', { colSpan: 5 },
                 React.createElement('div', { className: 'card', style: { marginTop: '8px' } },
-                  React.createElement('h4', null, '🔗 Değer Eşleştirme (Salt Okunur)'),
+                  React.createElement('h4', null, 'Değer Eşleştirme (Salt Okunur)'),
                   React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
-                    '📝 Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
+                    'Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
                   ),
                   paramLookupTable && paramLookupTable.length > 0 ?
                     React.createElement('table', { className: 'table table-sm' },

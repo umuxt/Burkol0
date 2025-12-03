@@ -6,6 +6,7 @@ import QuoteCustomerStep from './QuoteCustomerStep.jsx'
 import QuoteFormStep from './QuoteFormStep.jsx'
 import QuoteReviewStep from './QuoteReviewStep.jsx'
 import { validateCustomerStep, validateFormStep } from '../../utils/quote-validation.js'
+import { User, FileEdit, CheckCircle, Check, X } from '../../../../shared/components/Icons.jsx'
 
 /**
  * AddQuoteModal - Step-based quote creation modal
@@ -52,9 +53,9 @@ export default function AddQuoteModal({
 
   // Steps configuration
   const steps = [
-    { number: 1, label: 'Müşteri', icon: '👤' },
-    { number: 2, label: 'Form Bilgileri', icon: '📝' },
-    { number: 3, label: 'Önizleme', icon: '✅' }
+    { number: 1, label: 'Müşteri', icon: <User size={16} /> },
+    { number: 2, label: 'Form Bilgileri', icon: <FileEdit size={16} /> },
+    { number: 3, label: 'Önizleme', icon: <CheckCircle size={16} /> }
   ]
 
   // Initialize form with default values when formConfig loads
@@ -274,7 +275,7 @@ export default function AddQuoteModal({
               }}
             >
               <span className="quote-step-number">
-                {currentStep > step.number ? '✓' : step.number}
+                {currentStep > step.number ? <Check size={14} /> : step.number}
               </span>
               <span className="quote-step-label">{step.label}</span>
             </div>
@@ -304,7 +305,7 @@ export default function AddQuoteModal({
             disabled={saving}
             className="modal-close-btn"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

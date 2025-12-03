@@ -1,4 +1,5 @@
 import React from 'react'
+import { FileText, RefreshCw, Check, AlertTriangle, X, HelpCircle } from '../../../../shared/components/Icons.jsx'
 
 /**
  * PriceStatusBadge - Shows the price update status of a quote
@@ -15,28 +16,28 @@ export function PriceStatusBadge({ quote, priceVersionManager }) {
       case 'current':
         return {
           className: 'badge-success',
-          icon: '✓',
+          icon: <Check size={12} />,
           text: 'Güncel',
           title: 'Fiyat güncel'
         }
       case 'outdated':
         return {
           className: 'badge-warning',
-          icon: '⚠',
+          icon: <AlertTriangle size={12} />,
           text: differenceSummary || 'Güncelleme gerekli',
           title: `Fiyat farkı: ${differenceSummary}`
         }
       case 'error':
         return {
           className: 'badge-error',
-          icon: '✗',
+          icon: <X size={12} />,
           text: 'Hata',
           title: 'Fiyat hesaplama hatası'
         }
       default:
         return {
           className: 'badge-info',
-          icon: '?',
+          icon: <HelpCircle size={12} />,
           text: 'Bilinmiyor',
           title: 'Durum bilinmiyor'
         }
@@ -97,7 +98,7 @@ export function BatchPriceUpdateButton({
   if (quotesNeedingUpdate.length === 0) {
     return (
       <button className="btn btn-secondary" disabled>
-        <span className="btn-icon">✓</span>
+        <span className="btn-icon"><Check size={14} /></span>
         Tüm fiyatlar güncel
       </button>
     )
@@ -111,12 +112,12 @@ export function BatchPriceUpdateButton({
     >
       {isUpdating ? (
         <>
-          <span className="btn-icon spinner">⟳</span>
+          <span className="btn-icon spinner"><RefreshCw size={14} /></span>
           Güncelleniyor...
         </>
       ) : (
         <>
-          <span className="btn-icon">🔄</span>
+          <span className="btn-icon"><RefreshCw size={14} /></span>
           {quotesNeedingUpdate.length} Fiyat Güncelle
         </>
       )}
@@ -149,7 +150,7 @@ export function PriceVersionIndicator({ priceVersionManager }) {
   if (!versionInfo) {
     return (
       <div className="version-indicator loading">
-        <span className="indicator-icon">⟳</span>
+        <span className="indicator-icon"><RefreshCw size={14} /></span>
         <span className="indicator-text">Versiyon yükleniyor...</span>
       </div>
     )
@@ -157,7 +158,7 @@ export function PriceVersionIndicator({ priceVersionManager }) {
 
   return (
     <div className="version-indicator">
-      <span className="indicator-icon">📋</span>
+      <span className="indicator-icon"><FileText size={14} /></span>
       <span className="indicator-text">
         Fiyat Sistemi: v{versionInfo.versionNumber}
       </span>

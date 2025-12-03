@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft } from '../../../../shared/components/Icons.jsx';
+import { ArrowLeft, FileText, User, Phone, MapPin, Wallet, FileEdit, Pencil, Trash2 } from '../../../../shared/components/Icons.jsx';
 
 export default function CustomerDetailsPanel({ 
   customer,
@@ -201,7 +201,7 @@ export default function CustomerDetailsPanel({
                 gap: '4px'
               },
               onClick: () => setEditing(true)
-            }, '✏️ Düzenle'),
+            }, React.createElement(Pencil, { size: 12, style: { marginRight: '4px' } }), 'Düzenle'),
             React.createElement('button', {
               style: {
                 padding: '6px 12px',
@@ -216,7 +216,7 @@ export default function CustomerDetailsPanel({
                 gap: '4px'
               },
               onClick: handleDelete
-            }, '🗑️ Sil')
+            }, React.createElement(Trash2, { size: 12, style: { marginRight: '4px' } }), 'Sil')
           )
         )
       )
@@ -246,7 +246,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '📋 Temel Bilgiler'),
+          }, React.createElement(FileText, { size: 14, style: { marginRight: '6px' } }), 'Temel Bilgiler'),
           
           // Name
           React.createElement('div', { 
@@ -324,7 +324,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '👤 Yetkili Kişi'),
+          }, React.createElement(User, { size: 14, style: { marginRight: '6px' } }), 'Yetkili Kişi'),
           
           // Contact Person
           React.createElement('div', { 
@@ -402,7 +402,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '📞 İletişim Bilgileri'),
+          }, React.createElement(Phone, { size: 14, style: { marginRight: '6px' } }), 'İletişim Bilgileri'),
           
           // Email
           React.createElement('div', { 
@@ -536,7 +536,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '📍 Adres Bilgileri'),
+          }, React.createElement(MapPin, { size: 14, style: { marginRight: '6px' } }), 'Adres Bilgileri'),
 
           // Address
           React.createElement('div', { 
@@ -634,7 +634,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '💰 Fatura Bilgileri'),
+          }, React.createElement(Wallet, { size: 14, style: { marginRight: '6px' } }), 'Fatura Bilgileri'),
           
           // Tax Office
           React.createElement('div', { 
@@ -768,7 +768,7 @@ export default function CustomerDetailsPanel({
               borderBottom: '1px solid #e5e7eb', 
               paddingBottom: '6px' 
             } 
-          }, '📝 Notlar'),
+          }, React.createElement(FileEdit, { size: 14, style: { marginRight: '6px' } }), 'Notlar'),
           
           editing ? (
             React.createElement('textarea', {

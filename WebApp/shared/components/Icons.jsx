@@ -64,6 +64,22 @@ import {
   RefreshCw,
   Wallet,
   
+  // CRM Icons (PROMPT-19)
+  User,
+  UserPlus,
+  MapPin,
+  Building2,
+  CreditCard,
+  FileEdit,
+  StickyNote,
+  Paperclip,
+  FolderOpen,
+  Image,
+  MessageSquare,
+  PenTool,
+  HelpCircle,
+  FileSpreadsheet,
+  
 } from 'lucide-react';
 
 // Export all icons with consistent naming
@@ -128,6 +144,22 @@ export const Icons = {
   AlertTriangle,
   RefreshCw,
   Wallet,
+  
+  // CRM Icons (PROMPT-19)
+  User,
+  UserPlus,
+  MapPin,
+  Building2,
+  CreditCard,
+  FileEdit,
+  StickyNote,
+  Paperclip,
+  FolderOpen,
+  Image,
+  MessageSquare,
+  PenTool,
+  HelpCircle,
+  FileSpreadsheet,
 };
 
 // Helper component for consistent icon rendering
@@ -195,6 +227,21 @@ export {
   AlertTriangle,
   RefreshCw,
   Wallet,
+  // CRM Icons (PROMPT-19)
+  User,
+  UserPlus,
+  MapPin,
+  Building2,
+  CreditCard,
+  FileEdit,
+  StickyNote,
+  Paperclip,
+  FolderOpen,
+  Image,
+  MessageSquare,
+  PenTool,
+  HelpCircle,
+  FileSpreadsheet,
 };
 
 export default Icons;
