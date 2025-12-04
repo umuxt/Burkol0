@@ -522,9 +522,435 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
 
 ---
 
+### PROMPT-B0: Database Yapısı Optimizasyonu ve Analizi
+
+**Amaç**: quotes schema'daki form-price-quote ilişkilerinin analizi, gereksiz alanların tespiti ve yapısal iyileştirmeler
+
+**Tarih**: 4 Aralık 2025  
+**Durum**: ⏳ Uygulama Aşamasında
+
+**FİNAL KARARLAR**:
+- ✅ `price_formulas` tablosu → **HARD DELETE** (formulaExpression price_settings'e taşınacak)
+- ✅ `quote_form_data` tablosu → **KORU** (JSONB'ye taşıma YOK)
+- ✅ `formTemplateCode` / `priceSettingCode` → **OTOMATİK ÜRETME** (slug formatında)
+- ✅ Backward compatibility → **YOK** (veriler silinebilir)
+
+---
+
+#### 📊 MEVCUT TABLO YAPISI ANALİZİ
+
+##### quotes.price_settings
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `code` | VARCHAR | NOT NULL | `PRICE_SETTING_1763719935341` |
+| `name` | VARCHAR | NOT NULL | İnsan okunur isim |
+| `description` | TEXT | NULL | |
+| `isActive` | BOOLEAN | NOT NULL | Sadece bir tanesi true |
+| `version` | INT | NOT NULL | Default: 1 |
+| `createdBy` | VARCHAR | NULL | |
+| `createdAt` | TIMESTAMPTZ | NULL | |
+| `updatedAt` | TIMESTAMPTZ | NULL | |
+| `supersedesId` | INT (FK→self) | NULL | Önceki versiyon |
+
+##### quotes.price_parameters
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `code` | VARCHAR | NOT NULL | Parametre kodu |
+| `name` | VARCHAR | NOT NULL | İnsan okunur isim |
+| `type` | VARCHAR | NOT NULL | `fixed` veya `form_lookup` |
+| `fixedValue` | NUMERIC | NULL | type=fixed ise |
+| `unit` | VARCHAR | NULL | |
+| `description` | TEXT | NULL | |
+| `isActive` | BOOLEAN | NULL | Default: true |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+| `formFieldCode` | VARCHAR | NULL | type=form_lookup ise |
+| `settingId` | INT (FK) | NULL | → price_settings.id |
+
+##### quotes.price_formulas
+| Sütun | Tip | Nullable | Açıklama | ⚠️ Sorun |
+|-------|-----|----------|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment | |
+| `code` | VARCHAR | NOT NULL | Her zaman `MAIN_FORMULA` | **Gereksiz** |
+| `name` | VARCHAR | NOT NULL | Her zaman `Main Pricing Formula` | **Gereksiz** |
+| `formulaExpression` | TEXT | NOT NULL | `= birim_maliyet * adet` | ✅ |
+| `description` | TEXT | NULL | | |
+| `isActive` | BOOLEAN | NULL | Default: true | |
+| `version` | INT | NOT NULL | Default: 1 | **Gereksiz** (tek formül) |
+| `createdBy` | VARCHAR | NULL | | |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | | |
+| `supersedesId` | INT (FK→self) | NULL | | **Kullanılmıyor** |
+| `settingId` | INT (FK) | NULL | → price_settings.id | ✅ |
+
+##### quotes.form_templates
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `code` | VARCHAR | NOT NULL | `QUOTE_FORM_1763719091566` |
+| `name` | VARCHAR | NOT NULL | Form adı |
+| `description` | TEXT | NULL | |
+| `isActive` | BOOLEAN | NULL | Default: true |
+| `version` | INT | NOT NULL | Default: 1 |
+| `createdBy` | VARCHAR | NULL | |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+| `supersedesId` | INT (FK→self) | NULL | Önceki versiyon |
+
+##### quotes.form_fields
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `templateId` | INT (FK) | NOT NULL | → form_templates.id |
+| `fieldCode` | VARCHAR | NOT NULL | `field_1763719047532_xyz` |
+| `fieldName` | VARCHAR | NOT NULL | "Adet" |
+| `fieldType` | VARCHAR | NOT NULL | `number`, `text`, `select` |
+| `sortOrder` | INT | NOT NULL | Default: 0 |
+| `isRequired` | BOOLEAN | NULL | Default: false |
+| `placeholder` | TEXT | NULL | |
+| `helpText` | TEXT | NULL | |
+| `validationRule` | TEXT | NULL | JSON |
+| `defaultValue` | VARCHAR | NULL | |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+
+##### quotes.form_field_options
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `fieldId` | INT (FK) | NOT NULL | → form_fields.id |
+| `optionValue` | VARCHAR | NOT NULL | |
+| `optionLabel` | VARCHAR | NOT NULL | |
+| `sortOrder` | INT | NOT NULL | Default: 0 |
+| `isActive` | BOOLEAN | NULL | Default: true |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+| `priceValue` | NUMERIC | NULL | Seçeneğin fiyat etkisi |
+
+##### quotes.quotes
+| Sütun | Tip | Nullable | Açıklama | ⚠️ Sorun |
+|-------|-----|----------|----------|----------|
+| `id` | VARCHAR (PK) | NOT NULL | `TKF-20251124-0001` | |
+| `customerName` | VARCHAR | NULL | | Denormalize (customerId var) |
+| `customerEmail` | VARCHAR | NULL | | Denormalize |
+| `customerPhone` | VARCHAR | NULL | | Denormalize |
+| `customerCompany` | VARCHAR | NULL | | Denormalize |
+| `customerAddress` | TEXT | NULL | | Denormalize |
+| `formTemplateId` | INT (FK) | NULL | → form_templates.id | ✅ |
+| `status` | VARCHAR | NOT NULL | `new`, `approved` | |
+| `notes` | TEXT | NULL | | |
+| `priceFormulaId` | INT (FK) | NULL | → price_formulas.id | **Dolaylı** (settingId olmalı) |
+| `calculatedPrice` | NUMERIC | NULL | | |
+| `manualPrice` | NUMERIC | NULL | | |
+| `manualPriceReason` | TEXT | NULL | | |
+| `finalPrice` | NUMERIC | NULL | | |
+| `currency` | VARCHAR | NULL | Default: 'TRY' | |
+| `priceStatus` | VARCHAR | NULL | `current`, `outdated` | |
+| `priceDifferenceSummary` | TEXT | NULL | | |
+| `priceCalculatedAt` | TIMESTAMPTZ | NULL | | **Duplicate** |
+| `workOrderCode` | VARCHAR | NULL | | |
+| `approvedAt` | TIMESTAMPTZ | NULL | | |
+| `approvedBy` | VARCHAR | NULL | | |
+| `createdBy` | VARCHAR | NULL | | |
+| `updatedBy` | VARCHAR | NULL | | |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | | |
+| `formTemplateVersion` | INT | NULL | Snapshot | |
+| `priceFormulaVersion` | INT | NULL | Snapshot | |
+| `needsRecalculation` | BOOLEAN | NULL | Default: false | |
+| `lastCalculatedAt` | TIMESTAMPTZ | NULL | | **Duplicate** (priceCalculatedAt ile) |
+| `deliveryDate` | TIMESTAMPTZ | NULL | | |
+| `isCustomer` | BOOLEAN | NULL | Default: false | |
+| `customerId` | INT (FK) | NULL | → customers.id | ✅ |
+
+##### quotes.quote_form_data
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `quoteId` | VARCHAR (FK) | NOT NULL | → quotes.id |
+| `fieldId` | INT (FK) | NOT NULL | → form_fields.id |
+| `fieldCode` | VARCHAR | NOT NULL | Denormalize (hız için OK) |
+| `fieldValue` | TEXT | NULL | |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+
+---
+
+#### 🔗 MEVCUT FOREIGN KEY İLİŞKİLERİ
+
+```
+form_field_options.fieldId ──────────────> form_fields.id
+form_fields.templateId ──────────────────> form_templates.id
+form_templates.supersedesId ─────────────> form_templates.id (self-ref)
+
+price_formulas.settingId ────────────────> price_settings.id
+price_formulas.supersedesId ─────────────> price_formulas.id (self-ref)
+price_parameters.settingId ──────────────> price_settings.id
+price_settings.supersedesId ─────────────> price_settings.id (self-ref)
+
+quote_files.quoteId ─────────────────────> quotes.id
+quote_form_data.fieldId ─────────────────> form_fields.id
+quote_form_data.quoteId ─────────────────> quotes.id
+
+quotes.customerId ───────────────────────> customers.id
+quotes.formTemplateId ───────────────────> form_templates.id
+quotes.priceFormulaId ───────────────────> price_formulas.id  ⚠️ Dolaylı!
+```
+
+---
+
+#### ❌ TESPİT EDİLEN SORUNLAR
+
+| # | Sorun | Tablo | Açıklama |
+|---|-------|-------|----------|
+| 1 | **Eksik FK** | quotes | `priceSettingId` yok, `priceFormulaId` üzerinden dolaylı gidiliyor |
+| 2 | **Eksik alanlar** | quotes | `formTemplateCode` ve `priceSettingCode` yok |
+| 3 | **Gereksiz tablo** | price_formulas | Her setting'in tek formülü var, ayrı tablo gereksiz |
+| 4 | **Gereksiz alanlar** | price_formulas | `code`, `name`, `version`, `supersedesId` her zaman aynı değer |
+| 5 | **Duplicate alanlar** | quotes | `priceCalculatedAt` vs `lastCalculatedAt` |
+| 6 | **Denormalize alanlar** | quotes | customer* alanları (ama historik kayıt için OK) |
+
+---
+
+#### ✅ YAPILACAK DEĞİŞİKLİKLER
+
+> ⚠️ **NOT**: Backward compatibility yok. Mevcut veriler silinebilir.  
+> 📁 **Yedek**: `db/backups/quotes_schema_backup_20251204.sql`
+
+---
+
+##### AŞAMA B0.1: `price_formulas` Tablosunu Kaldır, `price_settings`'e Merge Et
+
+**Karar**: `price_formulas` tablosu **TAMAMEN KALDIRILACAK**, `formulaExpression` alanı `price_settings`'e taşınacak.
+
+**Gerekçe**:
+- Her setting'in tek bir formülü var
+- `price_formulas.code` her zaman `MAIN_FORMULA` - gereksiz
+- `price_formulas.name` her zaman `Main Pricing Formula` - gereksiz
+- `price_formulas.version` kullanılmıyor - gereksiz
+- `price_formulas.supersedesId` kullanılmıyor - gereksiz
+
+**YENİ `price_settings` Yapısı**:
+```sql
+DROP TABLE IF EXISTS quotes.price_settings CASCADE;
+
+CREATE TABLE quotes.price_settings (
+  "id" SERIAL PRIMARY KEY,
+  -- Kimlik
+  "code" VARCHAR(100) NOT NULL,           -- PRICE_SETTING_xxxxx
+  "name" VARCHAR(255) NOT NULL,           -- İnsan okunur isim
+  "description" TEXT,
+  -- Versiyon kontrolü
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "isActive" BOOLEAN NOT NULL DEFAULT false,
+  "supersedesId" INTEGER REFERENCES quotes.price_settings(id),
+  -- Formül (ESKİ: price_formulas tablosundan taşındı)
+  "formulaExpression" TEXT,               -- = birim_maliyet * adet
+  -- Meta
+  "createdBy" VARCHAR(100),
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE UNIQUE INDEX price_settings_code_version_unique ON quotes.price_settings(code, version);
+CREATE INDEX price_settings_is_active_idx ON quotes.price_settings("isActive");
+```
+
+---
+
+##### AŞAMA B0.2: `quotes` Tablosunu Sadeleştir
+
+**Yapılacaklar**:
+1. `priceFormulaId` → `priceSettingId` olarak değiştirilecek
+2. `priceCalculatedAt` kaldırılacak (duplicate)
+3. `priceFormulaVersion` → `priceSettingVersion` olarak değiştirilecek
+4. `formTemplateCode` ve `priceSettingCode` eklenecek
+5. Sütun sırası mantıklı hale getirilecek
+
+**YENİ `quotes` Yapısı**:
+```sql
+DROP TABLE IF EXISTS quotes.quotes CASCADE;
+
+CREATE TABLE quotes.quotes (
+  -- Kimlik
+  "id" VARCHAR(50) PRIMARY KEY,           -- TKF-YYYYMMDD-NNNN
+  "status" VARCHAR(50) NOT NULL DEFAULT 'new',
+  
+  -- Müşteri bilgileri (denormalize - historik kayıt için tutuluyor)
+  "customerId" INTEGER REFERENCES quotes.customers(id),
+  "customerName" VARCHAR(255),
+  "customerEmail" VARCHAR(255),
+  "customerPhone" VARCHAR(50),
+  "customerCompany" VARCHAR(255),
+  "customerAddress" TEXT,
+  "isCustomer" BOOLEAN DEFAULT false,
+  
+  -- Form referansı
+  "formTemplateId" INTEGER REFERENCES quotes.form_templates(id),
+  "formTemplateCode" VARCHAR(100),        -- YENİ: QUOTE_FORM_xxxxx
+  "formTemplateVersion" INTEGER,
+  
+  -- Fiyatlandırma referansı
+  "priceSettingId" INTEGER REFERENCES quotes.price_settings(id),  -- YENİ (eski: priceFormulaId)
+  "priceSettingCode" VARCHAR(100),        -- YENİ: PRICE_SETTING_xxxxx
+  "priceSettingVersion" INTEGER,          -- YENİ (eski: priceFormulaVersion)
+  
+  -- Fiyat bilgileri
+  "calculatedPrice" NUMERIC,
+  "manualPrice" NUMERIC,
+  "manualPriceReason" TEXT,
+  "finalPrice" NUMERIC,
+  "currency" VARCHAR(10) DEFAULT 'TRY',
+  "priceStatus" VARCHAR(50) DEFAULT 'current',
+  "priceDifferenceSummary" TEXT,
+  "needsRecalculation" BOOLEAN DEFAULT false,
+  "lastCalculatedAt" TIMESTAMPTZ,         -- ESKİ: priceCalculatedAt ile birleştirildi
+  
+  -- İş emri ve onay
+  "workOrderCode" VARCHAR(50),
+  "approvedAt" TIMESTAMPTZ,
+  "approvedBy" VARCHAR(100),
+  
+  -- Diğer
+  "notes" TEXT,
+  "deliveryDate" TIMESTAMPTZ,
+  
+  -- Meta
+  "createdBy" VARCHAR(100),
+  "updatedBy" VARCHAR(100),
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX quotes_status_idx ON quotes.quotes(status);
+CREATE INDEX quotes_status_created_at_idx ON quotes.quotes(status, "createdAt");
+CREATE INDEX quotes_created_at_idx ON quotes.quotes("createdAt");
+CREATE INDEX quotes_form_template_id_idx ON quotes.quotes("formTemplateId");
+CREATE INDEX quotes_price_setting_id_idx ON quotes.quotes("priceSettingId");
+CREATE INDEX quotes_form_template_code_idx ON quotes.quotes("formTemplateCode");
+CREATE INDEX quotes_price_setting_code_idx ON quotes.quotes("priceSettingCode");
+CREATE INDEX quotes_work_order_code_idx ON quotes.quotes("workOrderCode");
+CREATE INDEX quotes_delivery_date_idx ON quotes.quotes("deliveryDate");
+CREATE INDEX quotes_customer_id_idx ON quotes.quotes("customerId");
+```
+
+---
+
+##### AŞAMA B0.3: `price_parameters` Sütun Sırasını Düzenle
+
+**YENİ `price_parameters` Yapısı**:
+```sql
+DROP TABLE IF EXISTS quotes.price_parameters CASCADE;
+
+CREATE TABLE quotes.price_parameters (
+  "id" SERIAL PRIMARY KEY,
+  "settingId" INTEGER NOT NULL REFERENCES quotes.price_settings(id) ON DELETE CASCADE,
+  -- Kimlik
+  "code" VARCHAR(100) NOT NULL,
+  "name" VARCHAR(255) NOT NULL,
+  -- Tip ve değer
+  "type" VARCHAR(50) NOT NULL,            -- 'fixed' veya 'form_lookup'
+  "fixedValue" NUMERIC,                   -- type=fixed ise
+  "formFieldCode" VARCHAR(100),           -- type=form_lookup ise
+  "unit" VARCHAR(50),
+  "description" TEXT,
+  "isActive" BOOLEAN DEFAULT true,
+  -- Meta
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE("settingId", "code")
+);
+
+-- Indexes
+CREATE INDEX price_parameters_setting_id_idx ON quotes.price_parameters("settingId");
+CREATE INDEX price_parameters_type_idx ON quotes.price_parameters(type);
+CREATE INDEX price_parameters_is_active_idx ON quotes.price_parameters("isActive");
+```
+
+---
+
+##### AŞAMA B0.4: `quote_form_data` FK Güncelle
+
+`quote_form_data.fieldId` referansı kalacak ama ON DELETE davranışı güncellenecek.
+
+```sql
+-- quote_form_data'daki FK'yı güncelle
+ALTER TABLE quotes.quote_form_data 
+DROP CONSTRAINT IF EXISTS quote_form_data_field_id_foreign;
+
+ALTER TABLE quotes.quote_form_data 
+ADD CONSTRAINT quote_form_data_field_id_fk 
+FOREIGN KEY ("fieldId") REFERENCES quotes.form_fields(id) ON DELETE SET NULL;
+```
+
+---
+
+#### 📁 DEĞİŞECEK DOSYALAR
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `db/migrations/025_db_optimization.sql` | Yeni migration - tablo DROP/CREATE |
+| `db/models/priceFormulas.js` | **SİLİNECEK** |
+| `db/models/quotes.js` | `priceSettingId`, `priceSettingCode`, `formTemplateCode` |
+| `domains/crm/api/services/priceSettingsService.js` | `formulaExpression` ekleme |
+| `domains/crm/components/pricing/PricingManager.jsx` | API değişiklikleri |
+
+---
+
+#### 🧪 TEST KRİTERLERİ
+
+- [ ] Migration hatasız çalışıyor
+- [ ] `price_settings.formulaExpression` çalışıyor
+- [ ] `price_formulas` tablosu kaldırıldı
+- [ ] `quotes.priceSettingId` FK çalışıyor
+- [ ] PricingManager.jsx formül kaydetme çalışıyor
+- [ ] Quote oluşturma çalışıyor
+- [ ] Fiyat hesaplama çalışıyor
+
+---
+
+#### 📋 KARARLAR (Güncellenme: 4 Aralık 2025)
+
+| # | Konu | Karar | Açıklama |
+|---|------|-------|----------|
+| 1 | `quotes.customer*` alanları | **TUT** | Historik kayıt için gerekli |
+| 2 | `price_formulas` tablosu | **HARD DELETE** | formulaExpression → price_settings'e taşı |
+| 3 | `priceCalculatedAt` vs `lastCalculatedAt` | **BİRLEŞTİR** | lastCalculatedAt tut, priceCalculatedAt sil |
+| 4 | Backward compatibility | **YOK** | Temiz yapı, mevcut veriler silinebilir |
+| 5 | `quote_form_data` tablosu | **KORU** | JSONB'ye taşıma YOK, mevcut yapı kalacak |
+| 6 | `formTemplateCode` / `priceSettingCode` | **OTOMATİK** | Sistem slug üretecek (template/setting kaydederken) |
+| 7 | Silme stratejisi | **HARD DELETE** | Deprecation yok, direkt DROP |
+
+---
+
+#### 🔄 CODE OTOMATİK ÜRETME MANTIĞI
+
+**`formTemplateCode` formatı**: `FORM_${timestamp}_${random}`
+```javascript
+// Örnek: FORM_1733312400000_a1b2c3
+const formTemplateCode = `FORM_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+```
+
+**`priceSettingCode` formatı**: `PRICE_${timestamp}_${random}`
+```javascript
+// Örnek: PRICE_1733312400000_x9y8z7
+const priceSettingCode = `PRICE_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+```
+
+> **NOT**: Bu code'lar tablolarda zaten `code` alanı olarak mevcut. Quote oluşturulurken bu code değerleri `quotes.formTemplateCode` ve `quotes.priceSettingCode` alanlarına kopyalanacak.
+
+---
+
 ### PROMPT-B1: Database Schema Güncellemesi
 
 **Amaç**: Quote'larda form/price referans alanlarının eklenmesi
+
+> **NOT**: PROMPT-B0 tamamlandıktan sonra yapılacak. `formTemplateCode` ve `priceSettingCode` alanları B0.2'de quotes tablosuna zaten eklendi.
 
 **Ön Araştırma**:
 1. `read_file` ile mevcut migration dosyalarını incele
@@ -1683,19 +2109,20 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 
 Her PROMPT tamamlandığında işaretlenecek:
 
-- [ ] **PROMPT-B1**: Database migration (formTemplateCode, priceSettingCode)
-- [ ] **PROMPT-B2**: Quote create/update'de code kaydetme
-- [ ] **PROMPT-F1**: Calculate-price API endpoint
 - [x] **PROMPT-A1**: Form Manager UI değişiklikleri ✅ (3 Aralık 2025)
 - [x] **PROMPT-A1.1**: Buton görünürlük revizyonu ✅ (4 Aralık 2025)
 - [x] **PROMPT-A1.2**: Kozmetik güncellemeler (form adı, Lucide ikonlar) ✅ (4 Aralık 2025)
 - [x] **PROMPT-A2**: Pricing Manager UI değişiklikleri ✅ (4 Aralık 2025)
+- [ ] **PROMPT-B0**: Database yapısı optimizasyonu (price_formulas merge, duplicate alanlar)
+- [ ] **PROMPT-B1**: Database migration (formTemplateCode, priceSettingCode)
+- [ ] **PROMPT-B2**: Quote create/update'de code kaydetme
 - [ ] **PROMPT-C1**: canEdit optimizasyonu
-- [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
 - [ ] **PROMPT-C2**: Form değişiklik uyarı butonu
 - [ ] **PROMPT-C3**: Price değişiklik uyarı butonu
 - [ ] **PROMPT-C4**: Birleşik form+price uyarı butonu
-- [ ] **PROMPT-E1**: FormUpdateModal componenti
-- [ ] **PROMPT-E2**: PriceConfirmModal componenti
 - [ ] **PROMPT-D1**: Fiyat değişikliği onay akışı
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
+- [ ] **PROMPT-E1**: FormUpdateModal componenti
+- [ ] **PROMPT-E2**: PriceConfirmModal componenti
+- [ ] **PROMPT-F1**: Calculate-price API endpoint
+- [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
