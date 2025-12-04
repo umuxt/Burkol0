@@ -1047,53 +1047,47 @@ if (priceSettingId) {
 
 **Amaç**: Edit lock kontrolünün optimize edilmesi ve gereksiz sorguların engellenmesi
 
-**Ön Araştırma**:
-1. `read_file` ile `QuoteDetailsPanel.jsx` oku
-2. Mevcut `canEdit` API çağrısını incele
-3. Sıralama optimizasyonu için mevcut akışı analiz et
+**Tarih**: 4 Aralık 2025  
+**Durum**: ✅ **TAMAMLANDI**
 
-**Yapılacaklar**:
+**Gerçekleştirilen Değişiklikler** (`QuoteDetailsPanel.jsx`):
 
-1. **Akış optimizasyonu**:
+1. **Import'lar eklendi**:
+   - `formsApi` from forms-service.js
+   - `priceApi` from pricing-service.js
+
+2. **State'ler eklendi**:
    ```javascript
-   // 1. Önce canEdit kontrolü
-   const editStatus = await quotesService.getEditStatus(quote.id);
-   
-   // 2. Eğer canEdit=false ise
-   if (!editStatus.canEdit) {
-     // Form/price sorgularını YAPMA
-     // Sadece readonly göster
-     // Uyarı banner'ları gösterme
-     return;
-   }
-   
-   // 3. Eğer canEdit=true ise
-   // Form/price karşılaştırma sorgularını yap
-   const [activeTemplate, activeSetting] = await Promise.all([
-     formsApi.getActiveTemplate(),
-     priceApi.getActiveSetting()
-   ]);
-   
-   // 4. Karşılaştırma yap
-   const formChanged = quote.formTemplateCode !== activeTemplate.code;
-   const priceChanged = quote.priceSettingCode !== activeSetting.code;
+   const [formChangeDetected, setFormChangeDetected] = useState(false)
+   const [priceChangeDetected, setPriceChangeDetected] = useState(false)
+   const [activeFormTemplate, setActiveFormTemplate] = useState(null)
+   const [activePriceSetting, setActivePriceSetting] = useState(null)
    ```
 
-2. **State yönetimi**:
-   ```javascript
-   const [formChangeDetected, setFormChangeDetected] = useState(false);
-   const [priceChangeDetected, setPriceChangeDetected] = useState(false);
-   const [activeFormTemplate, setActiveFormTemplate] = useState(null);
-   const [activePriceSetting, setActivePriceSetting] = useState(null);
-   ```
+3. **Optimized useEffect**:
+   - İlk olarak `editStatus` fetch ediliyor
+   - Eğer `canEdit=true` ise form/price değişiklikleri kontrol ediliyor
+   - Eğer `canEdit=false` ise gereksiz API çağrıları yapılmıyor
+   - `formTemplateCode` ve `priceSettingCode` karşılaştırması yapılıyor
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+4. **Version Change Banners**:
+   - Form değişikliği: Mavi banner + "Formu Güncelle" butonu
+   - Fiyat değişikliği: Yeşil banner + "Fiyatı Yeniden Hesapla" butonu
+   - Her ikisi: Sarı banner + "Formu ve Fiyatı Güncelle" butonu
+   - Sadece `canEdit=true` durumunda gösteriliyor
+
+5. **Handler fonksiyonları**:
+   - `handleFormUpdateClick()` - TODO: C2'de modal açılacak
+   - `handlePriceRecalcClick()` - TODO: C3'te fiyat hesaplanacak
 
 **Test Kriterleri**:
-- [ ] Edit lock durumunda backend sorgularını yapmıyor
-- [ ] Edit lock durumunda uyarı banner'ları gösterilmiyor
-- [ ] Düzenlenebilir quote'larda form/price sorguları yapılıyor
+- [x] Edit lock durumunda form/price sorgularını yapmıyor ✅
+- [x] Edit lock durumunda uyarı banner'ları gösterilmiyor ✅
+- [x] Düzenlenebilir quote'larda form/price sorguları yapılıyor ✅
+- [x] Form değişikliği varsa mavi banner görünüyor ✅
+- [x] Fiyat değişikliği varsa yeşil banner görünüyor ✅
+- [x] Her ikisi varsa sarı banner görünüyor ✅
+- [x] Build başarılı ✅
 
 ---
 

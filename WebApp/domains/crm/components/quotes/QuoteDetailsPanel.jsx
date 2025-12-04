@@ -6,6 +6,8 @@ import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_F
 import { statusLabel } from '../../../../shared/i18n.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 import { quotesService } from '../../services/quotes-service.js'
+import { formsApi } from '../../services/forms-service.js'
+import { priceApi } from '../../services/pricing-service.js'
 import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
 
 export default function QuoteDetailsPanel({ 
@@ -39,13 +41,60 @@ export default function QuoteDetailsPanel({
   const [editStatus, setEditStatus] = useState(null)
   const [editStatusLoading, setEditStatusLoading] = useState(false)
   
+  // C1: Version change detection state
+  const [formChangeDetected, setFormChangeDetected] = useState(false)
+  const [priceChangeDetected, setPriceChangeDetected] = useState(false)
+  const [activeFormTemplate, setActiveFormTemplate] = useState(null)
+  const [activePriceSetting, setActivePriceSetting] = useState(null)
+  
   // Fetch edit status when quote changes
+  // C1: Optimized - only fetch form/price changes if canEdit=true
   useEffect(() => {
     if (quote?.id) {
       setEditStatusLoading(true)
+      // Reset change detection states
+      setFormChangeDetected(false)
+      setPriceChangeDetected(false)
+      setActiveFormTemplate(null)
+      setActivePriceSetting(null)
+      
       quotesService.getEditStatus(quote.id)
-        .then(status => {
+        .then(async (status) => {
           setEditStatus(status)
+          
+          // C1: Only check for form/price changes if quote is editable
+          if (status.canEdit) {
+            try {
+              // Fetch active template and setting in parallel
+              const [activeTemplate, activeSetting] = await Promise.all([
+                formsApi.getActiveTemplate().catch(() => null),
+                priceApi.getActiveSetting().catch(() => null)
+              ])
+              
+              setActiveFormTemplate(activeTemplate)
+              setActivePriceSetting(activeSetting)
+              
+              // Check for form template change
+              if (activeTemplate && quote.formTemplateCode) {
+                const formChanged = quote.formTemplateCode !== activeTemplate.code
+                setFormChangeDetected(formChanged)
+                if (formChanged) {
+                  console.log('📋 Form template changed:', quote.formTemplateCode, '→', activeTemplate.code)
+                }
+              }
+              
+              // Check for price setting change
+              if (activeSetting && quote.priceSettingCode) {
+                const priceChanged = quote.priceSettingCode !== activeSetting.code
+                setPriceChangeDetected(priceChanged)
+                if (priceChanged) {
+                  console.log('💰 Price setting changed:', quote.priceSettingCode, '→', activeSetting.code)
+                }
+              }
+            } catch (err) {
+              console.warn('Failed to check version changes:', err)
+            }
+          }
         })
         .catch(err => {
           console.error('Failed to fetch edit status:', err)
@@ -55,7 +104,7 @@ export default function QuoteDetailsPanel({
           setEditStatusLoading(false)
         })
     }
-  }, [quote?.id])
+  }, [quote?.id, quote?.formTemplateCode, quote?.priceSettingCode])
 
   // Initialize form data when quote changes
   useEffect(() => {
@@ -474,6 +523,18 @@ export default function QuoteDetailsPanel({
   
   const priceWarningInfo = getPriceWarningInfo()
   
+  // C1: Handle form update when template changed
+  const handleFormUpdateClick = () => {
+    // TODO: C2 - Open form update modal
+    showToast('Form güncelleme modalı yakında eklenecek', 'info')
+  }
+  
+  // C1: Handle price recalculation when setting changed
+  const handlePriceRecalcClick = async () => {
+    // TODO: C3 - Recalculate price with active setting
+    showToast('Fiyat yeniden hesaplama yakında eklenecek', 'info')
+  }
+  
   // Handle navigation to work order
   const handleViewWorkOrder = (woCode) => {
     // Navigate to production page with work order filter
@@ -523,6 +584,84 @@ export default function QuoteDetailsPanel({
           <span style={{ fontSize: '13px', color: priceWarningInfo.color, fontWeight: '500' }}>
             {priceWarningInfo.message}
           </span>
+        </div>
+      )}
+      
+      {/* C1: Form/Price Version Change Banners - Only show if editable */}
+      {editStatus?.canEdit && (formChangeDetected || priceChangeDetected) && (
+        <div style={{
+          padding: '12px 16px',
+          background: formChangeDetected && priceChangeDetected ? '#fef3c7' : (formChangeDetected ? '#dbeafe' : '#dcfce7'),
+          borderBottom: `1px solid ${formChangeDetected && priceChangeDetected ? '#fbbf24' : (formChangeDetected ? '#93c5fd' : '#86efac')}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={16} style={{ color: formChangeDetected && priceChangeDetected ? '#d97706' : (formChangeDetected ? '#2563eb' : '#16a34a') }} />
+            <span style={{ fontSize: '13px', color: formChangeDetected && priceChangeDetected ? '#92400e' : (formChangeDetected ? '#1e40af' : '#166534'), fontWeight: '500' }}>
+              {formChangeDetected && priceChangeDetected 
+                ? 'Form ve fiyatlandırma ayarları güncellendi!' 
+                : formChangeDetected 
+                  ? 'Form şablonu güncellendi!' 
+                  : 'Fiyatlandırma ayarları güncellendi!'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {formChangeDetected && priceChangeDetected ? (
+              <button
+                type="button"
+                onClick={handleFormUpdateClick}
+                style={{
+                  padding: '6px 12px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: '#d97706',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+              >
+                Formu ve Fiyatı Güncelle
+              </button>
+            ) : formChangeDetected ? (
+              <button
+                type="button"
+                onClick={handleFormUpdateClick}
+                style={{
+                  padding: '6px 12px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: '#2563eb',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+              >
+                Formu Güncelle
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handlePriceRecalcClick}
+                style={{
+                  padding: '6px 12px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: '#16a34a',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+              >
+                Fiyatı Yeniden Hesapla
+              </button>
+            )}
+          </div>
         </div>
       )}
       
