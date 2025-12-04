@@ -1,6 +1,6 @@
 import db from '../connection.js';
-import PriceFormulas from './priceFormulas.js';
 import WorkOrders from './workOrders.js';
+import PriceSettings from '../../domains/crm/api/services/priceSettingsService.js';
 
 /**
  * Quotes Model
@@ -29,38 +29,11 @@ class Quotes {
   }
 
   /**
-   * Helper to normalize priceStatus from string to object format
-   * Frontend expects priceStatus as an object with { status, differenceSummary, ... }
-   * But database stores it as a simple string ('current', 'outdated', 'price-drift', etc.)
+   * Helper - priceStatus column removed in B0.2
+   * This is a no-op now, kept for backward compatibility
    */
   static normalizePriceStatus(quote) {
-    if (quote && quote.priceStatus) {
-      // If it's already an object, keep it
-      if (typeof quote.priceStatus === 'object' && quote.priceStatus !== null) {
-        return quote;
-      }
-      
-      // Convert string to object format
-      const statusString = quote.priceStatus;
-      quote.priceStatus = {
-        status: statusString,
-        differenceSummary: null,
-        calculatedPrice: quote.calculatedPrice || null,
-        settingsVersion: quote.priceFormulaVersion || null,
-        formVersion: quote.formTemplateVersion || null
-      };
-      
-      // If there's priceDifferenceSummary stored separately, parse it
-      if (quote.priceDifferenceSummary) {
-        try {
-          quote.priceStatus.differenceSummary = typeof quote.priceDifferenceSummary === 'string' 
-            ? JSON.parse(quote.priceDifferenceSummary) 
-            : quote.priceDifferenceSummary;
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-    }
+    // priceStatus column removed - no normalization needed
     return quote;
   }
 
@@ -82,29 +55,30 @@ class Quotes {
 
   /**
    * Create a new quote
+   * Updated for B0.2: uses priceSettingId instead of priceFormulaId
    */
-  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceFormulaId, notes, formData, createdBy, isCustomer, customerId }) {
+  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceSettingId, notes, formData, createdBy, isCustomer, customerId }) {
     const trx = await db.transaction();
     
     try {
       const quoteId = await this.generateQuoteId();
 
-      // Get current versions to snapshot
-      let formTemplateVersion = null;
-      let priceFormulaVersion = null;
-
+      // Get form template code for version tracking
+      let formTemplateCode = null;
       if (formTemplateId) {
         const template = await trx('quotes.form_templates')
           .where('id', formTemplateId)
           .first();
-        formTemplateVersion = template?.version || null;
+        formTemplateCode = template?.code || null;
       }
 
-      if (priceFormulaId) {
-        const formula = await trx('quotes.price_formulas')
-          .where('id', priceFormulaId)
+      // Get price setting code for version tracking
+      let priceSettingCode = null;
+      if (priceSettingId) {
+        const setting = await trx('quotes.price_settings')
+          .where('id', priceSettingId)
           .first();
-        priceFormulaVersion = formula?.version || null;
+        priceSettingCode = setting?.code || null;
       }
 
       // Create quote
@@ -118,9 +92,9 @@ class Quotes {
           customerAddress: customerAddress,
           deliveryDate: deliveryDate,
           formTemplateId: formTemplateId,
-          priceFormulaId: priceFormulaId,
-          formTemplateVersion: formTemplateVersion,
-          priceFormulaVersion: priceFormulaVersion,
+          formTemplateCode: formTemplateCode,
+          priceSettingId: priceSettingId,
+          priceSettingCode: priceSettingCode,
           status: 'new',
           notes,
           createdBy: createdBy,
@@ -136,9 +110,9 @@ class Quotes {
         await this._saveFormData(trx, quoteId, formData);
       }
 
-      // Calculate price if formula is provided
-      if (priceFormulaId && formData) {
-        const calculation = await PriceFormulas.calculatePrice(priceFormulaId, formData);
+      // Calculate price if setting is provided
+      if (priceSettingId && formData) {
+        const calculation = await PriceSettings.calculatePrice(priceSettingId, formData);
         
         // Update quote with calculated price
         await trx('quotes.quotes')
@@ -146,9 +120,7 @@ class Quotes {
           .update({
             calculatedPrice: calculation.totalPrice,
             finalPrice: calculation.totalPrice,
-            lastCalculatedAt: db.fn.now(),
-            needsRecalculation: false,
-            priceStatus: 'current'
+            lastCalculatedAt: db.fn.now()
           });
       }
 
@@ -341,27 +313,16 @@ class Quotes {
         // Insert new form data
         await this._saveFormData(trx, id, updates.formData);
 
-        // Recalculate price if formula exists
-        if (quote.priceFormulaId) {
-          const calculation = await PriceFormulas.calculatePrice(quote.priceFormulaId, updates.formData);
+        // Recalculate price if price setting exists
+        if (quote.priceSettingId) {
+          const calculation = await PriceSettings.calculatePrice(quote.priceSettingId, updates.formData);
           
           await trx('quotes.quotes')
             .where('id', id)
             .update({
               calculatedPrice: calculation.totalPrice,
               finalPrice: quote.manualPrice || calculation.totalPrice,
-              lastCalculatedAt: db.fn.now(),
-              needsRecalculation: false,
-              priceStatus: quote.manualPrice ? 'manual' : 'current'
-            });
-
-          // Note: quote_price_details table removed - details not stored anymore
-        } else {
-          // Mark as needing recalculation if no formula
-          await trx('quotes.quotes')
-            .where('id', id)
-            .update({
-              needsRecalculation: true
+              lastCalculatedAt: db.fn.now()
             });
         }
       }
@@ -448,15 +409,13 @@ class Quotes {
         manualPrice: manualPrice,
         manualPriceReason: reason,
         finalPrice: manualPrice,
-        priceStatus: 'manual',
         updatedBy: updatedBy,
         updatedAt: db.fn.now()
       })
       .returning('*');
     
-    // Normalize deliveryDate and priceStatus before returning
+    // Normalize deliveryDate before returning
     this.normalizeDeliveryDate(quote);
-    this.normalizePriceStatus(quote);
     
     return quote;
   }
@@ -474,16 +433,14 @@ class Quotes {
       .update({
         manualPrice: null,
         manualPriceReason: null,
-        finalPrice: currentQuote.calculatedPrice || currentQuote.price || 0,
-        priceStatus: 'current',
+        finalPrice: currentQuote.calculatedPrice || 0,
         updatedBy: updatedBy,
         updatedAt: db.fn.now()
       })
       .returning('*');
     
-    // Normalize deliveryDate and priceStatus before returning
+    // Normalize deliveryDate before returning
     this.normalizeDeliveryDate(quote);
-    this.normalizePriceStatus(quote);
     
     return quote;
   }
@@ -562,41 +519,30 @@ class Quotes {
   }
 
   /**
-   * Mark quotes for recalculation when template/formula changes
+   * Mark quotes for recalculation when template/settings changes
+   * NOTE: needsRecalculation column removed in B0.2
+   * This method is deprecated - recalculation is done on-demand
    */
   static async markForRecalculation(criteria) {
-    let query = db('quotes.quotes');
-
-    if (criteria.formTemplateId) {
-      query = query.where('formTemplateId', criteria.formTemplateId);
-    }
-
-    if (criteria.priceFormulaId) {
-      query = query.where('priceFormulaId', criteria.priceFormulaId);
-    }
-
-    const count = await query.update({
-      needsRecalculation: true,
-      updatedAt: db.fn.now()
-    });
-
-    return count;
+    // No-op: needsRecalculation column removed
+    // Recalculation is now done when quote is viewed/edited
+    console.warn('DEPRECATED: Quotes.markForRecalculation() - column removed in B0.2');
+    return 0;
   }
 
   /**
    * Get quotes that need recalculation
+   * NOTE: needsRecalculation column removed in B0.2
+   * This method is deprecated
    */
   static async getNeedingRecalculation() {
-    const quotes = await db('quotes.quotes')
-      .where('needsRecalculation', true)
-      .whereNotIn('status', ['cancelled', 'rejected'])
-      .orderBy('createdAt', 'desc');
-    
-    return quotes;
+    // No-op: needsRecalculation column removed
+    console.warn('DEPRECATED: Quotes.getNeedingRecalculation() - column removed in B0.2');
+    return [];
   }
 
   /**
-   * Recalculate a quote's price
+   * Recalculate a quote's price using current price setting
    */
   static async recalculate(id) {
     const trx = await db.transaction();
@@ -604,8 +550,8 @@ class Quotes {
     try {
       const quote = await trx('quotes.quotes').where('id', id).first();
       
-      if (!quote || !quote.priceFormulaId) {
-        throw new Error('Quote not found or has no formula');
+      if (!quote || !quote.priceSettingId) {
+        throw new Error('Quote not found or has no price setting');
       }
 
       // Get form data
@@ -618,7 +564,7 @@ class Quotes {
       });
 
       // Calculate price
-      const calculation = await PriceFormulas.calculatePrice(quote.priceFormulaId, formData);
+      const calculation = await PriceSettings.calculatePrice(quote.priceSettingId, formData);
       
       // Update quote
       await trx('quotes.quotes')
@@ -627,8 +573,6 @@ class Quotes {
           calculatedPrice: calculation.totalPrice,
           finalPrice: quote.manualPrice || calculation.totalPrice,
           lastCalculatedAt: db.fn.now(),
-          needsRecalculation: false,
-          priceStatus: quote.manualPrice ? 'manual' : 'current',
           updatedAt: db.fn.now()
         });
 

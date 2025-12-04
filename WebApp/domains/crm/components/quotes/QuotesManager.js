@@ -118,6 +118,10 @@ function QuotesManager({ t, onLogout }) {
 
   const handleQuotesTabChange = (newTab) => {
     console.log('🔥 ADMIN QUOTES TAB CHANGE:', newTab, 'Old:', activeQuotesTab);
+    // Close detail panel when switching tabs to prevent stale state
+    if (newTab !== 'quotes') {
+      setSelectedQuote(null);
+    }
     setActiveQuotesTab(newTab);
     localStorage.setItem('bk_quotes_tab', newTab);
   }
@@ -139,8 +143,8 @@ function QuotesManager({ t, onLogout }) {
       console.log('🔧 Admin: Loaded', quotesData.length, 'quotes');
       setList(quotesData);
 
-      // Check if there are pending version updates
-      await checkAndProcessVersionUpdates(quotesData);
+      // B0: Version check removed - price_formulas table no longer exists
+      // Price comparison now happens only when viewing quote details
 
       setLoading(false);
       setError(null);
@@ -161,90 +165,28 @@ function QuotesManager({ t, onLogout }) {
     }
   }
 
+  // B0: checkAndProcessVersionUpdates simplified
+  // Price comparison now only happens when viewing quote details modal
+  // This eliminates unnecessary API calls on page load
   async function checkAndProcessVersionUpdates(quotesData) {
-    try {
-      // If quotesData is not provided, fetch it from the current list
-      let dataToCheck = quotesData;
-      if (!dataToCheck || !Array.isArray(dataToCheck)) {
-        dataToCheck = list || [];
-        if (dataToCheck.length === 0) {
-          console.log('🔧 No quotes data available for version update check');
-          return;
-        }
-      }
-
-      // Check if there are quotes that need version comparison
-      const quotesNeedingUpdate = dataToCheck.filter(quote => 
-        !quote.manualOverride?.active && // Skip manually locked quotes
-        quote.priceStatus && // Only process quotes that have priceStatus
-        (quote.priceStatus.status === 'outdated' || 
-         quote.priceStatus.status === 'price-drift' ||
-         quote.priceStatus.status === 'content-drift' ||
-         quote.priceStatus.status === 'unknown' ||
-         quote.priceStatus.status === 'error')
-      );
-
-      if (quotesNeedingUpdate.length > 0) {
-        console.log(`🔧 Processing ${quotesNeedingUpdate.length} quotes silently in background`);
-
-        // Process quotes in batches to avoid overwhelming the backend
-        const batchSize = 5;
-        for (let i = 0; i < quotesNeedingUpdate.length; i += batchSize) {
-          const batch = quotesNeedingUpdate.slice(i, i + batchSize);
-          
-          // Process batch
-          await Promise.all(batch.map(async (quote) => {
-            try {
-              // Önce lokal olarak diff summary kontrol et
-              const diffSummary = quote.priceStatus?.differenceSummary
-              if (diffSummary && Math.abs(diffSummary.priceDiff || 0) === 0) {
-                const hasParameterChanges = diffSummary.parameterChanges && 
-                  (diffSummary.parameterChanges.added?.length > 0 ||
-                   diffSummary.parameterChanges.removed?.length > 0 ||
-                   diffSummary.parameterChanges.modified?.length > 0)
-                const hasFormulaChange = diffSummary.formulaChanged === true
-                
-                // Eğer gerçek bir değişiklik yoksa status'ü current yap
-                if (!hasParameterChanges && !hasFormulaChange) {
-                  console.log(`🔧 Quote ${quote.id}: No real changes detected, updating status to current`)
-                  const updatedQuote = { 
-                    ...quote, 
-                    priceStatus: { 
-                      ...quote.priceStatus, 
-                      status: 'current',
-                      statusReason: null
-                    } 
-                  }
-                  setList(prev => prev.map(q => q.id === quote.id ? updatedQuote : q))
-                  return
-                }
-              }
-              
-              const comparison = await API.compareQuotePriceVersions(quote.id);
-              if (comparison.needsUpdate) {
-                // Update the quote with new price status
-                const updatedQuote = { ...quote, priceStatus: comparison.status };
-                setList(prev => prev.map(q => q.id === quote.id ? updatedQuote : q));
-              }
-            } catch (error) {
-              console.warn(`Failed to update quote ${quote.id}:`, error);
-            }
-          }));
-
-          // Small delay between batches
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      }
-    } catch (error) {
-      console.error('Version update check failed:', error);
-      // Just log the error, don't show any UI feedback
-    }
+    // No-op: Background version checking disabled in B0
+    // Price status is now checked on-demand in QuoteDetailsPanel
+    console.log('🔧 B0: Version check skipped - on-demand only');
+    return;
   }
 
+  // B0: checkAndProcessVersionUpdates removed - price comparison now on-demand only
+  // This reduces unnecessary API calls on page load
+
   useEffect(() => {
-    // These can still be loaded once, or also be converted to listeners if they change often
+    // Load price settings and form config only once on mount
+    // Not on every tab change - these are global settings
     loadPriceSettings();
     loadFormConfig();
+  }, []); // Empty dependency array = only on mount
+
+  useEffect(() => {
+    // Load users only when users tab is active
     if (activeTab === 'users') {
       loadUsers();
     }
@@ -259,8 +201,10 @@ function QuotesManager({ t, onLogout }) {
       // Reload quotes using the same method as initial load
       await loadQuotes()
       
-      await loadPriceSettings()
-      await loadFormConfig()
+      // B0: Only reload settings if explicitly needed, not on every refresh
+      // await loadPriceSettings()
+      // await loadFormConfig()
+      
       if (activeTab === 'users') {
         await loadUsers()
       }

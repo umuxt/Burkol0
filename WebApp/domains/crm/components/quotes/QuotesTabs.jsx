@@ -102,11 +102,16 @@ export default function QuotesTabs({ children, activeTab, onTabChange, headerAct
           const tabIds = ['quotes', 'customers', 'pricing', 'form']
           const tabId = tabIds[index]
           
+          // B0: Only render active tab to prevent unnecessary API calls
+          // Previously all tabs were rendered with display:none, causing duplicate API calls
+          if (currentActiveTab !== tabId) {
+            return null
+          }
+          
           return (
             <div 
               key={tabId}
-              className={`tab-panel ${currentActiveTab === tabId ? 'active' : ''}`}
-              style={{ display: currentActiveTab === tabId ? 'block' : 'none' }}
+              className={`tab-panel active`}
             >
               {child}
             </div>

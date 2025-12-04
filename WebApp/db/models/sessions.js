@@ -5,28 +5,44 @@
 import db from '../connection.js';
 
 /**
- * Create new session
+ * Create new session (upsert - update if sessionId exists)
  */
 export async function createSession(sessionData) {
   try {
+    const insertData = {
+      sessionId: sessionData.sessionId,
+      token: sessionData.token,
+      email: sessionData.email,
+      userName: sessionData.userName,
+      workerId: sessionData.workerId,
+      loginTime: sessionData.loginTime || db.fn.now(),
+      loginDate: sessionData.loginDate || db.raw('CURRENT_DATE'),
+      expires: sessionData.expires,
+      lastActivityAt: sessionData.lastActivityAt || db.fn.now(),
+      logoutTime: sessionData.logoutTime || null,
+      isActive: sessionData.isActive !== false,
+      activityLog: JSON.stringify(sessionData.activityLog || [])
+    };
+
+    // Use upsert: ON CONFLICT (sessionId) DO UPDATE
     const [session] = await db('sessions')
-      .insert({
-        sessionId: sessionData.sessionId,
-        token: sessionData.token,
-        email: sessionData.email,
-        userName: sessionData.userName,
-        workerId: sessionData.workerId,
-        loginTime: sessionData.loginTime || db.fn.now(),
-        loginDate: sessionData.loginDate || db.raw('CURRENT_DATE'),
-        expires: sessionData.expires,
-        lastActivityAt: sessionData.lastActivityAt || db.fn.now(),
-        logoutTime: sessionData.logoutTime || null,
-        isActive: sessionData.isActive !== false,
-        activityLog: JSON.stringify(sessionData.activityLog || [])
+      .insert(insertData)
+      .onConflict('sessionId')
+      .merge({
+        token: insertData.token,
+        email: insertData.email,
+        userName: insertData.userName,
+        workerId: insertData.workerId,
+        loginTime: insertData.loginTime,
+        expires: insertData.expires,
+        lastActivityAt: insertData.lastActivityAt,
+        isActive: insertData.isActive,
+        logoutTime: null,
+        activityLog: insertData.activityLog
       })
       .returning('*');
     
-    console.log('✅ Session created:', session.sessionId);
+    console.log('✅ Session created/updated:', session.sessionId);
     return normalizeSession(session);
   } catch (error) {
     console.error('❌ Error creating session:', error);

@@ -3,16 +3,33 @@ import db from '../connection.js';
 /**
  * PriceParameters Model
  * Manages pricing parameters
+ * 
+ * Updated for B0: settingId is now required (NOT NULL constraint)
  * Note: Lookup tables removed - prices now stored directly in form_field_options.price_value
  */
 
 class PriceParameters {
   /**
    * Create a new price parameter
+   * @param {Object} data - Parameter data
+   * @param {number} data.settingId - Required: Price setting ID
+   * @param {string} data.code - Parameter code
+   * @param {string} data.name - Parameter name
+   * @param {string} data.type - Parameter type (fixed, form_lookup)
+   * @param {string} [data.formFieldCode] - Form field code for form_lookup type
+   * @param {number} [data.fixedValue] - Fixed value for fixed type
+   * @param {string} [data.unit] - Unit of measurement
+   * @param {string} [data.description] - Description
+   * @param {boolean} [data.isActive=true] - Is active
    */
-  static async create({ code, name, type, formFieldCode, fixedValue, unit, description, isActive = true }) {
+  static async create({ settingId, code, name, type, formFieldCode, fixedValue, unit, description, isActive = true }) {
+    if (!settingId) {
+      throw new Error('settingId is required for price parameters (B0 constraint)');
+    }
+
     const [parameter] = await db('quotes.price_parameters')
       .insert({
+        settingId,
         code,
         name,
         type,
@@ -35,6 +52,10 @@ class PriceParameters {
   static async getAll(filters = {}) {
     let query = db('quotes.price_parameters');
 
+    if (filters.settingId) {
+      query = query.where('settingId', filters.settingId);
+    }
+
     if (filters.isActive !== undefined) {
       query = query.where('isActive', filters.isActive);
     }
@@ -44,6 +65,17 @@ class PriceParameters {
     }
 
     const parameters = await query.orderBy('name');
+    return parameters;
+  }
+
+  /**
+   * Get parameters by setting ID
+   */
+  static async getBySettingId(settingId) {
+    const parameters = await db('quotes.price_parameters')
+      .where('settingId', settingId)
+      .orderBy('name');
+    
     return parameters;
   }
 

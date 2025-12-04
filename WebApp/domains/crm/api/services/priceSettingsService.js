@@ -1,5 +1,6 @@
 /**
  * PriceSettings Model - Master version control for pricing configurations
+ * Updated for B0: price_formulas table removed, formulaExpression is now in price_settings
  */
 
 import db from '../../../../db/connection.js';
@@ -24,7 +25,8 @@ const PriceSettings = {
   },
 
   /**
-   * Get price setting with parameters and formula
+   * Get price setting with parameters (formula is now in price_settings)
+   * Updated for B0: price_formulas table removed
    */
   async getWithDetails(id) {
     const setting = await db('quotes.price_settings')
@@ -40,15 +42,15 @@ const PriceSettings = {
       .where({ settingId: id })
       .select('*');
 
-    // Get formula for this setting
-    const formula = await db('quotes.price_formulas')
-      .where({ settingId: id })
-      .first();
-
+    // Formula is now directly in price_settings
     return {
       ...setting,
       parameters,
-      formula
+      formula: {
+        id: setting.id,
+        formulaExpression: setting.formulaExpression,
+        isActive: setting.isActive
+      }
     };
   },
 
@@ -119,6 +121,7 @@ const PriceSettings = {
 
   /**
    * Create new version from existing setting
+   * Updated for B0: copies formulaExpression instead of separate formula record
    */
   async createNewVersion(currentSettingId, newName) {
     return db.transaction(async (trx) => {
@@ -139,12 +142,13 @@ const PriceSettings = {
 
       const nextVersion = (maxVersionResult.maxVersion || 0) + 1;
 
-      // Create new setting
+      // Create new setting with formula
       const [newSetting] = await trx('quotes.price_settings')
         .insert({
           code: currentSetting.code,
           name: newName || `${currentSetting.name} v${nextVersion}`,
           description: currentSetting.description,
+          formulaExpression: currentSetting.formulaExpression,
           isActive: false,
           version: nextVersion,
           createdBy: currentSetting.createdBy,
@@ -164,28 +168,12 @@ const PriceSettings = {
           type: p.type,
           fixedValue: p.fixedValue,
           formFieldCode: p.formFieldCode,
+          unit: p.unit,
+          description: p.description,
           isActive: p.isActive
         }));
 
         await trx('quotes.price_parameters').insert(newParams);
-      }
-
-      // Copy formula
-      const currentFormula = await trx('quotes.price_formulas')
-        .where({ settingId: currentSettingId })
-        .first();
-
-      if (currentFormula) {
-        await trx('quotes.price_formulas').insert({
-          settingId: newSetting.id,
-          code: currentFormula.code,
-          name: currentFormula.name,
-          formulaExpression: currentFormula.formulaExpression,
-          description: currentFormula.description,
-          isActive: currentFormula.isActive,
-          version: currentFormula.version,
-          createdBy: currentFormula.createdBy
-        });
       }
 
       return newSetting;
@@ -193,12 +181,121 @@ const PriceSettings = {
   },
 
   /**
-   * Delete price setting (cascade deletes parameters and formula)
+   * Delete price setting (cascade deletes parameters)
    */
   async delete(id) {
     await db('quotes.price_settings')
       .where({ id })
       .delete();
+  },
+
+  /**
+   * Calculate price using setting's formula and parameters
+   * Moved from priceFormulas.js (table removed in B0)
+   */
+  async calculatePrice(settingId, formData) {
+    const settingWithDetails = await this.getWithDetails(settingId);
+    
+    if (!settingWithDetails) {
+      throw new Error(`Price setting with ID ${settingId} not found`);
+    }
+
+    const { formulaExpression, parameters } = settingWithDetails;
+    
+    if (!formulaExpression) {
+      return { totalPrice: 0, evaluatedFormula: '', parameterValues: {} };
+    }
+
+    const parameterValues = {};
+    const calculationDetails = [];
+
+    // Resolve each parameter value
+    for (const param of parameters) {
+      let value = null;
+      let source = null;
+
+      if (param.type === 'fixed') {
+        value = parseFloat(param.fixedValue) || 0;
+        source = 'fixed';
+      } else if (param.type === 'form_lookup') {
+        // Get value from form data using formFieldCode
+        const fieldCode = param.formFieldCode || param.code;
+        if (formData[fieldCode] !== undefined) {
+          value = parseFloat(formData[fieldCode]) || 0;
+          source = 'form';
+        }
+      }
+
+      parameterValues[param.code] = value || 0;
+      calculationDetails.push({
+        parameterCode: param.code,
+        parameterName: param.name,
+        parameterValue: value || 0,
+        source,
+        unit: param.unit
+      });
+    }
+
+    // Evaluate formula
+    let evaluatedFormula = formulaExpression.trim();
+    
+    // Remove leading equals sign if present (Excel-style)
+    if (evaluatedFormula.startsWith('=')) {
+      evaluatedFormula = evaluatedFormula.substring(1).trim();
+    }
+
+    try {
+      // Replace parameter codes with their values
+      for (const [code, value] of Object.entries(parameterValues)) {
+        const regex = new RegExp(`\\b${code}\\b`, 'g');
+        evaluatedFormula = evaluatedFormula.replace(regex, value);
+      }
+
+      // Replace form field values that might be in the formula directly
+      for (const [fieldCode, fieldValue] of Object.entries(formData)) {
+        const regex = new RegExp(`\\b${fieldCode}\\b`, 'g');
+        const numericValue = parseFloat(fieldValue) || 0;
+        evaluatedFormula = evaluatedFormula.replace(regex, numericValue);
+      }
+
+      // Check for undefined variables and replace with 0
+      const identifierRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+      const mathConstants = ['Math', 'PI', 'E', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sqrt'];
+      const matches = evaluatedFormula.match(identifierRegex) || [];
+      
+      for (const varName of matches) {
+        if (!mathConstants.includes(varName)) {
+          const regex = new RegExp(`\\b${varName}\\b`, 'g');
+          evaluatedFormula = evaluatedFormula.replace(regex, '0');
+        }
+      }
+
+      // Evaluate the expression
+      const totalPrice = eval(evaluatedFormula);
+
+      return {
+        totalPrice: isNaN(totalPrice) ? 0 : totalPrice,
+        formula: formulaExpression,
+        evaluatedFormula,
+        parameterValues,
+        calculationDetails
+      };
+    } catch (error) {
+      console.error('Formula evaluation failed:', {
+        originalFormula: formulaExpression,
+        evaluatedFormula,
+        parameterValues,
+        error: error.message
+      });
+      return {
+        totalPrice: 0,
+        formula: formulaExpression,
+        evaluatedFormula,
+        parameterValues,
+        calculationDetails,
+        error: error.message
+      };
+    }
   }
 };
 

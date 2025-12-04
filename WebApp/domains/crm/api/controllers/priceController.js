@@ -1,12 +1,12 @@
 /**
- * Price Parameters & Formulas Routes - PostgreSQL
+ * Price Parameters & Settings Routes - PostgreSQL
  * 
- * API routes for managing price parameters and formulas
+ * API routes for managing price parameters and settings
+ * Updated for B0: Removed PriceFormulas (merged into PriceSettings)
  */
 
 import db from '../../../../db/connection.js';
 import PriceParameters from '../../../../db/models/priceParameters.js';
-import PriceFormulas from '../../../../db/models/priceFormulas.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
@@ -205,38 +205,67 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // ==================== PRICE FORMULAS ====================
+  // ==================== PRICE FORMULAS (DEPRECATED - REDIRECTS TO PRICE SETTINGS) ====================
+  // B0: price_formulas table merged into price_settings
+  // These routes are kept for backward compatibility
 
-  // Get all formulas
+  // Get all formulas -> Returns price settings with formulaExpression
   app.get('/api/price-formulas', requireAuth, async (req, res) => {
     try {
-      logger.info('GET /api/price-formulas - Fetching all formulas');
+      logger.info('GET /api/price-formulas - Redirecting to price settings (B0 migration)');
       
       const activeOnly = req.query.activeOnly === 'true';
-      const formulas = activeOnly 
-        ? [await PriceFormulas.getActive()]
-        : await PriceFormulas.getAll();
+      const settings = activeOnly 
+        ? [await PriceSettings.getActive()]
+        : await PriceSettings.getAll();
       
-      logger.success(`Found ${formulas.length} formulas`);
-      res.json(formulas.filter(Boolean));
+      // Transform to old formula format for backward compatibility
+      const formulas = settings.filter(Boolean).map(s => ({
+        id: s.id,
+        settingId: s.id,
+        code: s.code,
+        name: s.name,
+        formulaExpression: s.formulaExpression,
+        description: s.description,
+        isActive: s.isActive,
+        version: s.version,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt
+      }));
+      
+      logger.success(`Found ${formulas.length} formulas (from settings)`);
+      res.json(formulas);
     } catch (error) {
       logger.error('Failed to fetch formulas', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch formulas', message: error.message });
     }
   });
 
-  // Get formula with parameters
+  // Get formula with parameters -> Returns setting with details
   app.get('/api/price-formulas/:id/with-parameters', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      logger.info(`GET /api/price-formulas/${id}/with-parameters`);
+      logger.info(`GET /api/price-formulas/${id}/with-parameters - Redirecting to price settings`);
       
-      const formula = await PriceFormulas.getWithParameters(id);
+      const setting = await PriceSettings.getWithDetails(parseInt(id));
       
-      if (!formula) {
-        logger.warning(`Formula not found: ${id}`);
+      if (!setting) {
+        logger.warning(`Setting not found: ${id}`);
         return res.status(404).json({ error: 'Formula not found' });
       }
+
+      // Transform to old formula format
+      const formula = {
+        id: setting.id,
+        settingId: setting.id,
+        code: setting.code,
+        name: setting.name,
+        formulaExpression: setting.formulaExpression,
+        description: setting.description,
+        isActive: setting.isActive,
+        version: setting.version,
+        parameters: setting.parameters
+      };
 
       logger.success(`Formula fetched with ${formula.parameters?.length || 0} parameters`);
       res.json(formula);
@@ -246,18 +275,29 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get single formula
+  // Get single formula -> Returns setting
   app.get('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      logger.info(`GET /api/price-formulas/${id}`);
+      logger.info(`GET /api/price-formulas/${id} - Redirecting to price settings`);
       
-      const formula = await PriceFormulas.getById(id);
+      const setting = await PriceSettings.getById(parseInt(id));
       
-      if (!formula) {
-        logger.warning(`Formula not found: ${id}`);
+      if (!setting) {
+        logger.warning(`Setting not found: ${id}`);
         return res.status(404).json({ error: 'Formula not found' });
       }
+
+      const formula = {
+        id: setting.id,
+        settingId: setting.id,
+        code: setting.code,
+        name: setting.name,
+        formulaExpression: setting.formulaExpression,
+        description: setting.description,
+        isActive: setting.isActive,
+        version: setting.version
+      };
 
       logger.success(`Formula fetched: ${formula.code}`);
       res.json(formula);
@@ -267,12 +307,12 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Create formula
+  // Create formula -> Creates setting with formulaExpression
   app.post('/api/price-formulas', requireAuth, async (req, res) => {
     try {
       const { code, name, formulaExpression, description, version, isActive, parameters } = req.body;
       
-      logger.info('POST /api/price-formulas - Creating formula', { code, name });
+      logger.info('POST /api/price-formulas - Redirecting to price settings', { code, name });
 
       if (!code || !name || !formulaExpression) {
         return res.status(400).json({ 
@@ -281,29 +321,42 @@ export function setupPriceRoutes(app) {
         });
       }
 
-      // If parameters provided, use createWithParameters
-      if (parameters && parameters.length > 0) {
-        const formula = await PriceFormulas.createWithParameters({
-          code,
-          name,
-          formulaExpression: formulaExpression,
-          description,
-          version: version || '1.0',
-          isActive: isActive !== undefined ? isActive : false
-        }, parameters);
-
-        logger.success(`Formula created with ${parameters.length} parameters: ${formula.id}`);
-        return res.status(201).json(formula);
-      }
-
-      const formula = await PriceFormulas.create({
+      // Create price setting with formula
+      const setting = await PriceSettings.create({
         code,
         name,
-        formulaExpression: formulaExpression,
+        formulaExpression,
         description,
-        version: version || '1.0',
+        version: version || 1,
         isActive: isActive !== undefined ? isActive : false
       });
+
+      // Add parameters if provided
+      if (parameters && parameters.length > 0) {
+        const paramData = parameters.map(p => ({
+          settingId: setting.id,
+          code: p.code,
+          name: p.name,
+          type: p.type,
+          fixedValue: p.fixedValue,
+          formFieldCode: p.formFieldCode,
+          unit: p.unit,
+          description: p.description,
+          isActive: true
+        }));
+
+        await db('quotes.price_parameters').insert(paramData);
+      }
+
+      const formula = {
+        id: setting.id,
+        settingId: setting.id,
+        code: setting.code,
+        name: setting.name,
+        formulaExpression: setting.formulaExpression,
+        isActive: setting.isActive,
+        version: setting.version
+      };
 
       logger.success(`Formula created: ${formula.id}`);
       res.status(201).json(formula);
@@ -313,13 +366,13 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Update formula
+  // Update formula -> Updates setting
   app.patch('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { code, name, formulaExpression, description, version, isActive } = req.body;
       
-      logger.info(`PATCH /api/price-formulas/${id}`);
+      logger.info(`PATCH /api/price-formulas/${id} - Redirecting to price settings`);
 
       const updates = {};
       if (code !== undefined) updates.code = code;
@@ -329,12 +382,22 @@ export function setupPriceRoutes(app) {
       if (version !== undefined) updates.version = version;
       if (isActive !== undefined) updates.isActive = isActive;
 
-      const formula = await PriceFormulas.update(id, updates);
+      const setting = await PriceSettings.update(parseInt(id), updates);
       
-      if (!formula) {
-        logger.warning(`Formula not found: ${id}`);
+      if (!setting) {
+        logger.warning(`Setting not found: ${id}`);
         return res.status(404).json({ error: 'Formula not found' });
       }
+
+      const formula = {
+        id: setting.id,
+        settingId: setting.id,
+        code: setting.code,
+        name: setting.name,
+        formulaExpression: setting.formulaExpression,
+        isActive: setting.isActive,
+        version: setting.version
+      };
 
       logger.success(`Formula updated: ${id}`);
       res.json(formula);
@@ -344,18 +407,13 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Delete formula
+  // Delete formula -> Deletes setting
   app.delete('/api/price-formulas/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      logger.info(`DELETE /api/price-formulas/${id}`);
+      logger.info(`DELETE /api/price-formulas/${id} - Redirecting to price settings`);
 
-      const success = await PriceFormulas.delete(id);
-      
-      if (!success) {
-        logger.warning(`Formula not found: ${id}`);
-        return res.status(404).json({ error: 'Formula not found' });
-      }
+      await PriceSettings.delete(parseInt(id));
 
       logger.success(`Formula deleted: ${id}`);
       res.json({ success: true, message: 'Formula deleted' });
@@ -365,57 +423,85 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get all versions of a formula
+  // Get all versions of a formula -> Gets versions from settings
   app.get('/api/price-formulas/:code/versions', requireAuth, async (req, res) => {
     try {
       const { code } = req.params;
-      logger.info(`GET /api/price-formulas/${code}/versions`);
+      logger.info(`GET /api/price-formulas/${code}/versions - Getting setting versions`);
 
-      const versions = await PriceFormulas.getVersions(code);
+      const versions = await db('quotes.price_settings')
+        .where({ code })
+        .orderBy('version', 'desc')
+        .select('*');
       
-      logger.success(`Found ${versions.length} versions for formula ${code}`);
-      res.json(versions);
+      const formulas = versions.map(s => ({
+        id: s.id,
+        settingId: s.id,
+        code: s.code,
+        name: s.name,
+        formulaExpression: s.formulaExpression,
+        isActive: s.isActive,
+        version: s.version
+      }));
+
+      logger.success(`Found ${formulas.length} versions for formula ${code}`);
+      res.json(formulas);
     } catch (error) {
       logger.error('Failed to fetch formula versions', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch formula versions', message: error.message });
     }
   });
 
-  // Create new version of formula
+  // Create new version of formula -> Creates new setting version
   app.post('/api/price-formulas/:id/new-version', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, formulaExpression, description, createdBy } = req.body;
+      const { name } = req.body;
       
-      logger.info(`POST /api/price-formulas/${id}/new-version`);
+      logger.info(`POST /api/price-formulas/${id}/new-version - Creating new version`);
 
-      const newFormula = await PriceFormulas.createNewVersion(parseInt(id), {
-        name,
-        formulaExpression,
-        description,
-        createdBy
-      });
+      const newSetting = await PriceSettings.createNewVersion(parseInt(id), name);
 
-      logger.success(`New formula version created: ${newFormula.id} (version ${newFormula.version})`);
-      res.status(201).json(newFormula);
+      const formula = {
+        id: newSetting.id,
+        settingId: newSetting.id,
+        code: newSetting.code,
+        name: newSetting.name,
+        formulaExpression: newSetting.formulaExpression,
+        isActive: newSetting.isActive,
+        version: newSetting.version
+      };
+
+      logger.success(`New formula version created: ${formula.id} (version ${formula.version})`);
+      res.status(201).json(formula);
     } catch (error) {
       logger.error('Failed to create new formula version', { error: error.message });
       res.status(500).json({ error: 'Failed to create new formula version', message: error.message });
     }
   });
 
-  // Activate a specific formula version
+  // Activate a specific formula version -> Activates setting
   app.patch('/api/price-formulas/:id/activate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       logger.info(`PATCH /api/price-formulas/${id}/activate`);
 
-      const formula = await PriceFormulas.activateVersion(parseInt(id));
+      const setting = await PriceSettings.activate(parseInt(id));
       
-      if (!formula) {
-        logger.warning(`Formula not found: ${id}`);
+      if (!setting) {
+        logger.warning(`Setting not found: ${id}`);
         return res.status(404).json({ error: 'Formula not found' });
       }
+
+      const formula = {
+        id: setting.id,
+        settingId: setting.id,
+        code: setting.code,
+        name: setting.name,
+        formulaExpression: setting.formulaExpression,
+        isActive: setting.isActive,
+        version: setting.version
+      };
 
       logger.success(`Formula activated: ${id}`);
       res.json(formula);
@@ -425,7 +511,7 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Calculate price with formula
+  // Calculate price with formula -> Uses PriceSettings.calculatePrice
   app.post('/api/price-formulas/:id/calculate', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
@@ -440,9 +526,9 @@ export function setupPriceRoutes(app) {
         });
       }
 
-      const result = await PriceFormulas.calculatePrice(id, formData);
+      const result = await PriceSettings.calculatePrice(parseInt(id), formData);
 
-      logger.success(`Price calculated: ${result.totalPrice} ${result.currency}`);
+      logger.success(`Price calculated: ${result.totalPrice}`);
       res.json(result);
     } catch (error) {
       logger.error('Failed to calculate price', { error: error.message });
@@ -450,47 +536,59 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // ==================== FORMULA PARAMETERS ====================
+  // ==================== FORMULA PARAMETERS (DEPRECATED) ====================
+  // Parameters are now managed through price_parameters table with settingId
 
-  // Add parameter to formula
+  // Add parameter to formula -> Adds parameter to setting
   app.post('/api/price-formulas/:formulaId/parameters', requireAuth, async (req, res) => {
     try {
       const { formulaId } = req.params;
-      const { parameterId, sortOrder } = req.body;
+      const { parameterId, code, name, type, fixedValue, formFieldCode, unit, description, sortOrder } = req.body;
 
       logger.info(`POST /api/price-formulas/${formulaId}/parameters`);
 
-      if (!parameterId) {
-        return res.status(400).json({ 
-          error: 'Missing required field', 
-          details: ['parameterId is required'] 
-        });
-      }
+      // If parameterId provided, this is a link operation (legacy)
+      // In B0, parameters are created directly with settingId
+      const paramData = {
+        settingId: parseInt(formulaId),
+        code: code || `PARAM_${Date.now()}`,
+        name: name || 'New Parameter',
+        type: type || 'fixed',
+        fixedValue: fixedValue,
+        formFieldCode: formFieldCode,
+        unit: unit,
+        description: description,
+        isActive: true
+      };
 
-      const link = await PriceFormulas.addParameter(formulaId, parameterId, sortOrder);
+      const [parameter] = await db('quotes.price_parameters')
+        .insert(paramData)
+        .returning('*');
 
-      logger.success(`Parameter linked to formula: ${link.id}`);
-      res.status(201).json(link);
+      logger.success(`Parameter added to setting: ${parameter.id}`);
+      res.status(201).json(parameter);
     } catch (error) {
       logger.error('Failed to add parameter to formula', { error: error.message });
       res.status(500).json({ error: 'Failed to add parameter to formula', message: error.message });
     }
   });
 
-  // Remove parameter from formula
+  // Remove parameter from formula -> Deletes parameter
   app.delete('/api/price-formulas/:formulaId/parameters/:parameterId', requireAuth, async (req, res) => {
     try {
       const { formulaId, parameterId } = req.params;
       logger.info(`DELETE /api/price-formulas/${formulaId}/parameters/${parameterId}`);
 
-      const success = await PriceFormulas.removeParameter(formulaId, parameterId);
+      const deleted = await db('quotes.price_parameters')
+        .where({ id: parseInt(parameterId), settingId: parseInt(formulaId) })
+        .delete();
       
-      if (!success) {
-        logger.warning(`Parameter link not found`);
-        return res.status(404).json({ error: 'Parameter link not found' });
+      if (!deleted) {
+        logger.warning(`Parameter not found`);
+        return res.status(404).json({ error: 'Parameter not found' });
       }
 
-      logger.success(`Parameter unlinked from formula`);
+      logger.success(`Parameter removed from setting`);
       res.json({ success: true, message: 'Parameter removed from formula' });
     } catch (error) {
       logger.error('Failed to remove parameter from formula', { error: error.message });
@@ -576,11 +674,12 @@ export function setupPriceRoutes(app) {
         return res.status(400).json({ error: 'Name is required' });
       }
 
-      // Create setting
+      // Create setting with formula (B0: formulaExpression is now in price_settings)
       const setting = await PriceSettings.create({
         code: `PRICE_SETTING_${Date.now()}`,
         name,
         description,
+        formulaExpression: formula || null,
         isActive: false,
         version: 1
       });
@@ -594,22 +693,12 @@ export function setupPriceRoutes(app) {
           type: p.type === 'form' ? 'form_lookup' : p.type,
           fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
           formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
+          unit: p.unit,
+          description: p.description,
           isActive: true
         }));
 
         await db('quotes.price_parameters').insert(paramData);
-      }
-
-      // Add formula if provided
-      if (formula && formula.trim()) {
-        await db('quotes.price_formulas').insert({
-          settingId: setting.id,
-          code: 'MAIN_FORMULA',
-          name: 'Main Pricing Formula',
-          formulaExpression: formula,
-          isActive: true,
-          version: 1
-        });
       }
 
       logger.success(`Price setting created: ${setting.id}`);
@@ -628,12 +717,14 @@ export function setupPriceRoutes(app) {
       
       logger.info(`PATCH /api/price-settings/${id} - Updating setting`);
 
-      // Update setting metadata
-      if (name || description) {
-        await PriceSettings.update(parseInt(id), {
-          name,
-          description
-        });
+      // Update setting metadata (including formulaExpression if provided)
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (formula !== undefined) updateData.formulaExpression = formula;
+
+      if (Object.keys(updateData).length > 0) {
+        await PriceSettings.update(parseInt(id), updateData);
       }
 
       // Update parameters - parameters are not referenced by FK, safe to delete/recreate
@@ -652,58 +743,12 @@ export function setupPriceRoutes(app) {
             type: p.type === 'form' ? 'form_lookup' : p.type,
             fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
             formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
+            unit: p.unit,
+            description: p.description,
             isActive: true
           }));
 
           await db('quotes.price_parameters').insert(paramData);
-        }
-      }
-
-      // Update formula - UPDATE instead of DELETE to avoid FK violation
-      // quotes.priceFormulaId references price_formulas.id
-      if (formula !== undefined) {
-        // Get existing formula for this setting
-        const existingFormula = await db('quotes.price_formulas')
-          .where({ settingId: parseInt(id) })
-          .first();
-
-        if (existingFormula) {
-          // Update existing formula instead of deleting
-          if (formula && formula.trim()) {
-            await db('quotes.price_formulas')
-              .where({ id: existingFormula.id })
-              .update({
-                formulaExpression: formula,
-                version: existingFormula.version + 1,
-                updatedAt: new Date()
-              });
-            
-            // Mark quotes using this formula as needing recalculation
-            await db('quotes.quotes')
-              .where({ priceFormulaId: existingFormula.id })
-              .update({
-                priceStatus: 'outdated',
-                needsRecalculation: true,
-                updatedAt: new Date()
-              });
-            
-            logger.info(`Marked quotes with priceFormulaId=${existingFormula.id} as outdated`);
-          } else {
-            // Formula cleared - just deactivate, don't delete
-            await db('quotes.price_formulas')
-              .where({ id: existingFormula.id })
-              .update({ isActive: false, updatedAt: new Date() });
-          }
-        } else if (formula && formula.trim()) {
-          // No existing formula, create new one
-          await db('quotes.price_formulas').insert({
-            settingId: parseInt(id),
-            code: 'MAIN_FORMULA',
-            name: 'Main Pricing Formula',
-            formulaExpression: formula,
-            isActive: true,
-            version: 1
-          });
         }
       }
 

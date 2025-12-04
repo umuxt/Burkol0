@@ -2,13 +2,13 @@
  * Quote Controller
  * 
  * API routes for quote management
+ * Updated for B0: Uses PriceSettings instead of PriceFormulas
  */
 
 import * as quoteService from '../services/quoteService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
 import Quotes from '../../../../db/models/quotes.js';
-import PriceFormulas from '../../../../db/models/priceFormulas.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
 import fs from 'fs';
@@ -132,41 +132,38 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Get current formula and settings for comparison
-      const currentFormula = quote.priceFormulaId 
-        ? await PriceFormulas.getById(quote.priceFormulaId)
+      // Get current setting for comparison (B0: priceSettingId replaces priceFormulaId)
+      const currentSetting = quote.priceSettingId 
+        ? await PriceSettings.getById(quote.priceSettingId)
         : null;
       
       // Get active price settings to compare versions
       const activeSetting = await PriceSettings.getActive();
-      const activeFormula = activeSetting 
-        ? await PriceFormulas.getBySettingId(activeSetting.id)
-        : null;
 
-      const quoteFormulaVersion = quote.priceFormulaVersion || currentFormula?.version || 1;
-      const latestFormulaVersion = activeFormula?.version || currentFormula?.version || 1;
+      const quoteSettingVersion = quote.priceSettingCode || currentSetting?.version || 1;
+      const latestSettingVersion = activeSetting?.version || currentSetting?.version || 1;
       
       // Calculate if update needed
-      const versionMismatch = quoteFormulaVersion !== latestFormulaVersion;
-      const formulaIdMismatch = quote.priceFormulaId !== activeFormula?.id;
-      const needsUpdate = versionMismatch || formulaIdMismatch;
+      const versionMismatch = quoteSettingVersion !== latestSettingVersion;
+      const settingIdMismatch = quote.priceSettingId !== activeSetting?.id;
+      const needsUpdate = versionMismatch || settingIdMismatch;
 
       // Build versions object
       const versions = {
         original: {
-          version: quote.priceFormulaVersion || 'N/A',
-          versionId: quote.priceFormulaId || null,
+          version: quote.priceSettingCode || 'N/A',
+          versionId: quote.priceSettingId || null,
           timestamp: quote.createdAt
         },
         applied: {
-          version: currentFormula?.version || quote.priceFormulaVersion || 'N/A',
-          versionId: quote.priceFormulaId || null,
-          timestamp: quote.priceCalculatedAt || quote.updatedAt
+          version: currentSetting?.version || quote.priceSettingCode || 'N/A',
+          versionId: quote.priceSettingId || null,
+          timestamp: quote.lastCalculatedAt || quote.updatedAt
         },
         latest: {
-          version: activeFormula?.version || 'N/A',
-          versionId: activeFormula?.id || null,
-          timestamp: activeFormula?.updatedAt || new Date().toISOString()
+          version: activeSetting?.version || 'N/A',
+          versionId: activeSetting?.id || null,
+          timestamp: activeSetting?.updatedAt || new Date().toISOString()
         }
       };
 
@@ -177,12 +174,12 @@ export function setupQuotesRoutes(app) {
         newPrice: quote.finalPrice || quote.calculatedPrice || 0, // Same until recalculated
         reasons: [],
         parameterChanges: { added: [], removed: [], modified: [] },
-        formulaChanged: formulaIdMismatch || versionMismatch,
+        formulaChanged: settingIdMismatch || versionMismatch,
         comparisonBaseline: 'applied'
       };
 
       if (versionMismatch) {
-        differenceSummary.reasons.push(`Formül versiyonu güncellendi: v${quoteFormulaVersion} → v${latestFormulaVersion}`);
+        differenceSummary.reasons.push(`Fiyat ayarı güncellendi: v${quoteSettingVersion} → v${latestSettingVersion}`);
       }
 
       logger.success(`Price comparison fetched: ${id}`, { needsUpdate, versionMismatch });
@@ -191,8 +188,7 @@ export function setupQuotesRoutes(app) {
         quote: {
           id: quote.id,
           appliedPrice: quote.finalPrice || quote.calculatedPrice || 0,
-          latestPrice: quote.finalPrice || quote.calculatedPrice || 0,
-          priceStatus: quote.priceStatus
+          latestPrice: quote.finalPrice || quote.calculatedPrice || 0
         },
         needsUpdate,
         versions,
@@ -310,12 +306,12 @@ export function setupQuotesRoutes(app) {
         templateId = activeTemplate.id;
       }
 
-      // Get active price formula if not specified
-      let formulaId = priceFormulaId;
-      if (!formulaId) {
-        const activeFormula = await quoteService.getActivePriceFormula();
-        if (activeFormula) {
-          formulaId = activeFormula.id;
+      // Get active price setting if not specified (B0: uses priceSettingId)
+      let settingId = req.body.priceSettingId || req.body.priceFormulaId; // backward compatible
+      if (!settingId) {
+        const activeSetting = await quoteService.getActivePriceSetting();
+        if (activeSetting) {
+          settingId = activeSetting.id;
         }
       }
 
@@ -342,7 +338,7 @@ export function setupQuotesRoutes(app) {
         customerAddress: resolvedCustomerAddress,
         deliveryDate: parsedDeliveryDate,
         formTemplateId: templateId,
-        priceFormulaId: formulaId,
+        priceSettingId: settingId,
         notes,
         formData,
         isCustomer,

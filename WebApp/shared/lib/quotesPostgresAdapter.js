@@ -44,7 +44,7 @@ export const quotesPostgresAdapter = {
       customerCompany: quoteData.company || quoteData.customerCompany,
       customerAddress: quoteData.address || quoteData.customerAddress,
       formTemplateId: quoteData.formTemplateId,
-      priceFormulaId: quoteData.priceFormulaId,
+      priceSettingId: quoteData.priceSettingId || quoteData.priceFormulaId, // Map legacy formula ID to setting ID
       notes: quoteData.notes,
       formData: quoteData.formData || quoteData.fields || {}
     };

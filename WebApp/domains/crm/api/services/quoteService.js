@@ -1,11 +1,14 @@
 /**
  * Quote Service
  * Handles quote business logic and database operations
+ * 
+ * Updated for B0: Uses PriceSettings instead of PriceFormulas
+ * (price_formulas table merged into price_settings)
  */
 
 import Quotes from '../../../../db/models/quotes.js';
 import FormTemplates from '../../../../db/models/formTemplates.js';
-import PriceFormulas from '../../../../db/models/priceFormulas.js';
+import PriceSettings from './priceSettingsService.js';
 import Customers from '../../../../db/models/customers.js';
 
 /**
@@ -31,6 +34,7 @@ export async function getQuoteStatistics(filters = {}) {
 
 /**
  * Create new quote
+ * Updated for B0: Uses priceSettingId instead of priceFormulaId
  */
 export async function createQuote(data) {
   const quoteData = {
@@ -40,7 +44,7 @@ export async function createQuote(data) {
     customerCompany: data.customerCompany,
     customerAddress: data.customerAddress,
     formTemplateId: data.formTemplateId,
-    priceFormulaId: data.priceFormulaId,
+    priceSettingId: data.priceSettingId,
     notes: data.notes,
     formData: data.formData,
     deliveryDate: data.deliveryDate,
@@ -147,14 +151,24 @@ export async function getActiveFormTemplate() {
 }
 
 /**
- * Get active price formula
+ * Get active price setting (replaces getActivePriceFormula)
+ * Updated for B0: Uses PriceSettings.getActive()
+ */
+export async function getActivePriceSetting() {
+  return PriceSettings.getActive();
+}
+
+/**
+ * @deprecated Use getActivePriceSetting instead
  */
 export async function getActivePriceFormula() {
-  return PriceFormulas.getActive();
+  console.warn('getActivePriceFormula is deprecated, use getActivePriceSetting instead');
+  return getActivePriceSetting();
 }
 
 /**
  * Calculate quote price
+ * Updated for B0: Uses PriceSettings.calculatePrice()
  */
 export async function calculateQuotePrice(quoteId) {
   const quote = await Quotes.getById(quoteId);
@@ -162,18 +176,19 @@ export async function calculateQuotePrice(quoteId) {
     throw new Error('Quote not found');
   }
 
-  // Get price formula
-  const formula = await PriceFormulas.getById(quote.priceFormulaId);
-  if (!formula) {
-    throw new Error('Price formula not found');
+  if (!quote.priceSettingId) {
+    throw new Error('Quote has no price setting assigned');
   }
 
-  // Calculate price using formula logic
-  // TODO: Implement price calculation logic
+  // Calculate price using PriceSettings
+  const result = await PriceSettings.calculatePrice(quote.priceSettingId, quote.formData || {});
   
   return {
     quoteId,
-    calculatedPrice: 0,
-    formula: formula
+    calculatedPrice: result.totalPrice,
+    formula: result.formula,
+    evaluatedFormula: result.evaluatedFormula,
+    parameterValues: result.parameterValues,
+    calculationDetails: result.calculationDetails
   };
 }

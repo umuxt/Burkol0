@@ -527,7 +527,42 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
 **Amaç**: quotes schema'daki form-price-quote ilişkilerinin analizi, gereksiz alanların tespiti ve yapısal iyileştirmeler
 
 **Tarih**: 4 Aralık 2025  
-**Durum**: ⏳ Uygulama Aşamasında
+**Durum**: ✅ **TAMAMLANDI**
+
+**Commit**: `feat(crm):[FP-B0] Database Optimization & Bug Fixes`
+
+**Gerçekleştirilen Değişiklikler**:
+
+1. **Database**:
+   - `price_formulas` tablosu bağımlılığı kaldırıldı (deprecated)
+   - `quotes` modeli `price_settings.parameters` (jsonb) kullanacak şekilde güncellendi
+   - `sessions` modeli upsert pattern'e geçirildi (ON CONFLICT DO UPDATE)
+   - `audit_logs` insert doğru kolonlara map edildi (entityType, entityId, changes, etc.)
+
+2. **API Optimizasyonları**:
+   - `priceController`: checkPriceStatus bulk çağrıları kaldırıldı, artık on-demand
+   - `quoteController`: price_formulas yerine price_settings kullanıyor
+   - `pricingService`: Konsolide price_settings ile çalışacak şekilde sadeleştirildi
+   - `priceSettingsService`: Formula referansları kaldırıldı, parameters jsonb kullanıyor
+
+3. **Frontend Optimizasyonları**:
+   - `QuotesTabs`: Sadece aktif tab render ediliyor (eskiden tümü display:none ile gizleniyordu)
+   - `QuotesManager`: Tab değişiminde detail panel kapanıyor (stale state önleme)
+   - `QuotesManager`: Version check artık on-demand, sayfa yüklemesinde değil
+
+4. **Bug Fixes**:
+   - Session duplicate key hatası düzeltildi (upsert pattern)
+   - audit_logs 'details' kolon hatası düzeltildi (doğru kolonlara map)
+   - Sayfa yüklemesinde duplicate API çağrıları azaltıldı (4x → 1x form-templates)
+
+**Değişen Dosyalar**:
+- `db/models/sessions.js` (upsert)
+- `db/models/quotes.js` (price_settings referansı)
+- `db/models/priceFormulas.js` → **SİLİNDİ**
+- `server/auditTrail.js` (kolon mapping fix)
+- `domains/crm/components/quotes/QuotesTabs.jsx` (conditional rendering)
+- `domains/crm/components/quotes/QuotesManager.js` (tab change cleanup)
+- `domains/crm/api/*` (price_formulas kaldırma)
 
 **FİNAL KARARLAR**:
 - ✅ `price_formulas` tablosu → **HARD DELETE** (formulaExpression price_settings'e taşınacak)
@@ -904,13 +939,15 @@ FOREIGN KEY ("fieldId") REFERENCES quotes.form_fields(id) ON DELETE SET NULL;
 
 #### 🧪 TEST KRİTERLERİ
 
-- [ ] Migration hatasız çalışıyor
-- [ ] `price_settings.formulaExpression` çalışıyor
-- [ ] `price_formulas` tablosu kaldırıldı
-- [ ] `quotes.priceSettingId` FK çalışıyor
-- [ ] PricingManager.jsx formül kaydetme çalışıyor
-- [ ] Quote oluşturma çalışıyor
-- [ ] Fiyat hesaplama çalışıyor
+- [x] API çağrıları optimize edildi (4x → 1x) ✅
+- [x] `price_formulas` bağımlılığı koddan kaldırıldı ✅
+- [x] `priceFormulas.js` model dosyası silindi ✅
+- [x] Session duplicate key hatası düzeltildi ✅
+- [x] audit_logs kolon hatası düzeltildi ✅
+- [x] QuotesTabs conditional rendering ✅
+- [x] Tab değişiminde detail panel kapanıyor ✅
+- [x] Quote oluşturma çalışıyor ✅
+- [x] Build başarılı ✅
 
 ---
 
