@@ -17,6 +17,7 @@ import {
   RotateCw,
   Phone,
   Mail,
+  Copy,
   
   // Navigation & UI
   FileText,
@@ -29,6 +30,7 @@ import {
   Truck,
   Loader2,
   ChevronDown,
+  ChevronRight,
   Search,
   
   // Production
@@ -98,6 +100,7 @@ export const Icons = {
   RotateCw,
   Phone,
   Mail,
+  Copy,
   
   // Navigation & UI
   FileText,
@@ -110,6 +113,7 @@ export const Icons = {
   Truck,
   Loader2,
   ChevronDown,
+  ChevronRight,
   Search,
   
   // Production
@@ -188,6 +192,7 @@ export {
   RotateCw,
   Phone,
   Mail,
+  Copy,
   FileText,
   DollarSign,
   Layers,
@@ -198,6 +203,7 @@ export {
   Truck,
   Loader2,
   ChevronDown,
+  ChevronRight,
   Search,
   Play,
   Pause,

@@ -61,6 +61,25 @@ export const pricingService = {
     }, 10000)
     if (!response.ok) throw new Error('activate_setting_failed')
     return response.json()
+  },
+
+  /**
+   * Calculate price using a price setting and form data
+   * @param {string} settingId - Price setting ID
+   * @param {Object} formData - Form field values
+   * @returns {Promise<{totalPrice: number, breakdown?: Object}>}
+   */
+  async calculatePrice(settingId, formData) {
+    const response = await fetchWithTimeout('/api/price-settings/calculate', {
+      method: 'POST',
+      headers: withAuth(),
+      body: JSON.stringify({ settingId, formData })
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'calculate_price_failed')
+    }
+    return response.json()
   }
 }
 

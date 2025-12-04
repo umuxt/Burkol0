@@ -9,6 +9,7 @@ import { quotesService } from '../../services/quotes-service.js'
 import { formsApi } from '../../services/forms-service.js'
 import { priceApi } from '../../services/pricing-service.js'
 import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
+import FormUpdateModal from './FormUpdateModal.jsx'
 
 export default function QuoteDetailsPanel({ 
   quote,
@@ -46,6 +47,11 @@ export default function QuoteDetailsPanel({
   const [priceChangeDetected, setPriceChangeDetected] = useState(false)
   const [activeFormTemplate, setActiveFormTemplate] = useState(null)
   const [activePriceSetting, setActivePriceSetting] = useState(null)
+  
+  // C2: Form update modal state
+  const [showFormUpdateModal, setShowFormUpdateModal] = useState(false)
+  const [oldFormFields, setOldFormFields] = useState([])
+  const [newFormFields, setNewFormFields] = useState([])
   
   // Fetch edit status when quote changes
   // C1: Optimized - only fetch form/price changes if canEdit=true
@@ -523,10 +529,56 @@ export default function QuoteDetailsPanel({
   
   const priceWarningInfo = getPriceWarningInfo()
   
-  // C1: Handle form update when template changed
-  const handleFormUpdateClick = () => {
-    // TODO: C2 - Open form update modal
-    showToast('Form güncelleme modalı yakında eklenecek', 'info')
+  // C2: Handle form update when template changed
+  const handleFormUpdateClick = async () => {
+    if (!activeFormTemplate || !quote) return
+    
+    try {
+      // Get old form template fields
+      let oldFields = []
+      if (quote.formTemplateId) {
+        try {
+          const oldTemplate = await formsApi.getTemplate(quote.formTemplateId)
+          oldFields = oldTemplate?.fields || oldTemplate?.formStructure?.fields || []
+        } catch (err) {
+          console.warn('Could not fetch old template:', err)
+          // Fall back to formConfig
+          oldFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+        }
+      } else {
+        oldFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+      }
+      
+      // Get new form template fields
+      const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
+      
+      setOldFormFields(oldFields)
+      setNewFormFields(newFields)
+      setShowFormUpdateModal(true)
+    } catch (err) {
+      console.error('Error opening form update modal:', err)
+      showToast('Form güncelleme modalı açılamadı', 'error')
+    }
+  }
+  
+  // C2: Handle form update save
+  const handleFormUpdateSave = async (quoteId, updatePayload) => {
+    try {
+      const result = await quotesService.updateQuoteForm(quoteId, updatePayload)
+      
+      // Update local state
+      setFormChangeDetected(false)
+      
+      // Refresh quote data
+      if (onRefreshQuote) {
+        await onRefreshQuote()
+      }
+      
+      return result
+    } catch (err) {
+      console.error('Form update error:', err)
+      throw err
+    }
   }
   
   // C1: Handle price recalculation when setting changed
@@ -1633,6 +1685,19 @@ export default function QuoteDetailsPanel({
             </div>
           </form>
         </div>
+        
+      {/* C2: Form Update Modal */}
+      <FormUpdateModal
+        isOpen={showFormUpdateModal}
+        onClose={() => setShowFormUpdateModal(false)}
+        quote={quote}
+        oldFormData={quote?.formData || {}}
+        oldFields={oldFormFields}
+        newFields={newFormFields}
+        activeFormTemplate={activeFormTemplate}
+        activePriceSetting={activePriceSetting}
+        onSave={handleFormUpdateSave}
+      />
     </div>
   )
 }

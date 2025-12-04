@@ -69,6 +69,7 @@ const PriceSettings = {
 
   /**
    * Create new price setting
+   * Updated for B0: includes formulaExpression
    */
   async create(data) {
     const [setting] = await db('quotes.price_settings')
@@ -76,6 +77,7 @@ const PriceSettings = {
         code: data.code,
         name: data.name,
         description: data.description,
+        formulaExpression: data.formulaExpression || null,
         isActive: data.isActive || data.is_active || false,
         version: data.version || 1,
         createdBy: data.createdBy || data.created_by,

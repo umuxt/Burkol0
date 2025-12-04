@@ -643,6 +643,121 @@ export function setupPriceRoutes(app) {
     }
   });
 
+  // C2: Calculate price using price setting and form data
+  app.post('/api/price-settings/calculate', requireAuth, async (req, res) => {
+    try {
+      const { settingId, formData } = req.body;
+      logger.info('POST /api/price-settings/calculate', { settingId, formData });
+
+      // Get the price setting
+      let setting;
+      if (settingId) {
+        setting = await PriceSettings.getWithDetails(parseInt(settingId));
+      } else {
+        setting = await PriceSettings.getActiveWithDetails();
+      }
+
+      if (!setting) {
+        logger.warning('No price setting found');
+        return res.status(400).json({ error: 'No price setting configured' });
+      }
+
+      // Extract formula and parameters
+      const formula = setting.formulaExpression || setting.formula?.formulaExpression || setting.formula?.expression || '';
+      const parameters = setting.parameters || [];
+
+      // Build variable context from formData and parameters
+      const context = {};
+      
+      // Add parameters with default values
+      parameters.forEach(param => {
+        const key = param.code || param.parameterCode || param.key;
+        const defaultValue = param.fixedValue || param.defaultValue || param.value || 0;
+        context[key] = parseFloat(defaultValue) || 0;
+      });
+
+      // Override with form data values
+      if (formData) {
+        Object.entries(formData).forEach(([key, value]) => {
+          const numValue = parseFloat(value);
+          if (!isNaN(numValue)) {
+            context[key] = numValue;
+          } else {
+            context[key] = value;
+          }
+        });
+      }
+
+      let totalPrice = 0;
+
+      // If no formula, try to calculate from parameters or return 0
+      if (!formula) {
+        logger.info('No formula defined, calculating from fixed parameters');
+        // Sum all fixed value parameters as fallback
+        parameters.forEach(param => {
+          if (param.type === 'fixed' && param.fixedValue) {
+            totalPrice += parseFloat(param.fixedValue) || 0;
+          }
+        });
+      } else {
+        // Evaluate the formula
+        try {
+          // Remove leading equals sign if present (Excel-style)
+          let evaluatedFormula = formula.trim();
+          if (evaluatedFormula.startsWith('=')) {
+            evaluatedFormula = evaluatedFormula.substring(1).trim();
+          }
+
+          // Replace parameter codes with their values
+          for (const [code, value] of Object.entries(context)) {
+            if (typeof value === 'number') {
+              const regex = new RegExp(`\\b${code}\\b`, 'g');
+              evaluatedFormula = evaluatedFormula.replace(regex, value);
+            }
+          }
+
+          // Replace any remaining identifiers with 0 (undefined variables)
+          const mathConstants = ['Math', 'PI', 'E', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sqrt'];
+          evaluatedFormula = evaluatedFormula.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
+            if (mathConstants.includes(match)) return match;
+            return '0';
+          });
+
+          // Handle ^ as power operator (Excel-style)
+          evaluatedFormula = evaluatedFormula.replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1,$2)');
+
+          // Evaluate the expression
+          const evalFn = new Function(`return ${evaluatedFormula}`);
+          totalPrice = evalFn();
+          
+          if (isNaN(totalPrice) || !isFinite(totalPrice)) {
+            totalPrice = 0;
+          }
+          
+          logger.info('Formula evaluated', { original: formula, evaluated: evaluatedFormula, result: totalPrice });
+        } catch (evalError) {
+          logger.warning('Formula evaluation failed', { error: evalError.message, formula });
+          totalPrice = 0;
+        }
+      }
+
+      logger.success('Price calculated', { totalPrice, formula: formula || '(no formula - sum of fixed params)' });
+      res.json({ 
+        totalPrice: Math.round(totalPrice * 100) / 100,
+        breakdown: {
+          formula: formula || null,
+          context,
+          settingId: setting.id,
+          settingCode: setting.code,
+          parametersUsed: parameters.length
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to calculate price', { error: error.message });
+      res.status(500).json({ error: 'Failed to calculate price', message: error.message });
+    }
+  });
+
   // Get specific price setting with details
   app.get('/api/price-settings/:id', requireAuth, async (req, res) => {
     try {

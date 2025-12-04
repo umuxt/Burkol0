@@ -140,5 +140,31 @@ export const quotesService = {
       return { canEdit: true }
     }
     return response.json()
+  },
+
+  /**
+   * C2: Update quote form data with new template
+   * @param {string} id - Quote ID
+   * @param {Object} updatePayload - Form update payload
+   * @param {string} updatePayload.formTemplateId - New template ID
+   * @param {number} updatePayload.formTemplateVersion - New template version
+   * @param {string} updatePayload.formTemplateCode - New template code
+   * @param {Object} updatePayload.formData - New form data
+   * @param {number} updatePayload.calculatedPrice - Recalculated price
+   * @param {string} updatePayload.priceSettingId - Price setting ID
+   * @param {string} updatePayload.priceSettingCode - Price setting code
+   * @returns {Promise<Object>} Updated quote
+   */
+  async updateQuoteForm(id, updatePayload) {
+    const response = await fetchWithTimeout(`/api/quotes/${id}/form`, {
+      method: 'PUT',
+      headers: withAuth(),
+      body: JSON.stringify(updatePayload)
+    }, 15000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'update_quote_form_failed')
+    }
+    return response.json()
   }
 }

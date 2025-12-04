@@ -1091,73 +1091,75 @@ if (priceSettingId) {
 
 ---
 
-### PROMPT-C2: Form Değişiklik Uyarı Butonu
+### PROMPT-C2: Form Değişiklik Uyarı Butonu ✅ TAMAMLANDI
 
 **Amaç**: Quote detaylarında form template değişikliği için uyarı butonu ve modal
 
-**Ön Araştırma**:
-1. `read_file` ile `QuoteDetailsPanel.jsx` oku
-2. Mevcut price warning mekanizmasını incele
-3. Modal tasarımını planla
+**Durum**: ✅ TAMAMLANDI (2025-12-04)
 
-**Yapılacaklar**:
+**Yapılan Değişiklikler**:
 
-1. **Uyarı butonu** (eğer formChanged=true ve priceChanged=false):
-   ```jsx
-   {formChangeDetected && !priceChangeDetected && (
-     <button 
-       className="warning-button form-update"
-       onClick={() => setShowFormUpdateModal(true)}
-     >
-       ⚠️ Form Güncellendi
-     </button>
-   )}
-   ```
-
-2. **Form Güncelleme Modal'ı**:
-   ```jsx
-   <FormUpdateModal
-     isOpen={showFormUpdateModal}
-     oldFormData={quote.formData}
-     oldFields={quote.savedFormFields || []}
-     newFields={activeFormTemplate.fields}
-     onSave={handleFormUpdate}
-     onCancel={() => setShowFormUpdateModal(false)}
-   />
-   ```
-
-3. **Modal içeriği**:
+1. **FormUpdateModal.jsx oluşturuldu**:
    - Sol panel: Eski form değerleri (readonly)
-   - Sağ panel: Yeni form alanları (input)
-   - "Eşleşenleri Kopyala" butonu
-   - Alt kısımda dinamik fiyat hesaplaması
+   - Sağ panel: Yeni form alanları (editable)
+   - "Eşleşenleri Kopyala" butonu - fieldCode eşleşmesi
+   - Dinamik fiyat hesaplaması (debounced 500ms)
+   - Fiyat değişim göstergesi (artış/azalış)
 
-4. **Kaydetme sonrası quote güncellemesi**:
-   ```javascript
-   // Quote güncelleme payload'ı
-   {
-     formTemplateId: activeFormTemplate.id,
-     formTemplateVersion: activeFormTemplate.version,
-     formTemplateCode: activeFormTemplate.code,
-     formData: newFormData,
-     calculatedPrice: newPrice,
-     priceFormulaId: activePriceSetting.formula.id,
-     priceFormulaVersion: activePriceSetting.formula.version,
-     priceSettingCode: activePriceSetting.code,
-     priceStatus: 'current'
-   }
-   ```
+2. **QuoteDetailsPanel.jsx güncellendi**:
+   - FormUpdateModal import edildi
+   - showFormUpdateModal, oldFormFields, newFormFields state'leri eklendi
+   - handleFormUpdateClick async fonksiyonu eklendi
+   - handleFormUpdateSave fonksiyonu eklendi
+   - FormUpdateModal component'i render'a eklendi
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+3. **quotes-service.js güncellendi**:
+   - updateQuoteForm() fonksiyonu eklendi
+   - PUT /api/quotes/:id/form endpoint'ine istek atar
+
+4. **quoteController.js güncellendi**:
+   - PUT /api/quotes/:id/form endpoint'i eklendi
+   - Edit status kontrolü (getQuoteEditStatus kullanılıyor)
+   - formTemplateCode, priceSettingCode güncelleme
+   - Audit logging
+
+5. **priceSettingsService.js güncellendi**:
+   - create() fonksiyonuna formulaExpression eklendi
+
+6. **pricing-service.js (frontend) güncellendi**:
+   - calculatePrice() fonksiyonu eklendi
+
+7. **priceController.js güncellendi**:
+   - POST /api/price-settings/calculate endpoint'i eklendi
+   - Excel-style formula parsing (= işareti kaldırma)
+   - ^ operatörü Math.pow() dönüşümü
+
+8. **quotes.js (model) güncellendi**:
+   - update() fonksiyonuna formTemplateId, formTemplateCode, priceSettingId, priceSettingCode, calculatedPrice, finalPrice, lastCalculatedAt alanları eklendi
+   - calculatedPrice gönderilmişse otomatik hesaplama atlanıyor
+
+9. **Icons.jsx güncellendi**:
+   - Copy, ChevronRight ikonları eklendi
+
+**Değişen Dosyalar**:
 - `domains/crm/components/quotes/FormUpdateModal.jsx` (yeni)
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `domains/crm/services/quotes-service.js`
+- `domains/crm/services/pricing-service.js`
+- `domains/crm/api/controllers/quoteController.js`
+- `domains/crm/api/controllers/priceController.js`
+- `domains/crm/api/services/priceSettingsService.js`
+- `db/models/quotes.js`
+- `shared/components/Icons.jsx`
 
 **Test Kriterleri**:
-- [ ] Form değişikliği varsa uyarı butonu görünüyor
-- [ ] Modal'da eski form değerleri sol tarafta gösteriliyor
-- [ ] Modal'da yeni form alanları sağ tarafta düzenlenebilir
-- [ ] "Eşleşenleri Kopyala" fieldCode eşleşmesi ile çalışıyor
-- [ ] Fiyat dinamik olarak hesaplanıyor
+- [x] Form değişikliği varsa uyarı butonu görünüyor (C1'de yapıldı)
+- [x] Modal'da eski form değerleri sol tarafta gösteriliyor
+- [x] Modal'da yeni form alanları sağ tarafta düzenlenebilir
+- [x] "Eşleşenleri Kopyala" fieldCode eşleşmesi ile çalışıyor
+- [x] Fiyat dinamik olarak hesaplanıyor
+- [x] Kaydet butonuyla quote başarıyla güncelleniyor
+- [x] calculatedPrice ve finalPrice veritabanında güncelleniyor
 
 ---
 

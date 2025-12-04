@@ -504,6 +504,77 @@ export function setupQuotesRoutes(app) {
     }
   });
 
+  // ==================== C2: UPDATE QUOTE FORM ====================
+  // Updates quote with new form template and recalculated price
+  app.put('/api/quotes/:id/form', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        formTemplateId,
+        formTemplateVersion,
+        formTemplateCode,
+        formData,
+        calculatedPrice,
+        priceSettingId,
+        priceSettingCode
+      } = req.body;
+
+      logger.info(`PUT /api/quotes/${id}/form - Updating quote form`, {
+        formTemplateId,
+        formTemplateCode,
+        priceSettingCode
+      });
+
+      // Get existing quote
+      const existingQuote = await Quotes.getById(id);
+      if (!existingQuote) {
+        logger.warning(`Quote not found: ${id}`);
+        return res.status(404).json({ error: 'Quote not found' });
+      }
+
+      // Check edit status
+      const editStatus = await quoteService.getQuoteEditStatus(id);
+      if (!editStatus.canEdit) {
+        logger.warning(`Quote not editable: ${id}`, { reason: editStatus.reason });
+        return res.status(403).json({ 
+          error: 'Quote cannot be edited',
+          reason: editStatus.reason
+        });
+      }
+
+      // Update quote with new form data
+      const updateData = {
+        formTemplateId: formTemplateId || existingQuote.formTemplateId,
+        formTemplateCode: formTemplateCode || existingQuote.formTemplateCode,
+        formData: formData || existingQuote.formData,
+        calculatedPrice: calculatedPrice !== undefined ? calculatedPrice : existingQuote.calculatedPrice,
+        finalPrice: existingQuote.manualPrice || calculatedPrice || existingQuote.finalPrice,
+        priceSettingId: priceSettingId || existingQuote.priceSettingId,
+        priceSettingCode: priceSettingCode || existingQuote.priceSettingCode,
+        lastCalculatedAt: new Date().toISOString()
+      };
+
+      const quote = await Quotes.update(id, updateData);
+
+      // Log audit trail
+      logger.success('Quote form updated via C2 modal', {
+        quoteId: id,
+        oldFormTemplateCode: existingQuote.formTemplateCode,
+        newFormTemplateCode: formTemplateCode,
+        oldPriceSettingCode: existingQuote.priceSettingCode,
+        newPriceSettingCode: priceSettingCode,
+        oldPrice: existingQuote.calculatedPrice,
+        newPrice: calculatedPrice,
+        updatedBy: req.user?.email || 'system'
+      });
+
+      res.json({ success: true, quote });
+    } catch (error) {
+      logger.error('Failed to update quote form', { error: error.message });
+      res.status(500).json({ error: 'Failed to update quote form', message: error.message });
+    }
+  });
+
   // ==================== SET MANUAL PRICE ====================
   app.post('/api/quotes/:id/manual-price', requireAuth, async (req, res) => {
     try {
