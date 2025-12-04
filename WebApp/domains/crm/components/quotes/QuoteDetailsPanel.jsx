@@ -567,13 +567,14 @@ export default function QuoteDetailsPanel({
     }
   }
   
-  // C2: Handle form update save
+  // C2/C4: Handle form update save (also handles combined form+price update)
   const handleFormUpdateSave = async (quoteId, updatePayload) => {
     try {
       const result = await quotesService.updateQuoteForm(quoteId, updatePayload)
       
-      // Update local state
+      // Update local state - reset both flags since FormUpdateModal handles combined updates
       setFormChangeDetected(false)
+      setPriceChangeDetected(false) // C4: Reset price flag too when combined update
       
       // Refresh quote data
       if (onRefreshQuote) {

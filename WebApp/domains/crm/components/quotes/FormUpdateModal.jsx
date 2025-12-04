@@ -4,13 +4,14 @@ import { priceApi } from '../../services/pricing-service.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 
 /**
- * FormUpdateModal - C2: Modal for updating quote form when template changed
+ * FormUpdateModal - C2/C4: Modal for updating quote form when template changed
  * 
  * Features:
  * - Left panel: Old form values (readonly)
  * - Right panel: New form fields (editable)
  * - "Copy Matching" button to auto-fill matching fieldCodes
  * - Dynamic price calculation at bottom
+ * - C4: Combined form+price update - sends both formTemplateCode and priceSettingCode
  */
 export default function FormUpdateModal({
   isOpen,

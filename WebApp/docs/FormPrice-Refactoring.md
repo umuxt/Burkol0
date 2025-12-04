@@ -1229,7 +1229,7 @@ if (priceSettingId) {
 
 ---
 
-### PROMPT-C4: Birleşik Form+Price Uyarı Butonu
+### PROMPT-C4: Birleşik Form+Price Uyarı Butonu ✅ TAMAMLANDI
 
 **Amaç**: Hem form hem price değiştiğinde tek buton ile güncelleme
 
@@ -1237,34 +1237,42 @@ if (priceSettingId) {
 1. PROMPT-C2 ve PROMPT-C3 tamamlandıktan sonra
 2. Modal tasarımını birleştir
 
-**Yapılacaklar**:
+**✅ UYGULAMA NOTLARI**:
 
-1. **Tek uyarı butonu** (eğer hem formChanged hem priceChanged):
-   ```jsx
-   {formChangeDetected && priceChangeDetected && (
-     <button 
-       className="warning-button combined-update"
-       onClick={() => setShowCombinedUpdateModal(true)}
-     >
-       ⚠️ Form ve Fiyatlandırma Güncellendi
-     </button>
-   )}
+C2 ve C3 implementasyonları zaten birleşik çalışacak şekilde tasarlanmıştı:
+
+1. **Banner Logic (QuoteDetailsPanel.jsx line 739)**:
+   - `formChangeDetected && priceChangeDetected` → Sarı banner (#fef3c7)
+   - "Formu ve Fiyatı Güncelle" butonu gösterilir
+   
+2. **FormUpdateModal zaten her iki kodu da gönderiyor (line 103-110)**:
+   ```javascript
+   const updatePayload = {
+     formTemplateId: activeFormTemplate.id,
+     formTemplateVersion: activeFormTemplate.version,
+     formTemplateCode: activeFormTemplate.code,     // Form code
+     formData: newFormData,
+     calculatedPrice: calculatedPrice,
+     priceSettingId: activePriceSetting?.id,
+     priceSettingCode: activePriceSetting?.code     // Price code
+   }
    ```
 
-2. **Birleşik Modal**:
-   - Sol panel: Eski form değerleri (readonly)
-   - Sağ panel: Yeni form alanları (input)
-   - Alt kısımda: Dinamik fiyat hesaplaması
-   - Kaydet: Hem formu hem fiyatı günceller
+3. **handleFormUpdateSave güncellendi** - Her iki flag'i de reset eder:
+   ```javascript
+   setFormChangeDetected(false)
+   setPriceChangeDetected(false) // C4: Combined update
+   ```
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
-- `domains/crm/components/quotes/FormUpdateModal.jsx` (güncelle)
+**Değişen Dosyalar**:
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` - handleFormUpdateSave güncellendi
+- `domains/crm/components/quotes/FormUpdateModal.jsx` - Comment güncellendi (C2/C4)
 
 **Test Kriterleri**:
-- [ ] Her iki değişiklik varsa tek buton görünüyor
-- [ ] Modal her iki güncellemeyi birlikte yapıyor
-- [ ] Fiyat dinamik hesaplanıyor
+- [x] Her iki değişiklik varsa tek buton görünüyor (sarı "Formu ve Fiyatı Güncelle")
+- [x] Modal her iki güncellemeyi birlikte yapıyor (formTemplateCode + priceSettingCode)
+- [x] Fiyat dinamik hesaplanıyor (activePriceSetting ile)
+- [x] Save sonrası her iki flag da reset ediliyor
 
 ---
 
@@ -2143,7 +2151,7 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-C1**: canEdit optimizasyonu ✅
 - [x] **PROMPT-C2**: Form değişiklik uyarı butonu ✅
 - [x] **PROMPT-C3**: Price değişiklik uyarı butonu ✅
-- [ ] **PROMPT-C4**: Birleşik form+price uyarı butonu
+- [x] **PROMPT-C4**: Birleşik form+price uyarı butonu ✅
 - [ ] **PROMPT-D1**: Fiyat değişikliği onay akışı
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
