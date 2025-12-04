@@ -1163,41 +1163,69 @@ if (priceSettingId) {
 
 ---
 
-### PROMPT-C3: Price Değişiklik Uyarı Butonu
+### PROMPT-C3: Price Değişiklik Uyarı Butonu ✅ TAMAMLANDI
 
 **Amaç**: Quote detaylarında price setting değişikliği için uyarı butonu
 
-**Ön Araştırma**:
-1. Mevcut `getPriceWarningInfo()` fonksiyonunu incele
-2. Price comparison API'sini incele
+**Durum**: ✅ TAMAMLANDI (2025-12-04)
 
-**Yapılacaklar**:
+**Yapılan Değişiklikler**:
 
-1. **Uyarı butonu** (eğer priceChanged=true ve formChanged=false):
-   ```jsx
-   {priceChangeDetected && !formChangeDetected && (
-     <button 
-       className="warning-button price-update"
-       onClick={handlePriceUpdate}
-     >
-       ⚠️ Fiyatlandırma Güncellendi - Yeniden Hesapla
-     </button>
-   )}
-   ```
+1. **QuoteDetailsPanel.jsx güncellendi**:
+   - `showPriceRecalcModal`, `newCalculatedPrice`, `priceRecalcLoading`, `priceChanges` state'leri eklendi
+   - `handlePriceRecalcClick()` - Fiyat hesaplar, aynıysa otomatik günceller, farklıysa modal açar
+   - `handlePriceRecalcConfirm()` - Yeni fiyatı kaydeder
+   - Price Recalc Modal JSX eklendi (değişiklik sebepleriyle)
+   - `!isLocked` kontrolü - Fiyat kilitliyse banner gösterilmez
 
-2. **Fiyat güncelleme akışı**:
-   - Tıklanınca fiyat yeniden hesaplanır (isActive price_settings'e göre)
-   - Onay modal'ı açılır: "Fiyat X₺ → Y₺ olacak"
-   - Onaylarsa kaydedilir
+2. **pricing-service.js güncellendi**:
+   - `comparePriceSettings()` fonksiyonu eklendi
 
-**Değişecek Dosyalar**:
+3. **priceController.js güncellendi**:
+   - `POST /api/price-settings/compare` endpoint'i eklendi
+   - Excel-style formül fonksiyonları düzeltildi (SQRT, ABS, vb. → Math.sqrt, Math.abs)
+   - `mathMethods` listesi ile Math fonksiyonları korunuyor
+
+4. **db/models/quotes.js güncellendi**:
+   - `getById()` ve `getAll()` fonksiyonlarına `manualOverride` objesi eklendi
+   - `manualPrice` varsa `{ active: true, price, note, timestamp }` döndürülüyor
+
+5. **quoteController.js güncellendi**:
+   - `/api/quotes/:id/form` endpoint'inde finalPrice mantığı düzeltildi
+   - Fiyat kilitliyse (manualPrice) finalPrice değiştirilmiyor
+
+6. **FormUpdateModal.jsx güncellendi**:
+   - `calculatedPrice === null` kontrolü eklendi (kaydet butonu disabled)
+   - Buton metni "Fiyat Hesaplanıyor..." gösteriyor
+
+7. **Icons.jsx güncellendi**:
+   - Calculator, Sliders iconları eklendi
+
+**Değişen Dosyalar**:
 - `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `domains/crm/services/pricing-service.js`
+- `domains/crm/api/controllers/priceController.js`
+- `domains/crm/api/controllers/quoteController.js`
+- `domains/crm/components/quotes/FormUpdateModal.jsx`
+- `db/models/quotes.js`
+- `shared/components/Icons.jsx`
 
 **Test Kriterleri**:
-- [ ] Price değişikliği varsa uyarı butonu görünüyor
-- [ ] Tıklanınca fiyat yeniden hesaplanıyor
-- [ ] Onay modal'ı gösteriliyor
-- [ ] Onaylanınca quote güncelleniyor
+- [x] Price değişikliği varsa uyarı butonu görünüyor
+- [x] Tıklanınca fiyat yeniden hesaplanıyor
+- [x] Onay modal'ı gösteriliyor
+- [x] Onaylanınca quote güncelleniyor
+
+**Notlar (2025-12-04)**:
+- `handlePriceRecalcClick()` aktif price setting ile fiyat hesaplar
+- `handleConfirmPriceRecalc()` yeni fiyatı kaydeder
+- Inline modal ile eski/yeni fiyat karşılaştırması gösterilir
+- Değişiklik sebepleri gösteriliyor (formül değişikliği, parametre değişiklikleri)
+- Calculator ve Sliders Lucide iconları eklendi
+- Fiyat aynıysa modal açılmadan otomatik güncelleme yapılır
+- Fiyat kilitli (manualOverride) ise banner gösterilmez
+- `POST /api/price-settings/compare` endpoint'i eklendi
+- Excel-style formül fonksiyonları (SQRT, ABS, vb.) düzeltildi
 
 ---
 
@@ -2109,16 +2137,16 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-A1.1**: Buton görünürlük revizyonu ✅ (4 Aralık 2025)
 - [x] **PROMPT-A1.2**: Kozmetik güncellemeler (form adı, Lucide ikonlar) ✅ (4 Aralık 2025)
 - [x] **PROMPT-A2**: Pricing Manager UI değişiklikleri ✅ (4 Aralık 2025)
-- [ ] **PROMPT-B0**: Database yapısı optimizasyonu (price_formulas merge, duplicate alanlar)
-- [ ] **PROMPT-B1**: Database migration (formTemplateCode, priceSettingCode)
-- [ ] **PROMPT-B2**: Quote create/update'de code kaydetme
-- [ ] **PROMPT-C1**: canEdit optimizasyonu
-- [ ] **PROMPT-C2**: Form değişiklik uyarı butonu
-- [ ] **PROMPT-C3**: Price değişiklik uyarı butonu
+- [x] **PROMPT-B0**: Database yapısı optimizasyonu (price_formulas merge, duplicate alanlar) ✅
+- [x] **PROMPT-B1**: Database migration (formTemplateCode, priceSettingCode) ✅
+- [x] **PROMPT-B2**: Quote create/update'de code kaydetme ✅
+- [x] **PROMPT-C1**: canEdit optimizasyonu ✅
+- [x] **PROMPT-C2**: Form değişiklik uyarı butonu ✅
+- [x] **PROMPT-C3**: Price değişiklik uyarı butonu ✅
 - [ ] **PROMPT-C4**: Birleşik form+price uyarı butonu
 - [ ] **PROMPT-D1**: Fiyat değişikliği onay akışı
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
-- [ ] **PROMPT-E1**: FormUpdateModal componenti
+- [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [ ] **PROMPT-E2**: PriceConfirmModal componenti
-- [ ] **PROMPT-F1**: Calculate-price API endpoint
+- [x] **PROMPT-F1**: Calculate-price API endpoint ✅
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu

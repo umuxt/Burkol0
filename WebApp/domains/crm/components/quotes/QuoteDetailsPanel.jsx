@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool, Calculator, Sliders } from '../../../../shared/components/Icons.jsx'
 import { PriceStatusBadge } from '../pricing/PriceStatusBadge.js'
 import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
@@ -52,6 +52,12 @@ export default function QuoteDetailsPanel({
   const [showFormUpdateModal, setShowFormUpdateModal] = useState(false)
   const [oldFormFields, setOldFormFields] = useState([])
   const [newFormFields, setNewFormFields] = useState([])
+  
+  // C3: Price recalculation modal state
+  const [showPriceRecalcModal, setShowPriceRecalcModal] = useState(false)
+  const [newCalculatedPrice, setNewCalculatedPrice] = useState(null)
+  const [priceRecalcLoading, setPriceRecalcLoading] = useState(false)
+  const [priceChanges, setPriceChanges] = useState(null) // { formulaChanged, oldFormula, newFormula, parameterChanges }
   
   // Fetch edit status when quote changes
   // C1: Optimized - only fetch form/price changes if canEdit=true
@@ -581,10 +587,100 @@ export default function QuoteDetailsPanel({
     }
   }
   
-  // C1: Handle price recalculation when setting changed
+  // C3: Handle price recalculation when setting changed
   const handlePriceRecalcClick = async () => {
-    // TODO: C3 - Recalculate price with active setting
-    showToast('Fiyat yeniden hesaplama yakında eklenecek', 'info')
+    if (!activePriceSetting?.id || !quote) return
+    
+    try {
+      setPriceRecalcLoading(true)
+      
+      // Get current form data
+      const currentFormData = quote.formData || {}
+      
+      // Calculate new price with active price setting
+      const result = await priceApi.calculatePrice(activePriceSetting.id, currentFormData)
+      const newPrice = result.totalPrice || result.price || 0
+      
+      // Get current quote price
+      const currentPrice = parseFloat(quote.finalPrice || quote.calculatedPrice || 0)
+      
+      // C3 Optimization: If price is the same, auto-update without modal
+      if (Math.abs(newPrice - currentPrice) < 0.01) {
+        // Price is the same - just update priceSettingCode silently
+        await quotesService.updateQuoteForm(quote.id, {
+          priceSettingId: activePriceSetting.id,
+          priceSettingCode: activePriceSetting.code,
+          calculatedPrice: newPrice,
+          formData: quote.formData
+        })
+        
+        // Reset state
+        setPriceChangeDetected(false)
+        
+        showToast('Yapılan değişiklikler bu teklifi etkilemiyor. Ayarlar güncellendi.', 'info')
+        
+        // Refresh quote data
+        if (onRefreshQuote) {
+          await onRefreshQuote()
+        }
+        return
+      }
+      
+      // Price is different - show modal with changes
+      // C3: Get price changes (what caused the difference)
+      if (quote.priceSettingId && activePriceSetting.id) {
+        try {
+          const compareResult = await priceApi.comparePriceSettings(quote.priceSettingId, activePriceSetting.id)
+          setPriceChanges(compareResult.changes)
+        } catch (compareErr) {
+          console.warn('Could not compare price settings:', compareErr)
+          setPriceChanges(null)
+        }
+      }
+      
+      setNewCalculatedPrice(newPrice)
+      setShowPriceRecalcModal(true)
+    } catch (err) {
+      console.error('Price calculation error:', err)
+      showToast('Fiyat hesaplanamadı: ' + err.message, 'error')
+    } finally {
+      setPriceRecalcLoading(false)
+    }
+  }
+  
+  // C3: Handle price recalculation confirm
+  const handlePriceRecalcConfirm = async () => {
+    if (!quote?.id || newCalculatedPrice === null) return
+    
+    try {
+      setPriceRecalcLoading(true)
+      
+      // Update quote with new price and price setting
+      await quotesService.updateQuoteForm(quote.id, {
+        priceSettingId: activePriceSetting.id,
+        priceSettingCode: activePriceSetting.code,
+        calculatedPrice: newCalculatedPrice,
+        formData: quote.formData // Keep existing form data
+      })
+      
+      // Reset state
+      setPriceChangeDetected(false)
+      setShowPriceRecalcModal(false)
+      setNewCalculatedPrice(null)
+      setPriceChanges(null)
+      
+      showToast('Fiyat başarıyla güncellendi', 'success')
+      
+      // Refresh quote data
+      if (onRefreshQuote) {
+        await onRefreshQuote()
+      }
+    } catch (err) {
+      console.error('Price update error:', err)
+      showToast('Fiyat güncellenemedi: ' + err.message, 'error')
+    } finally {
+      setPriceRecalcLoading(false)
+    }
   }
   
   // Handle navigation to work order
@@ -639,8 +735,8 @@ export default function QuoteDetailsPanel({
         </div>
       )}
       
-      {/* C1: Form/Price Version Change Banners - Only show if editable */}
-      {editStatus?.canEdit && (formChangeDetected || priceChangeDetected) && (
+      {/* C1: Form/Price Version Change Banners - Only show if editable AND price not locked */}
+      {editStatus?.canEdit && !isLocked && (formChangeDetected || priceChangeDetected) && (
         <div style={{
           padding: '12px 16px',
           background: formChangeDetected && priceChangeDetected ? '#fef3c7' : (formChangeDetected ? '#dbeafe' : '#dcfce7'),
@@ -1698,6 +1794,230 @@ export default function QuoteDetailsPanel({
         activePriceSetting={activePriceSetting}
         onSave={handleFormUpdateSave}
       />
+      
+      {/* C3: Price Recalculation Confirmation Modal */}
+      {showPriceRecalcModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+            width: '100%',
+            maxWidth: '550px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            padding: '24px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: '#dcfce7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <RefreshCw size={24} style={{ color: '#16a34a' }} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  Fiyat Güncelleme
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  Fiyatlandırma ayarları değişti
+                </p>
+              </div>
+            </div>
+            
+            {/* C3: Show what changed */}
+            {priceChanges && (priceChanges.formulaChanged || priceChanges.parameterChanges?.length > 0) && (
+              <div style={{
+                background: '#fffbeb',
+                border: '1px solid #fcd34d',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '16px'
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={16} />
+                  Değişiklikler
+                </h4>
+                
+                {/* Formula change */}
+                {priceChanges.formulaChanged && (
+                  <div style={{ marginBottom: priceChanges.parameterChanges?.length > 0 ? '12px' : 0 }}>
+                    <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Calculator size={14} />
+                      Formül Değişti:
+                    </div>
+                    <div style={{ 
+                      background: 'white', 
+                      borderRadius: '6px', 
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      fontFamily: 'monospace'
+                    }}>
+                      <div style={{ color: '#dc2626', marginBottom: '4px' }}>
+                        <span style={{ opacity: 0.6 }}>Eski:</span> {priceChanges.oldFormula || '(yok)'}
+                      </div>
+                      <div style={{ color: '#16a34a' }}>
+                        <span style={{ opacity: 0.6 }}>Yeni:</span> {priceChanges.newFormula || '(yok)'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Parameter changes */}
+                {priceChanges.parameterChanges?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sliders size={14} />
+                      Parametre Değişiklikleri:
+                    </div>
+                    <div style={{ 
+                      background: 'white', 
+                      borderRadius: '6px', 
+                      padding: '8px 12px',
+                      fontSize: '13px'
+                    }}>
+                      {priceChanges.parameterChanges.map((change, idx) => (
+                        <div 
+                          key={idx} 
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '4px 0',
+                            borderBottom: idx < priceChanges.parameterChanges.length - 1 ? '1px solid #f3f4f6' : 'none'
+                          }}
+                        >
+                          <span style={{ fontWeight: '500', color: '#374151' }}>
+                            {change.name || change.code}
+                            {change.unit && <span style={{ opacity: 0.5, fontSize: '11px', marginLeft: '4px' }}>({change.unit})</span>}
+                          </span>
+                          <span style={{ fontFamily: 'monospace' }}>
+                            {change.type === 'added' && (
+                              <span style={{ color: '#16a34a' }}>
+                                + {change.newValue}
+                              </span>
+                            )}
+                            {change.type === 'removed' && (
+                              <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>
+                                {change.oldValue}
+                              </span>
+                            )}
+                            {change.type === 'changed' && (
+                              <>
+                                <span style={{ color: '#dc2626' }}>{change.oldValue}</span>
+                                <span style={{ margin: '0 6px', color: '#9ca3af' }}>→</span>
+                                <span style={{ color: '#16a34a' }}>{change.newValue}</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Mevcut Fiyat:</span>
+                <span style={{ fontSize: '16px', fontWeight: '500', color: '#374151' }}>
+                  {parseFloat(quote?.finalPrice || quote?.calculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Yeni Fiyat:</span>
+                <span style={{ fontSize: '18px', fontWeight: '600', color: '#16a34a' }}>
+                  {(newCalculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                </span>
+              </div>
+              {newCalculatedPrice !== null && quote?.finalPrice && (
+                <div style={{
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #e5e7eb',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>Fark:</span>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: newCalculatedPrice > parseFloat(quote.finalPrice) ? '#dc2626' : '#16a34a'
+                  }}>
+                    {newCalculatedPrice > parseFloat(quote.finalPrice) ? '+' : ''}
+                    {(newCalculatedPrice - parseFloat(quote.finalPrice)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                    {' '}
+                    ({newCalculatedPrice > parseFloat(quote.finalPrice) ? '↑' : '↓'} 
+                    {Math.abs(((newCalculatedPrice - parseFloat(quote.finalPrice)) / parseFloat(quote.finalPrice)) * 100).toFixed(1)}%)
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowPriceRecalcModal(false)
+                  setNewCalculatedPrice(null)
+                  setPriceChanges(null)
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                İptal
+              </button>
+              <button
+                onClick={handlePriceRecalcConfirm}
+                disabled={priceRecalcLoading}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: '#16a34a',
+                  color: 'white',
+                  cursor: priceRecalcLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  opacity: priceRecalcLoading ? 0.6 : 1
+                }}
+              >
+                {priceRecalcLoading ? 'Güncelleniyor...' : 'Fiyatı Güncelle'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

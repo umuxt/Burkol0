@@ -80,6 +80,26 @@ export const pricingService = {
       throw new Error(err.error || 'calculate_price_failed')
     }
     return response.json()
+  },
+
+  /**
+   * Compare two price settings and return differences
+   * Used to show what changed between quote's saved setting and current active setting
+   * @param {number} oldSettingId - The quote's original price setting ID
+   * @param {number} newSettingId - The current active price setting ID
+   * @returns {Promise<{hasChanges: boolean, changes: Object}>}
+   */
+  async comparePriceSettings(oldSettingId, newSettingId) {
+    const response = await fetchWithTimeout('/api/price-settings/compare', {
+      method: 'POST',
+      headers: withAuth(),
+      body: JSON.stringify({ oldSettingId, newSettingId })
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'compare_settings_failed')
+    }
+    return response.json()
   }
 }
 

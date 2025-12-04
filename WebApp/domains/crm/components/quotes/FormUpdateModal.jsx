@@ -319,14 +319,15 @@ export default function FormUpdateModal({
           </button>
           <button 
             onClick={handleSave} 
-            disabled={saving || priceLoading}
+            disabled={saving || priceLoading || calculatedPrice === null}
+            title={calculatedPrice === null ? 'Fiyat hesaplanıyor...' : ''}
             style={{
               ...saveButtonStyle,
-              opacity: saving || priceLoading ? 0.6 : 1,
-              cursor: saving || priceLoading ? 'not-allowed' : 'pointer'
+              opacity: saving || priceLoading || calculatedPrice === null ? 0.6 : 1,
+              cursor: saving || priceLoading || calculatedPrice === null ? 'not-allowed' : 'pointer'
             }}
           >
-            {saving ? 'Kaydediliyor...' : 'Kaydet ve Güncelle'}
+            {saving ? 'Kaydediliyor...' : priceLoading ? 'Fiyat Hesaplanıyor...' : 'Kaydet ve Güncelle'}
           </button>
         </div>
       </div>

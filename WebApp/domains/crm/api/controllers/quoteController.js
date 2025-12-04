@@ -543,12 +543,18 @@ export function setupQuotesRoutes(app) {
       }
 
       // Update quote with new form data
+      // Note: If manualPrice exists (price locked), don't update finalPrice from calculation
+      const newCalculatedPrice = calculatedPrice !== undefined ? calculatedPrice : existingQuote.calculatedPrice;
+      const newFinalPrice = existingQuote.manualPrice 
+        ? existingQuote.finalPrice  // Keep locked price
+        : (newCalculatedPrice || existingQuote.finalPrice);  // Use new calculated price
+      
       const updateData = {
         formTemplateId: formTemplateId || existingQuote.formTemplateId,
         formTemplateCode: formTemplateCode || existingQuote.formTemplateCode,
         formData: formData || existingQuote.formData,
-        calculatedPrice: calculatedPrice !== undefined ? calculatedPrice : existingQuote.calculatedPrice,
-        finalPrice: existingQuote.manualPrice || calculatedPrice || existingQuote.finalPrice,
+        calculatedPrice: newCalculatedPrice,
+        finalPrice: newFinalPrice,
         priceSettingId: priceSettingId || existingQuote.priceSettingId,
         priceSettingCode: priceSettingCode || existingQuote.priceSettingCode,
         lastCalculatedAt: new Date().toISOString()

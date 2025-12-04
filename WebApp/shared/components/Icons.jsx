@@ -66,6 +66,10 @@ import {
   RefreshCw,
   Wallet,
   
+  // C3: Price comparison icons
+  Calculator,
+  Sliders,
+  
   // CRM Icons (PROMPT-19)
   User,
   UserPlus,
@@ -148,6 +152,10 @@ export const Icons = {
   AlertTriangle,
   RefreshCw,
   Wallet,
+  
+  // C3: Price comparison icons
+  Calculator,
+  Sliders,
   
   // CRM Icons (PROMPT-19)
   User,
@@ -233,6 +241,9 @@ export {
   AlertTriangle,
   RefreshCw,
   Wallet,
+  // C3: Price comparison icons
+  Calculator,
+  Sliders,
   // CRM Icons (PROMPT-19)
   User,
   UserPlus,

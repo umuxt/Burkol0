@@ -207,9 +207,17 @@ class Quotes {
     const quotes = await query.orderBy('createdAt', 'desc');
     
     // Normalize deliveryDate and priceStatus for all quotes
+    // Also build manualOverride object for frontend compatibility
     quotes.forEach(quote => {
       this.normalizeDeliveryDate(quote);
       this.normalizePriceStatus(quote);
+      // Add manualOverride for frontend
+      quote.manualOverride = quote.manualPrice ? {
+        active: true,
+        price: quote.manualPrice,
+        note: quote.manualPriceReason || 'Manuel fiyat belirlendi',
+        timestamp: quote.updatedAt
+      } : null;
     });
     
     return quotes;
@@ -264,6 +272,14 @@ class Quotes {
     this.normalizeDeliveryDate(quote);
     this.normalizePriceStatus(quote);
 
+    // Build manualOverride object for frontend compatibility
+    const manualOverride = quote.manualPrice ? {
+      active: true,
+      price: quote.manualPrice,
+      note: quote.manualPriceReason || 'Manuel fiyat belirlendi',
+      timestamp: quote.updatedAt
+    } : null;
+
     return {
       ...quote,
       formData: formDataObj,
@@ -271,7 +287,8 @@ class Quotes {
       files: [...technicalFiles, ...otherFiles], // Backward compatible - all tech files
       technicalFiles: [...technicalFiles, ...otherFiles],
       productImages: productImages,
-      customer: customer // SYNC-FIX: Include full customer data for QuoteDetailsPanel
+      customer: customer, // SYNC-FIX: Include full customer data for QuoteDetailsPanel
+      manualOverride: manualOverride // Add manualOverride for frontend
     };
   }
 

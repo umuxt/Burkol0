@@ -716,10 +716,42 @@ export function setupPriceRoutes(app) {
             }
           }
 
-          // Replace any remaining identifiers with 0 (undefined variables)
-          const mathConstants = ['Math', 'PI', 'E', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sqrt'];
+          // Convert Excel-style functions to JavaScript Math functions (case-insensitive)
+          const excelToMath = {
+            'SQRT': 'Math.sqrt',
+            'ABS': 'Math.abs',
+            'CEIL': 'Math.ceil',
+            'CEILING': 'Math.ceil',
+            'FLOOR': 'Math.floor',
+            'ROUND': 'Math.round',
+            'MAX': 'Math.max',
+            'MIN': 'Math.min',
+            'POW': 'Math.pow',
+            'POWER': 'Math.pow',
+            'SIN': 'Math.sin',
+            'COS': 'Math.cos',
+            'TAN': 'Math.tan',
+            'LOG': 'Math.log',
+            'LOG10': 'Math.log10',
+            'EXP': 'Math.exp',
+            'PI': 'Math.PI'
+          };
+          
+          // Replace Excel functions with Math equivalents (case-insensitive)
+          for (const [excel, math] of Object.entries(excelToMath)) {
+            const regex = new RegExp(`\\b${excel}\\b`, 'gi');
+            evaluatedFormula = evaluatedFormula.replace(regex, math);
+          }
+
+          // Replace any remaining unknown identifiers with 0 (undefined variables)
+          // But keep Math and Math.* methods intact (sqrt, abs, floor, etc.)
+          const mathMethods = ['sqrt', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sin', 'cos', 'tan', 'log', 'log10', 'exp', 'PI', 'E'];
           evaluatedFormula = evaluatedFormula.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
-            if (mathConstants.includes(match)) return match;
+            // Don't replace Math or Math methods
+            if (match === 'Math' || mathMethods.includes(match)) {
+              return match;
+            }
+            // Replace unknown identifiers with 0
             return '0';
           });
 
@@ -908,6 +940,119 @@ export function setupPriceRoutes(app) {
     } catch (error) {
       logger.error('Failed to activate price setting', { error: error.message });
       res.status(500).json({ error: 'Failed to activate price setting', message: error.message });
+    }
+  });
+
+  // C3: Compare two price settings and return differences
+  // Used to show what changed between quote's saved setting and current active setting
+  app.post('/api/price-settings/compare', requireAuth, async (req, res) => {
+    try {
+      const { oldSettingId, newSettingId } = req.body;
+      logger.info('POST /api/price-settings/compare', { oldSettingId, newSettingId });
+
+      if (!oldSettingId || !newSettingId) {
+        return res.status(400).json({ error: 'Both oldSettingId and newSettingId are required' });
+      }
+
+      // Get both settings with details
+      const oldSetting = await PriceSettings.getWithDetails(parseInt(oldSettingId));
+      const newSetting = await PriceSettings.getWithDetails(parseInt(newSettingId));
+
+      if (!oldSetting) {
+        return res.status(404).json({ error: 'Old price setting not found' });
+      }
+      if (!newSetting) {
+        return res.status(404).json({ error: 'New price setting not found' });
+      }
+
+      const changes = {
+        formulaChanged: false,
+        oldFormula: null,
+        newFormula: null,
+        parameterChanges: []
+      };
+
+      // Compare formulas
+      const oldFormula = oldSetting.formulaExpression || oldSetting.formula?.formulaExpression || '';
+      const newFormula = newSetting.formulaExpression || newSetting.formula?.formulaExpression || '';
+      
+      if (oldFormula !== newFormula) {
+        changes.formulaChanged = true;
+        changes.oldFormula = oldFormula;
+        changes.newFormula = newFormula;
+      }
+
+      // Compare parameters
+      const oldParams = oldSetting.parameters || [];
+      const newParams = newSetting.parameters || [];
+
+      // Build maps for easy comparison
+      const oldParamMap = {};
+      oldParams.forEach(p => {
+        oldParamMap[p.code] = p;
+      });
+
+      const newParamMap = {};
+      newParams.forEach(p => {
+        newParamMap[p.code] = p;
+      });
+
+      // Check for changed or removed parameters
+      oldParams.forEach(oldParam => {
+        const newParam = newParamMap[oldParam.code];
+        if (!newParam) {
+          // Parameter removed
+          changes.parameterChanges.push({
+            type: 'removed',
+            code: oldParam.code,
+            name: oldParam.name,
+            oldValue: oldParam.fixedValue,
+            newValue: null,
+            unit: oldParam.unit
+          });
+        } else if (oldParam.fixedValue !== newParam.fixedValue) {
+          // Parameter value changed
+          changes.parameterChanges.push({
+            type: 'changed',
+            code: newParam.code,
+            name: newParam.name,
+            oldValue: oldParam.fixedValue,
+            newValue: newParam.fixedValue,
+            unit: newParam.unit || oldParam.unit
+          });
+        }
+      });
+
+      // Check for added parameters
+      newParams.forEach(newParam => {
+        if (!oldParamMap[newParam.code]) {
+          changes.parameterChanges.push({
+            type: 'added',
+            code: newParam.code,
+            name: newParam.name,
+            oldValue: null,
+            newValue: newParam.fixedValue,
+            unit: newParam.unit
+          });
+        }
+      });
+
+      const hasChanges = changes.formulaChanged || changes.parameterChanges.length > 0;
+
+      logger.success('Price settings compared', {
+        oldSettingId,
+        newSettingId,
+        formulaChanged: changes.formulaChanged,
+        parameterChangesCount: changes.parameterChanges.length
+      });
+
+      res.json({
+        hasChanges,
+        changes
+      });
+    } catch (error) {
+      logger.error('Failed to compare price settings', { error: error.message });
+      res.status(500).json({ error: 'Failed to compare price settings', message: error.message });
     }
   });
 
