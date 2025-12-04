@@ -354,28 +354,171 @@ ALTER TABLE quotes.quotes ADD COLUMN IF NOT EXISTS "priceSettingCode" VARCHAR(10
 
 ### PROMPT-A2: Price Settings UI Değişiklikleri
 
-**Amaç**: Fiyat ayarları panelinde form manager ile tutarlı taslak/aktif etme akışı
+**Amaç**: Fiyat ayarları panelinde form manager ile tutarlı taslak/aktif etme akışı (PROMPT-A1.1 ile aynı buton görünürlük matrisi)
 
 **Ön Araştırma**:
-1. `read_file` ile `PricingManager.jsx` oku
-2. `grep_search` ile save pattern'lerini bul: `savePriceSettings|onSave|activateSetting`
-3. Mevcut buton yapısını analiz et
+1. `read_file` ile `PricingManager.jsx` oku ✅
+2. `grep_search` ile orphan pattern'lerini bul: `orphan|systemIntegrity` ✅
+3. Mevcut buton yapısını analiz et ✅
+
+**Mevcut Durum Analizi**:
+- `hasUnsavedChanges` state mevcut (satır 46)
+- `originalData = { parameters, formula }` state mevcut (satır 47)
+- `systemIntegrity` state mevcut - orphan kontrolleri için (satır 51-59)
+- `isViewingInactive = currentSettingId && currentSettingId !== activeSettingId`
+- Header butonları `renderHeaderActions` ile render ediliyor (satır 591-750)
 
 **Yapılacaklar**:
 
-1. **Aynı buton yapısı**:
-   - "+Yeni Taslak"
-   - "Taslağı Kaydet" (sarı)
-   - "Aktif Et" (yeşil)
+1. **Buton Görünürlük Matrisi** (PROMPT-A1.1 ile tutarlı):
 
-2. **Aynı kaydetme/aktif etme mantığı** (PROMPT-A1 ile tutarlı)
+   | isActive | hasChanges | Orphan | Görünen Dinamik Butonlar |
+   |----------|------------|--------|--------------------------|
+   | `true` | Hayır | Hayır | `[+Yeni Taslak]` |
+   | `true` | Evet | Hayır | `[Değişiklikleri Geri Al]` `[Yeni Taslak Olarak Kaydet]` |
+   | `false` | Hayır | Hayır | `[Aktif Et]` `[+Yeni Taslak]` |
+   | `false` | Evet | Hayır | `[Değişiklikleri Geri Al]` `[Taslağı Güncelle]` |
+   | Any | Evet | **Evet→Hayır** | Orphan temizlendikten sonra → `[Değişiklikleri Geri Al]` `[Yeni Taslak Olarak Kaydet]` |
+
+   > **Orphan Senaryosu**: Orphan parametre temizlenince `hasChanges=true` olur. Bu durumda "Yeni Taslak Olarak Kaydet" görünür. "Değişiklikleri Geri Al" tıklanırsa orphanlı (bozuk) orijinal haline döner.
+
+2. **Buton Tanımları**:
+
+   | Buton | Renk | Görünürlük Koşulu | Fonksiyon |
+   |-------|------|-------------------|-----------|
+   | `+Yeni Taslak` | Beyaz/outline | `!hasChanges` | Sıfırdan yeni taslak açar |
+   | `Değişiklikleri Geri Al` | Kırmızı/outline (#ef4444) | `hasChanges` | `originalData`'ya geri döner |
+   | `Yeni Taslak Olarak Kaydet` | Sarı (#f59e0b) | `isActive && hasChanges` | Değişikliklerle yeni taslak oluşturur |
+   | `Taslağı Güncelle` | Sarı (#f59e0b) | `!isActive && hasChanges` | Mevcut taslağı günceller |
+   | `Aktif Et` | Yeşil (#10b981) | `!isActive && !hasChanges` | Taslağı aktif yapar |
+
+3. **State Güncellemeleri**:
+   ```javascript
+   // Mevcut state'ler yeterli, sadece kullanımı değişecek:
+   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false) // ✅ Mevcut
+   const [originalData, setOriginalData] = useState({ parameters: [], formula: '' }) // ✅ Mevcut
+   
+   // isActive kontrolü için:
+   const isActive = currentSettingId === activeSettingId
+   const isCurrentDraft = currentSettingId && currentSettingId !== activeSettingId
+   ```
+
+4. **Yeni Fonksiyonlar**:
+   ```javascript
+   // Değişiklikleri Geri Al
+   function handleRevertChanges() {
+     setParameters([...originalData.parameters])
+     setUserFormula(originalData.formula)
+     userFormulaRef.current = originalData.formula
+     
+     // Backend formülünü güncelle
+     const mapping = PricingUtils.createUserFriendlyIdMapping(originalData.parameters)
+     setIdMapping(mapping)
+     const backendFormula = PricingUtils.convertFormulaToBackend(originalData.formula, mapping)
+     setFormula(backendFormula)
+     formulaRef.current = backendFormula
+     
+     setHasUnsavedChanges(false)
+     showToast('Değişiklikler geri alındı', 'info')
+   }
+   ```
+
+5. **Header Butonları Yeniden Düzenleme** (satır 591-750):
+   
+   **Mevcut Sıralama**:
+   ```
+   [Aktif Hale Getir / Yeni Taslak Oluştur] [Geçmiş Taslaklar] [Kaydet] [Dışa Aktar] [İçe Aktar]
+   ```
+   
+   **Yeni Sıralama** (PROMPT-A1.1 ile tutarlı):
+   ```
+   {Durum Badge} [Dinamik Butonlar...] [+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]
+   ```
+
+6. **Durum Badge** (PROMPT-A1.2 ile tutarlı):
+   ```javascript
+   // Status Badge - always visible with setting name
+   const settingName = allSettings.find(s => s.id === currentSettingId)?.name || 'Fiyat Ayarları'
+   
+   React.createElement('span', {
+     key: 'status-badge',
+     style: {
+       padding: '6px 12px',
+       background: isCurrentDraft ? '#fef3c7' : '#d1fae5',
+       color: isCurrentDraft ? '#92400e' : '#065f46',
+       borderRadius: '6px',
+       fontSize: '12px',
+       fontWeight: 600,
+       display: 'flex',
+       alignItems: 'center',
+       gap: '5px'
+     }
+   },
+     // Lucide icon: Pencil for draft, Check for active
+     React.createElement('span', { dangerouslySetInnerHTML: { __html: isCurrentDraft ? PENCIL_SVG : CHECK_SVG } }),
+     React.createElement('span', null, isCurrentDraft ? 'Taslak' : 'Aktif'),
+     React.createElement('span', { style: { opacity: 0.6 } }, '•'),
+     React.createElement('strong', null, settingName)
+   )
+   ```
+
+7. **Akış Senaryoları**:
+
+   **Senaryo A: Aktif fiyatlandırmayı görüntüleme (değişiklik yok)**
+   - Durum: `isActive=true`, `hasChanges=false`
+   - Görünen: `{Aktif • Fiyat Ayarları v1} [+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   
+   **Senaryo B: Aktif fiyatlandırmada değişiklik yapma**
+   - Durum: `isActive=true`, `hasChanges=true`
+   - Görünen: `{Aktif • Fiyat Ayarları v1} [Değişiklikleri Geri Al] [Yeni Taslak Olarak Kaydet] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   
+   **Senaryo C: Taslağı görüntüleme (değişiklik yok)**
+   - Durum: `isActive=false`, `hasChanges=false`
+   - Görünen: `{Taslak • Fiyat Ayarları v2} [Aktif Et] [+Yeni Taslak] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   
+   **Senaryo D: Taslakta değişiklik yapma**
+   - Durum: `isActive=false`, `hasChanges=true`
+   - Görünen: `{Taslak • Fiyat Ayarları v2} [Değişiklikleri Geri Al] [Taslağı Güncelle] [Geçmiş] [Dışa Aktar] [İçe Aktar]`
+   
+   **Senaryo E: Orphan temizleme**
+   - Durum: Orphan parametre var → "🧹 Orphan Temizle" butonuna tıklanır
+   - Sonuç: Parametre silinir, `hasChanges=true` olur
+   - Görünen: `[Değişiklikleri Geri Al] [Yeni Taslak Olarak Kaydet]`
+   - "Değişiklikleri Geri Al" tıklanırsa → Orphanlı (bozuk) orijinal hale döner
 
 **Değişecek Dosyalar**:
 - `domains/crm/components/pricing/PricingManager.jsx`
+- `domains/crm/services/pricing-service.js`
 
 **Test Kriterleri**:
-- [ ] Butonlar FormManager ile tutarlı görünüyor
-- [ ] Taslak/aktif akışı aynı şekilde çalışıyor
+- [x] isActive=true, hasChanges=false → Sadece `+Yeni Taslak` görünür ✅
+- [x] isActive=true, hasChanges=true → `Değişiklikleri Geri Al` + `Yeni Taslak Olarak Kaydet` görünür ✅
+- [x] isActive=false, hasChanges=false → `Aktif Et` + `+Yeni Taslak` görünür ✅
+- [x] isActive=false, hasChanges=true → `Değişiklikleri Geri Al` + `Taslağı Güncelle` görünür ✅
+- [x] "Değişiklikleri Geri Al" formu `originalData`'ya geri döndürüyor ✅
+- [x] Orphan temizlendikten sonra "Yeni Taslak Olarak Kaydet" görünür ve enabled ✅
+- [x] Orphan temizlendikten sonra "Değişiklikleri Geri Al" → orphanlı hale döner ✅
+- [x] Durum badge'i gösteriliyor: `Taslak • Fiyat Ayarları` veya `Aktif • Fiyat Ayarları` ✅
+- [x] Taslak ikonu Lucide Pencil, Aktif ikonu Lucide Check ✅
+- [x] Yeni taslak oluşturulduğunda badge "Taslak • Yeni Taslak" gösteriyor ✅
+- [x] "Yeni Taslak Olarak Kaydet" yeni setting oluşturuyor, mevcut aktif ayarı değiştirmiyor ✅
+- [x] "Aktif Et" endpoint çalışıyor (PATCH /api/price-settings/:id/activate) ✅
+
+**Gerçekleştirilen Değişiklikler** (4 Aralık 2025):
+
+1. **PricingManager.jsx**:
+   - `handleRevertChanges()` fonksiyonu eklendi - originalData'ya geri dönüş
+   - `saveAsNewDraft()` fonksiyonu eklendi - aktif ayar üzerinde yeni taslak oluşturma
+   - Lucide SVG ikonları eklendi (PENCIL, CHECK, UNDO, SAVE, PLUS, CLOCK, etc.)
+   - Header butonları useEffect güncellendi - PROMPT-A1.1 ile tutarlı görünürlük matrisi
+   - `isNewDraft = currentSettingId === null` kontrolü eklendi
+   - Status badge: "Taslak • Yeni Taslak" veya "Taslak • [Ayar Adı]" veya "Aktif • [Ayar Adı]"
+   - Sistem bütünlüğü kontrolü (useEffect) güncellendi - parameters.length === 0 durumu eklendi
+   - Orphan temizlendikten sonra systemIntegrity otomatik güncelleniyor
+   - "Yeni Taslak Olarak Kaydet" butonu saveAsNewDraft() çağırıyor (savePriceSettings değil)
+
+2. **pricing-service.js**:
+   - `activateSetting()` method düzeltildi: POST → PATCH
 
 ---
 
@@ -1529,6 +1672,10 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 | 32 | Durum badge'inde form adı gösterilmeli: `Taslak **Form Adı**` | PROMPT-A1.2 |
 | 33 | Taslak ikonu Lucide Pencil olmalı | PROMPT-A1.2 |
 | 34 | Aktif ikonu Lucide Check olmalı | PROMPT-A1.2 |
+| 35 | Price Settings: Orphan temizlendikten sonra "Yeni Taslak Olarak Kaydet" görünmeli ✅ | PROMPT-A2 |
+| 36 | Price Settings: "Değişiklikleri Geri Al" orphanlı orijinal hale döndürmeli ✅ | PROMPT-A2 |
+| 37 | Price Settings: Durum badge'i gösterilmeli: `Taslak • Fiyat Ayarları` ✅ | PROMPT-A2 |
+| 38 | Price Settings: Buton görünürlük matrisi PROMPT-A1.1 ile tutarlı olmalı ✅ | PROMPT-A2 |
 
 ---
 
@@ -1542,7 +1689,7 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-A1**: Form Manager UI değişiklikleri ✅ (3 Aralık 2025)
 - [x] **PROMPT-A1.1**: Buton görünürlük revizyonu ✅ (4 Aralık 2025)
 - [x] **PROMPT-A1.2**: Kozmetik güncellemeler (form adı, Lucide ikonlar) ✅ (4 Aralık 2025)
-- [ ] **PROMPT-A2**: Pricing Manager UI değişiklikleri
+- [x] **PROMPT-A2**: Pricing Manager UI değişiklikleri ✅ (4 Aralık 2025)
 - [ ] **PROMPT-C1**: canEdit optimizasyonu
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
 - [ ] **PROMPT-C2**: Form değişiklik uyarı butonu

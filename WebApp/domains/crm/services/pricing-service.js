@@ -56,7 +56,7 @@ export const pricingService = {
   
   async activateSetting(id) {
     const response = await fetchWithTimeout(`/api/price-settings/${id}/activate`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: withAuth()
     }, 10000)
     if (!response.ok) throw new Error('activate_setting_failed')

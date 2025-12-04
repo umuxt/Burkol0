@@ -92,12 +92,26 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
 
   // Sistem bütünlüğü kontrolü - form alanları ve parametreler değiştiğinde
   useEffect(() => {
-    if (formFields.length > 0 && parameters.length > 0) {
-      const integrity = PricingUtils.validateSystemIntegrity(parameters, formFields, userFormula)
-      setSystemIntegrity(integrity)
-      
-      if (!integrity.isValid) {
-        console.warn('🚨 Sistem bütünlüğü hatası:', integrity)
+    // PROMPT-A2: parameters.length === 0 durumunda da systemIntegrity güncellenmeli
+    if (formFields.length > 0) {
+      if (parameters.length > 0) {
+        const integrity = PricingUtils.validateSystemIntegrity(parameters, formFields, userFormula)
+        setSystemIntegrity(integrity)
+        
+        if (!integrity.isValid) {
+          console.warn('🚨 Sistem bütünlüğü hatası:', integrity)
+        }
+      } else {
+        // Parametre yoksa sistem temiz - orphan olamaz
+        setSystemIntegrity({
+          isValid: true,
+          canSave: true,
+          canEdit: true,
+          orphanParameters: [],
+          orphansInFormula: [],
+          warnings: [],
+          errors: []
+        })
       }
     }
   }, [formFields, parameters, userFormula])
@@ -199,7 +213,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       userFormulaRef.current = userFriendlyFormula
       
       setOriginalData({ parameters: convertedParams, formula: userFriendlyFormula })
-      checkSystemIntegrity(convertedParams)
+      // useEffect otomatik olarak systemIntegrity güncelleyecek (parameters değiştiği için)
     } catch (e) {
       console.error('Price settings load error:', e)
       showToast('Fiyat ayarları yüklenemedi!', 'error')
@@ -244,7 +258,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       userFormulaRef.current = userFriendlyFormula
       
       setOriginalData({ parameters: convertedParams, formula: userFriendlyFormula })
-      checkSystemIntegrity(convertedParams)
+      // useEffect otomatik olarak systemIntegrity güncelleyecek (parameters değiştiği için)
       
       setIsHistoryModalOpen(false)
       showToast(`Sürüm ${setting.version} görüntüleniyor`, 'info')
@@ -296,6 +310,28 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     createNewDraft()
   }
 
+  // PROMPT-A2: Değişiklikleri Geri Al - originalData'ya geri dön
+  function handleRevertChanges() {
+    // Orijinal parametreleri geri yükle
+    setParameters([...originalData.parameters])
+    
+    // Orijinal formülü geri yükle
+    setUserFormula(originalData.formula)
+    userFormulaRef.current = originalData.formula
+    
+    // ID mapping'i yeniden oluştur
+    const mapping = PricingUtils.createUserFriendlyIdMapping(originalData.parameters)
+    setIdMapping(mapping)
+    
+    // Backend formülünü güncelle
+    const backendFormula = PricingUtils.convertFormulaToBackend(originalData.formula, mapping)
+    setFormula(backendFormula)
+    formulaRef.current = backendFormula
+    
+    // hasChanges false olacak (originalData ile aynı olduğu için useEffect tetiklenecek)
+    showToast('Değişiklikler geri alındı', 'info')
+  }
+
   async function savePriceSettings() {
     try {
       if (!systemIntegrity.canSave) {
@@ -307,7 +343,8 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       const backendFormula = PricingUtils.convertFormulaToBackend(currentUserFormula, idMapping)
       
       if (!currentSettingId) {
-        // İlk kayıt - yeni setting oluştur (is_active: false başlar, kaydet ile aktif olur)
+        // Yeni taslak oluştur - is_active: false olarak başlar
+        // Aktif etmek için ayrıca "Aktif Et" butonuna basılmalı
         const newSetting = await priceApi.createSetting({
           name: 'Fiyat Ayarları ' + new Date().toLocaleString('tr-TR'),
           description: 'Yeni taslak',
@@ -316,11 +353,11 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         })
         
         setCurrentSettingId(newSetting.id)
-        setActiveSettingId(newSetting.id) // İlk kayıtta otomatik aktif yap
+        // NOT: activeSettingId değiştirilmiyor - yeni taslak aktif değil
         await loadAllSettings()
         setOriginalData({ parameters, formula: currentUserFormula })
         setHasUnsavedChanges(false)
-        showToast('Fiyat ayarları kaydedildi ve aktif edildi!', 'success')
+        showToast('Taslak kaydedildi! Aktif etmek için "Aktif Et" butonuna basın.', 'success')
         return
       }
       
@@ -350,6 +387,37 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     }
   }
 
+  // PROMPT-A2: Aktif ayar üzerinde değişiklik yapıldığında yeni taslak olarak kaydet
+  async function saveAsNewDraft() {
+    try {
+      if (!systemIntegrity.canSave) {
+        showToast('Kaydetme işlemi engellenmiştir! Orphan parametreleri temizleyin.', 'error')
+        return
+      }
+      
+      const currentUserFormula = userFormulaRef.current || userFormula
+      const backendFormula = PricingUtils.convertFormulaToBackend(currentUserFormula, idMapping)
+      
+      // Her zaman yeni taslak oluştur - mevcut aktif ayarı değiştirme
+      const newSetting = await priceApi.createSetting({
+        name: 'Fiyat Ayarları ' + new Date().toLocaleString('tr-TR'),
+        description: 'Yeni taslak (aktif ayardan türetildi)',
+        parameters,
+        formula: backendFormula
+      })
+      
+      setCurrentSettingId(newSetting.id)
+      // NOT: activeSettingId değiştirilmiyor - yeni taslak aktif değil, eski aktif kalıyor
+      await loadAllSettings()
+      setOriginalData({ parameters, formula: currentUserFormula })
+      setHasUnsavedChanges(false)
+      showToast('Yeni taslak oluşturuldu! Aktif etmek için "Aktif Et" butonuna basın.', 'success')
+    } catch (e) {
+      console.error('Save as new draft error:', e)
+      showToast('Taslak oluşturulamadı!', 'error')
+    }
+  }
+
   async function saveAsNewVersion() {
     setIsNewVersionModalOpen(true)
   }
@@ -357,22 +425,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   // VERSION MANAGEMENT FUNCTIONS
 
   // REMOVED: Old version history functions - now using settings-based versioning
-
-  // System integrity check
-  function checkSystemIntegrity(parametersToCheck = parameters) {
-    const orphans = PricingUtils.findOrphanParameters(parametersToCheck, userFormula)
-    const integrity = {
-      isValid: orphans.length === 0,
-      canSave: orphans.length === 0,
-      canEdit: orphans.length === 0,
-      orphanParameters: orphans,
-      orphansInFormula: [],
-      warnings: orphans.length > 0 ? [`${orphans.length} orphan parametre tespit edildi`] : [],
-      errors: []
-    }
-    setSystemIntegrity(integrity)
-    return integrity
-  }
+  // PROMPT-A2: checkSystemIntegrity fonksiyonu kaldırıldı - useEffect ile otomatik güncelleniyor
 
   function addParameter() {
     // Orphan parametreler varsa yeni parametre eklemeyi engelle
@@ -482,10 +535,20 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       // Temizlenmiş formülü set et
       setUserFormula(cleanedFormula)
       
+      // useEffect otomatik olarak systemIntegrity güncelleyecek (parameters değiştiği için)
+      
       showToast(`"${param.name}" orphan parametresi temizlendi ve formül güncellendi`, 'success')
     } else {
       // Formülde kullanılmıyorsa direkt sil
-      deleteParameter(paramId)
+      const updatedParams = parameters.filter(p => p.id !== paramId)
+      setParameters(updatedParams)
+      
+      // ID mapping'i güncelle
+      const newMapping = PricingUtils.createUserFriendlyIdMapping(updatedParams)
+      setIdMapping(newMapping)
+      
+      // useEffect otomatik olarak systemIntegrity güncelleyecek (parameters değiştiği için)
+      
       showToast(`"${param.name}" orphan parametresi temizlendi`, 'success')
     }
   }
@@ -645,100 +708,233 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     return idMapping.backendToUser[param.id] || String.fromCharCode(65 + index)
   }
 
-  // Render header actions - versioning buttons
+  // PROMPT-A2: Lucide SVG Icons
+  const LUCIDE_PENCIL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
+  const LUCIDE_CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+  const LUCIDE_UNDO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>'
+  const LUCIDE_SAVE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
+  const LUCIDE_PLUS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
+  const LUCIDE_CLOCK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+  const LUCIDE_DOWNLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+  const LUCIDE_UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+  const LUCIDE_CHECK_CIRCLE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+
+  // Render header actions - PROMPT-A2: PROMPT-A1.1 ile tutarlı buton görünürlük matrisi
   useEffect(() => {
     const renderFn = renderHeaderActionsRef.current
     if (!renderFn) return
     
-    const isSaveDisabled = !hasUnsavedChanges || !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
-    const isViewingInactive = currentSettingId && currentSettingId !== activeSettingId
+    // PROMPT-A2: isActive kontrolü
+    // currentSettingId === null → Yeni taslak (henüz kaydedilmemiş)
+    // currentSettingId === activeSettingId → Aktif ayar
+    // currentSettingId !== activeSettingId → Kayıtlı taslak
+    const isNewDraft = currentSettingId === null
+    const isActive = !isNewDraft && currentSettingId === activeSettingId
+    const isCurrentDraft = isNewDraft || (currentSettingId && currentSettingId !== activeSettingId)
     
-    renderFn([
-      // Yeni Taslak Oluştur VEYA Aktif Hale Getir
-      isViewingInactive ? 
+    // Setting adını bul
+    const currentSetting = allSettings.find(s => s.id === currentSettingId)
+    const settingName = isNewDraft ? 'Yeni Taslak' : (currentSetting?.name || 'Fiyat Ayarları')
+    
+    // Build dynamic buttons based on PROMPT-A1.1 matrix
+    const headerButtons = []
+    
+    // 1. Status Badge - always visible with setting name
+    headerButtons.push(
+      React.createElement('span', {
+        key: 'status-badge',
+        style: {
+          padding: '6px 12px',
+          background: isCurrentDraft ? '#fef3c7' : '#d1fae5',
+          color: isCurrentDraft ? '#92400e' : '#065f46',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px'
+        }
+      },
+        // Icon: Pencil for draft, Check for active
+        React.createElement('span', {
+          key: 'status-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: isCurrentDraft ? LUCIDE_PENCIL_SVG : LUCIDE_CHECK_SVG }
+        }),
+        // Status text
+        React.createElement('span', { key: 'status-text' }, isCurrentDraft ? 'Taslak' : 'Aktif'),
+        // Separator
+        React.createElement('span', { key: 'separator', style: { opacity: 0.6 } }, '•'),
+        // Setting name (bold)
+        React.createElement('strong', { key: 'setting-name' }, settingName)
+      )
+    )
+    
+    // 2. "Değişiklikleri Geri Al" - visible when hasChanges=true (any isActive state)
+    if (hasUnsavedChanges) {
+      headerButtons.push(
+        React.createElement('button', {
+          key: 'revert-changes',
+          onClick: handleRevertChanges,
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#fff',
+            color: '#ef4444', // Red
+            border: '2px solid #ef4444',
+            fontWeight: 500
+          }
+        },
+          React.createElement('span', {
+            key: 'revert-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: LUCIDE_UNDO_SVG }
+          }),
+          'Değişiklikleri Geri Al'
+        )
+      )
+    }
+    
+    // 3. Dynamic save buttons based on isActive + hasChanges combinations
+    if (isActive && hasUnsavedChanges) {
+      // isActive=true, hasChanges=true: "Yeni Taslak Olarak Kaydet" (yellow)
+      // PROMPT-A2: saveAsNewDraft kullan - mevcut aktif ayarı değiştirme, yeni taslak oluştur
+      headerButtons.push(
+        React.createElement('button', {
+          key: 'save-as-new-draft',
+          onClick: saveAsNewDraft,
+          className: 'mes-btn mes-btn-lg',
+          disabled: !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave,
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#f59e0b', // Yellow
+            color: '#fff',
+            border: 'none',
+            opacity: (!isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave) ? 0.5 : 1,
+            cursor: (!isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave) ? 'not-allowed' : 'pointer'
+          }
+        },
+          React.createElement('span', {
+            key: 'save-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: LUCIDE_SAVE_SVG }
+          }),
+          'Yeni Taslak Olarak Kaydet'
+        )
+      )
+    } else if (!isActive && hasUnsavedChanges) {
+      // isActive=false (draft), hasChanges=true: "Taslağı Güncelle" (yellow)
+      headerButtons.push(
+        React.createElement('button', {
+          key: 'update-draft',
+          onClick: savePriceSettings,
+          className: 'mes-btn mes-btn-lg',
+          disabled: !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave,
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#f59e0b', // Yellow
+            color: '#fff',
+            border: 'none',
+            opacity: (!isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave) ? 0.5 : 1,
+            cursor: (!isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave) ? 'not-allowed' : 'pointer'
+          }
+        },
+          React.createElement('span', {
+            key: 'save-icon',
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { __html: LUCIDE_SAVE_SVG }
+          }),
+          'Taslağı Güncelle'
+        )
+      )
+    }
+    
+    // 4. "Aktif Et" - visible when isActive=false AND hasChanges=false
+    if (!isActive && !hasUnsavedChanges && currentSettingId) {
+      headerButtons.push(
         React.createElement('button', {
           key: 'activate',
           onClick: activateSetting,
-          className: 'mes-btn mes-btn-lg mes-btn-success',
-          style: { 
-            display: 'flex', 
-            alignItems: 'center'
+          className: 'mes-btn mes-btn-lg',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#10b981', // Green
+            color: '#fff',
+            border: 'none'
           }
-        }, 
-          React.createElement('span', { 
+        },
+          React.createElement('span', {
+            key: 'activate-icon',
             style: { display: 'flex', alignItems: 'center' },
-            dangerouslySetInnerHTML: { 
-              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
-              }
-            }),
-          'Aktif Hale Getir'
-        ) :
+            dangerouslySetInnerHTML: { __html: LUCIDE_CHECK_CIRCLE_SVG }
+          }),
+          'Aktif Et'
+        )
+      )
+    }
+    
+    // 5. "+Yeni Taslak" - visible when hasChanges=false (any isActive state)
+    if (!hasUnsavedChanges) {
+      headerButtons.push(
         React.createElement('button', {
           key: 'new-draft',
           onClick: openNewDraftConfirm,
           className: 'mes-btn mes-btn-lg',
-          style: { 
-            display: 'flex', 
+          style: {
+            display: 'flex',
             alignItems: 'center',
-            background: '#fff',
-            color: '#000',
+            gap: '4px',
+            background: 'rgb(255, 255, 255)',
+            color: 'rgb(0, 0, 0)',
             border: '1px solid rgb(229, 231, 235)'
           }
-        }, 
-          React.createElement('span', { 
+        },
+          React.createElement('span', {
+            key: 'draft-icon',
             style: { display: 'flex', alignItems: 'center' },
-            dangerouslySetInnerHTML: { 
-              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>'
-              }
-            }),
-          'Yeni Taslak Oluştur'
-        ),
-      
-      // Geçmiş Taslaklar
+            dangerouslySetInnerHTML: { __html: LUCIDE_PLUS_SVG }
+          }),
+          'Yeni Taslak'
+        )
+      )
+    }
+    
+    // 6. Static buttons: Geçmiş, Dışa Aktar, İçe Aktar (always visible)
+    
+    // Geçmiş
+    headerButtons.push(
       React.createElement('button', {
         key: 'history',
         onClick: () => setIsHistoryModalOpen(true),
         className: 'mes-btn mes-btn-lg',
-        style: { 
-          display: 'flex', 
+        style: {
+          display: 'flex',
           alignItems: 'center',
-          background: '#fff',
-          color: '#000',
+          gap: '4px',
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
         }
       },
-        React.createElement('span', { 
+        React.createElement('span', {
+          key: 'history-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { 
-            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
-            }
-          }),
-        'Geçmiş Taslaklar'
-      ),
-      
-      // Kaydet butonu (yeşil, disabled when no changes)
-      React.createElement('button', {
-        key: 'save',
-        onClick: savePriceSettings,
-        className: 'mes-btn mes-btn-lg mes-btn-success',
-        disabled: isSaveDisabled,
-        style: { 
-          display: 'flex', 
-          alignItems: 'center',
-          opacity: isSaveDisabled ? '0.5' : '1',
-          cursor: isSaveDisabled ? 'not-allowed' : 'pointer'
-        }
-      }, 
-        React.createElement('span', { 
-          style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { 
-            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>'
-            }
-          }),
-        'Kaydet'
-      ),
-      
-      // Dışa Aktar
+          dangerouslySetInnerHTML: { __html: LUCIDE_CLOCK_SVG }
+        }),
+        'Geçmiş'
+      )
+    )
+    
+    // Dışa Aktar
+    headerButtons.push(
       React.createElement('button', {
         key: 'export',
         onClick: () => {
@@ -756,43 +952,47 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
           URL.revokeObjectURL(url)
         },
         className: 'mes-btn mes-btn-lg',
-        style: { 
-          display: 'flex', 
+        style: {
+          display: 'flex',
           alignItems: 'center',
-          background: '#fff',
-          color: '#000',
+          gap: '4px',
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
         }
       },
-        React.createElement('span', { 
+        React.createElement('span', {
+          key: 'export-icon',
           style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { 
-            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>'
-            }
-          }),
+          dangerouslySetInnerHTML: { __html: LUCIDE_DOWNLOAD_SVG }
+        }),
         'Dışa Aktar'
-      ),
-      
-      // İçe Aktar
+      )
+    )
+    
+    // İçe Aktar
+    headerButtons.push(
       React.createElement('label', {
         key: 'import',
         className: 'mes-btn mes-btn-lg',
-        style: { 
+        style: {
           cursor: 'pointer',
-          display: 'flex', 
+          display: 'flex',
           alignItems: 'center',
-          background: '#fff',
+          gap: '4px',
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
           border: '1px solid rgb(229, 231, 235)'
         }
       },
-        React.createElement('span', { 
+        React.createElement('span', {
+          key: 'import-icon',
           style: { display: 'flex', alignItems: 'center', color: '#000' },
-          dangerouslySetInnerHTML: { 
-            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>'
-            }
-          }),
-        React.createElement('span', { style: { color: '#000' } }, 'İçe Aktar'),
+          dangerouslySetInnerHTML: { __html: LUCIDE_UPLOAD_SVG }
+        }),
+        React.createElement('span', { key: 'import-text', style: { color: '#000' } }, 'İçe Aktar'),
         React.createElement('input', {
+          key: 'import-input',
           accept: '.json',
           type: 'file',
           style: { display: 'none' },
@@ -818,8 +1018,10 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
           }
         })
       )
-    ])
-  }, [hasUnsavedChanges, isFormulaValid, parameters.length, systemIntegrity.canSave, currentSettingId, activeSettingId])
+    )
+    
+    renderFn(headerButtons)
+  }, [hasUnsavedChanges, isFormulaValid, parameters.length, systemIntegrity.canSave, currentSettingId, activeSettingId, allSettings, parameters, userFormula])
 
   return React.createElement(React.Fragment, null,
     // Two column layout
