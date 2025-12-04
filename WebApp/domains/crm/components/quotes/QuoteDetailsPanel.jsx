@@ -29,6 +29,12 @@ export default function QuoteDetailsPanel({
   const [currStatus, setCurrStatus] = useState(quote?.status || 'new')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
+  
+  // D1: Separate form fields editing state
+  const [formEditing, setFormEditing] = useState(false)
+  const [formFieldsData, setFormFieldsData] = useState({})
+  const [originalFormFieldsData, setOriginalFormFieldsData] = useState({})
+  
   // PROMPT-16: Dosyalar backend'den technicalFiles/productImages olarak ayrılmış geliyor
   const [techFiles, setTechFiles] = useState(quote?.technicalFiles || quote?.files || [])
   const [prodImgs, setProdImgs] = useState(quote?.productImages || [])
@@ -41,6 +47,10 @@ export default function QuoteDetailsPanel({
   // Edit lock state
   const [editStatus, setEditStatus] = useState(null)
   const [editStatusLoading, setEditStatusLoading] = useState(false)
+  
+  // D1: Quote's own form template (not active template)
+  const [quoteFormTemplate, setQuoteFormTemplate] = useState(null)
+  const [templateRefreshKey, setTemplateRefreshKey] = useState(0) // Force re-fetch trigger
   
   // C1: Version change detection state
   const [formChangeDetected, setFormChangeDetected] = useState(false)
@@ -58,6 +68,10 @@ export default function QuoteDetailsPanel({
   const [newCalculatedPrice, setNewCalculatedPrice] = useState(null)
   const [priceRecalcLoading, setPriceRecalcLoading] = useState(false)
   const [priceChanges, setPriceChanges] = useState(null) // { formulaChanged, oldFormula, newFormula, parameterChanges }
+  
+  // D1: Price confirm modal state for edit mode
+  const [showPriceConfirmModal, setShowPriceConfirmModal] = useState(false)
+  const [pendingChanges, setPendingChanges] = useState(null) // { formData, quoteData, newPrice, priceDiff, changedFields }
   
   // Fetch edit status when quote changes
   // C1: Optimized - only fetch form/price changes if canEdit=true
@@ -118,23 +132,44 @@ export default function QuoteDetailsPanel({
     }
   }, [quote?.id, quote?.formTemplateCode, quote?.priceSettingCode])
 
-  // Initialize form data when quote changes
+  // D1: Fetch quote's own form template (not active template)
+  useEffect(() => {
+    if (quote?.formTemplateId) {
+      console.log('📋 D1: Fetching quote template:', quote.formTemplateId, 'refreshKey:', templateRefreshKey)
+      formsApi.getTemplateWithFields(quote.formTemplateId)
+        .then(template => {
+          console.log('📋 D1: Loaded quote\'s form template:', template?.id, template?.name)
+          setQuoteFormTemplate(template)
+        })
+        .catch(err => {
+          console.warn('Failed to fetch quote form template:', err)
+          // Fall back to formConfig if fetch fails
+          setQuoteFormTemplate(null)
+        })
+    } else {
+      setQuoteFormTemplate(null)
+    }
+  }, [quote?.formTemplateId, templateRefreshKey])
+
+  // Initialize form data when quote changes OR when quoteFormTemplate loads
   useEffect(() => {
     if (quote) {
       setCurrStatus(quote.status || 'new')
       
-      // Initialize form with dynamic fields based on formConfig
+      // D1: Use quote's own form template fields, fallback to formConfig
       const initialForm = {}
       
-      // Support both old and new formConfig structures
-      const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
+      // Prefer quoteFormTemplate (quote's saved template), fallback to formConfig
+      const fields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
+                     formConfig?.formStructure?.fields || formConfig?.fields || []
       
       // Debug log to see what data we have
       console.log('📋 QuoteDetailsPanel: Initializing form', {
         quoteId: quote.id,
         formData: quote.formData,
-        customFields: quote.customFields,
-        fields: fields.map(f => ({ id: f.id, fieldCode: f.fieldCode, label: f.label }))
+        usingQuoteTemplate: !!quoteFormTemplate,
+        templateId: quoteFormTemplate?.id || formConfig?.id,
+        fields: fields.map(f => ({ id: f.id, fieldCode: f.fieldCode, label: f.label || f.fieldName }))
       })
       
       if (fields && fields.length > 0) {
@@ -175,6 +210,14 @@ export default function QuoteDetailsPanel({
       
       setForm(initialForm)
       setOriginalData(initialForm)
+      
+      // D1: Initialize formFieldsData separately for dynamic form fields
+      const dynamicFormData = {}
+      fields.forEach(field => {
+        dynamicFormData[field.id] = initialForm[field.id] || ''
+      })
+      setFormFieldsData(dynamicFormData)
+      setOriginalFormFieldsData(dynamicFormData)
 
       const override = quote.manualOverride || null
       setManualOverride(override)
@@ -184,8 +227,9 @@ export default function QuoteDetailsPanel({
       setManualPriceInput(formatManualPriceInput(initialManualPrice))
       setManualNote(override?.note || '')
       setEditing(false)
+      setFormEditing(false) // D1: Reset form editing state
     }
-  }, [quote?.id, quote?.status, quote?.finalPrice, quote?.calculatedPrice, quote?.price, quote?.manualOverride, formConfig])
+  }, [quote?.id, quote?.status, quote?.finalPrice, quote?.calculatedPrice, quote?.price, quote?.manualOverride, quoteFormTemplate, formConfig])
 
   // Dosya state'lerini SADECE quote.id değiştiğinde güncelle
   // Bu sayede dosya yükleme sonrası local state korunur
@@ -216,6 +260,128 @@ export default function QuoteDetailsPanel({
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
   }
+  
+  // D1: Handle form field input change (separate from main edit)
+  const handleFormFieldChange = (e) => {
+    if (!formEditing) return
+    
+    const { name, value } = e.target
+    setFormFieldsData(prev => ({ ...prev, [name]: value }))
+  }
+  
+  // D1: Cancel form field editing
+  const handleFormEditCancel = () => {
+    setFormEditing(false)
+    setFormFieldsData(originalFormFieldsData)
+  }
+  
+  // D1: Save form fields with price check
+  const handleFormFieldsSave = async () => {
+    if (!formEditing) return
+    
+    try {
+      // D1: Use quote's own form template fields
+      const fields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
+                     formConfig?.formStructure?.fields || formConfig?.fields || []
+      const fieldIdToCode = {}
+      fields.forEach(field => {
+        fieldIdToCode[field.id] = field.fieldCode || field.id
+      })
+      
+      // Build formData with fieldCodes for backend
+      const formData = {}
+      Object.entries(formFieldsData).forEach(([key, value]) => {
+        const fieldCode = fieldIdToCode[key] || key
+        formData[fieldCode] = value
+      })
+      
+      console.log('💾 D1: Saving form fields', { formData })
+      
+      // Check if price is locked
+      const isLocked = manualOverride?.active === true
+      
+      // D1 FIX: Use quote's saved priceSettingId, NOT activePriceSetting
+      // Form editing should use the quote's current pricing, not the latest admin setting
+      if (!isLocked && quote.priceSettingId) {
+        try {
+          const priceResult = await priceApi.calculatePrice(quote.priceSettingId, formData)
+          const newPrice = priceResult?.totalPrice || 0
+          const oldPrice = parseFloat(quote.finalPrice || quote.calculatedPrice || 0)
+          const priceDiff = newPrice - oldPrice
+          
+          console.log('💰 D1: Price calculation (using quote.priceSettingId)', { 
+            priceSettingId: quote.priceSettingId, 
+            oldPrice, 
+            newPrice, 
+            priceDiff 
+          })
+          
+          // If price changed, show confirmation modal
+          if (Math.abs(priceDiff) > 0.01) {
+            // Find which fields changed
+            const changedFields = []
+            Object.entries(formFieldsData).forEach(([key, value]) => {
+              if (originalFormFieldsData[key] !== value) {
+                const field = fields.find(f => f.id === key)
+                changedFields.push({
+                  fieldName: field?.fieldName || field?.label || key,
+                  oldValue: originalFormFieldsData[key] ?? '-',
+                  newValue: value ?? '-'
+                })
+              }
+            })
+            
+            // Prepare quoteData
+            const quoteData = {
+              formData: formData,
+              calculatedPrice: newPrice
+            }
+            
+            setPendingChanges({ formData, quoteData, newPrice, priceDiff, changedFields })
+            setShowPriceConfirmModal(true)
+            return
+          }
+          
+          // Price same - save directly with new price
+          await saveFormFields(formData, newPrice)
+        } catch (priceErr) {
+          console.warn('Could not calculate price:', priceErr)
+          // Continue without price update
+          await saveFormFields(formData, null)
+        }
+      } else {
+        // Price locked or no active setting - save without price change
+        await saveFormFields(formData, null)
+      }
+    } catch (error) {
+      console.error('Form fields save error:', error)
+      showToast('Form alanları kaydedilirken hata oluştu', 'error')
+    }
+  }
+  
+  // D1: Helper to save form fields
+  const saveFormFields = async (formData, newPrice) => {
+    const updatePayload = { formData }
+    if (newPrice !== null) {
+      updatePayload.calculatedPrice = newPrice
+    }
+    
+    await onSave(quote.id, updatePayload)
+    
+    setFormEditing(false)
+    
+    // Update local state with new values immediately
+    const newFormFieldsData = { ...formFieldsData }
+    setOriginalFormFieldsData(newFormFieldsData)
+    setForm(prev => ({ ...prev, ...newFormFieldsData }))
+    setOriginalData(prev => ({ ...prev, ...newFormFieldsData }))
+    
+    showToast(newPrice !== null ? 'Form alanları ve fiyat güncellendi!' : 'Form alanları güncellendi!', 'success')
+    
+    if (onRefreshQuote) {
+      await onRefreshQuote()
+    }
+  }
 
   const handleUnlock = () => {
     // Check if editing is locked
@@ -240,28 +406,10 @@ export default function QuoteDetailsPanel({
     if (!editing) return
 
     try {
-      // Separate form fields into customer fields and dynamic form fields
-      const customerFields = ['customerName', 'customerEmail', 'customerPhone', 'customerCompany', 'customerAddress', 'deliveryDate', 'notes']
+      // D1: Main edit only handles customer fields, status, notes
+      // Dynamic form fields are handled separately by formEditing
       
-      // Get form field definitions to map field.id -> field.fieldCode
-      const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
-      const fieldIdToCode = {}
-      fields.forEach(field => {
-        fieldIdToCode[field.id] = field.fieldCode || field.id
-      })
-      
-      // Build formData object from dynamic fields (excluding customer fields)
-      // Convert field.id keys to field.fieldCode for backend compatibility
-      const formData = {}
-      Object.entries(form).forEach(([key, value]) => {
-        if (!customerFields.includes(key)) {
-          // Map field.id to field.fieldCode if mapping exists
-          const fieldCode = fieldIdToCode[key] || key
-          formData[fieldCode] = value
-        }
-      })
-
-      // Prepare quote data for update with formData
+      // Prepare quote data for update (customer fields + status only)
       const quoteData = {
         // Customer fields
         customerName: form.customerName || quote.customerName,
@@ -271,13 +419,11 @@ export default function QuoteDetailsPanel({
         customerAddress: form.customerAddress || quote.customerAddress,
         deliveryDate: form.deliveryDate || quote.deliveryDate,
         notes: form.notes || quote.notes,
-        // Dynamic form fields
-        formData: formData,
         // Status
         status: currStatus
       }
 
-      console.log('💾 QuoteDetailsPanel: Saving quote with formData:', { quoteId: quote.id, formData, quoteData })
+      console.log('💾 QuoteDetailsPanel: Saving customer data:', { quoteId: quote.id, quoteData })
 
       // Save the quote
       await onSave(quote.id, quoteData)
@@ -294,6 +440,30 @@ export default function QuoteDetailsPanel({
       console.error('Quote update error:', error)
       showToast('Teklif güncellenirken hata oluştu', 'error')
     }
+  }
+
+  // D1: Handle price confirm - save with new price (for form fields edit)
+  const handlePriceConfirm = async () => {
+    if (!pendingChanges) return
+    
+    try {
+      const { formData, newPrice } = pendingChanges
+      
+      await saveFormFields(formData, newPrice)
+      
+      setShowPriceConfirmModal(false)
+      setPendingChanges(null)
+    } catch (error) {
+      console.error('Quote update error:', error)
+      showToast('Teklif güncellenirken hata oluştu', 'error')
+    }
+  }
+
+  // D1: Handle price confirm cancel - keep form edit mode open
+  const handlePriceConfirmCancel = () => {
+    setShowPriceConfirmModal(false)
+    setPendingChanges(null)
+    // formEditing stays true
   }
 
   const handleClose = () => {
@@ -467,7 +637,10 @@ export default function QuoteDetailsPanel({
 
   if (!quote) return null
 
-  const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+  // D1: Use quote's own form template fields, not active template
+  // quoteFormTemplate = quote's saved template, formConfig = active template (for banner comparison)
+  const formFields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields || 
+                     formConfig?.formStructure?.fields || formConfig?.fields || []
   
   const formatPriceDisplay = (price) => {
     if (price === null || price === undefined || price === '') return '—'
@@ -544,7 +717,7 @@ export default function QuoteDetailsPanel({
       let oldFields = []
       if (quote.formTemplateId) {
         try {
-          const oldTemplate = await formsApi.getTemplate(quote.formTemplateId)
+          const oldTemplate = await formsApi.getTemplateWithFields(quote.formTemplateId)
           oldFields = oldTemplate?.fields || oldTemplate?.formStructure?.fields || []
         } catch (err) {
           console.warn('Could not fetch old template:', err)
@@ -575,6 +748,33 @@ export default function QuoteDetailsPanel({
       // Update local state - reset both flags since FormUpdateModal handles combined updates
       setFormChangeDetected(false)
       setPriceChangeDetected(false) // C4: Reset price flag too when combined update
+      
+      // D1 FIX: Update local form state with new data from modal
+      if (updatePayload.formData) {
+        // Get new template fields to map fieldCode -> field.id
+        const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
+        const codeToId = {}
+        newFields.forEach(field => {
+          const fieldCode = field.fieldCode || field.id
+          codeToId[fieldCode] = field.id
+        })
+        
+        // Update form state with new values
+        const newFormValues = {}
+        Object.entries(updatePayload.formData).forEach(([fieldCode, value]) => {
+          const fieldId = codeToId[fieldCode] || fieldCode
+          newFormValues[fieldId] = value
+        })
+        
+        setForm(prev => ({ ...prev, ...newFormValues }))
+        setOriginalData(prev => ({ ...prev, ...newFormValues }))
+        setFormFieldsData(newFormValues)
+        setOriginalFormFieldsData(newFormValues)
+      }
+      
+      // Force quoteFormTemplate refresh
+      setQuoteFormTemplate(null)
+      setTemplateRefreshKey(prev => prev + 1)
       
       // Refresh quote data
       if (onRefreshQuote) {
@@ -1024,84 +1224,189 @@ export default function QuoteDetailsPanel({
                   </span>
                 )}
               </div>
-
-              {/* Dynamic Form Fields */}
-              {formFields.map(field => {
-                let value = form[field.id] || ''
-                const label = field.label || field.id
-
-                return (
-                  <div key={field.id} className="detail-item" style={{ 
-                    display: 'flex', 
-                    alignItems: field.type === 'textarea' ? 'flex-start' : 'center', 
-                    marginBottom: '8px' 
-                  }}>
-                    <span className="detail-label" style={{ 
-                      fontWeight: '600', 
-                      fontSize: '12px', 
-                      color: '#374151', 
-                      minWidth: '120px', 
-                      marginRight: '8px' 
-                    }}>
-                      {label}:
-                    </span>
-                    {editing ? (
-                      field.type === 'textarea' ? (
-                        <textarea
-                          name={field.id}
-                          value={value}
-                          onChange={handleInputChange}
-                          style={{
-                            padding: '8px 12px',
-                            border: '1px solid #3b82f6',
-                            borderRadius: '4px',
-                            background: 'white',
-                            width: '100%',
-                            fontSize: '14px',
-                            minHeight: '80px',
-                            resize: 'vertical'
-                          }}
-                        />
-                      ) : field.type === 'radio' && field.options ? (
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                          {field.options.map(option => (
-                            <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <input
-                                type="radio"
-                                name={field.id}
-                                value={option}
-                                checked={value === option}
-                                onChange={handleInputChange}
-                              />
-                              <span style={{ fontSize: '12px' }}>{option}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ) : (
-                        <input
-                          type={field.type === 'number' ? 'number' : 'text'}
-                          name={field.id}
-                          value={value}
-                          onChange={handleInputChange}
-                          style={{
-                            padding: '8px 12px',
-                            border: '1px solid #3b82f6',
-                            borderRadius: '4px',
-                            background: 'white',
-                            width: '100%',
-                            fontSize: '14px'
-                          }}
-                        />
-                      )
-                    ) : (
-                      <span style={{ fontSize: '12px', color: '#111827' }}>
-                        {value || '—'}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
             </div>
+
+            {/* D1: Form Bilgileri - Separate container with own edit state */}
+            {formFields.length > 0 && (
+              <div style={{ 
+                marginBottom: '16px', 
+                padding: '12px', 
+                background: 'white', 
+                borderRadius: '6px',
+                border: formEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb'
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  margin: '0 0 12px 0', 
+                  borderBottom: '1px solid #e5e7eb', 
+                  paddingBottom: '6px' 
+                }}>
+                  <h3 style={{ 
+                    margin: 0, 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
+                    color: '#111827'
+                  }}>
+                    Form Bilgileri
+                  </h3>
+                  {!formEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => !isEditLocked && setFormEditing(true)}
+                      disabled={isEditLocked}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        background: isEditLocked ? '#f3f4f6' : 'white',
+                        color: isEditLocked ? '#9ca3af' : '#374151',
+                        cursor: isEditLocked ? 'not-allowed' : 'pointer',
+                        fontSize: '11px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        opacity: isEditLocked ? 0.6 : 1
+                      }}
+                      title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Form alanlarını düzenle'}
+                    >
+                      <Edit size={12} /> Düzenle
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={handleFormEditCancel}
+                        style={{
+                          padding: '4px 10px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          background: 'white',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          fontSize: '11px'
+                        }}
+                      >
+                        İptal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFormFieldsSave}
+                        style={{
+                          padding: '4px 10px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          background: '#3b82f6',
+                          color: 'white',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '500'
+                        }}
+                      >
+                        Kaydet
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {formFields.map(field => {
+                  // D1 FIX: Always use formFieldsData for display (it's the source of truth for form fields)
+                  const value = formFieldsData[field.id] || form[field.id] || ''
+                  const label = field.label || field.fieldName || field.id
+
+                  return (
+                    <div key={field.id} className="detail-item" style={{ 
+                      display: 'flex', 
+                      alignItems: field.type === 'textarea' ? 'flex-start' : 'center', 
+                      marginBottom: '8px' 
+                    }}>
+                      <span className="detail-label" style={{ 
+                        fontWeight: '600', 
+                        fontSize: '12px', 
+                        color: '#374151', 
+                        minWidth: '120px', 
+                        marginRight: '8px' 
+                      }}>
+                        {label}:
+                      </span>
+                      {formEditing ? (
+                        field.type === 'textarea' ? (
+                          <textarea
+                            name={field.id}
+                            value={value}
+                            onChange={handleFormFieldChange}
+                            style={{
+                              padding: '8px 12px',
+                              border: '1px solid #3b82f6',
+                              borderRadius: '4px',
+                              background: 'white',
+                              width: '100%',
+                              fontSize: '14px',
+                              minHeight: '80px',
+                              resize: 'vertical'
+                            }}
+                          />
+                        ) : field.type === 'radio' && field.options ? (
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            {field.options.map(option => (
+                              <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="radio"
+                                  name={field.id}
+                                  value={option}
+                                  checked={value === option}
+                                  onChange={handleFormFieldChange}
+                                />
+                                <span style={{ fontSize: '12px' }}>{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : field.type === 'select' && field.options ? (
+                          <select
+                            name={field.id}
+                            value={value}
+                            onChange={handleFormFieldChange}
+                            style={{
+                              padding: '8px 12px',
+                              border: '1px solid #3b82f6',
+                              borderRadius: '4px',
+                              background: 'white',
+                              width: '100%',
+                              fontSize: '14px'
+                            }}
+                          >
+                            <option value="">Seçiniz</option>
+                            {field.options.map(option => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            name={field.id}
+                            value={value}
+                            onChange={handleFormFieldChange}
+                            style={{
+                              padding: '8px 12px',
+                              border: '1px solid #3b82f6',
+                              borderRadius: '4px',
+                              background: 'white',
+                              width: '100%',
+                              fontSize: '14px'
+                            }}
+                          />
+                        )
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#111827' }}>
+                          {value || '—'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Müşteri Bilgileri */}
             <div style={{ 
@@ -2014,6 +2319,156 @@ export default function QuoteDetailsPanel({
                 }}
               >
                 {priceRecalcLoading ? 'Güncelleniyor...' : 'Fiyatı Güncelle'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* D1: Price Confirm Modal for Edit Mode */}
+      {showPriceConfirmModal && pendingChanges && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+            width: '100%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            padding: '24px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: pendingChanges.priceDiff > 0 ? '#fef3c7' : '#dcfce7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AlertTriangle size={24} style={{ color: pendingChanges.priceDiff > 0 ? '#d97706' : '#16a34a' }} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  Fiyat Değişikliği Onayı
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  Form değişiklikleri fiyatı etkiledi
+                </p>
+              </div>
+            </div>
+            
+            {/* Changed Fields */}
+            {pendingChanges.changedFields?.length > 0 && (
+              <div style={{
+                background: '#f9fafb',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px' }}>
+                  Değişen Alanlar:
+                </div>
+                {pendingChanges.changedFields.map((change, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '6px 0',
+                    borderBottom: idx < pendingChanges.changedFields.length - 1 ? '1px solid #e5e7eb' : 'none',
+                    fontSize: '13px'
+                  }}>
+                    <span style={{ color: '#374151', fontWeight: '500' }}>{change.fieldName}:</span>
+                    <span style={{ color: '#6b7280' }}>
+                      <span style={{ textDecoration: 'line-through', marginRight: '8px' }}>{change.oldValue}</span>
+                      <span style={{ color: '#16a34a', fontWeight: '500' }}>→ {change.newValue}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Price Change */}
+            <div style={{
+              background: pendingChanges.priceDiff > 0 ? '#fef3c7' : '#dcfce7',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Mevcut Fiyat:</span>
+                <span style={{ fontSize: '16px', fontWeight: '500', color: '#374151' }}>
+                  {parseFloat(quote?.finalPrice || quote?.calculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Yeni Fiyat:</span>
+                <span style={{ fontSize: '18px', fontWeight: '600', color: pendingChanges.priceDiff > 0 ? '#d97706' : '#16a34a' }}>
+                  {pendingChanges.newPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                </span>
+              </div>
+              <div style={{
+                paddingTop: '8px',
+                borderTop: '1px solid rgba(0,0,0,0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Fark:</span>
+                <span style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: pendingChanges.priceDiff > 0 ? '#dc2626' : '#16a34a'
+                }}>
+                  {pendingChanges.priceDiff > 0 ? '+' : ''}
+                  {pendingChanges.priceDiff.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                </span>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handlePriceConfirmCancel}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Düzenlemeye Dön
+              </button>
+              <button
+                onClick={handlePriceConfirm}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: pendingChanges.priceDiff > 0 ? '#d97706' : '#16a34a',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Onayla ve Kaydet
               </button>
             </div>
           </div>

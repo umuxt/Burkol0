@@ -976,15 +976,34 @@ export function setupPriceRoutes(app) {
       const oldFormula = oldSetting.formulaExpression || oldSetting.formula?.formulaExpression || '';
       const newFormula = newSetting.formulaExpression || newSetting.formula?.formulaExpression || '';
       
-      if (oldFormula !== newFormula) {
-        changes.formulaChanged = true;
-        changes.oldFormula = oldFormula;
-        changes.newFormula = newFormula;
-      }
-
-      // Compare parameters
+      // Get parameters first (needed for beautifyFormula)
       const oldParams = oldSetting.parameters || [];
       const newParams = newSetting.parameters || [];
+      
+      // Helper: Replace parameter codes with human-readable names in formula
+      const beautifyFormula = (formula, params) => {
+        if (!formula || !params || params.length === 0) return formula;
+        let result = formula;
+        // Sort by code length descending to avoid partial replacements
+        const sortedParams = [...params].sort((a, b) => (b.code?.length || 0) - (a.code?.length || 0));
+        sortedParams.forEach(param => {
+          if (param.code && param.name) {
+            // Replace all occurrences of param code with param name
+            const regex = new RegExp(param.code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            result = result.replace(regex, param.name);
+          }
+        });
+        return result;
+      };
+      
+      if (oldFormula !== newFormula) {
+        changes.formulaChanged = true;
+        // Return both raw and beautified versions
+        changes.oldFormula = beautifyFormula(oldFormula, oldParams);
+        changes.newFormula = beautifyFormula(newFormula, newParams);
+        changes.oldFormulaRaw = oldFormula;
+        changes.newFormulaRaw = newFormula;
+      }
 
       // Build maps for easy comparison
       const oldParamMap = {};

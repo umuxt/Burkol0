@@ -1276,67 +1276,62 @@ C2 ve C3 implementasyonları zaten birleşik çalışacak şekilde tasarlanmış
 
 ---
 
-### PROMPT-D1: Quote Edit Modal - Fiyat Değişikliği Onay Akışı
+### PROMPT-D1: Quote Edit Modal - Fiyat Değişikliği Onay Akışı ✅ TAMAMLANDI
 
 **Amaç**: Quote düzenlenirken form alanları değiştiğinde fiyat değişikliği onayı
 
-**Ön Araştırma**:
-1. `read_file` ile QuoteDetailsPanel edit akışını incele
-2. Mevcut `handleSubmit()` fonksiyonunu analiz et
+**Uygulanan Çözüm**:
 
-**Yapılacaklar**:
+Form alanları için ayrı bir edit yapısı oluşturuldu:
+- **Form Bilgileri Container**: Kendi Düzenle/İptal/Kaydet butonlarıyla ayrı container
+- **formEditing State**: Sadece form alanları için ayrı edit state
+- **formFieldsData State**: Form alanları için ayrı data state (source of truth)
+- **D1 Price Confirm Modal**: Fiyat değiştiğinde onay modalı
+- **quoteFormTemplate State**: Quote'un kendi şablonu (aktif şablon değil)
+- **templateRefreshKey**: Template yeniden fetch trigger'ı
 
-1. **handleSubmit() güncelle**:
-   ```javascript
-   async function handleSubmit(e) {
-     e.preventDefault();
-     
-     // Fiyat hesapla
-     const newPrice = await calculatePrice(formData, activePriceSetting);
-     const oldPrice = quote.finalPrice || quote.calculatedPrice;
-     const priceDiff = newPrice - oldPrice;
-     
-     if (Math.abs(priceDiff) > 0.01) {
-       // Fiyat değişikliği var - onay modal'ı göster
-       setPendingChanges({ formData, newPrice, priceDiff });
-       setShowPriceConfirmModal(true);
-       return;
-     }
-     
-     // Fiyat değişmedi - direkt kaydet
-     await saveQuote(formData, newPrice);
-   }
-   ```
+**Kritik Düzeltmeler**:
+1. **Quote'un Kendi Şablonu**: `quoteFormTemplate` state'i eklendi - quote detaylarında aktif şablon değil, quote'un kayıtlı `formTemplateId`'sine ait şablon kullanılıyor
+2. **Quote'un Kendi Fiyat Ayarı**: `handleFormFieldsSave` içinde `quote.priceSettingId` kullanılıyor (aktif setting değil)
+3. **Anında UI Güncelleme**: `formFieldsData` her zaman source of truth olarak kullanılıyor
+4. **Formül Güzelleştirme**: Backend'de `beautifyFormula()` fonksiyonu parametre kodlarını isimlere çeviriyor
 
-2. **Fiyat Onay Modal'ı**:
-   ```jsx
-   <PriceConfirmModal
-     isOpen={showPriceConfirmModal}
-     currentPrice={quote.finalPrice}
-     newPrice={pendingChanges.newPrice}
-     priceDiff={pendingChanges.priceDiff}
-     changes={getFormChanges(quote.formData, pendingChanges.formData)}
-     onConfirm={() => {
-       saveQuote(pendingChanges.formData, pendingChanges.newPrice);
-       setShowPriceConfirmModal(false);
-     }}
-     onCancel={() => {
-       setShowPriceConfirmModal(false);
-       // Edit mode açık kalır
-     }}
-   />
-   ```
+**Eklenen State'ler**:
+```javascript
+const [formEditing, setFormEditing] = useState(false)
+const [formFieldsData, setFormFieldsData] = useState({})
+const [originalFormFieldsData, setOriginalFormFieldsData] = useState({})
+const [showPriceConfirmModal, setShowPriceConfirmModal] = useState(false)
+const [pendingChanges, setPendingChanges] = useState(null)
+const [quoteFormTemplate, setQuoteFormTemplate] = useState(null)
+const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
+```
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
-- `domains/crm/components/quotes/PriceConfirmModal.jsx` (yeni)
+**Eklenen Fonksiyonlar**:
+- `handleFormFieldChange()` - Form alanı değişikliği
+- `handleFormEditCancel()` - İptal
+- `handleFormFieldsSave()` - Kaydet + fiyat kontrolü (quote.priceSettingId kullanır)
+- `saveFormFields()` - Kaydetme helper
+- `handlePriceConfirm()` - Modal onay
+- `handlePriceConfirmCancel()` - Modal iptal
+- `beautifyFormula()` (Backend) - Formül parametrelerini isimlere çevirir
+
+**UI Değişiklikleri**:
+- Temel Bilgiler: Sadece ID, Tarih, Durum
+- Form Bilgileri: Ayrı container, kendi edit butonları, quote'un şablonunu kullanır
+- D1 Modal: Değişen alanlar + fiyat farkı gösterimi
+- Formül Karşılaştırma: İnsan-okunur parametre isimleri
 
 **Test Kriterleri**:
-- [ ] Form değişikliği yapılıp kaydet denildiğinde fiyat hesaplanıyor
-- [ ] Fiyat farkı varsa onay modal'ı çıkıyor
-- [ ] Modal'da hangi alanların değiştiği gösteriliyor
-- [ ] İptal edilince edit mode açık kalıyor
-- [ ] Onaylanınca form + fiyat kaydediliyor
+- [x] Form alanları ayrı container'da gösteriliyor
+- [x] Quote'un kendi şablonundaki alanlar gösteriliyor (aktif şablon değil)
+- [x] Form Düzenle butonu ayrı çalışıyor
+- [x] Kaydet'te quote'un fiyat ayarıyla hesaplama yapılıyor
+- [x] Fiyat farkı varsa onay modalı çıkıyor
+- [x] Modal'da değişen alanlar gösteriliyor
+- [x] İptal'de form edit açık kalıyor
+- [x] Onayda form + fiyat kaydediliyor
+- [x] Kayıt sonrası UI anında güncelleniyor (F5 gerekmez)
 
 ---
 
@@ -2152,9 +2147,9 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-C2**: Form değişiklik uyarı butonu ✅
 - [x] **PROMPT-C3**: Price değişiklik uyarı butonu ✅
 - [x] **PROMPT-C4**: Birleşik form+price uyarı butonu ✅
-- [ ] **PROMPT-D1**: Fiyat değişikliği onay akışı
+- [x] **PROMPT-D1**: Fiyat değişikliği onay akışı ✅
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
-- [ ] **PROMPT-E2**: PriceConfirmModal componenti
+- [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
 - [x] **PROMPT-F1**: Calculate-price API endpoint ✅
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
