@@ -1929,20 +1929,27 @@ Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
 
 ---
 
-#### YAPILACAKLAR
+#### YAPILACAKLAR ✅ TAMAMLANDI (5 Aralık 2025)
 
-**Faz Cleanup.1: Database**
-- [ ] `form_field_options.priceValue` kolonu zaten migration'da DROP edildi
-- [ ] Eski migration dosyalarını kontrol et
+**Faz Cleanup.1: Database** ✅
+- [x] `form_field_options.priceValue` kolonu migration 026'da DROP edildi
+- [x] `form_field_options.optionValue` kolonu migration 026'da DROP edildi
+- [x] Veritabanı şeması temiz
 
-**Faz Cleanup.2: Backend Kod Temizliği**
-- [ ] `formFields.js` - `priceValue` referanslarını kaldır
-- [ ] `priceParameters.js` - `getPriceFromFormOption()` kaldır (artık lookup tablosu kullanılıyor)
-- [ ] `priceParameters.js` - `getFormBasedParameters()` güncelle
+**Faz Cleanup.2: Backend Kod Temizliği** ✅
+- [x] `formFields.js` - priceValue referansları yok (sadece comment)
+- [x] `priceParameters.js` - `getPriceFromFormOption()` zaten yok
+- [x] `priceParameters.js` - `getFormBasedParameters()` zaten lookup tablosu kullanıyor
 
-**Faz Cleanup.3: Frontend Kod Temizliği**
-- [ ] FormBuilder'da priceValue alanı varsa kaldır
-- [ ] Option ekleme/düzenleme formlarından priceValue kaldır
+**Faz Cleanup.3: Frontend Kod Temizliği** ✅
+- [x] FormBuilder'da priceValue alanı yok
+- [x] Option ekleme/düzenleme formlarında priceValue yok
+
+**Faz Cleanup.4: Form-Price Sync System** ✅ (PROMPT-Post-D2-Faz1)
+- [x] `linkedFormTemplateId` kolonu eklendi (migration 027)
+- [x] Sync warning banner UI eklendi
+- [x] "Formu Güncelle" butonu eklendi
+- [x] `getOptionsByFieldCode()` sadece aktif template'ten çekiyor
 
 ---
 
@@ -1956,12 +1963,16 @@ Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
 
 ---
 
-#### TEST KRİTERLERİ
+#### TEST KRİTERLERİ ✅ TAMAMLANDI
 
-- [ ] priceValue'a hiçbir yerden referans yok
-- [ ] Fiyat hesaplama yeni lookup tablosundan çalışıyor
-- [ ] Form oluşturma/düzenleme çalışıyor
-- [ ] Build başarılı
+- [x] priceValue'a hiçbir yerden referans yok (sadece comment'ler)
+- [x] Fiyat hesaplama yeni lookup tablosundan çalışıyor
+- [x] Form oluşturma/düzenleme çalışıyor
+- [x] Build başarılı
+- [x] Dropdown/checkbox Step 2'de düzgün render ediliyor
+- [x] Checkbox Step 3'te Evet/Hayır gösteriyor
+- [x] Pricing lookup tablosunda duplicate yok
+- [x] Form sync sistemi çalışıyor
 
 ---
 
@@ -2681,6 +2692,8 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 | 41 | PricingManager Lookup UI: Parametre eklerken/düzenlerken lookup değerleri | PROMPT-Pre-D2-2 |
 | 42 | Field Type Render: Tüm field type'lar desteklenmeli | PROMPT-D2 |
 | 43 | Cleanup: form_field_options.priceValue kaldırılmalı | PROMPT-Post-D2 |
+| 44 | Form-Price Sync: Pricing aktif form template ile senkronize olmalı | PROMPT-Post-D2-Faz1 |
+| 45 | Sync UI: Form değişince uyarı banner ve "Formu Güncelle" butonu | PROMPT-Post-D2-Faz1 |
 
 
 ---
@@ -2703,10 +2716,82 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-D1**: Fiyat değişikliği onay akışı ✅
 - [x] **PROMPT-Pre-D2-1**: Option Code Sistemi ve Lookup Tablosu ✅ (14 Ocak 2025)
 - [x] **PROMPT-Pre-D2-2**: PricingManager Lookup UI ✅ (14 Ocak 2025)
-- [ ] **PROMPT-D2**: Field type render düzeltmesi
-- [ ] **PROMPT-Post-D2**: Cleanup - priceValue kaldırma
+- [x] **PROMPT-D2**: Field type render düzeltmesi ✅ (5 Aralık 2025)
+- [x] **PROMPT-Post-D2**: Cleanup - priceValue kaldırma ✅ (5 Aralık 2025)
+- [x] **PROMPT-Post-D2-Faz1**: Form-Price Sync System ✅ (5 Aralık 2025)
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
 - [x] **PROMPT-F1**: Calculate-price API endpoint ✅
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
+
+---
+
+## PROMPT-Post-D2-Faz1: Form-Price Sync System
+
+**Commit**: `feat(crm): [FP-Post-D2-Faz1] Form-Price Sync System & Cleanup`
+**Tarih**: 5 Aralık 2025
+
+### Amaç
+Form versiyonları değiştiğinde pricing sisteminin uyumsuz kalmasını önlemek ve kullanıcıya görsel geri bildirim sağlamak.
+
+### Yapılan Değişiklikler
+
+#### 1. Legacy Kod Temizliği
+| Dosya | Değişiklik |
+|-------|------------|
+| `server/formRoutes.js` | **SİLİNDİ** - Kullanılmayan legacy dosya |
+| `formController.js` | `optionValue`/`priceValue` POST/PATCH endpoint'lerinden kaldırıldı |
+| `formController.js` | `/api/form-templates/active` artık full option objects döndürüyor |
+
+#### 2. Bug Fixes
+| Bug | Çözüm | Dosya |
+|-----|-------|-------|
+| Dropdown options Step 2'de görünmüyor | Options array olarak değil object array döndürülüyor | `formController.js` |
+| Single checkbox render edilmiyor | Checkbox case'i multiselect'ten ayrıldı | `QuoteFormStep.jsx` |
+| Checkbox value Step 3'te görünmüyor | `getDisplayValue()` checkbox desteği eklendi (Evet/Hayır) | `QuoteReviewStep.jsx` |
+| Pricing lookup'ta duplicate seçenekler | `getOptionsByFieldCode` sadece aktif template'ten çekiyor | `formFields.js` |
+
+#### 3. Form-Price Sync System
+**Yeni Migration (027):**
+```sql
+ALTER TABLE quotes.price_settings 
+ADD COLUMN "linkedFormTemplateId" INTEGER REFERENCES quotes.form_templates(id);
+```
+
+**Yeni API Endpoints:**
+| Endpoint | Açıklama |
+|----------|----------|
+| `GET /api/price-settings/active` | Artık `isFormSynced`, `activeFormTemplateId`, `linkedFormTemplateId` döndürüyor |
+| `POST /api/price-settings/:id/sync-form` | Pricing'i aktif form template ile senkronize eder |
+
+**Frontend UI (PricingManager.jsx):**
+- Sarı uyarı banner: "Form Değişti! Fiyatlandırma ayarları ... ile senkronize değil"
+- "Formu Güncelle" butonu: `syncWithForm()` çağırır, form field'ları yeniden yükler
+- `formSyncInfo` state: `{ isFormSynced, linkedFormTemplateId, activeFormTemplateId, ... }`
+
+#### 4. Güncellenen Dosyalar
+| Dosya | Değişiklik |
+|-------|------------|
+| `db/models/formFields.js` | `getOptionsByFieldCode()` - Sadece aktif template, `getActiveFormTemplate()` eklendi |
+| `domains/crm/api/controllers/formController.js` | Legacy kod temizliği, full option objects |
+| `domains/crm/api/controllers/priceController.js` | Form sync info ve `/sync-form` endpoint |
+| `domains/crm/components/pricing/PricingManager.jsx` | Sync banner UI, `formSyncInfo` state |
+| `domains/crm/components/quotes/QuoteFormStep.jsx` | Checkbox fix |
+| `domains/crm/components/quotes/QuoteReviewStep.jsx` | Checkbox display fix |
+| `domains/crm/services/pricing-service.js` | `syncWithForm()` API method |
+| `db/migrations/027_price_form_link.sql` | `linkedFormTemplateId` kolonu |
+
+### Test Senaryoları
+1. ✅ Pricing Tab açıldığında sync durumu kontrol ediliyor
+2. ✅ Form template değişirse banner görünüyor
+3. ✅ "Formu Güncelle" butonuna tıklanınca sync yapılıyor
+4. ✅ Sync sonrası banner kayboluyor
+5. ✅ Field options sadece aktif template'ten geliyor (duplicate yok)
+
+### Cleanup Adım 2 Sonucu
+| Kontrol | Sonuç |
+|---------|-------|
+| `optionValue` kod kullanımı | ✅ Yok (sadece comment) |
+| `priceValue` kod kullanımı (form context) | ✅ Yok (sadece comment) |
+| `server/formRoutes.js` | ✅ Silindi |
 
