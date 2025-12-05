@@ -1335,86 +1335,756 @@ const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
 
 ---
 
+### PROMPT-Pre-D2-1: Option Code Sistemi ve Lookup Tablosu
+
+**Amaç**: Form field options için unique kod sistemi ve parametre bazlı lookup tablosu oluşturma
+
+**Tarih**: 5 Aralık 2025  
+**Durum**: Planlandı
+
+---
+
+#### PROBLEM ANALİZİ
+
+**Mevcut Durum**:
+```
+form_field_options tablosu:
+- optionValue: "demir"
+- optionLabel: "Demir"
+- priceValue: 100  ← TEK DEĞER - TÜM PARAMETRELER İÇİN AYNI
+
+Sorun: Aynı "Demir" seçeneği için:
+- Parametre A (Birim Fiyat): 100₺
+- Parametre B (İşlem Süresi): 40 saat
+- Parametre C (Ağırlık Katsayı): 1.5
+
+Bu yapıda DESTEKLENEMİYOR!
+```
+
+**Yeni Durum**:
+```
+form_field_options tablosu:
+- optionCode: "FFOC-0001"  ← UNIQUE KOD (tablo genelinde)
+- optionLabel: "Demir"
+- (optionValue KALDIRILDI)
+- (priceValue KALDIRILDI)
+
+price_parameter_lookups tablosu (YENİ):
+- parameterId: 1 (BirimFiyat)
+- optionCode: "FFOC-0001"
+- value: 100
+
+- parameterId: 2 (İşçilikSüresi)
+- optionCode: "FFOC-0001"
+- value: 40
+```
+
+---
+
+#### DATABASE DEĞİŞİKLİKLERİ
+
+**1. `form_field_options` Tablosu Güncellemesi**
+
+```sql
+-- Migration: 026_option_code_system.sql
+
+-- 1.1: optionCode kolonu ekle
+ALTER TABLE quotes.form_field_options 
+ADD COLUMN IF NOT EXISTS "optionCode" VARCHAR(20);
+
+-- 1.2: Mevcut kayıtlar için optionCode üret
+UPDATE quotes.form_field_options 
+SET "optionCode" = 'FFOC-' || LPAD(id::text, 4, '0')
+WHERE "optionCode" IS NULL;
+
+-- 1.3: optionCode'u NOT NULL ve UNIQUE yap
+ALTER TABLE quotes.form_field_options 
+ALTER COLUMN "optionCode" SET NOT NULL;
+
+ALTER TABLE quotes.form_field_options 
+ADD CONSTRAINT form_field_options_code_unique UNIQUE("optionCode");
+
+-- 1.4: optionValue kolonunu kaldır (artık sadece code+label var)
+ALTER TABLE quotes.form_field_options 
+DROP COLUMN IF EXISTS "optionValue";
+
+-- 1.5: priceValue kolonunu kaldır (artık price_parameter_lookups'ta)
+ALTER TABLE quotes.form_field_options 
+DROP COLUMN IF EXISTS "priceValue";
+
+-- 1.6: Index ekle
+CREATE INDEX IF NOT EXISTS idx_form_field_options_code 
+ON quotes.form_field_options("optionCode");
+```
+
+**2. `price_parameter_lookups` Tablosu (YENİ)**
+
+```sql
+-- 2.1: Yeni tablo oluştur
+CREATE TABLE quotes.price_parameter_lookups (
+  "id" SERIAL PRIMARY KEY,
+  "parameterId" INTEGER NOT NULL REFERENCES quotes.price_parameters(id) ON DELETE CASCADE,
+  "optionCode" VARCHAR(20) NOT NULL,  -- FFOC-0001, FFOC-0002, vb.
+  "value" NUMERIC(15,4) NOT NULL,     -- Bu parametre için lookup değeri
+  "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT price_parameter_lookups_unique UNIQUE("parameterId", "optionCode")
+);
+
+-- 2.2: Index'ler
+CREATE INDEX idx_param_lookups_param_id ON quotes.price_parameter_lookups("parameterId");
+CREATE INDEX idx_param_lookups_option_code ON quotes.price_parameter_lookups("optionCode");
+```
+
+---
+
+#### YENİ TABLO YAPILARI
+
+##### quotes.form_field_options (GÜNCELLENMİŞ)
+
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `fieldId` | INT (FK) | NOT NULL | → form_fields.id |
+| `optionCode` | VARCHAR(20) | NOT NULL | **YENİ**: FFOC-0001 (unique) |
+| `optionLabel` | VARCHAR(255) | NOT NULL | Kullanıcıya gösterilen metin |
+| `sortOrder` | INT | NOT NULL | Default: 0 |
+| `isActive` | BOOLEAN | NULL | Default: true |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+
+> **KALDIRILAN KOLONLAR**: `optionValue`, `priceValue`
+
+##### quotes.price_parameter_lookups (YENİ)
+
+| Sütun | Tip | Nullable | Açıklama |
+|-------|-----|----------|----------|
+| `id` | INT (PK) | NOT NULL | Auto-increment |
+| `parameterId` | INT (FK) | NOT NULL | → price_parameters.id |
+| `optionCode` | VARCHAR(20) | NOT NULL | → form_field_options.optionCode |
+| `value` | NUMERIC(15,4) | NOT NULL | Lookup değeri (10, 40, 1.5, vb.) |
+| `createdAt` | TIMESTAMPTZ | NOT NULL | |
+| `updatedAt` | TIMESTAMPTZ | NOT NULL | |
+
+---
+
+#### OPTION CODE ÜRETME MANTIĞI
+
+```javascript
+// formFields.js model'inde
+
+static async generateOptionCode() {
+  const result = await db('quotes.form_field_options')
+    .max('id as maxId')
+    .first();
+  
+  const nextId = (result?.maxId || 0) + 1;
+  return `FFOC-${String(nextId).padStart(4, '0')}`;
+}
+
+static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true }) {
+  const optionCode = await this.generateOptionCode();
+  
+  const [option] = await db('quotes.form_field_options')
+    .insert({
+      fieldId,
+      optionCode,      // FFOC-0001, FFOC-0002, vb.
+      optionLabel,     // "Demir", "Çelik", vb.
+      sortOrder,
+      isActive,
+      createdAt: db.fn.now(),
+      updatedAt: db.fn.now()
+    })
+    .returning('*');
+  
+  return option;
+}
+```
+
+---
+
+#### VERİ AKIŞI ÖRNEĞİ
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FORM BUILDER                                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │ Alan: "Malzeme Türü" (select)                                 │  │
+│  │ Seçenekler:                                                   │  │
+│  │   FFOC-0001: "Demir"                                          │  │
+│  │   FFOC-0002: "Çelik"                                          │  │
+│  │   FFOC-0003: "Bakır"                                          │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PRICING MANAGER                                   │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │ Parametre A: "Birim Fiyat"                                    │  │
+│  │ Form Alanı: "Malzeme Türü"                                    │  │
+│  │ ┌───────────────────────────────────────────────────────────┐ │  │
+│  │ │ Lookup Tablosu:                                           │ │  │
+│  │ │   Demir (FFOC-0001)  → [  100  ] ₺                        │ │  │
+│  │ │   Çelik (FFOC-0002)  → [  150  ] ₺                        │ │  │
+│  │ │   Bakır (FFOC-0003)  → [  200  ] ₺                        │ │  │
+│  │ └───────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │ Parametre B: "İşçilik Süresi"                                 │  │
+│  │ Form Alanı: "Malzeme Türü" (AYNI ALAN!)                       │  │
+│  │ ┌───────────────────────────────────────────────────────────┐ │  │
+│  │ │ Lookup Tablosu:                                           │ │  │
+│  │ │   Demir (FFOC-0001)  → [   40  ] saat                     │ │  │
+│  │ │   Çelik (FFOC-0002)  → [   50  ] saat                     │ │  │
+│  │ │   Bakır (FFOC-0003)  → [   60  ] saat                     │ │  │
+│  │ └───────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DATABASE                                          │
+│                                                                      │
+│  form_field_options:                                                 │
+│  ┌──────┬─────────┬────────────┬─────────────┐                      │
+│  │ id   │ fieldId │ optionCode │ optionLabel │                      │
+│  ├──────┼─────────┼────────────┼─────────────┤                      │
+│  │ 1    │ 10      │ FFOC-0001  │ Demir       │                      │
+│  │ 2    │ 10      │ FFOC-0002  │ Çelik       │                      │
+│  │ 3    │ 10      │ FFOC-0003  │ Bakır       │                      │
+│  └──────┴─────────┴────────────┴─────────────┘                      │
+│                                                                      │
+│  price_parameter_lookups:                                            │
+│  ┌─────────────┬────────────┬─────────┐                             │
+│  │ parameterId │ optionCode │ value   │                             │
+│  ├─────────────┼────────────┼─────────┤                             │
+│  │ 1 (BirimFiy)│ FFOC-0001  │ 100.00  │  ← Demir → 100₺             │
+│  │ 1 (BirimFiy)│ FFOC-0002  │ 150.00  │  ← Çelik → 150₺             │
+│  │ 1 (BirimFiy)│ FFOC-0003  │ 200.00  │  ← Bakır → 200₺             │
+│  │ 2 (İşçilik) │ FFOC-0001  │ 40.00   │  ← Demir → 40 saat          │
+│  │ 2 (İşçilik) │ FFOC-0002  │ 50.00   │  ← Çelik → 50 saat          │
+│  │ 2 (İşçilik) │ FFOC-0003  │ 60.00   │  ← Bakır → 60 saat          │
+│  └─────────────┴────────────┴─────────┘                             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### YAPILACAKLAR
+
+**Faz Pre-D2-1.1: Database Migration**
+- [ ] `026_option_code_system.sql` migration dosyası oluştur
+- [ ] `optionCode` kolonu ekle ve mevcut verileri migrate et
+- [ ] `optionValue` ve `priceValue` kolonlarını kaldır
+- [ ] `price_parameter_lookups` tablosunu oluştur
+
+**Faz Pre-D2-1.2: Backend Models**
+- [ ] `formFields.js` - `generateOptionCode()` fonksiyonu
+- [ ] `formFields.js` - `addOption()` güncelle (optionCode kullan)
+- [ ] `formFields.js` - `getOptions()` güncelle
+- [ ] `priceParameterLookups.js` - Yeni model oluştur
+
+**Faz Pre-D2-1.3: Backend API**
+- [ ] `POST /api/price-parameters/:id/lookups` - Lookup ekle/güncelle
+- [ ] `GET /api/price-parameters/:id/lookups` - Lookup listele
+- [ ] `DELETE /api/price-parameters/:id/lookups/:optionCode` - Lookup sil
+
+**Faz Pre-D2-1.4: Price Calculator Güncelleme**
+- [ ] `priceCalculator.js` - `optionCode` ile lookup yapacak şekilde güncelle
+
+---
+
+#### DEĞİŞECEK DOSYALAR
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `db/migrations/026_option_code_system.sql` | Yeni migration |
+| `db/models/formFields.js` | optionCode sistemi |
+| `db/models/priceParameterLookups.js` | Yeni model |
+| `db/models/priceParameters.js` | Lookup metodları |
+| `server/priceCalculator.js` | optionCode lookup |
+| `domains/crm/api/controllers/priceController.js` | Lookup API |
+
+---
+
+#### TEST KRİTERLERİ
+
+- [ ] Yeni option eklendiğinde otomatik FFOC-XXXX kodu üretiliyor
+- [ ] optionCode tablo genelinde unique
+- [ ] Aynı form alanı farklı parametrelere farklı değerlerle bağlanabiliyor
+- [ ] Fiyat hesaplamada optionCode ile doğru lookup yapılıyor
+- [ ] Eski veriler migrate edilmiş (optionCode üretilmiş)
+
+---
+
+### PROMPT-Pre-D2-2: PricingManager Lookup UI
+
+**Amaç**: PricingManager'da parametre eklerken/düzenlerken lookup değerleri girme UI'ı
+
+**Tarih**: 5 Aralık 2025  
+**Durum**: Planlandı
+
+---
+
+#### UI TASARIMI
+
+**Parametre Ekleme/Düzenleme Modal'ında:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Parametre Ekle                                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ Parametre Adı: [Malzeme Birim Fiyat          ]                  │
+│                                                                  │
+│ Parametre Türü: ○ Sabit Değer  ● Form Alanından                 │
+│                                                                  │
+│ Form Alanı: [Malzeme Türü ▼]                                    │
+│                                                                  │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ 💡 Değer Eşleştirme Tablosu                                 │ │
+│ │    Her seçenek için bu parametrede kullanılacak             │ │
+│ │    sayısal değeri girin.                                    │ │
+│ ├─────────────────────────────────────────────────────────────┤ │
+│ │ Seçenek          │ Kod        │ Değer                       │ │
+│ ├──────────────────┼────────────┼─────────────────────────────┤ │
+│ │ Demir            │ FFOC-0001  │ [100        ] ₺             │ │
+│ │ Çelik            │ FFOC-0002  │ [150        ] ₺             │ │
+│ │ Bakır            │ FFOC-0003  │ [200        ] ₺             │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│                                    [İptal] [Parametre Kaydet]   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Parametre Düzenleme (Inline):**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Parametreler                                                                 │
+├───────┬──────────────────┬──────────┬─────────────────┬─────────────────────┤
+│ ID    │ Ad               │ Tür      │ Değer/Alan      │ İşlem               │
+├───────┼──────────────────┼──────────┼─────────────────┼─────────────────────┤
+│ A     │ Birim Fiyat      │ Form     │ Malzeme Türü    │ [Düzenle] [Sil]     │
+├───────┴──────────────────┴──────────┴─────────────────┴─────────────────────┤
+│ ▼ Lookup Değerleri (Düzenleme Modu)                                          │
+│ ┌───────────────────────────────────────────────────────────────────────────┐│
+│ │ Seçenek          │ Kod        │ Değer           │                         ││
+│ ├──────────────────┼────────────┼─────────────────┤                         ││
+│ │ Demir            │ FFOC-0001  │ [100        ]   │                         ││
+│ │ Çelik            │ FFOC-0002  │ [150        ]   │                         ││
+│ │ Bakır            │ FFOC-0003  │ [200        ]   │                         ││
+│ └───────────────────────────────────────────────────────────────────────────┘│
+│                                           [İptal] [Lookup Değerlerini Kaydet]│
+├───────┬──────────────────┬──────────┬─────────────────┬─────────────────────┤
+│ B     │ İşçilik Süresi   │ Form     │ Malzeme Türü    │ [Düzenle] [Sil]     │
+└───────┴──────────────────┴──────────┴─────────────────┴─────────────────────┘
+```
+
+---
+
+#### YAPILACAKLAR
+
+**Faz Pre-D2-2.1: State Yönetimi**
+- [ ] `lookupTable` state'i parametre bazlı tutulacak
+- [ ] Form alanı seçildiğinde otomatik option listesi yüklenecek
+- [ ] Lookup değerleri düzenlenebilir olacak
+
+**Faz Pre-D2-2.2: Parametre Ekleme UI**
+- [ ] Form alanı seçildiğinde options otomatik yüklenecek
+- [ ] Her option için değer giriş alanı gösterilecek
+- [ ] optionCode görünür (readonly)
+- [ ] Kaydet'te lookup değerleri de kaydedilecek
+
+**Faz Pre-D2-2.3: Parametre Düzenleme UI**
+- [ ] Düzenle butonuna tıklanınca lookup tablosu açılacak
+- [ ] Mevcut lookup değerleri yüklenecek
+- [ ] Değerler düzenlenebilir
+- [ ] Kaydet'te güncel değerler kaydedilecek
+
+**Faz Pre-D2-2.4: API Entegrasyonu**
+- [ ] `savePriceSettings()` lookup değerlerini de gönderecek
+- [ ] `loadPriceSettings()` lookup değerlerini de yükleyecek
+- [ ] `switchToSetting()` lookup değerlerini de yükleyecek
+
+---
+
+#### DEĞİŞECEK DOSYALAR
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `domains/crm/components/pricing/PricingManager.jsx` | Lookup UI |
+| `domains/crm/services/pricing-service.js` | Lookup API çağrıları |
+| `domains/crm/api/controllers/priceController.js` | Lookup CRUD |
+| `domains/crm/api/services/priceSettingsService.js` | Lookup dahil etme |
+
+---
+
+#### TEST KRİTERLERİ
+
+- [ ] Form alanı seçildiğinde options otomatik yükleniyor
+- [ ] Her option için değer girişi yapılabiliyor
+- [ ] optionCode görünür ama düzenlenemez
+- [ ] Parametre kaydedildiğinde lookup değerleri de kaydediliyor
+- [ ] Parametre düzenlendiğinde mevcut lookup değerleri yükleniyor
+- [ ] Lookup değerleri fiyat hesaplamada kullanılıyor
+
+---
+
 ### PROMPT-D2: Form Field Type Render Düzeltmesi
 
 **Amaç**: Edit modda form alanlarının doğru tipte render edilmesi
 
-**Ön Araştırma**:
-1. `read_file` ile QuoteDetailsPanel form render kısmını incele
-2. `formConfig.fields` yapısını incele
-3. Mevcut field type handling'i kontrol et
+**Tarih**: 5 Aralık 2025  
+**Durum**: Planlandı
 
-**Yapılacaklar**:
+**Ön Koşullar**:
+- ✅ PROMPT-Pre-D2-1: Option Code Sistemi tamamlanmış olmalı
+- ✅ PROMPT-Pre-D2-2: PricingManager Lookup UI tamamlanmış olmalı
 
-1. **Field type'a göre render**:
-   ```jsx
-   function renderEditField(field, value, onChange) {
-     switch (field.type || field.fieldType) {
-       case 'select':
-         return (
-           <select value={value} onChange={onChange}>
-             {field.options?.map(opt => (
-               <option key={opt.value} value={opt.value}>
-                 {opt.label}
-               </option>
-             ))}
-           </select>
-         );
-       
-       case 'radio':
-         return (
-           <div className="radio-group">
-             {field.options?.map(opt => (
-               <label key={opt.value}>
-                 <input 
-                   type="radio" 
-                   value={opt.value}
-                   checked={value === opt.value}
-                   onChange={onChange}
-                 />
-                 {opt.label}
-               </label>
-             ))}
-           </div>
-         );
-       
-       case 'number':
-         return (
-           <input 
-             type="number" 
-             value={value} 
-             onChange={onChange}
-             step={field.step || 1}
-             min={field.min}
-             max={field.max}
-           />
-         );
-       
-       case 'textarea':
-         return (
-           <textarea value={value} onChange={onChange} />
-         );
-       
-       default:
-         return (
-           <input type="text" value={value} onChange={onChange} />
-         );
-     }
-   }
-   ```
+---
 
-2. **formConfig yapısını normalize et**:
-   - Backend'den gelen `fieldType` → `type` mapping
-   - Options format standardizasyonu
+#### DESTEKLENECek FIELD TYPE'LAR
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+| Type | Input Türü | Açıklama |
+|------|------------|----------|
+| `text` | text input | Tek satır metin ✅ (mevcut) |
+| `textarea` | textarea | Çok satır metin ✅ (mevcut) |
+| `number` | number input | Sayısal değer ✅ (mevcut) |
+| `email` | email input | E-posta ⬜ (eklenecek) |
+| `phone` | tel input | Telefon ⬜ (eklenecek) |
+| `select` / `dropdown` | select | Açılır liste ✅ (mevcut) |
+| `radio` | radio buttons | Tek seçim ✅ (mevcut) |
+| `checkbox` | checkbox | Onay kutusu (true/false) ⬜ (eklenecek) |
+| `multiselect` | multiple select | Çoklu seçim ⬜ (eklenecek) |
+| `boolean` | toggle/switch | Evet/Hayır ⬜ (eklenecek) |
+| `date` | date picker | Tarih seçici ⬜ (eklenecek) |
+| `file` | file display | Dosya (readonly) ⬜ (eklenecek) |
 
-**Test Kriterleri**:
-- [ ] Select alanlar dropdown olarak render ediliyor
-- [ ] Radio alanlar radio button olarak render ediliyor
-- [ ] Number alanlar number input olarak render ediliyor
-- [ ] Textarea alanlar büyük metin kutusu olarak render ediliyor
+---
+
+#### YAPILACAKLAR
+
+**Faz D2.1: Options Format Standardizasyonu**
+
+Options artık `{ code, label }` formatında gelecek:
+
+```javascript
+// Eski format (string array):
+field.options = ["Demir", "Çelik", "Bakır"]
+
+// Yeni format (object array):
+field.options = [
+  { code: "FFOC-0001", label: "Demir" },
+  { code: "FFOC-0002", label: "Çelik" },
+  { code: "FFOC-0003", label: "Bakır" }
+]
+```
+
+**Faz D2.2: renderEditField Fonksiyonu**
+
+```jsx
+function renderEditField(field, value, onChange) {
+  const fieldType = field.type || field.fieldType;
+  
+  switch (fieldType) {
+    case 'text':
+      return (
+        <input 
+          type="text" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+          placeholder={field.placeholder}
+        />
+      );
+    
+    case 'email':
+      return (
+        <input 
+          type="email" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+          placeholder={field.placeholder}
+        />
+      );
+    
+    case 'phone':
+      return (
+        <input 
+          type="tel" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+          placeholder={field.placeholder}
+        />
+      );
+    
+    case 'number':
+      return (
+        <input 
+          type="number" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+          step={field.step || 1}
+          min={field.min}
+          max={field.max}
+        />
+      );
+    
+    case 'textarea':
+      return (
+        <textarea 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+          rows={4}
+        />
+      );
+    
+    case 'select':
+    case 'dropdown':
+      return (
+        <select 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+        >
+          <option value="">Seçiniz</option>
+          {field.options?.map(opt => (
+            <option key={opt.code} value={opt.code}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      );
+    
+    case 'radio':
+      return (
+        <div className="radio-group">
+          {field.options?.map(opt => (
+            <label key={opt.code}>
+              <input 
+                type="radio" 
+                name={field.id}
+                value={opt.code}
+                checked={value === opt.code}
+                onChange={onChange}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      );
+    
+    case 'checkbox':
+      return (
+        <label className="checkbox-label">
+          <input 
+            type="checkbox" 
+            name={field.id}
+            checked={!!value}
+            onChange={(e) => onChange({ 
+              target: { name: field.id, value: e.target.checked } 
+            })}
+          />
+          <span>{field.placeholder || 'Evet'}</span>
+        </label>
+      );
+    
+    case 'boolean':
+      return (
+        <div className="toggle-group">
+          <label>
+            <input 
+              type="radio" 
+              name={field.id}
+              value="true"
+              checked={value === true || value === 'true'}
+              onChange={() => onChange({ 
+                target: { name: field.id, value: true } 
+              })}
+            />
+            <span>Evet</span>
+          </label>
+          <label>
+            <input 
+              type="radio" 
+              name={field.id}
+              value="false"
+              checked={value === false || value === 'false'}
+              onChange={() => onChange({ 
+                target: { name: field.id, value: false } 
+              })}
+            />
+            <span>Hayır</span>
+          </label>
+        </div>
+      );
+    
+    case 'multiselect':
+      const selectedValues = Array.isArray(value) ? value : [];
+      return (
+        <div className="multiselect-group">
+          {field.options?.map(opt => (
+            <label key={opt.code}>
+              <input 
+                type="checkbox" 
+                checked={selectedValues.includes(opt.code)}
+                onChange={(e) => {
+                  const newValues = e.target.checked
+                    ? [...selectedValues, opt.code]
+                    : selectedValues.filter(v => v !== opt.code);
+                  onChange({ 
+                    target: { name: field.id, value: newValues } 
+                  });
+                }}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      );
+    
+    case 'date':
+      return (
+        <input 
+          type="date" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+        />
+      );
+    
+    case 'file':
+      // Dosyalar readonly gösterilir (düzenleme yok)
+      return (
+        <div className="file-display">
+          {value ? (
+            <a href={value} target="_blank" rel="noopener noreferrer">
+              📎 {value.split('/').pop()}
+            </a>
+          ) : (
+            <span className="no-file">Dosya yok</span>
+          )}
+        </div>
+      );
+    
+    default:
+      return (
+        <input 
+          type="text" 
+          name={field.id}
+          value={value} 
+          onChange={onChange}
+        />
+      );
+  }
+}
+```
+
+**Faz D2.3: Backend Field Type Normalizasyonu**
+
+```javascript
+// formTemplates.js - getWithFields
+
+// Backend'den gelen fieldType → Frontend type mapping
+const normalizeFieldType = (fieldType) => {
+  const typeMap = {
+    'dropdown': 'select',
+    'selection': 'select',
+    'multi-select': 'multiselect',
+    'yes-no': 'boolean',
+    'toggle': 'boolean',
+    'tel': 'phone',
+    // ... diğer mapping'ler
+  };
+  return typeMap[fieldType] || fieldType;
+};
+```
+
+---
+
+#### DEĞİŞECEK DOSYALAR
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | renderEditField fonksiyonu |
+| `db/models/formTemplates.js` | fieldType normalizasyonu |
+| `domains/crm/styles/quotes.css` | Field type stilleri |
+
+---
+
+#### TEST KRİTERLERİ
+
+- [ ] `text` alanlar text input olarak render ediliyor
+- [ ] `email` alanlar email input olarak render ediliyor
+- [ ] `phone` alanlar tel input olarak render ediliyor
+- [ ] `number` alanlar number input olarak render ediliyor
+- [ ] `textarea` alanlar textarea olarak render ediliyor
+- [ ] `select`/`dropdown` alanlar select olarak render ediliyor
+- [ ] `radio` alanlar radio button olarak render ediliyor
+- [ ] `checkbox` alanlar checkbox olarak render ediliyor
+- [ ] `boolean` alanlar yes/no toggle olarak render ediliyor
+- [ ] `multiselect` alanlar çoklu seçim olarak render ediliyor
+- [ ] `date` alanlar date picker olarak render ediliyor
+- [ ] `file` alanlar readonly olarak gösteriliyor
+- [ ] Options formatı `{ code, label }` olarak geliyor
+- [ ] Seçilen değer `code` olarak kaydediliyor, `label` gösteriliyor
+
+---
+
+### PROMPT-Post-D2: Cleanup - priceValue Kaldırma
+
+**Amaç**: Eski `form_field_options.priceValue` kolonunun tamamen kaldırılması ve kod temizliği
+
+**Tarih**: 5 Aralık 2025  
+**Durum**: Planlandı
+
+**Ön Koşullar**:
+- ✅ PROMPT-Pre-D2-1: Option Code Sistemi tamamlanmış olmalı
+- ✅ PROMPT-Pre-D2-2: PricingManager Lookup UI tamamlanmış olmalı
+- ✅ PROMPT-D2: Field Type Render tamamlanmış olmalı
+
+---
+
+#### YAPILACAKLAR
+
+**Faz Cleanup.1: Database**
+- [ ] `form_field_options.priceValue` kolonu zaten migration'da DROP edildi
+- [ ] Eski migration dosyalarını kontrol et
+
+**Faz Cleanup.2: Backend Kod Temizliği**
+- [ ] `formFields.js` - `priceValue` referanslarını kaldır
+- [ ] `priceParameters.js` - `getPriceFromFormOption()` kaldır (artık lookup tablosu kullanılıyor)
+- [ ] `priceParameters.js` - `getFormBasedParameters()` güncelle
+
+**Faz Cleanup.3: Frontend Kod Temizliği**
+- [ ] FormBuilder'da priceValue alanı varsa kaldır
+- [ ] Option ekleme/düzenleme formlarından priceValue kaldır
+
+---
+
+#### DEĞİŞECEK DOSYALAR
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `db/models/formFields.js` | priceValue referansları kaldır |
+| `db/models/priceParameters.js` | Eski metodları kaldır/güncelle |
+| `domains/crm/components/forms/formBuilder/*` | priceValue UI kaldır |
+
+---
+
+#### TEST KRİTERLERİ
+
+- [ ] priceValue'a hiçbir yerden referans yok
+- [ ] Fiyat hesaplama yeni lookup tablosundan çalışıyor
+- [ ] Form oluşturma/düzenleme çalışıyor
+- [ ] Build başarılı
 
 ---
 
@@ -2129,6 +2799,11 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 | 36 | Price Settings: "Değişiklikleri Geri Al" orphanlı orijinal hale döndürmeli ✅ | PROMPT-A2 |
 | 37 | Price Settings: Durum badge'i gösterilmeli: `Taslak • Fiyat Ayarları` ✅ | PROMPT-A2 |
 | 38 | Price Settings: Buton görünürlük matrisi PROMPT-A1.1 ile tutarlı olmalı ✅ | PROMPT-A2 |
+| 39 | Option Code Sistemi: form_field_options.optionCode (FFOC-XXXX) | PROMPT-Pre-D2-1 |
+| 40 | Lookup Tablosu: price_parameter_lookups (parameterId, optionCode, value) | PROMPT-Pre-D2-1 |
+| 41 | PricingManager Lookup UI: Parametre eklerken/düzenlerken lookup değerleri | PROMPT-Pre-D2-2 |
+| 42 | Field Type Render: Tüm field type'lar desteklenmeli | PROMPT-D2 |
+| 43 | Cleanup: form_field_options.priceValue kaldırılmalı | PROMPT-Post-D2 |
 
 ---
 
@@ -2148,7 +2823,10 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-C3**: Price değişiklik uyarı butonu ✅
 - [x] **PROMPT-C4**: Birleşik form+price uyarı butonu ✅
 - [x] **PROMPT-D1**: Fiyat değişikliği onay akışı ✅
+- [ ] **PROMPT-Pre-D2-1**: Option Code Sistemi ve Lookup Tablosu
+- [ ] **PROMPT-Pre-D2-2**: PricingManager Lookup UI
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
+- [ ] **PROMPT-Post-D2**: Cleanup - priceValue kaldırma
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
 - [x] **PROMPT-F1**: Calculate-price API endpoint ✅
