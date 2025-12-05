@@ -1813,7 +1813,9 @@ Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
 **Amaç**: Edit modda form alanlarının doğru tipte render edilmesi
 
 **Tarih**: 5 Aralık 2025  
-**Durum**: Planlandı
+**Durum**: ✅ **TAMAMLANDI**
+
+**Commit**: `feat(crm): [FP-D2] Form Field Type Render & optionCode/optionLabel Support`
 
 **Ön Koşullar**:
 - ✅ PROMPT-Pre-D2-1: Option Code Sistemi tamamlanmış olmalı
@@ -1825,291 +1827,84 @@ Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
 
 | Type | Input Türü | Açıklama |
 |------|------------|----------|
-| `text` | text input | Tek satır metin ✅ (mevcut) |
-| `textarea` | textarea | Çok satır metin ✅ (mevcut) |
-| `number` | number input | Sayısal değer ✅ (mevcut) |
-| `email` | email input | E-posta ⬜ (eklenecek) |
-| `phone` | tel input | Telefon ⬜ (eklenecek) |
-| `select` / `dropdown` | select | Açılır liste ✅ (mevcut) |
-| `radio` | radio buttons | Tek seçim ✅ (mevcut) |
-| `checkbox` | checkbox | Onay kutusu (true/false) ⬜ (eklenecek) |
-| `multiselect` | multiple select | Çoklu seçim ⬜ (eklenecek) |
-| `boolean` | toggle/switch | Evet/Hayır ⬜ (eklenecek) |
-| `date` | date picker | Tarih seçici ⬜ (eklenecek) |
-| `file` | file display | Dosya (readonly) ⬜ (eklenecek) |
+| `text` | text input | Tek satır metin ✅ |
+| `textarea` | textarea | Çok satır metin ✅ |
+| `number` | number input | Sayısal değer ✅ |
+| `email` | email input | E-posta ✅ |
+| `phone` / `tel` | tel input | Telefon ✅ |
+| `select` / `dropdown` | select | Açılır liste ✅ |
+| `radio` | radio buttons | Tek seçim ✅ |
+| `checkbox` | checkbox | Onay kutusu (true/false) ✅ |
+| `multiselect` | multiple select | Çoklu seçim ✅ |
+| `date` | date picker | Tarih seçici ✅ |
+| `file` | file display | Dosya (readonly) ✅ |
 
 ---
 
-#### YAPILACAKLAR
+#### YAPILAN DEĞİŞİKLİKLER
 
-**Faz D2.1: Options Format Standardizasyonu**
+**1. QuoteDetailsPanel.jsx** - Form Bilgileri Düzenleme
+- Tüm field type'lar için switch-case yapısı eklendi
+- `optionCode`/`optionLabel` formatına geçildi
+- Display modda select/radio için optionLabel gösteriliyor
+- checkbox için "Evet/Hayır" gösterimi
 
-Options artık `{ code, label }` formatında gelecek:
+**2. QuoteFormStep.jsx** - Yeni Quote Oluşturma (Step 2)
+- select, radio, checkbox/multiselect için optionCode/optionLabel desteği
+- dropdown alias'ı eklendi
+- multiselect için optionCode array kullanımı
 
-```javascript
-// Eski format (string array):
-field.options = ["Demir", "Çelik", "Bakır"]
+**3. AddQuoteModal.jsx** - Initial Values
+- Radio field için ilk seçeneğin optionCode'u kullanılıyor
 
-// Yeni format (object array):
-field.options = [
-  { code: "FFOC-0001", label: "Demir" },
-  { code: "FFOC-0002", label: "Çelik" },
-  { code: "FFOC-0003", label: "Bakır" }
-]
-```
+**4. QuoteReviewStep.jsx** - Önizleme (Step 3)
+- getDisplayValue fonksiyonu eklendi
+- select/radio/multiselect için optionLabel gösterimi
 
-**Faz D2.2: renderEditField Fonksiyonu**
+**5. FormUpdateModal.jsx** - Form Güncelleme
+- Tüm field type'lar için tam destek
+- radio, checkbox, email, phone, date eklendi
+- optionCode/optionLabel formatına geçildi
+- "Eşleşenleri Kopyala" için optionLabel eşleştirmesi eklendi
+- "Mevcut Değerler" için optionLabel gösterimi eklendi
 
-```jsx
-function renderEditField(field, value, onChange) {
-  const fieldType = field.type || field.fieldType;
-  
-  switch (fieldType) {
-    case 'text':
-      return (
-        <input 
-          type="text" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-          placeholder={field.placeholder}
-        />
-      );
-    
-    case 'email':
-      return (
-        <input 
-          type="email" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-          placeholder={field.placeholder}
-        />
-      );
-    
-    case 'phone':
-      return (
-        <input 
-          type="tel" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-          placeholder={field.placeholder}
-        />
-      );
-    
-    case 'number':
-      return (
-        <input 
-          type="number" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-          step={field.step || 1}
-          min={field.min}
-          max={field.max}
-        />
-      );
-    
-    case 'textarea':
-      return (
-        <textarea 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-          rows={4}
-        />
-      );
-    
-    case 'select':
-    case 'dropdown':
-      return (
-        <select 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-        >
-          <option value="">Seçiniz</option>
-          {field.options?.map(opt => (
-            <option key={opt.code} value={opt.code}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      );
-    
-    case 'radio':
-      return (
-        <div className="radio-group">
-          {field.options?.map(opt => (
-            <label key={opt.code}>
-              <input 
-                type="radio" 
-                name={field.id}
-                value={opt.code}
-                checked={value === opt.code}
-                onChange={onChange}
-              />
-              <span>{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      );
-    
-    case 'checkbox':
-      return (
-        <label className="checkbox-label">
-          <input 
-            type="checkbox" 
-            name={field.id}
-            checked={!!value}
-            onChange={(e) => onChange({ 
-              target: { name: field.id, value: e.target.checked } 
-            })}
-          />
-          <span>{field.placeholder || 'Evet'}</span>
-        </label>
-      );
-    
-    case 'boolean':
-      return (
-        <div className="toggle-group">
-          <label>
-            <input 
-              type="radio" 
-              name={field.id}
-              value="true"
-              checked={value === true || value === 'true'}
-              onChange={() => onChange({ 
-                target: { name: field.id, value: true } 
-              })}
-            />
-            <span>Evet</span>
-          </label>
-          <label>
-            <input 
-              type="radio" 
-              name={field.id}
-              value="false"
-              checked={value === false || value === 'false'}
-              onChange={() => onChange({ 
-                target: { name: field.id, value: false } 
-              })}
-            />
-            <span>Hayır</span>
-          </label>
-        </div>
-      );
-    
-    case 'multiselect':
-      const selectedValues = Array.isArray(value) ? value : [];
-      return (
-        <div className="multiselect-group">
-          {field.options?.map(opt => (
-            <label key={opt.code}>
-              <input 
-                type="checkbox" 
-                checked={selectedValues.includes(opt.code)}
-                onChange={(e) => {
-                  const newValues = e.target.checked
-                    ? [...selectedValues, opt.code]
-                    : selectedValues.filter(v => v !== opt.code);
-                  onChange({ 
-                    target: { name: field.id, value: newValues } 
-                  });
-                }}
-              />
-              <span>{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      );
-    
-    case 'date':
-      return (
-        <input 
-          type="date" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-        />
-      );
-    
-    case 'file':
-      // Dosyalar readonly gösterilir (düzenleme yok)
-      return (
-        <div className="file-display">
-          {value ? (
-            <a href={value} target="_blank" rel="noopener noreferrer">
-              📎 {value.split('/').pop()}
-            </a>
-          ) : (
-            <span className="no-file">Dosya yok</span>
-          )}
-        </div>
-      );
-    
-    default:
-      return (
-        <input 
-          type="text" 
-          name={field.id}
-          value={value} 
-          onChange={onChange}
-        />
-      );
-  }
-}
-```
-
-**Faz D2.3: Backend Field Type Normalizasyonu**
-
-```javascript
-// formTemplates.js - getWithFields
-
-// Backend'den gelen fieldType → Frontend type mapping
-const normalizeFieldType = (fieldType) => {
-  const typeMap = {
-    'dropdown': 'select',
-    'selection': 'select',
-    'multi-select': 'multiselect',
-    'yes-no': 'boolean',
-    'toggle': 'boolean',
-    'tel': 'phone',
-    // ... diğer mapping'ler
-  };
-  return typeMap[fieldType] || fieldType;
-};
-```
+**6. Bug Fixes**
+- Null option filtering eklendi (options array'de null olabilir)
+- Checkbox display: boş değerler için "—" gösterimi
+- handleFormUpdateSave: state güncelleme düzeltildi (functional updates)
+- saveFormFields: formFieldsData senkronizasyonu düzeltildi
+- Fiyat değişiklik modalında optionLabel gösterimi
 
 ---
 
-#### DEĞİŞECEK DOSYALAR
+#### DEĞİŞEN DOSYALAR
 
 | Dosya | Değişiklik |
 |-------|------------|
-| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | renderEditField fonksiyonu |
-| `db/models/formTemplates.js` | fieldType normalizasyonu |
-| `domains/crm/styles/quotes.css` | Field type stilleri |
+| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | Field type switch-case, optionCode/optionLabel |
+| `domains/crm/components/quotes/QuoteFormStep.jsx` | optionCode/optionLabel, dropdown alias |
+| `domains/crm/components/quotes/AddQuoteModal.jsx` | Radio initial value fix |
+| `domains/crm/components/quotes/QuoteReviewStep.jsx` | getDisplayValue for labels |
+| `domains/crm/components/quotes/FormUpdateModal.jsx` | Full field type support |
 
 ---
 
 #### TEST KRİTERLERİ
 
-- [ ] `text` alanlar text input olarak render ediliyor
-- [ ] `email` alanlar email input olarak render ediliyor
-- [ ] `phone` alanlar tel input olarak render ediliyor
-- [ ] `number` alanlar number input olarak render ediliyor
-- [ ] `textarea` alanlar textarea olarak render ediliyor
-- [ ] `select`/`dropdown` alanlar select olarak render ediliyor
-- [ ] `radio` alanlar radio button olarak render ediliyor
-- [ ] `checkbox` alanlar checkbox olarak render ediliyor
-- [ ] `boolean` alanlar yes/no toggle olarak render ediliyor
-- [ ] `multiselect` alanlar çoklu seçim olarak render ediliyor
-- [ ] `date` alanlar date picker olarak render ediliyor
-- [ ] `file` alanlar readonly olarak gösteriliyor
-- [ ] Options formatı `{ code, label }` olarak geliyor
-- [ ] Seçilen değer `code` olarak kaydediliyor, `label` gösteriliyor
+- [x] `text` alanlar text input olarak render ediliyor ✅
+- [x] `email` alanlar email input olarak render ediliyor ✅
+- [x] `phone` alanlar tel input olarak render ediliyor ✅
+- [x] `number` alanlar number input olarak render ediliyor ✅
+- [x] `textarea` alanlar textarea olarak render ediliyor ✅
+- [x] `select`/`dropdown` alanlar select olarak render ediliyor ✅
+- [x] `radio` alanlar radio button olarak render ediliyor ✅
+- [x] `checkbox` alanlar checkbox olarak render ediliyor ✅
+- [x] `multiselect` alanlar çoklu seçim olarak render ediliyor ✅
+- [x] `date` alanlar date picker olarak render ediliyor ✅
+- [x] Options formatı `{ optionCode, optionLabel }` olarak geliyor ✅
+- [x] Seçilen değer `optionCode` olarak kaydediliyor, `optionLabel` gösteriliyor ✅
+
+---
 
 ---
 
@@ -2124,6 +1919,13 @@ const normalizeFieldType = (fieldType) => {
 - ✅ PROMPT-Pre-D2-1: Option Code Sistemi tamamlanmış olmalı
 - ✅ PROMPT-Pre-D2-2: PricingManager Lookup UI tamamlanmış olmalı
 - ✅ PROMPT-D2: Field Type Render tamamlanmış olmalı
+
+---
+
+#### BİLİNEN SORUNLAR (Post-D2'de Çözülecek)
+
+1. **FormUpdateModal "Mevcut Değerler"**: oldFields options içermiyor olabilir, optionCode görünüyor
+2. **FormUpdateModal kayıt sonrası**: Yeni eklenen alanlar QuoteDetailsPanel'de hemen görünmüyor (F5 gerekiyor)
 
 ---
 

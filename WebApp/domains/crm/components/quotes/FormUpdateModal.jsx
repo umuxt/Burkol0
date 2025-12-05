@@ -86,10 +86,36 @@ export default function FormUpdateModal({
   const handleCopyMatching = () => {
     const updates = {}
     matchingFields.forEach(match => {
-      updates[match.fieldCode] = match.oldValue
+      const fieldType = match.newField?.fieldType || match.newField?.type || 'text'
+      const oldValue = match.oldValue
+      
+      // For select/dropdown/radio, match by optionLabel to find corresponding optionCode in new form
+      if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && match.oldField?.options && match.newField?.options) {
+        // Find the old option to get its label
+        const oldOptions = (match.oldField.options || []).filter(opt => opt != null)
+        const oldOption = oldOptions.find(opt => opt.optionCode === oldValue)
+        const oldLabel = oldOption?.optionLabel
+        
+        if (oldLabel) {
+          // Find the new option with the same label
+          const newOptions = (match.newField.options || []).filter(opt => opt != null)
+          const newOption = newOptions.find(opt => opt.optionLabel === oldLabel)
+          if (newOption) {
+            updates[match.fieldCode] = newOption.optionCode
+          } else {
+            // No matching label in new options, skip
+            console.log(`No matching option found for label "${oldLabel}" in field ${match.fieldCode}`)
+          }
+        }
+      } else {
+        // For other field types, copy directly
+        updates[match.fieldCode] = oldValue
+      }
     })
+    
+    const copiedCount = Object.keys(updates).length
     setNewFormData(prev => ({ ...prev, ...updates }))
-    showToast(`${matchingFields.length} alan kopyalandı`, 'success')
+    showToast(`${copiedCount} alan kopyalandı`, 'success')
   }
 
   // Handle input change
@@ -130,6 +156,7 @@ export default function FormUpdateModal({
 
     switch (fieldType) {
       case 'select':
+      case 'dropdown':
         return (
           <select
             value={value || ''}
@@ -138,11 +165,33 @@ export default function FormUpdateModal({
           >
             <option value="">Seçiniz...</option>
             {(field.options || []).map((opt, i) => (
-              <option key={i} value={typeof opt === 'object' ? opt.value : opt}>
-                {typeof opt === 'object' ? opt.label : opt}
+              <option key={opt.optionCode || opt.id || i} value={opt.optionCode || (typeof opt === 'object' ? opt.value : opt)}>
+                {opt.optionLabel || (typeof opt === 'object' ? opt.label : opt)}
               </option>
             ))}
           </select>
+        )
+      
+      case 'radio':
+        return (
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {(field.options || []).map((opt, i) => {
+              const optCode = opt.optionCode || (typeof opt === 'object' ? opt.value : opt)
+              const optLabel = opt.optionLabel || (typeof opt === 'object' ? opt.label : opt)
+              return (
+                <label key={optCode || i} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name={fieldCode}
+                    value={optCode}
+                    checked={value === optCode}
+                    onChange={(e) => onChange(fieldCode, e.target.value)}
+                  />
+                  <span style={{ fontSize: '13px' }}>{optLabel}</span>
+                </label>
+              )
+            })}
+          </div>
         )
       
       case 'number':
@@ -152,6 +201,7 @@ export default function FormUpdateModal({
             value={value || ''}
             onChange={(e) => onChange(fieldCode, e.target.value)}
             placeholder={field.placeholder || ''}
+            step="any"
             style={inputStyle}
           />
         )
@@ -164,6 +214,51 @@ export default function FormUpdateModal({
             placeholder={field.placeholder || ''}
             style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }}
           />
+        )
+      
+      case 'email':
+        return (
+          <input
+            type="email"
+            value={value || ''}
+            onChange={(e) => onChange(fieldCode, e.target.value)}
+            placeholder={field.placeholder || 'ornek@email.com'}
+            style={inputStyle}
+          />
+        )
+      
+      case 'phone':
+      case 'tel':
+        return (
+          <input
+            type="tel"
+            value={value || ''}
+            onChange={(e) => onChange(fieldCode, e.target.value)}
+            placeholder={field.placeholder || '05XX XXX XX XX'}
+            style={inputStyle}
+          />
+        )
+      
+      case 'date':
+        return (
+          <input
+            type="date"
+            value={value || ''}
+            onChange={(e) => onChange(fieldCode, e.target.value)}
+            style={inputStyle}
+          />
+        )
+      
+      case 'checkbox':
+        return (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={value === true || value === 'true' || value === 1}
+              onChange={(e) => onChange(fieldCode, e.target.checked)}
+            />
+            <span style={{ fontSize: '13px' }}>{field.placeholder || 'Evet'}</span>
+          </label>
         )
       
       default:
@@ -226,13 +321,27 @@ export default function FormUpdateModal({
             <div style={fieldsContainerStyle}>
               {oldFields.length > 0 ? oldFields.map(field => {
                 const fieldCode = field.fieldCode || field.id
-                const value = oldFormData[fieldCode] || '—'
+                const rawValue = oldFormData[fieldCode] || '—'
                 const label = field.fieldName || field.label || fieldCode
+                
+                // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
+                const getDisplayValue = (val, fld) => {
+                  if (!val || val === '—') return val
+                  const fieldType = fld?.type || fld?.fieldType || 'text'
+                  if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && fld?.options) {
+                    const validOptions = (fld.options || []).filter(opt => opt != null)
+                    const selectedOption = validOptions.find(opt => opt.optionCode === val)
+                    return selectedOption?.optionLabel || val
+                  }
+                  return val
+                }
+                
+                const displayValue = getDisplayValue(rawValue, field)
                 
                 return (
                   <div key={fieldCode} style={fieldRowStyle}>
                     <label style={labelStyle}>{label}</label>
-                    <div style={readonlyValueStyle}>{value}</div>
+                    <div style={readonlyValueStyle}>{displayValue}</div>
                   </div>
                 )
               }) : (

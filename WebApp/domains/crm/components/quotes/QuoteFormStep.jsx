@@ -113,14 +113,17 @@ export default function QuoteFormStep({
         break
 
       case 'select':
+      case 'dropdown':
         inputElement = (
           <select
             {...commonProps}
             className={`form-select ${hasError ? 'error' : ''}`}
           >
             <option value="">Seçiniz...</option>
-            {(options || []).map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
+            {(options || []).filter(opt => opt != null).map(opt => (
+              <option key={opt.optionCode || opt.id || opt} value={opt.optionCode || opt}>
+                {opt.optionLabel || opt}
+              </option>
             ))}
           </select>
         )
@@ -129,17 +132,17 @@ export default function QuoteFormStep({
       case 'radio':
         inputElement = (
           <div className="radio-group">
-            {(options || []).map(opt => (
-              <label key={opt} className="radio-option">
+            {(options || []).filter(opt => opt != null).map(opt => (
+              <label key={opt.optionCode || opt.id || opt} className="radio-option">
                 <input
                   type="radio"
                   name={id}
-                  value={opt}
-                  checked={value === opt}
+                  value={opt.optionCode || opt}
+                  checked={value === (opt.optionCode || opt)}
                   onChange={(e) => handleFieldChange(id, e.target.value, field)}
                   disabled={disabled || readOnly}
                 />
-                <span>{opt}</span>
+                <span>{opt.optionLabel || opt}</span>
               </label>
             ))}
           </div>
@@ -151,27 +154,31 @@ export default function QuoteFormStep({
         const selectedValues = Array.isArray(value) ? value : (value ? value.split(',').map(v => v.trim()) : [])
         inputElement = (
           <div className="checkbox-group">
-            {(options || []).map(opt => (
-              <label key={opt} className="checkbox-option">
-                <input
-                  type="checkbox"
-                  name={id}
-                  value={opt}
-                  checked={selectedValues.includes(opt)}
-                  onChange={(e) => {
-                    let newValues
-                    if (e.target.checked) {
-                      newValues = [...selectedValues, opt]
-                    } else {
-                      newValues = selectedValues.filter(v => v !== opt)
-                    }
-                    handleFieldChange(id, newValues, field)
-                  }}
-                  disabled={disabled || readOnly}
-                />
-                <span>{opt}</span>
-              </label>
-            ))}
+            {(options || []).filter(opt => opt != null).map(opt => {
+              const optCode = opt.optionCode || opt
+              const optLabel = opt.optionLabel || opt
+              return (
+                <label key={optCode} className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    name={id}
+                    value={optCode}
+                    checked={selectedValues.includes(optCode)}
+                    onChange={(e) => {
+                      let newValues
+                      if (e.target.checked) {
+                        newValues = [...selectedValues, optCode]
+                      } else {
+                        newValues = selectedValues.filter(v => v !== optCode)
+                      }
+                      handleFieldChange(id, newValues, field)
+                    }}
+                    disabled={disabled || readOnly}
+                  />
+                  <span>{optLabel}</span>
+                </label>
+              )
+            })}
           </div>
         )
         break

@@ -323,10 +323,23 @@ export default function QuoteDetailsPanel({
             Object.entries(formFieldsData).forEach(([key, value]) => {
               if (originalFormFieldsData[key] !== value) {
                 const field = fields.find(f => f.id === key)
+                
+                // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
+                const getDisplayValue = (val, fld) => {
+                  if (!val || val === '-') return val ?? '-'
+                  const fieldType = fld?.type || fld?.fieldType || 'text'
+                  if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && fld?.options) {
+                    const validOptions = (fld.options || []).filter(opt => opt != null)
+                    const selectedOption = validOptions.find(opt => opt.optionCode === val)
+                    return selectedOption?.optionLabel || val
+                  }
+                  return val
+                }
+                
                 changedFields.push({
                   fieldName: field?.fieldName || field?.label || key,
-                  oldValue: originalFormFieldsData[key] ?? '-',
-                  newValue: value ?? '-'
+                  oldValue: getDisplayValue(originalFormFieldsData[key], field),
+                  newValue: getDisplayValue(value, field)
                 })
               }
             })
@@ -370,11 +383,15 @@ export default function QuoteDetailsPanel({
     
     setFormEditing(false)
     
-    // Update local state with new values immediately
-    const newFormFieldsData = { ...formFieldsData }
-    setOriginalFormFieldsData(newFormFieldsData)
-    setForm(prev => ({ ...prev, ...newFormFieldsData }))
-    setOriginalData(prev => ({ ...prev, ...newFormFieldsData }))
+    // D2 FIX: Update formFieldsData using current formFieldsData values (which use field.id as key)
+    // The formFieldsData state already has the correct values since handleFormFieldChange updated it
+    // We just need to sync originalFormFieldsData with current formFieldsData
+    const currentFormFieldsData = { ...formFieldsData }
+    
+    // Update all related states with saved values
+    setOriginalFormFieldsData(currentFormFieldsData)
+    setForm(prev => ({ ...prev, ...currentFormFieldsData }))
+    setOriginalData(prev => ({ ...prev, ...currentFormFieldsData }))
     
     showToast(newPrice !== null ? 'Form alanları ve fiyat güncellendi!' : 'Form alanları güncellendi!', 'success')
     
@@ -749,7 +766,8 @@ export default function QuoteDetailsPanel({
       setFormChangeDetected(false)
       setPriceChangeDetected(false) // C4: Reset price flag too when combined update
       
-      // D1 FIX: Update local form state with new data from modal
+      // D2 FIX: Update local form state with new data from modal
+      // Map fieldCode to field.id for state updates
       if (updatePayload.formData) {
         // Get new template fields to map fieldCode -> field.id
         const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
@@ -766,17 +784,18 @@ export default function QuoteDetailsPanel({
           newFormValues[fieldId] = value
         })
         
+        // Update all states with new values (use functional updates to ensure sync)
         setForm(prev => ({ ...prev, ...newFormValues }))
         setOriginalData(prev => ({ ...prev, ...newFormValues }))
-        setFormFieldsData(newFormValues)
-        setOriginalFormFieldsData(newFormValues)
+        setFormFieldsData(prev => ({ ...prev, ...newFormValues }))
+        setOriginalFormFieldsData(prev => ({ ...prev, ...newFormValues }))
       }
       
-      // Force quoteFormTemplate refresh
+      // Force quoteFormTemplate refresh - this will reload template with new structure
       setQuoteFormTemplate(null)
       setTemplateRefreshKey(prev => prev + 1)
       
-      // Refresh quote data
+      // Refresh quote data from backend
       if (onRefreshQuote) {
         await onRefreshQuote()
       }
@@ -1331,75 +1350,163 @@ export default function QuoteDetailsPanel({
                         {label}:
                       </span>
                       {formEditing ? (
-                        field.type === 'textarea' ? (
-                          <textarea
-                            name={field.id}
-                            value={value}
-                            onChange={handleFormFieldChange}
-                            style={{
-                              padding: '8px 12px',
-                              border: '1px solid #3b82f6',
-                              borderRadius: '4px',
-                              background: 'white',
-                              width: '100%',
-                              fontSize: '14px',
-                              minHeight: '80px',
-                              resize: 'vertical'
-                            }}
-                          />
-                        ) : field.type === 'radio' && field.options ? (
-                          <div style={{ display: 'flex', gap: '12px' }}>
-                            {field.options.map(option => (
-                              <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <input
-                                  type="radio"
+                        // PROMPT-D2: Field type based rendering with optionCode/optionLabel support
+                        (() => {
+                          const fieldType = field.type || field.fieldType || 'text';
+                          const inputStyle = {
+                            padding: '8px 12px',
+                            border: '1px solid #3b82f6',
+                            borderRadius: '4px',
+                            background: 'white',
+                            width: '100%',
+                            fontSize: '14px'
+                          };
+                          
+                          switch (fieldType) {
+                            case 'textarea':
+                              return (
+                                <textarea
                                   name={field.id}
-                                  value={option}
-                                  checked={value === option}
+                                  value={value}
                                   onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
                                 />
-                                <span style={{ fontSize: '12px' }}>{option}</span>
-                              </label>
-                            ))}
-                          </div>
-                        ) : field.type === 'select' && field.options ? (
-                          <select
-                            name={field.id}
-                            value={value}
-                            onChange={handleFormFieldChange}
-                            style={{
-                              padding: '8px 12px',
-                              border: '1px solid #3b82f6',
-                              borderRadius: '4px',
-                              background: 'white',
-                              width: '100%',
-                              fontSize: '14px'
-                            }}
-                          >
-                            <option value="">Seçiniz</option>
-                            {field.options.map(option => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type={field.type === 'number' ? 'number' : 'text'}
-                            name={field.id}
-                            value={value}
-                            onChange={handleFormFieldChange}
-                            style={{
-                              padding: '8px 12px',
-                              border: '1px solid #3b82f6',
-                              borderRadius: '4px',
-                              background: 'white',
-                              width: '100%',
-                              fontSize: '14px'
-                            }}
-                          />
-                        )
+                              );
+                            
+                            case 'select':
+                            case 'dropdown':
+                              return (
+                                <select
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  style={inputStyle}
+                                >
+                                  <option value="">Seçiniz</option>
+                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                    <option key={opt.optionCode || opt.id} value={opt.optionCode}>
+                                      {opt.optionLabel}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            
+                            case 'radio':
+                              return (
+                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                    <label key={opt.optionCode || opt.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                      <input
+                                        type="radio"
+                                        name={field.id}
+                                        value={opt.optionCode}
+                                        checked={value === opt.optionCode}
+                                        onChange={handleFormFieldChange}
+                                      />
+                                      <span style={{ fontSize: '12px' }}>{opt.optionLabel}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              );
+                            
+                            case 'checkbox':
+                              return (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    name={field.id}
+                                    checked={value === true || value === 'true' || value === 1}
+                                    onChange={(e) => handleFormFieldChange({ 
+                                      target: { name: field.id, value: e.target.checked } 
+                                    })}
+                                  />
+                                  <span style={{ fontSize: '12px' }}>{field.placeholder || 'Evet'}</span>
+                                </label>
+                              );
+                            
+                            case 'number':
+                              return (
+                                <input
+                                  type="number"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  step={field.step || 'any'}
+                                  min={field.min}
+                                  max={field.max}
+                                  style={inputStyle}
+                                />
+                              );
+                            
+                            case 'email':
+                              return (
+                                <input
+                                  type="email"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder || 'ornek@email.com'}
+                                  style={inputStyle}
+                                />
+                              );
+                            
+                            case 'phone':
+                            case 'tel':
+                              return (
+                                <input
+                                  type="tel"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder || '05XX XXX XX XX'}
+                                  style={inputStyle}
+                                />
+                              );
+                            
+                            case 'date':
+                              return (
+                                <input
+                                  type="date"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  style={inputStyle}
+                                />
+                              );
+                            
+                            case 'text':
+                            default:
+                              return (
+                                <input
+                                  type="text"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  style={inputStyle}
+                                />
+                              );
+                          }
+                        })()
                       ) : (
+                        // PROMPT-D2: Display mode - show optionLabel for select/radio fields
                         <span style={{ fontSize: '12px', color: '#111827' }}>
-                          {value || '—'}
+                          {(() => {
+                            const fieldType = field.type || field.fieldType || 'text';
+                            if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options && value) {
+                              const validOptions = (field.options || []).filter(opt => opt != null);
+                              const selectedOption = validOptions.find(opt => opt.optionCode === value);
+                              return selectedOption?.optionLabel || value || '—';
+                            }
+                            if (fieldType === 'checkbox') {
+                              // Only show Evet/Hayır if value is explicitly set, otherwise show '—'
+                              if (value === '' || value === undefined || value === null) return '—';
+                              return value === true || value === 'true' || value === 1 || value === '1' ? 'Evet' : 'Hayır';
+                            }
+                            return value || '—';
+                          })()}
                         </span>
                       )}
                     </div>

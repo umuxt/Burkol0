@@ -200,6 +200,27 @@ export default function QuoteReviewStep({
             const value = formData[field.id]
             const isEmpty = value === null || value === undefined || value === ''
 
+            // PROMPT-D2: Get display value - show optionLabel for select/radio fields
+            const getDisplayValue = () => {
+              if (isEmpty) return '-'
+              
+              const fieldType = field.type || field.fieldType
+              if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options) {
+                const selectedOption = field.options.find(opt => opt.optionCode === value)
+                return selectedOption?.optionLabel || value
+              }
+              
+              if (fieldType === 'multiselect' && field.options && Array.isArray(value)) {
+                return value.map(v => {
+                  const opt = field.options.find(o => o.optionCode === v)
+                  return opt?.optionLabel || v
+                }).join(', ')
+              }
+              
+              if (Array.isArray(value)) return value.join(', ')
+              return value
+            }
+
             return (
               <div
                 key={field.id}
@@ -210,7 +231,7 @@ export default function QuoteReviewStep({
                   {field.required && <span className="required-marker">*</span>}:
                 </span>
                 <span className="review-value">
-                  {formatValue(value)}
+                  {getDisplayValue()}
                 </span>
               </div>
             )
