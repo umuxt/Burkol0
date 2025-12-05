@@ -1,9 +1,24 @@
 import { showToast } from '../../../../../shared/components/MESToast.js';
-// Field Editor - Individual field creation and editing (Parametre Ekle Modal Benzeri)
+// Field Editor - Individual field creation and editing
+// Updated: Options are now stored as objects { label, optionCode? }
 import React from 'react';
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
 const { useState, useEffect } = React;
+
+/**
+ * Normalize option to consistent format
+ * Handles both string (legacy) and object formats
+ */
+function normalizeOption(opt) {
+  if (typeof opt === 'string') {
+    return { label: opt, optionCode: null };
+  }
+  return {
+    label: opt.label || opt.optionLabel || opt.value || opt,
+    optionCode: opt.optionCode || null
+  };
+}
 
 export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldTypes = [], showNotification, fieldEditorRef }) {
   const [fieldForm, setFieldForm] = useState({
@@ -11,7 +26,7 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
     label: '',
     type: 'text',
     required: false,
-    options: [],
+    options: [], // Array of { label, optionCode }
     placeholder: '',
     validation: { min: null, max: null, pattern: null },
     display: {
@@ -26,9 +41,12 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
 
   useEffect(() => {
     if (field) {
+      // Normalize incoming options to new format
+      const normalizedOptions = (field.options || []).map(normalizeOption);
+      
       setFieldForm({
         ...field,
-        options: field.options || [],
+        options: normalizedOptions,
         validation: field.validation || { min: null, max: null, pattern: null },
         display: field.display || {
           showInTable: false,
@@ -60,14 +78,16 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
       return
     }
 
-    if (fieldForm.options.includes(newOption.trim())) {
+    // Check for duplicate labels
+    const exists = fieldForm.options.some(opt => opt.label === newOption.trim());
+    if (exists) {
       showToast('Bu seçenek zaten mevcut', 'error')
       return
     }
 
     setFieldForm(prev => ({
       ...prev,
-      options: [...prev.options, newOption.trim()]
+      options: [...prev.options, { label: newOption.trim(), optionCode: null }]
     }))
     setNewOption('')
   }
@@ -633,7 +653,7 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
         },
           ...fieldForm.options.map((option, index) =>
             React.createElement('div', {
-              key: index,
+              key: option.optionCode || index,
               style: {
                 display: 'flex',
                 alignItems: 'center',
@@ -645,7 +665,7 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
                 fontSize: '13px'
               }
             },
-              React.createElement('span', null, option),
+              React.createElement('span', null, option.label),
               React.createElement('button', {
                 onClick: () => removeOption(index),
                 style: {

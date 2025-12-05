@@ -1618,6 +1618,23 @@ static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true })
 
 ---
 
+#### EK DÜZELTMELER (Pre-D2-1 Kapsamında)
+
+Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
+
+| Dosya | Sorun | Çözüm |
+|-------|-------|-------|
+| `db/models/formTemplates.js` | `optionValue` kolonu kaldırıldı ama query'de hala kullanılıyordu | `optionValue` → `optionCode` olarak güncellendi (JSON aggregation) |
+| `db/models/formFields.js` | `getOptionsByFieldCode()` hala `optionValue`, `priceValue` döndürüyordu | Deprecated kolonlar select'ten kaldırıldı |
+| `db/models/formFields.js` | `updateOption()` hala eski kolonları kullanıyordu | `optionValue`, `priceValue` kaldırıldı |
+| `db/models/formFields.js` | `bulkCreateWithOptions()` eski kolonları insert ediyordu | Sadece `optionCode`, `optionLabel` kullanılacak şekilde güncellendi |
+| `db/models/priceParameters.js` | `getPriceFromOptionValue()` deprecated ama hala vardı | Fonksiyon tamamen kaldırıldı |
+| `db/models/priceParameters.js` | `getPriceFromFormOption()` backward compat içeriyordu | Fonksiyon kaldırıldı, `getLookupValue()` kullanılıyor |
+| `domains/crm/utils/pricing-utils.js` | `hasOptions` fonksiyonu kendine referans veriyordu (`f.hasOptions`) | Field type kontrolü eklendi: `['select', 'dropdown', 'radio', 'multiselect']` |
+| `domains/crm/components/forms/formBuilder/FieldEditor.js` | Options listesinde optionCode badge gösteriliyordu | Badge kaldırıldı (kullanıcıya gösterilmemeli) |
+
+---
+
 #### TEST KRİTERLERİ
 
 - [x] Yeni option eklendiğinde otomatik FFOC-XXXX kodu üretiliyor ✅
@@ -1633,7 +1650,32 @@ static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true })
 **Amaç**: PricingManager'da parametre eklerken/düzenlerken lookup değerleri girme UI'ı
 
 **Tarih**: 5 Aralık 2025  
-**Durum**: Planlandı
+**Durum**: ✅ Tamamlandı (14 Ocak 2025)
+
+---
+
+#### ✅ TAMAMLANAN İŞLER
+
+**Backend Güncellemeleri:**
+- [x] `POST /api/price-settings` - lookups kaydetme eklendi
+- [x] `PATCH /api/price-settings/:id` - lookups güncelleme eklendi
+- [x] `priceSettingsService.getWithDetails()` - lookups döndürme eklendi
+- [x] `formController.js` - `GET /api/form-fields/code/:fieldCode/options` endpoint eklendi
+
+**Frontend Service Güncellemeleri:**
+- [x] `pricing-service.js` - lookup API methods eklendi (getParameterLookups, saveParameterLookups, etc.)
+- [x] `forms-service.js` - `getFieldOptionsByCode()` method eklendi
+
+**PricingManager.jsx Güncellemeleri:**
+- [x] `lookupTable` state formatı güncellendi: `{optionCode, optionLabel, value}`
+- [x] `parameters` state'e `lookups` array ve `dbId` eklendi
+- [x] `addParameter()` - lookups formatı güncellendi
+- [x] `editParameter()` - API'den lookups yükleme eklendi (async)
+- [x] `saveEditParameter()` - lookups formatı güncellendi
+- [x] `loadPriceSettings()` - lookups yükleme eklendi
+- [x] `switchToSetting()` - lookups yükleme eklendi
+- [x] Parametre ekleme UI: Seçenek/Kod/Değer kolonları ile düzenlenebilir tablo
+- [x] Inline edit UI: Seçenek/Kod/Değer kolonları ile düzenlenebilir tablo
 
 ---
 
@@ -1693,51 +1735,76 @@ static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true })
 
 ---
 
-#### YAPILACAKLAR
+#### YAPILACAKLAR (Tamamlandı)
 
-**Faz Pre-D2-2.1: State Yönetimi**
-- [ ] `lookupTable` state'i parametre bazlı tutulacak
-- [ ] Form alanı seçildiğinde otomatik option listesi yüklenecek
-- [ ] Lookup değerleri düzenlenebilir olacak
+**Faz Pre-D2-2.1: State Yönetimi** ✅
+- [x] `lookupTable` state'i parametre bazlı tutulacak
+- [x] Form alanı seçildiğinde otomatik option listesi yüklenecek
+- [x] Lookup değerleri düzenlenebilir olacak
 
-**Faz Pre-D2-2.2: Parametre Ekleme UI**
-- [ ] Form alanı seçildiğinde options otomatik yüklenecek
-- [ ] Her option için değer giriş alanı gösterilecek
-- [ ] optionCode görünür (readonly)
-- [ ] Kaydet'te lookup değerleri de kaydedilecek
+**Faz Pre-D2-2.2: Parametre Ekleme UI** ✅
+- [x] Form alanı seçildiğinde options otomatik yüklenecek
+- [x] Her option için değer giriş alanı gösterilecek
+- [x] optionCode görünür (readonly) → **Kaldırıldı** (kullanıcıya gösterilmemeli)
+- [x] Kaydet'te lookup değerleri de kaydedilecek
 
-**Faz Pre-D2-2.3: Parametre Düzenleme UI**
-- [ ] Düzenle butonuna tıklanınca lookup tablosu açılacak
-- [ ] Mevcut lookup değerleri yüklenecek
-- [ ] Değerler düzenlenebilir
-- [ ] Kaydet'te güncel değerler kaydedilecek
+**Faz Pre-D2-2.3: Parametre Düzenleme UI** ✅
+- [x] Düzenle butonuna tıklanınca lookup tablosu açılacak
+- [x] Mevcut lookup değerleri yüklenecek
+- [x] Değerler düzenlenebilir
+- [x] Kaydet'te güncel değerler kaydedilecek
 
-**Faz Pre-D2-2.4: API Entegrasyonu**
-- [ ] `savePriceSettings()` lookup değerlerini de gönderecek
-- [ ] `loadPriceSettings()` lookup değerlerini de yükleyecek
-- [ ] `switchToSetting()` lookup değerlerini de yükleyecek
+**Faz Pre-D2-2.4: API Entegrasyonu** ✅
+- [x] `savePriceSettings()` lookup değerlerini de gönderecek
+- [x] `loadPriceSettings()` lookup değerlerini de yükleyecek
+- [x] `switchToSetting()` lookup değerlerini de yükleyecek
 
 ---
 
-#### DEĞİŞECEK DOSYALAR
+#### DEĞİŞEN DOSYALAR
 
 | Dosya | Değişiklik |
 |-------|------------|
-| `domains/crm/components/pricing/PricingManager.jsx` | Lookup UI |
-| `domains/crm/services/pricing-service.js` | Lookup API çağrıları |
-| `domains/crm/api/controllers/priceController.js` | Lookup CRUD |
-| `domains/crm/api/services/priceSettingsService.js` | Lookup dahil etme |
+| `domains/crm/components/pricing/PricingManager.jsx` | Lookup UI ✅ |
+| `domains/crm/services/pricing-service.js` | Lookup API çağrıları ✅ |
+| `domains/crm/api/controllers/priceController.js` | Lookup CRUD ✅ |
+| `domains/crm/api/services/priceSettingsService.js` | Lookup dahil etme ✅ |
+
+---
+
+#### EK DÜZELTMELER (Pre-D2-2 Kapsamında)
+
+Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
+
+| Sorun | Çözüm |
+|-------|-------|
+| DOM nesting warning: `<tr>` cannot appear as child of `<table>` | Lookup satırları `<tbody>` içine taşındı, `flatMap` kullanıldı |
+| Lookup tablosu düzenlemede yüklenmiyor | `editParameter()` async yapıldı, API'den options + lookups yükleniyor |
+| optionCode kullanıcıya gösteriliyor | Kod sütunu UI'dan kaldırıldı (sadece Seçenek + Değer gösteriliyor) |
+| Lookup tablosu eski tasarımda | Modern CSS Grid tasarımına geçildi (PricingManager ile tutarlı) |
+| Helper fonksiyonlar eksik | `mergeLookupTable()` ve `convertLookupsForApi()` eklendi |
+
+#### UI İYİLEŞTİRMELERİ
+
+**Yeni Lookup Tablosu Tasarımı:**
+- CSS Grid layout (`1fr 140px` - Seçenek + Değer)
+- PricingManager renk paleti (#007bff, #f9fafb, rgb(229, 231, 235))
+- İkon başlık (table icon)
+- Bilgi kutusu (mavi info box)
+- Alternatif satır renkleri
+- Temiz input styling
+- Empty state (dashed border)
 
 ---
 
 #### TEST KRİTERLERİ
 
-- [ ] Form alanı seçildiğinde options otomatik yükleniyor
-- [ ] Her option için değer girişi yapılabiliyor
-- [ ] optionCode görünür ama düzenlenemez
-- [ ] Parametre kaydedildiğinde lookup değerleri de kaydediliyor
-- [ ] Parametre düzenlendiğinde mevcut lookup değerleri yükleniyor
-- [ ] Lookup değerleri fiyat hesaplamada kullanılıyor
+- [x] Form alanı seçildiğinde options otomatik yükleniyor ✅
+- [x] Her option için değer girişi yapılabiliyor ✅
+- [x] optionCode UI'da gizli (backend'de kullanılıyor) ✅
+- [x] Parametre kaydedildiğinde lookup değerleri de kaydediliyor ✅
+- [x] Parametre düzenlendiğinde mevcut lookup değerleri yükleniyor ✅
+- [x] Lookup değerleri fiyat hesaplamada kullanılıyor ✅
 
 ---
 
@@ -2813,6 +2880,7 @@ fix(quotes): [FP-D2] Fix field type rendering in edit mode
 | 42 | Field Type Render: Tüm field type'lar desteklenmeli | PROMPT-D2 |
 | 43 | Cleanup: form_field_options.priceValue kaldırılmalı | PROMPT-Post-D2 |
 
+
 ---
 
 ## UYGULAMA KONTROL LİSTESİ
@@ -2831,11 +2899,12 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-C3**: Price değişiklik uyarı butonu ✅
 - [x] **PROMPT-C4**: Birleşik form+price uyarı butonu ✅
 - [x] **PROMPT-D1**: Fiyat değişikliği onay akışı ✅
-- [ ] **PROMPT-Pre-D2-1**: Option Code Sistemi ve Lookup Tablosu
-- [ ] **PROMPT-Pre-D2-2**: PricingManager Lookup UI
+- [x] **PROMPT-Pre-D2-1**: Option Code Sistemi ve Lookup Tablosu ✅ (14 Ocak 2025)
+- [x] **PROMPT-Pre-D2-2**: PricingManager Lookup UI ✅ (14 Ocak 2025)
 - [ ] **PROMPT-D2**: Field type render düzeltmesi
 - [ ] **PROMPT-Post-D2**: Cleanup - priceValue kaldırma
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
 - [x] **PROMPT-F1**: Calculate-price API endpoint ✅
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
+

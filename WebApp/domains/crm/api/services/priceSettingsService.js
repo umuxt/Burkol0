@@ -27,6 +27,7 @@ const PriceSettings = {
   /**
    * Get price setting with parameters (formula is now in price_settings)
    * Updated for B0: price_formulas table removed
+   * Updated for Pre-D2-2: includes lookups for each parameter
    */
   async getWithDetails(id) {
     const setting = await db('quotes.price_settings')
@@ -42,10 +43,38 @@ const PriceSettings = {
       .where({ settingId: id })
       .select('*');
 
+    // Pre-D2-2: Get lookups for each parameter
+    const parameterIds = parameters.map(p => p.id);
+    let lookupsMap = {};
+    
+    if (parameterIds.length > 0) {
+      const lookups = await db('quotes.price_parameter_lookups')
+        .whereIn('parameterId', parameterIds)
+        .select('*');
+      
+      // Group lookups by parameterId
+      lookupsMap = lookups.reduce((acc, lookup) => {
+        if (!acc[lookup.parameterId]) {
+          acc[lookup.parameterId] = [];
+        }
+        acc[lookup.parameterId].push({
+          optionCode: lookup.optionCode,
+          value: parseFloat(lookup.value) || 0
+        });
+        return acc;
+      }, {});
+    }
+
+    // Attach lookups to each parameter
+    const parametersWithLookups = parameters.map(p => ({
+      ...p,
+      lookups: lookupsMap[p.id] || []
+    }));
+
     // Formula is now directly in price_settings
     return {
       ...setting,
-      parameters,
+      parameters: parametersWithLookups,
       formula: {
         id: setting.id,
         formulaExpression: setting.formulaExpression,

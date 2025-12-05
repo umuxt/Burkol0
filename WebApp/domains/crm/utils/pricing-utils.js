@@ -58,13 +58,20 @@ export function isFixedValueParameter(parameter) {
 export function extractFieldInfoFromFormConfig(formFields) {
   if (!formFields || !Array.isArray(formFields)) return []
   
-  return formFields.map(field => ({
-    value: field.fieldCode || field.id,
-    label: field.fieldName || field.label,
-    hasOptions: field.hasOptions || field.hasOptions,
-    options: field.options || [],
-    type: field.fieldType || field.type
-  }))
+  return formFields.map(field => {
+    const fieldType = field.fieldType || field.type
+    // Determine if field has options based on type
+    const hasOptions = ['select', 'dropdown', 'radio', 'multiselect'].includes(fieldType) && 
+                       field.options && field.options.length > 0
+    
+    return {
+      value: field.fieldCode || field.id,
+      label: field.fieldName || field.label,
+      hasOptions: hasOptions,
+      options: field.options || [],
+      type: fieldType
+    }
+  })
 }
 
 // Parametre validasyonu

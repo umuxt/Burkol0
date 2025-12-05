@@ -103,6 +103,22 @@ export const formsService = {
     }, 15000)
     if (!response.ok) throw new Error('add_option_failed')
     return response.json()
+  },
+
+  /**
+   * Get field options with optionCode (Pre-D2-2)
+   * @param {string} fieldCode - Form field code
+   * @returns {Promise<Array<{id, optionCode, optionLabel, sortOrder}>>}
+   */
+  async getFieldOptionsByCode(fieldCode) {
+    const response = await fetchWithTimeout(`/api/form-fields/by-code/${fieldCode}/options`, {
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'get_field_options_failed')
+    }
+    return response.json()
   }
 }
 

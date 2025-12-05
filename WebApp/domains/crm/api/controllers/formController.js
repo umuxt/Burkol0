@@ -552,6 +552,24 @@ export function setupFormRoutes(app) {
       res.status(500).json({ error: 'Failed to delete option', message: error.message });
     }
   });
+
+  // ==================== FIELD OPTIONS BY CODE (Pre-D2-2) ====================
+
+  // Get field options by fieldCode (returns optionCode for lookup)
+  app.get('/api/form-fields/by-code/:fieldCode/options', requireAuth, async (req, res) => {
+    try {
+      const { fieldCode } = req.params;
+      logger.info(`GET /api/form-fields/by-code/${fieldCode}/options`);
+      
+      const options = await FormFields.getOptionsByFieldCode(fieldCode);
+      
+      logger.success(`Found ${options.length} options for fieldCode ${fieldCode}`);
+      res.json(options);
+    } catch (error) {
+      logger.error('Failed to fetch options by fieldCode', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch options', message: error.message });
+    }
+  });
 }
 
 export default setupFormRoutes;

@@ -148,8 +148,8 @@ class FormTemplates {
           json_agg(
             json_build_object(
               'id', ffo.id,
-              'value', ffo."optionValue",
-              'label', ffo."optionLabel",
+              'optionCode', ffo."optionCode",
+              'optionLabel', ffo."optionLabel",
               'sortOrder', ffo."sortOrder",
               'isActive', ffo."isActive"
             ) ORDER BY ffo."sortOrder"

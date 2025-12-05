@@ -100,6 +100,72 @@ export const pricingService = {
       throw new Error(err.error || 'compare_settings_failed')
     }
     return response.json()
+  },
+
+  // ==================== PARAMETER LOOKUPS (Pre-D2-2) ====================
+
+  /**
+   * Get lookup values for a parameter
+   * @param {number} parameterId - Price parameter ID
+   * @returns {Promise<{parameterId, parameterCode, parameterName, formFieldCode, lookups}>}
+   */
+  async getParameterLookups(parameterId) {
+    const response = await fetchWithTimeout(`/api/price-parameters/${parameterId}/lookups`, {
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'get_lookups_failed')
+    }
+    return response.json()
+  },
+
+  /**
+   * Save lookup values for a parameter (bulk upsert)
+   * @param {number} parameterId - Price parameter ID
+   * @param {Array<{optionCode: string, value: number}>} lookups - Lookup entries
+   */
+  async saveParameterLookups(parameterId, lookups) {
+    const response = await fetchWithTimeout(`/api/price-parameters/${parameterId}/lookups`, {
+      method: 'POST',
+      headers: withAuth(),
+      body: JSON.stringify({ lookups })
+    }, 15000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'save_lookups_failed')
+    }
+    return response.json()
+  },
+
+  /**
+   * Get parameter with price options (includes lookups for form-based parameters)
+   * @param {number} parameterId - Price parameter ID
+   */
+  async getParameterWithPrices(parameterId) {
+    const response = await fetchWithTimeout(`/api/price-parameters/${parameterId}/with-prices`, {
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'get_parameter_prices_failed')
+    }
+    return response.json()
+  },
+
+  /**
+   * Get form field options with optionCode
+   * @param {string} fieldCode - Form field code
+   */
+  async getFieldOptions(fieldCode) {
+    const response = await fetchWithTimeout(`/api/form-fields/${fieldCode}/options`, {
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'get_field_options_failed')
+    }
+    return response.json()
   }
 }
 

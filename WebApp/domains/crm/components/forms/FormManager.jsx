@@ -1,11 +1,88 @@
 import { showToast } from '../../../../shared/components/MESToast.js';
 // Quotes Form Manager - Dynamic form configuration for quotes domain
+// Refactored: Clean database format, no legacy conversion
 import React from 'react';
 import API from '../../../../shared/lib/api.js';
 import { formsApi } from '../../services/forms-service.js';
 import { FormBuilderCompact } from './formBuilder/FormBuilderCompact.js'
 
 const { useState, useEffect, useCallback } = React;
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Create field options via API
+ * Options format: { label, optionCode? } from FieldEditor
+ * API expects: { optionValue, optionLabel, sortOrder }
+ * @param {number} fieldId - Database field ID
+ * @param {Array} options - Options array from FieldEditor
+ */
+async function createFieldOptions(fieldId, options) {
+  if (!options || options.length === 0) return;
+  
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
+    // Handle both new format { label } and legacy string format
+    const label = typeof opt === 'string' ? opt : (opt.label || opt.optionLabel || opt.value || opt);
+    
+    await formsApi.addOption(fieldId, {
+      optionValue: label, // optionValue = label for now (backend generates optionCode)
+      optionLabel: label,
+      sortOrder: i
+      // Note: priceValue is deprecated - prices are in price_parameter_lookups
+    });
+  }
+}
+
+/**
+ * Convert database field format to frontend format
+ * DB: { fieldCode, fieldName, fieldType, options: [{optionCode, optionLabel}] }
+ * Frontend: { id, label, type, options: [{label, optionCode}] }
+ */
+function dbFieldToFrontend(field, index = 0) {
+  return {
+    id: field.fieldCode,
+    label: field.fieldName,
+    type: field.fieldType,
+    required: field.isRequired || false,
+    placeholder: field.placeholder,
+    defaultValue: field.defaultValue,
+    helpText: field.helpText,
+    display: {
+      formOrder: field.sortOrder || index + 1,
+      tableOrder: field.sortOrder || index + 1,
+      showInTable: true,
+      showInFilter: false
+    },
+    validation: field.validationRule ? JSON.parse(field.validationRule) : {},
+    options: (field.options || []).map(opt => ({
+      label: opt.optionLabel || opt.label,
+      optionCode: opt.optionCode || null
+    }))
+  };
+}
+
+/**
+ * Convert frontend field format to API format for saving
+ * Frontend: { id, label, type, options: [{label, optionCode}] }
+ * API: { fieldCode, fieldName, fieldType, ... }
+ */
+function frontendFieldToApi(field, index = 0) {
+  return {
+    id: field.id,
+    label: field.label,
+    type: field.type,
+    required: field.required,
+    placeholder: field.placeholder,
+    defaultValue: field.defaultValue,
+    helpText: field.helpText || null,
+    sortOrder: field.display?.formOrder || index + 1,
+    validationRule: field.validation ? JSON.stringify(field.validation) : null,
+    options: field.options || []
+  };
+}
+
+// ==================== COMPONENT ====================
 
 function FormManager({ t, renderHeaderActions }) {
   const [formConfig, setFormConfig] = useState(null)
@@ -43,17 +120,19 @@ function FormManager({ t, renderHeaderActions }) {
         setCurrentTemplateId(template.id)
         setIsCurrentDraft(false) // Active template is not a draft
         
-        // Convert PostgreSQL format to legacy format for FormBuilderCompact
-        const legacyConfig = convertToLegacyFormat(template)
-        // Template ismini settings'e ekle
-        legacyConfig.settings = { 
-          title: template.name, 
-          description: template.description || '' 
+        // Convert DB fields to frontend format
+        const fields = (template.fields || []).map((field, idx) => dbFieldToFrontend(field, idx))
+        const frontendConfig = {
+          fields,
+          settings: { 
+            title: template.name, 
+            description: template.description || '' 
+          }
         }
-        console.log('🔄 FormManager - Converted to legacy format:', legacyConfig)
-        setFormConfig(legacyConfig)
+        console.log('🔄 FormManager - Converted to frontend format:', frontendConfig)
+        setFormConfig(frontendConfig)
         // PROMPT-A1.1: Store original fields for change detection
-        setOriginalFields(JSON.parse(JSON.stringify(legacyConfig.fields || [])))
+        setOriginalFields(JSON.parse(JSON.stringify(fields)))
         setHasChanges(false)
       } else {
         console.warn('No active template found, creating default')
@@ -128,15 +207,18 @@ function FormManager({ t, renderHeaderActions }) {
       setTemplateId(selectedTemplateId)
       setIsCurrentDraft(!template.isActive) // PROMPT-A1: Track if it's a draft
       
-      const legacyConfig = convertToLegacyFormat(template)
-      // Template ismini settings'e ekle
-      legacyConfig.settings = { 
-        title: template.name, 
-        description: template.description || '' 
+      // Convert DB fields to frontend format
+      const fields = (template.fields || []).map((field, idx) => dbFieldToFrontend(field, idx))
+      const frontendConfig = {
+        fields,
+        settings: { 
+          title: template.name, 
+          description: template.description || '' 
+        }
       }
-      setFormConfig(legacyConfig)
+      setFormConfig(frontendConfig)
       // PROMPT-A1.1: Store original fields for change detection
-      setOriginalFields(JSON.parse(JSON.stringify(legacyConfig.fields || [])))
+      setOriginalFields(JSON.parse(JSON.stringify(fields)))
       setHasChanges(false)
       
       setIsHistoryModalOpen(false)
@@ -172,13 +254,18 @@ function FormManager({ t, renderHeaderActions }) {
       console.log('💾 Saving as draft:', config)
       console.log('💾 isCurrentDraft:', isCurrentDraft, 'currentTemplateId:', currentTemplateId)
       
-      const templateData = convertFromLegacyFormat(config)
+      // Extract template info from config.settings
+      const templateName = config.settings?.title || `Taslak - ${new Date().toLocaleString('tr-TR')}`
+      const templateDescription = config.settings?.description || ''
+      
+      // Convert frontend fields to API format
+      const apiFields = (config.fields || []).map((field, idx) => frontendFieldToApi(field, idx))
       
       if (isCurrentDraft && currentTemplateId) {
         // Mevcut taslağı güncelle (isActive=false kalır)
         await formsApi.updateTemplate(currentTemplateId, {
-          name: templateData.name,
-          description: templateData.description
+          name: templateName,
+          description: templateDescription
         })
         
         // Delete existing fields and recreate
@@ -188,7 +275,7 @@ function FormManager({ t, renderHeaderActions }) {
         }
         
         // Create new fields
-        for (const field of templateData.fields) {
+        for (const field of apiFields) {
           const fieldResponse = await formsApi.createField({
             templateId: currentTemplateId,
             fieldCode: field.id,
@@ -205,17 +292,8 @@ function FormManager({ t, renderHeaderActions }) {
           // API returns { success: true, field: {...}, id: ... }
           const createdField = fieldResponse.field || fieldResponse
           
-          // Create field options if any
-          if (field.options && field.options.length > 0) {
-            for (const option of field.options) {
-              await formsApi.addOption(createdField.id || fieldResponse.id, {
-                optionValue: option.value,
-                optionLabel: option.label,
-                sortOrder: option.sortOrder || 0,
-                priceValue: option.priceValue
-              })
-            }
-          }
+          // Create field options if any (using helper for format normalization)
+          await createFieldOptions(createdField.id || fieldResponse.id, field.options)
         }
         
         // PROMPT-A1.1: Update original fields after save
@@ -226,8 +304,8 @@ function FormManager({ t, renderHeaderActions }) {
         // Aktif form açıkken "Taslağı Kaydet" = YENİ taslak oluştur
         const response = await formsApi.createTemplate({
           code: `QUOTE_FORM_${Date.now()}`,
-          name: templateData.name || `Taslak - ${new Date().toLocaleString('tr-TR')}`,
-          description: templateData.description,
+          name: templateName,
+          description: templateDescription,
           version: 1,
           isActive: false // PROMPT-A1: Her zaman draft olarak kaydet
         })
@@ -236,7 +314,7 @@ function FormManager({ t, renderHeaderActions }) {
         const newTemplate = response.template || response
         
         // Create fields for new template
-        for (const field of templateData.fields) {
+        for (const field of apiFields) {
           const fieldResponse = await formsApi.createField({
             templateId: newTemplate.id,
             fieldCode: field.id,
@@ -253,17 +331,8 @@ function FormManager({ t, renderHeaderActions }) {
           // API returns { success: true, field: {...}, id: ... }
           const createdField = fieldResponse.field || fieldResponse
           
-          // Create field options if any
-          if (field.options && field.options.length > 0) {
-            for (const option of field.options) {
-              await formsApi.addOption(createdField.id || fieldResponse.id, {
-                optionValue: option.value,
-                optionLabel: option.label,
-                sortOrder: option.sortOrder || 0,
-                priceValue: option.priceValue
-              })
-            }
-          }
+          // Create field options if any (using helper for format normalization)
+          await createFieldOptions(createdField.id || fieldResponse.id, field.options)
         }
         
         setCurrentTemplateId(newTemplate.id)
@@ -289,14 +358,19 @@ function FormManager({ t, renderHeaderActions }) {
       console.log('🚀 Activating template:', config)
       console.log('🚀 isCurrentDraft:', isCurrentDraft, 'currentTemplateId:', currentTemplateId)
       
-      const templateData = convertFromLegacyFormat(config)
+      // Extract template info from config.settings
+      const templateName = config.settings?.title || `Form v${allTemplates.length + 1}`
+      const templateDescription = config.settings?.description || ''
+      
+      // Convert frontend fields to API format
+      const apiFields = (config.fields || []).map((field, idx) => frontendFieldToApi(field, idx))
       let targetTemplateId = currentTemplateId
       
       if (isCurrentDraft && currentTemplateId) {
         // Taslak açık - önce kaydet, sonra aktif et
         await formsApi.updateTemplate(currentTemplateId, {
-          name: templateData.name,
-          description: templateData.description
+          name: templateName,
+          description: templateDescription
         })
         
         // Delete existing fields and recreate
@@ -306,7 +380,7 @@ function FormManager({ t, renderHeaderActions }) {
         }
         
         // Create new fields
-        for (const field of templateData.fields) {
+        for (const field of apiFields) {
           const fieldResponse = await formsApi.createField({
             templateId: currentTemplateId,
             fieldCode: field.id,
@@ -323,24 +397,15 @@ function FormManager({ t, renderHeaderActions }) {
           // API returns { success: true, field: {...}, id: ... }
           const createdField = fieldResponse.field || fieldResponse
           
-          // Create field options if any
-          if (field.options && field.options.length > 0) {
-            for (const option of field.options) {
-              await formsApi.addOption(createdField.id || fieldResponse.id, {
-                optionValue: option.value,
-                optionLabel: option.label,
-                sortOrder: option.sortOrder || 0,
-                priceValue: option.priceValue
-              })
-            }
-          }
+          // Create field options if any (using helper for format normalization)
+          await createFieldOptions(createdField.id || fieldResponse.id, field.options)
         }
       } else {
         // Aktif form açık - YENİ kayıt oluştur ve hemen aktif et
         const response = await formsApi.createTemplate({
           code: `QUOTE_FORM_${Date.now()}`,
-          name: templateData.name || `Form v${allTemplates.length + 1}`,
-          description: templateData.description,
+          name: templateName,
+          description: templateDescription,
           version: (allTemplates.length || 0) + 1,
           isActive: false // Önce false, sonra activate edeceğiz
         })
@@ -349,7 +414,7 @@ function FormManager({ t, renderHeaderActions }) {
         const newTemplate = response.template || response
         
         // Create fields for new template
-        for (const field of templateData.fields) {
+        for (const field of apiFields) {
           const fieldResponse = await formsApi.createField({
             templateId: newTemplate.id,
             fieldCode: field.id,
@@ -366,17 +431,8 @@ function FormManager({ t, renderHeaderActions }) {
           // API returns { success: true, field: {...}, id: ... }
           const createdField = fieldResponse.field || fieldResponse
           
-          // Create field options if any
-          if (field.options && field.options.length > 0) {
-            for (const option of field.options) {
-              await formsApi.addOption(createdField.id || fieldResponse.id, {
-                optionValue: option.value,
-                optionLabel: option.label,
-                sortOrder: option.sortOrder || 0,
-                priceValue: option.priceValue
-              })
-            }
-          }
+          // Create field options if any (using helper for format normalization)
+          await createFieldOptions(createdField.id || fieldResponse.id, field.options)
         }
         
         targetTemplateId = newTemplate.id
@@ -487,17 +543,8 @@ function FormManager({ t, renderHeaderActions }) {
         
         console.log('✅ Field created:', createdField)
         
-        // Create field options if any
-        if (field.options && field.options.length > 0) {
-          for (const option of field.options) {
-            await formsApi.addOption(createdField.id, {
-              optionValue: option.value,
-              optionLabel: option.label,
-              sortOrder: option.sortOrder || 0,
-              priceValue: option.priceValue
-            })
-          }
-        }
+        // Create field options if any (using helper for format normalization)
+        await createFieldOptions(createdField.id, field.options)
       }
       
       showToast('Form yapılandırması kaydedildi!', 'success')
@@ -510,62 +557,6 @@ function FormManager({ t, renderHeaderActions }) {
     }
   }
   */
-
-  // Convert PostgreSQL template to legacy format
-  function convertToLegacyFormat(template) {
-    console.log('🔧 Converting template fields:', template.fields)
-    
-    const converted = {
-      fields: (template.fields || []).map((field, index) => ({
-        id: field.fieldCode,
-        label: field.fieldName,
-        type: field.fieldType,
-        required: field.isRequired || false,
-        placeholder: field.placeholder,
-        defaultValue: field.defaultValue,
-        display: {
-          formOrder: field.sortOrder || index + 1,
-          tableOrder: field.sortOrder || index + 1,
-          showInTable: true,
-          showInFilter: false
-        },
-        validation: field.validation_rule ? JSON.parse(field.validation_rule) : {},
-        options: (field.options || []).map(opt => ({
-          value: opt.value,
-          label: opt.label,
-          price: opt.priceValue || null
-        }))
-      }))
-    }
-    
-    console.log('✅ Converted fields:', converted.fields)
-    return converted
-  }
-
-  // Convert legacy format to PostgreSQL format
-  function convertFromLegacyFormat(config) {
-    return {
-      name: config.name || 'Teklif Formu',
-      description: config.description,
-      fields: (config.fields || []).map((field, index) => ({
-        id: field.id,
-        label: field.label,
-        type: field.type,
-        required: field.required,
-        placeholder: field.placeholder,
-        defaultValue: field.defaultValue,
-        helpText: field.helpText || null,
-        sortOrder: field.display?.formOrder || index + 1,
-        validationRule: field.validation ? JSON.stringify(field.validation) : null,
-        options: (field.options || []).map((opt, optIdx) => ({
-          value: opt.value,
-          label: opt.label,
-          priceValue: opt.price || null,
-          sortOrder: optIdx + 1
-        }))
-      }))
-    }
-  }
 
   if (isLoading) {
     return React.createElement('div', { className: 'form-tab loading' },

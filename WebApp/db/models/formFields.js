@@ -175,6 +175,7 @@ class FormFields {
   /**
    * Get all options for a field code (across templates)
    * Pre-D2-1: New method for price calculator
+   * Returns: { id, optionCode, optionLabel, sortOrder }
    */
   static async getOptionsByFieldCode(fieldCode) {
     const options = await db('quotes.form_field_options as ffo')
@@ -185,8 +186,6 @@ class FormFields {
         'ffo.id',
         'ffo.optionCode',
         'ffo.optionLabel',
-        'ffo.optionValue',
-        'ffo.priceValue',
         'ffo.sortOrder'
       )
       .orderBy('ffo.sortOrder');
@@ -197,6 +196,7 @@ class FormFields {
   /**
    * Update option
    * Pre-D2-1: optionCode cannot be changed (immutable unique identifier)
+   * Updateable fields: optionLabel, sortOrder, isActive
    */
   static async updateOption(optionId, updates) {
     // Prevent optionCode from being changed
@@ -207,10 +207,8 @@ class FormFields {
       .update({
         // optionCode: immutable - cannot be changed
         optionLabel: safeUpdates.optionLabel,
-        optionValue: safeUpdates.optionValue,  // DEPRECATED: kept for backward compatibility
         sortOrder: safeUpdates.sortOrder,
         isActive: safeUpdates.isActive,
-        priceValue: safeUpdates.priceValue,    // DEPRECATED: kept for backward compatibility
         updatedAt: db.fn.now()
       })
       .returning('*');
@@ -274,12 +272,10 @@ class FormFields {
             
             optionsToInsert.push({
               fieldId: field.id,
-              optionCode: optionCode,                    // NEW: Unique option code
+              optionCode: optionCode,
               optionLabel: opt.label,
-              optionValue: opt.value || opt.label,       // DEPRECATED: kept for backward compatibility
               sortOrder: opt.sortOrder !== undefined ? opt.sortOrder : idx,
               isActive: opt.isActive !== undefined ? opt.isActive : true,
-              priceValue: opt.priceValue || null,        // DEPRECATED: kept for backward compatibility
               createdAt: db.fn.now(),
               updatedAt: db.fn.now()
             });

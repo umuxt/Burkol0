@@ -1,5 +1,6 @@
 import { showToast } from '../../../../shared/components/MESToast.js';
 // Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
+// Updated for Pre-D2-2: Lookup table UI and helper functions
 import React from 'react';
 import { priceApi } from '../../services/pricing-service.js';
 import { formsApi } from '../../services/forms-service.js';
@@ -8,6 +9,41 @@ import PricingUtils from '../../utils/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect, useRef } = React;
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Merge form field options with existing lookup values
+ * Creates a lookup table with optionCode, optionLabel, and value
+ * @param {Array} options - Form field options with {optionCode, optionLabel}
+ * @param {Array} existingLookups - Existing lookup values with {optionCode, value}
+ * @returns {Array} Merged lookup table
+ */
+function mergeLookupTable(options, existingLookups = []) {
+  const lookupMap = new Map(existingLookups.map(l => [l.optionCode, l.value]));
+  return options.map(opt => ({
+    optionCode: opt.optionCode,
+    optionLabel: opt.optionLabel,
+    value: lookupMap.has(opt.optionCode) ? String(lookupMap.get(opt.optionCode)) : ''
+  }));
+}
+
+/**
+ * Convert lookup table to API format for saving
+ * Filters out empty values and converts to {optionCode, value} format
+ * @param {Array} lookupTable - Lookup table with {optionCode, optionLabel, value}
+ * @returns {Array} API-ready lookups array
+ */
+function convertLookupsForApi(lookupTable) {
+  return lookupTable
+    .filter(lt => lt.value !== '' && lt.value !== null && lt.value !== undefined)
+    .map(lt => ({
+      optionCode: lt.optionCode,
+      value: parseFloat(lt.value) || 0
+    }));
+}
+
+// ==================== COMPONENT ====================
 
 function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, renderHeaderActions }) {
   // Core pricing data
@@ -146,32 +182,52 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     }
   }
 
-  // selectedFormField değiştiğinde o field'ın options'larını otomatik populate et
+  // Pre-D2-2: selectedFormField değiştiğinde o field'ın options'larını API'den yükle
+  // Artık optionCode sistemi kullanılıyor
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  
   useEffect(() => {
-    if (!selectedFormField) return
+    if (!selectedFormField) {
+      setLookupTable([])
+      return
+    }
 
     const field = formFields.find(f => f.value === selectedFormField)
-    if (!field || !field.hasOptions || !field.options) return
-
-    // Field'ın options'larını lookup table'a otomatik ekle
-    const existingOptions = lookupTable.map(item => item.option)
-    const fieldOptions = field.options
-
-    // Yeni options'ları ekle (mevcut olanları koruyarak)
-    const newLookupItems = [...lookupTable]
-    
-    fieldOptions.forEach(option => {
-      if (!existingOptions.includes(option)) {
-        // Varsayılan değeri boş bırak (0 yazma)
-        newLookupItems.push({ option: option, value: '' })
-      }
-    })
-
-    // Sadece değişiklik varsa güncelle
-    if (newLookupItems.length !== lookupTable.length) {
-      setLookupTable(newLookupItems)
+    if (!field || !field.hasOptions) {
+      setLookupTable([])
+      return
     }
-  }, [selectedFormField, formFields, lookupTable])
+
+    // API'den optionCode'lu options'ları yükle
+    async function loadFieldOptions() {
+      setIsLoadingOptions(true)
+      try {
+        const options = await formsApi.getFieldOptionsByCode(selectedFormField)
+        // { optionCode, optionLabel, value } formatında lookup table oluştur
+        const newLookupItems = options.map(opt => ({
+          optionCode: opt.optionCode,
+          optionLabel: opt.optionLabel,
+          value: '' // Varsayılan değer boş
+        }))
+        setLookupTable(newLookupItems)
+      } catch (e) {
+        console.error('Failed to load field options:', e)
+        // Fallback: mevcut formFields'dan yükle (eski format)
+        if (field.options) {
+          const newLookupItems = field.options.map((opt, idx) => ({
+            optionCode: `TEMP-${idx}`,
+            optionLabel: typeof opt === 'string' ? opt : opt.label,
+            value: ''
+          }))
+          setLookupTable(newLookupItems)
+        }
+      } finally {
+        setIsLoadingOptions(false)
+      }
+    }
+    
+    loadFieldOptions()
+  }, [selectedFormField, formFields])
 
   async function loadPriceSettings() {
     try {
@@ -194,10 +250,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       const loadedParameters = setting.parameters || []
       const convertedParams = loadedParameters.map(p => ({
         id: p.code,
+        dbId: p.id, // Pre-D2-2: Database ID for lookups
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
         value: p.fixedValue,
-        formField: p.formFieldCode
+        formField: p.formFieldCode,
+        lookups: p.lookups || [] // Pre-D2-2: Include lookups
       }))
       
       setParameters(convertedParams)
@@ -239,10 +297,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       const loadedParameters = setting.parameters || []
       const convertedParams = loadedParameters.map(p => ({
         id: p.code,
+        dbId: p.id, // Pre-D2-2: Database ID for lookups
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
         value: p.fixedValue,
-        formField: p.formFieldCode
+        formField: p.formFieldCode,
+        lookups: p.lookups || [] // Pre-D2-2: Include lookups
       }))
       
       setParameters(convertedParams)
@@ -462,8 +522,9 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       newParam.value = parseFloat(fixedValue) || 0
     } else if (parameterType === 'form') {
       newParam.formField = selectedFormField
+      // Use helper to convert lookup table to API format
       if (lookupTable.length > 0) {
-        newParam.lookupTable = [...lookupTable]
+        newParam.lookups = convertLookupsForApi(lookupTable)
       }
     }
 
@@ -619,17 +680,34 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   // Row-level edit helpers removed (direct input editing used)
 
   // Parameter row editing helpers
-  function editParameter(param) {
+  async function editParameter(param) {
     setEditingParamId(param.id)
     setParamDraft({
       name: param.name || '',
       value: param.type === 'fixed' ? (param.value ?? '') : '',
       formField: param.type === 'form' ? (param.formField || '') : ''
     })
-    // For form params with options, load lookup table for editing
+    // For form params with options, load lookup table from API
     const field = formFields.find(f => f.value === param.formField)
     if (param.type === 'form' && field && field.hasOptions) {
-      setParamLookupTable([...(param.lookupTable || [])])
+      try {
+        // Load current options from form field
+        const options = await formsApi.getFieldOptionsByCode(param.formField)
+        // Load existing lookup values from API (if param has DB id)
+        let existingLookups = []
+        if (param.dbId) {
+          const response = await priceApi.getParameterLookups(param.dbId)
+          existingLookups = response.lookups || []
+        } else if (param.lookups) {
+          existingLookups = param.lookups
+        }
+        
+        // Merge options with existing lookup values using helper
+        setParamLookupTable(mergeLookupTable(options, existingLookups))
+      } catch (error) {
+        console.error('Error loading lookup table for editing:', error)
+        setParamLookupTable(param.lookupTable || param.lookups || [])
+      }
     } else {
       setParamLookupTable([])
     }
@@ -650,9 +728,9 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       if (p.type === 'fixed') {
         patch.value = paramDraft.value === '' ? 0 : (parseFloat(paramDraft.value) || 0)
       } else if (p.type === 'form') {
-        // formField değişimini UI'dan kaldırıyoruz; sadece lookup değerlerini güncelleriz
         patch.formField = p.formField
-        patch.lookupTable = paramLookupTable
+        // Use helper to convert lookup table to API format
+        patch.lookups = convertLookupsForApi(paramLookupTable)
       }
       return patch
     })
@@ -663,8 +741,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   // Helpers to edit param lookup values inline
   function paramUpdateLookupValue(index, newValue) {
     const updated = [...paramLookupTable]
-    const parsed = newValue === '' ? '' : (isNaN(parseFloat(newValue)) ? '' : parseFloat(newValue))
-    updated[index] = { ...updated[index], value: parsed }
+    updated[index] = { ...updated[index], value: newValue }
     setParamLookupTable(updated)
   }
 
@@ -1224,32 +1301,51 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
           // Lookup table for fields with options
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
           React.createElement('div', { className: 'form-group' },
-            React.createElement('label', null, 'Değer Eşleştirme Tablosu'),
+            React.createElement('label', null, 'Seçenek Bazlı Değer Tablosu'),
             React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
-              'Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
+              'Her seçenek için fiyat hesaplamasında kullanılacak değeri girin. Boş bırakılan değerler 0 olarak kabul edilir.'
             ),
             
-            lookupTable.length > 0 && React.createElement('table', { className: 'table table-sm' },
+            lookupTable.length > 0 && React.createElement('table', { className: 'table table-sm', style: { marginTop: '8px' } },
               React.createElement('thead', null,
                 React.createElement('tr', null,
-                  React.createElement('th', null, 'Seçenek'),
-                  React.createElement('th', null, 'Değer (Salt Okunur)')
+                  React.createElement('th', { style: { width: '40%' } }, 'Seçenek'),
+                  React.createElement('th', { style: { width: '30%' } }, 'Kod'),
+                  React.createElement('th', { style: { width: '30%' } }, 'Değer')
                 )
               ),
               React.createElement('tbody', null,
                 ...lookupTable.map((entry, index) =>
-                  React.createElement('tr', { key: index },
-                    React.createElement('td', null, entry.option),
+                  React.createElement('tr', { key: entry.optionCode || index },
+                    React.createElement('td', null, entry.optionLabel),
                     React.createElement('td', null,
-                      React.createElement('input', {
-                        type: 'number',
-                        value: entry.value === 0 ? '' : (entry.value ?? ''),
-                        readOnly: true,
-                        className: 'mes-filter-input is-compact',
-                        step: '0.01',
-                        style: { width: '100px', backgroundColor: '#f5f5f5', cursor: 'not-allowed' },
-                        title: 'Fiyatlar form alanı seçeneklerinde tanımlanıyor'
-                      })
+                      React.createElement('code', { 
+                        style: { 
+                          fontSize: '12px', 
+                          backgroundColor: '#f0f0f0', 
+                          padding: '2px 6px', 
+                          borderRadius: '3px',
+                          color: '#666'
+                        } 
+                      }, entry.optionCode)
+                    ),
+                    React.createElement('td', null,
+                      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                        React.createElement('input', {
+                          type: 'number',
+                          value: entry.value,
+                          onChange: (e) => {
+                            const newLookupTable = [...lookupTable];
+                            newLookupTable[index] = { ...newLookupTable[index], value: e.target.value };
+                            setLookupTable(newLookupTable);
+                          },
+                          className: 'mes-filter-input is-compact',
+                          step: '0.01',
+                          placeholder: '0',
+                          style: { width: '100px' }
+                        }),
+                        React.createElement('span', { style: { color: '#666', fontSize: '13px' } }, '₺')
+                      )
                     )
                   )
                 )
@@ -1366,160 +1462,290 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
             )
           ),
           React.createElement('tbody', null,
-            ...parameters.map((param, index) => {
+            // Flatten parameter rows with their lookup editors
+            ...parameters.flatMap((param, index) => {
               const isOrphan = systemIntegrity.orphanParameters.some(op => op.id === param.id)
               const rowStyle = isOrphan ? { backgroundColor: '#ffebee', border: '2px solid #f44336' } : {}
+              const field = formFields.find(f => f.value === param.formField)
+              const showLookup = editingParamId === param.id && param.type === 'form' && field && field.hasOptions
               
-              return React.createElement('tr', { key: param.id, style: rowStyle },
-                React.createElement('td', null, 
-                  React.createElement('strong', { style: { color: '#007bff', fontSize: '1.1em' } },
-                    getParameterDisplayId(param, index)
-                  )
-                ),
-                // Name col (editable)
-                React.createElement('td', null,
-                  editingParamId === param.id
-                    ? React.createElement('input', {
-                        type: 'text',
-                        value: paramDraft.name,
-                        onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
-                        className: 'pricing-form-control',
-                        placeholder: 'Parametre adı',
-                        style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
-                      })
-                    : param.name
-                ),
-                // Type col (read-only label)
-                React.createElement('td', null, 
-                  param.type === 'fixed' 
-                    ? React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
-                        React.createElement('span', { 
-                          dangerouslySetInnerHTML: { 
-                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>'
-                          }
-                        }),
-                        'Sabit'
-                      )
-                    : React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
-                        React.createElement('span', { 
-                          dangerouslySetInnerHTML: { 
-                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>'
-                          }
-                        }),
-                        'Form'
-                      )
-                ),
-                // Value/Field col (editable by type)
-                React.createElement('td', null,
-                  editingParamId === param.id
-                    ? (param.type === 'fixed'
-                        ? React.createElement('input', {
-                            type: 'number',
-                            value: paramDraft.value,
-                            onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
-                            className: 'pricing-form-control',
-                            step: '0.01',
-                            style: { width: '110px', padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
-                          })
-                        : React.createElement('select', {
-                            className: 'pricing-form-control',
-                            value: paramDraft.formField,
-                            onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value }),
-                            style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
-                          },
-                            React.createElement('option', { value: '' }, 'Seçiniz...'),
-                            ...formFields.map(f => React.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
-                          )
-                      )
-                    : (param.type === 'fixed' ? param.value : 
-                        (isOrphan ? React.createElement('span', { style: { color: '#f44336', fontWeight: 'bold' } },
-                          param.formField, ' (ALAN MEVCUT DEĞİL)'
-                        ) : (formFields.find(f => f.value === param.formField)?.label || param.formField))
+              const rows = [
+                // Main parameter row
+                React.createElement('tr', { key: param.id, style: rowStyle },
+                  React.createElement('td', null, 
+                    React.createElement('strong', { style: { color: '#007bff', fontSize: '1.1em' } },
+                      getParameterDisplayId(param, index)
                     )
-                ),
-                // Actions (Edit only for fixed or form-with-options)
-                React.createElement('td', null,
-                  (() => {
-                    const field = formFields.find(f => f.value === param.formField)
-                    const canEdit = param.type === 'fixed' || (param.type === 'form' && field && field.hasOptions)
-                    if (editingParamId === param.id) {
-                      return React.createElement(React.Fragment, null,
-                        React.createElement('button', {
-                          onClick: () => saveEditParameter(param),
-                          className: 'mes-btn mes-btn-sm mes-btn-success',
-                          style: { marginRight: '6px' }
-                        }, 'Kaydet'),
-                        React.createElement('button', {
-                          onClick: cancelEditParameter,
-                          className: 'mes-btn mes-btn-sm mes-btn-secondary'
-                        }, 'İptal')
-                      )
-                    }
-                    return React.createElement(React.Fragment, null,
-                      canEdit && !isOrphan && React.createElement('button', {
-                        onClick: () => editParameter(param),
-                        className: 'mes-btn mes-btn-sm mes-btn-primary',
-                        style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
-                      }, 'Düzenle'),
-                      isOrphan ? React.createElement('button', {
-                        onClick: () => removeOrphanParameter(param.id),
-                        className: 'mes-btn mes-btn-sm mes-btn-warning',
-                        style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
-                      }, '🧹 Orphan Temizle') : React.createElement('button', {
-                        onClick: () => deleteParameter(param.id),
-                        className: 'mes-btn mes-btn-sm mes-btn-danger',
-                        style: { marginTop: '2px', marginBottom: '2px' }
-                      }, 'Sil')
-                    )
-                  })()
-                )
-              )
-            })
-          ),
-          // Inline lookup editor for form parameters with options
-          ...parameters.map((param) => {
-            const field = formFields.find(f => f.value === param.formField)
-            const canEdit = editingParamId === param.id && param.type === 'form' && field && field.hasOptions
-            if (!canEdit) return null
-            return React.createElement('tr', { key: param.id + '-lookup' },
-              React.createElement('td', { colSpan: 5 },
-                React.createElement('div', { className: 'card', style: { marginTop: '8px' } },
-                  React.createElement('h4', null, 'Değer Eşleştirme (Salt Okunur)'),
-                  React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
-                    'Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
                   ),
-                  paramLookupTable && paramLookupTable.length > 0 ?
-                    React.createElement('table', { className: 'table table-sm' },
-                      React.createElement('thead', null,
-                        React.createElement('tr', null,
-                          React.createElement('th', null, 'Seçenek'),
-                          React.createElement('th', null, 'Değer (Salt Okunur)')
+                  // Name col (editable)
+                  React.createElement('td', null,
+                    editingParamId === param.id
+                      ? React.createElement('input', {
+                          type: 'text',
+                          value: paramDraft.name,
+                          onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
+                          className: 'pricing-form-control',
+                          placeholder: 'Parametre adı',
+                          style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
+                        })
+                      : param.name
+                  ),
+                  // Type col (read-only label)
+                  React.createElement('td', null, 
+                    param.type === 'fixed' 
+                      ? React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                          React.createElement('span', { 
+                            dangerouslySetInnerHTML: { 
+                              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>'
+                            }
+                          }),
+                          'Sabit'
                         )
-                      ),
-                      React.createElement('tbody', null,
-                        ...paramLookupTable.map((it, idx) =>
-                          React.createElement('tr', { key: idx },
-                            React.createElement('td', null, it.option),
-                            React.createElement('td', null,
-                              React.createElement('input', {
-                                type: 'number',
-                                value: (it.value === 0 ? '' : (it.value ?? '')),
-                                readOnly: true,
-                                className: 'pricing-form-control',
-                                step: '0.01',
-                                style: { width: '120px', backgroundColor: '#f5f5f5', cursor: 'not-allowed' },
-                                title: 'Fiyatlar form alanı seçeneklerinde tanımlanıyor'
-                              })
+                      : React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                          React.createElement('span', { 
+                            dangerouslySetInnerHTML: { 
+                              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>'
+                            }
+                          }),
+                          'Form'
+                        )
+                  ),
+                  // Value/Field col (editable by type)
+                  React.createElement('td', null,
+                    editingParamId === param.id
+                      ? (param.type === 'fixed'
+                          ? React.createElement('input', {
+                              type: 'number',
+                              value: paramDraft.value,
+                              onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
+                              className: 'pricing-form-control',
+                              step: '0.01',
+                              style: { width: '110px', padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
+                            })
+                          : React.createElement('select', {
+                              className: 'pricing-form-control',
+                              value: paramDraft.formField,
+                              onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value }),
+                              style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
+                            },
+                              React.createElement('option', { value: '' }, 'Seçiniz...'),
+                              ...formFields.map(f => React.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
+                            )
+                        )
+                      : (param.type === 'fixed' ? param.value : 
+                          (isOrphan ? React.createElement('span', { style: { color: '#f44336', fontWeight: 'bold' } },
+                            param.formField, ' (ALAN MEVCUT DEĞİL)'
+                          ) : (formFields.find(f => f.value === param.formField)?.label || param.formField))
+                      )
+                  ),
+                  // Actions (Edit only for fixed or form-with-options)
+                  React.createElement('td', null,
+                    (() => {
+                      const canEdit = param.type === 'fixed' || (param.type === 'form' && field && field.hasOptions)
+                      if (editingParamId === param.id) {
+                        return React.createElement(React.Fragment, null,
+                          React.createElement('button', {
+                            onClick: () => saveEditParameter(param),
+                            className: 'mes-btn mes-btn-sm mes-btn-success',
+                            style: { marginRight: '6px' }
+                          }, 'Kaydet'),
+                          React.createElement('button', {
+                            onClick: cancelEditParameter,
+                            className: 'mes-btn mes-btn-sm mes-btn-secondary'
+                          }, 'İptal')
+                        )
+                      }
+                      return React.createElement(React.Fragment, null,
+                        canEdit && !isOrphan && React.createElement('button', {
+                          onClick: () => editParameter(param),
+                          className: 'mes-btn mes-btn-sm mes-btn-primary',
+                          style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
+                        }, 'Düzenle'),
+                        isOrphan ? React.createElement('button', {
+                          onClick: () => removeOrphanParameter(param.id),
+                          className: 'mes-btn mes-btn-sm mes-btn-warning',
+                          style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
+                        }, '🧹 Orphan Temizle') : React.createElement('button', {
+                          onClick: () => deleteParameter(param.id),
+                          className: 'mes-btn mes-btn-sm mes-btn-danger',
+                          style: { marginTop: '2px', marginBottom: '2px' }
+                        }, 'Sil')
+                      )
+                    })()
+                  )
+                )
+              ]
+              
+              // Add lookup editor row if editing a form param with options
+              if (showLookup) {
+                rows.push(
+                  React.createElement('tr', { key: param.id + '-lookup', style: { backgroundColor: '#f9fafb' } },
+                    React.createElement('td', { colSpan: 5, style: { padding: '0', borderTop: 'none' } },
+                      React.createElement('div', { 
+                        style: { 
+                          margin: '0 16px 16px 16px',
+                          padding: '16px',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid rgb(229, 231, 235)',
+                          borderRadius: '8px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                        } 
+                      },
+                        // Header with icon
+                        React.createElement('div', { 
+                          style: { 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px',
+                            marginBottom: '12px',
+                            paddingBottom: '12px',
+                            borderBottom: '1px solid rgb(229, 231, 235)'
+                          } 
+                        },
+                          React.createElement('span', { 
+                            style: { 
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '28px',
+                              height: '28px',
+                              backgroundColor: '#e6f2ff',
+                              borderRadius: '6px',
+                              color: '#007bff'
+                            },
+                            dangerouslySetInnerHTML: { 
+                              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>'
+                            }
+                          }),
+                          React.createElement('span', { 
+                            style: { 
+                              fontWeight: '600', 
+                              fontSize: '14px',
+                              color: '#1a1a1a'
+                            } 
+                          }, 'Seçenek Bazlı Değer Tablosu')
+                        ),
+                        // Info box
+                        React.createElement('div', { 
+                          style: { 
+                            marginBottom: '16px', 
+                            fontSize: '13px', 
+                            color: '#0066cc', 
+                            backgroundColor: '#e6f2ff', 
+                            padding: '10px 12px', 
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          } 
+                        },
+                          React.createElement('span', { 
+                            dangerouslySetInnerHTML: { 
+                              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+                            }
+                          }),
+                          'Her seçenek için fiyat hesaplamasında kullanılacak değeri girin.'
+                        ),
+                        // Lookup table content
+                        paramLookupTable && paramLookupTable.length > 0 ?
+                          React.createElement('div', { 
+                            style: { 
+                              border: '1px solid rgb(229, 231, 235)',
+                              borderRadius: '6px',
+                              overflow: 'hidden'
+                            } 
+                          },
+                            // Table header
+                            React.createElement('div', { 
+                              style: { 
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 140px',
+                                backgroundColor: '#f9fafb',
+                                padding: '10px 12px',
+                                borderBottom: '1px solid rgb(229, 231, 235)',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              } 
+                            },
+                              React.createElement('div', null, 'Seçenek'),
+                              React.createElement('div', null, 'Değer')
+                            ),
+                            // Table rows
+                            ...paramLookupTable.map((it, idx) =>
+                              React.createElement('div', { 
+                                key: it.optionCode || idx,
+                                style: { 
+                                  display: 'grid',
+                                  gridTemplateColumns: '1fr 140px',
+                                  padding: '10px 12px',
+                                  borderBottom: idx < paramLookupTable.length - 1 ? '1px solid rgb(229, 231, 235)' : 'none',
+                                  alignItems: 'center',
+                                  backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa'
+                                } 
+                              },
+                                React.createElement('div', { 
+                                  style: { 
+                                    fontWeight: '500',
+                                    color: '#1a1a1a',
+                                    fontSize: '13px'
+                                  } 
+                                }, it.optionLabel || it.option),
+                                React.createElement('div', { 
+                                  style: { 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px' 
+                                  } 
+                                },
+                                  React.createElement('input', {
+                                    type: 'number',
+                                    value: it.value,
+                                    onChange: (e) => paramUpdateLookupValue(idx, e.target.value),
+                                    step: '0.01',
+                                    placeholder: '0',
+                                    style: { 
+                                      width: '90px',
+                                      padding: '6px 10px',
+                                      fontSize: '13px',
+                                      border: '1px solid rgb(229, 231, 235)',
+                                      borderRadius: '4px',
+                                      outline: 'none',
+                                      transition: 'border-color 0.15s ease'
+                                    }
+                                  }),
+                                  React.createElement('span', { 
+                                    style: { 
+                                      color: '#9ca3af', 
+                                      fontSize: '13px',
+                                      fontWeight: '500'
+                                    } 
+                                  }, '₺')
+                                )
+                              )
                             )
                           )
-                        )
+                        : React.createElement('div', { 
+                            style: {
+                              padding: '20px',
+                              textAlign: 'center',
+                              color: '#9ca3af',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '6px',
+                              border: '1px dashed rgb(229, 231, 235)'
+                            }
+                          }, 'Eşleştirme tablosu boş')
                       )
                     )
-                  : React.createElement('div', { className: 'pricing-alert pricing-alert-warning' }, 'Eşleştirme tablosu boş')
+                  )
                 )
-              )
-            )
-          })
+              }
+              
+              return rows
+            })
+          )
         )
       ) // End of parameters list div
         ) // End of inner flex container

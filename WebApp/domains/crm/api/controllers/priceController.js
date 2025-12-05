@@ -4,6 +4,7 @@
  * API routes for managing price parameters and settings
  * Updated for B0: Removed PriceFormulas (merged into PriceSettings)
  * Updated for Pre-D2-1: Added price_parameter_lookups support
+ * Updated for Pre-D2-2: Refactored lookup save logic into helper functions
  */
 
 import db from '../../../../db/connection.js';
@@ -12,6 +13,61 @@ import PriceParameterLookups from '../../../../db/models/priceParameterLookups.j
 import PriceSettings from '../services/priceSettingsService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Convert frontend parameter format to database format
+ * @param {Object} param - Frontend parameter object
+ * @param {number} settingId - Price setting ID
+ * @returns {Object} Database-ready parameter object
+ */
+function convertParamToDbFormat(param, settingId) {
+  return {
+    settingId,
+    code: param.id || param.code,
+    name: param.name,
+    type: param.type === 'form' ? 'form_lookup' : param.type,
+    fixedValue: param.type === 'fixed' ? (parseFloat(param.value || param.fixedValue) || 0) : null,
+    formFieldCode: param.type === 'form' ? (param.formField || param.id) : null,
+    unit: param.unit,
+    description: param.description,
+    isActive: true
+  };
+}
+
+/**
+ * Save lookups for inserted parameters
+ * @param {Array} parameters - Frontend parameters with lookups
+ * @param {Array} insertedParams - Inserted parameters with {id, code}
+ */
+async function saveParameterLookups(parameters, insertedParams) {
+  for (const param of parameters) {
+    if (param.lookups && param.lookups.length > 0) {
+      const insertedParam = insertedParams.find(ip => ip.code === (param.id || param.code));
+      if (insertedParam) {
+        const lookupData = param.lookups.map(l => ({
+          parameterId: insertedParam.id,
+          optionCode: l.optionCode,
+          value: parseFloat(l.value) || 0
+        }));
+        await db('quotes.price_parameter_lookups').insert(lookupData);
+      }
+    }
+  }
+}
+
+/**
+ * Delete all lookups for given parameter IDs
+ * @param {Array<number>} paramIds - Parameter IDs
+ */
+async function deleteLookupsForParams(paramIds) {
+  if (paramIds.length > 0) {
+    await db('quotes.price_parameter_lookups')
+      .whereIn('parameterId', paramIds)
+      .delete();
+  }
+}
 
 /**
  * Setup price routes
@@ -1019,19 +1075,11 @@ export function setupPriceRoutes(app) {
 
       // Add parameters if provided
       if (parameters && parameters.length > 0) {
-        const paramData = parameters.map(p => ({
-          settingId: setting.id,
-          code: p.id || p.code,
-          name: p.name,
-          type: p.type === 'form' ? 'form_lookup' : p.type,
-          fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
-          formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
-          unit: p.unit,
-          description: p.description,
-          isActive: true
-        }));
-
-        await db('quotes.price_parameters').insert(paramData);
+        const paramData = parameters.map(p => convertParamToDbFormat(p, setting.id));
+        const insertedParams = await db('quotes.price_parameters').insert(paramData).returning(['id', 'code']);
+        
+        // Pre-D2-2: Save lookups for each parameter
+        await saveParameterLookups(parameters, insertedParams);
       }
 
       logger.success(`Price setting created: ${setting.id}`);
@@ -1047,6 +1095,7 @@ export function setupPriceRoutes(app) {
     try {
       const { id } = req.params;
       const { name, description, parameters, formula } = req.body;
+      const settingId = parseInt(id);
       
       logger.info(`PATCH /api/price-settings/${id} - Updating setting`);
 
@@ -1057,35 +1106,35 @@ export function setupPriceRoutes(app) {
       if (formula !== undefined) updateData.formulaExpression = formula;
 
       if (Object.keys(updateData).length > 0) {
-        await PriceSettings.update(parseInt(id), updateData);
+        await PriceSettings.update(settingId, updateData);
       }
 
       // Update parameters - parameters are not referenced by FK, safe to delete/recreate
       if (parameters) {
+        // Get existing parameter IDs to delete their lookups first
+        const existingParams = await db('quotes.price_parameters')
+          .where({ settingId })
+          .select('id');
+        
+        // Delete lookups for existing parameters
+        await deleteLookupsForParams(existingParams.map(p => p.id));
+        
         // Delete existing parameters for this setting
         await db('quotes.price_parameters')
-          .where({ settingId: parseInt(id) })
+          .where({ settingId })
           .delete();
 
-        // Insert new parameters
+        // Insert new parameters with lookups
         if (parameters.length > 0) {
-          const paramData = parameters.map(p => ({
-            settingId: parseInt(id),
-            code: p.id || p.code,
-            name: p.name,
-            type: p.type === 'form' ? 'form_lookup' : p.type,
-            fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
-            formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
-            unit: p.unit,
-            description: p.description,
-            isActive: true
-          }));
-
-          await db('quotes.price_parameters').insert(paramData);
+          const paramData = parameters.map(p => convertParamToDbFormat(p, settingId));
+          const insertedParams = await db('quotes.price_parameters').insert(paramData).returning(['id', 'code']);
+          
+          // Save lookups for each parameter
+          await saveParameterLookups(parameters, insertedParams);
         }
       }
 
-      const updatedSetting = await PriceSettings.getWithDetails(parseInt(id));
+      const updatedSetting = await PriceSettings.getWithDetails(settingId);
       logger.success(`Price setting updated: ${id}`);
       res.json(updatedSetting);
     } catch (error) {
