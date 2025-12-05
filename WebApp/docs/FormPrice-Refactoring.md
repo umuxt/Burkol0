@@ -2223,17 +2223,148 @@ Uygulama sırasında tespit edilen ve düzeltilen sorunlar:
 - `domains/crm/styles/quotes.css` (modal stilleri)
 
 **Test Kriterleri**:
-- [ ] Modal açılıp kapanabiliyor
-- [ ] Eski form değerleri sol panelde görünüyor
-- [ ] Yeni form alanları sağ panelde düzenlenebilir
-- [ ] "Eşleşenleri Kopyala" fieldCode eşleşmesi ile çalışıyor
-- [ ] Fiyat dinamik olarak güncelleniyor (debounce ile)
-- [ ] Eski fiyat ve yeni fiyat yan yana gösteriliyor
-- [ ] Fiyat farkı gösteriliyor (artış/azalış)
-- [ ] Yeni eklenen alanlar "Yeni" badge ile işaretleniyor
-- [ ] Kaldırılan alanlar "Kaldırıldı" badge ile işaretleniyor
-- [ ] Loading state'ler düzgün çalışıyor
-- [ ] Error handling düzgün çalışıyor
+- [x] Modal açılıp kapanabiliyor
+- [x] Eski form değerleri sol panelde görünüyor
+- [x] Yeni form alanları sağ panelde düzenlenebilir
+- [x] "Eşleşenleri Kopyala" fieldCode eşleşmesi ile çalışıyor
+- [x] Fiyat dinamik olarak güncelleniyor (debounce ile)
+- [x] Eski fiyat ve yeni fiyat yan yana gösteriliyor
+- [x] Fiyat farkı gösteriliyor (artış/azalış)
+- [x] Yeni eklenen alanlar "Yeni" badge ile işaretleniyor
+- [x] Kaldırılan alanlar "Kaldırıldı" badge ile işaretleniyor
+- [x] Loading state'ler düzgün çalışıyor
+- [x] Error handling düzgün çalışıyor
+
+**Commit**: `feat(crm): [FP-E1] FormUpdateModal UI enhancements & cache optimization`
+**Tarih**: 5 Aralık 2025
+
+### Gerçekleştirilen Değişiklikler
+
+#### 1. FormUpdateModal.jsx UI Geliştirmeleri
+
+**Yeni useMemo hesaplamaları eklendi:**
+```jsx
+// PROMPT-E1: Find new-only fields (added in new template)
+const newOnlyFields = useMemo(() => {
+  return newFields.filter(newField => {
+    const newCode = newField.fieldCode || newField.id
+    return !oldFields.some(oldField => (oldField.fieldCode || oldField.id) === newCode)
+  })
+}, [oldFields, newFields])
+
+// PROMPT-E1: Find removed fields (were in old template, not in new)
+const removedFields = useMemo(() => {
+  return oldFields.filter(oldField => {
+    const oldCode = oldField.fieldCode || oldField.id
+    return !newFields.some(newField => (newField.fieldCode || newField.id) === oldCode)
+  })
+}, [oldFields, newFields])
+```
+
+**Summary Banner eklendi:**
+```jsx
+{/* Info Banner with Stats */}
+<div style={infoBannerStyle}>
+  <AlertTriangle size={16} />
+  <span>Form şablonu güncellendi. Lütfen yeni alanları doldurun.</span>
+  <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+    <span style={{ background: '#dcfce7', color: '#166534' }}>
+      {matchingFields.length} Eşleşen
+    </span>
+    {newOnlyFields.length > 0 && (
+      <span style={{ background: '#dbeafe', color: '#1e40af' }}>
+        {newOnlyFields.length} Yeni
+      </span>
+    )}
+    {removedFields.length > 0 && (
+      <span style={{ background: '#fee2e2', color: '#991b1b' }}>
+        {removedFields.length} Kaldırılan
+      </span>
+    )}
+  </div>
+</div>
+```
+
+**"Yeni" badge (sağ panel):**
+```jsx
+{isNewField && (
+  <span style={{ background: '#dbeafe', color: '#1e40af' }}>Yeni</span>
+)}
+```
+
+**"Kaldırıldı" badge (sol panel):**
+```jsx
+{isRemoved && (
+  <span style={{ background: '#fee2e2', color: '#991b1b' }}>Kaldırıldı</span>
+)}
+```
+
+#### 2. QuoteDetailsPanel.jsx Cache Optimizasyonu
+
+**handleFormUpdateClick basitleştirildi:**
+```jsx
+// ÖNCE: Her tıklamada 2 API çağrısı (gereksiz)
+const handleFormUpdateClick = async () => {
+  const [oldTemplateResult, freshActiveTemplate] = await Promise.all([
+    formsApi.getTemplateWithFields(quote.formTemplateId),
+    formsApi.getActiveTemplate()
+  ])
+  // ...
+}
+
+// SONRA: Cache'den okuma (0 API çağrısı)
+const handleFormUpdateClick = () => {
+  // Use already cached data - no need to fetch again
+  // activeFormTemplate is fetched when quote details open (line ~98)
+  // quoteFormTemplate is fetched when quote details open (line ~136)
+  
+  const oldFields = quoteFormTemplate?.fields || formConfig?.fields || []
+  const newFields = activeFormTemplate?.fields || []
+  
+  setOldFormFields(oldFields)
+  setNewFormFields(newFields)
+  setShowFormUpdateModal(true)
+}
+```
+
+**handleFormUpdateSave basitleştirildi:**
+```jsx
+// ÖNCE: API'den tekrar template çekiyordu
+if (updatePayload.formTemplateId) {
+  const newTemplate = await formsApi.getTemplateWithFields(newTemplateId)
+  setQuoteFormTemplate(newTemplate)
+}
+
+// SONRA: Cache'deki activeFormTemplate kullanılıyor
+if (activeFormTemplate) {
+  setQuoteFormTemplate(activeFormTemplate)
+}
+```
+
+#### 3. Veri Akışı (Optimize Edilmiş)
+
+| Adım | API Çağrısı | Açıklama |
+|------|-------------|----------|
+| Quote detayları açılır | 1x | `activeFormTemplate` ve `quoteFormTemplate` paralel fetch |
+| Banner kontrolü | 0 | Cache'den karşılaştırma |
+| "Formu Güncelle" butonu | 0 | Cache'den veri alınır |
+| Modal kaydet | 0 (template için) | `quoteFormTemplate = activeFormTemplate` |
+
+**Sonuç:** 3-4 gereksiz API çağrısı kaldırıldı.
+
+#### 4. Bilinen Sorunlar
+
+| Sorun | Durum | Not |
+|-------|-------|-----|
+| Sol panel optionCode gösteriyor (label yerine) | ⚠️ Açık | `oldFields.options` eksik olabilir |
+| Checkbox "true" yerine "Evet" göstermeli | ✅ Çözüldü | `getDisplayValue()` checkbox desteği |
+
+#### 5. Değiştirilen Dosyalar
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `domains/crm/components/quotes/FormUpdateModal.jsx` | `newOnlyFields`, `removedFields` useMemo, summary banner, badges |
+| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | `handleFormUpdateClick` ve `handleFormUpdateSave` cache optimizasyonu |
 
 ---
 

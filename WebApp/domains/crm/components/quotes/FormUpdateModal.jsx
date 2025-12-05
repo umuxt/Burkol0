@@ -82,6 +82,22 @@ export default function FormUpdateModal({
     return matches
   }, [oldFields, newFields, oldFormData])
 
+  // PROMPT-E1: Find new-only fields (added in new template)
+  const newOnlyFields = useMemo(() => {
+    return newFields.filter(newField => {
+      const newCode = newField.fieldCode || newField.id
+      return !oldFields.some(oldField => (oldField.fieldCode || oldField.id) === newCode)
+    })
+  }, [oldFields, newFields])
+
+  // PROMPT-E1: Find removed fields (were in old template, not in new)
+  const removedFields = useMemo(() => {
+    return oldFields.filter(oldField => {
+      const oldCode = oldField.fieldCode || oldField.id
+      return !newFields.some(newField => (newField.fieldCode || newField.id) === oldCode)
+    })
+  }, [oldFields, newFields])
+
   // Copy all matching field values
   const handleCopyMatching = () => {
     const updates = {}
@@ -297,13 +313,49 @@ export default function FormUpdateModal({
           </button>
         </div>
 
-        {/* Info Banner */}
+        {/* Info Banner with Stats */}
         <div style={infoBannerStyle}>
           <AlertTriangle size={16} style={{ color: '#d97706', flexShrink: 0 }} />
           <span>
-            Form şablonu güncellendi. Lütfen yeni alanları doldurun. 
-            Eşleşen alanlar otomatik olarak kopyalanabilir.
+            Form şablonu güncellendi. Lütfen yeni alanları doldurun.
           </span>
+          {/* PROMPT-E1: Summary badges */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
+            <span style={{ 
+              padding: '2px 8px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: '500',
+              background: '#dcfce7', 
+              color: '#166534' 
+            }}>
+              {matchingFields.length} Eşleşen
+            </span>
+            {newOnlyFields.length > 0 && (
+              <span style={{ 
+                padding: '2px 8px', 
+                borderRadius: '10px', 
+                fontSize: '11px', 
+                fontWeight: '500',
+                background: '#dbeafe', 
+                color: '#1e40af' 
+              }}>
+                {newOnlyFields.length} Yeni
+              </span>
+            )}
+            {removedFields.length > 0 && (
+              <span style={{ 
+                padding: '2px 8px', 
+                borderRadius: '10px', 
+                fontSize: '11px', 
+                fontWeight: '500',
+                background: '#fee2e2', 
+                color: '#991b1b' 
+              }}>
+                {removedFields.length} Kaldırılan
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Content */}
@@ -324,6 +376,9 @@ export default function FormUpdateModal({
                 const rawValue = oldFormData[fieldCode] || '—'
                 const label = field.fieldName || field.label || fieldCode
                 
+                // PROMPT-E1: Check if this field was removed in new template
+                const isRemoved = removedFields.some(rf => (rf.fieldCode || rf.id) === fieldCode)
+                
                 // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
                 const getDisplayValue = (val, fld) => {
                   if (!val || val === '—') return val
@@ -340,7 +395,23 @@ export default function FormUpdateModal({
                 
                 return (
                   <div key={fieldCode} style={fieldRowStyle}>
-                    <label style={labelStyle}>{label}</label>
+                    <label style={labelStyle}>
+                      {label}
+                      {/* PROMPT-E1: Show "Kaldırıldı" badge for removed fields */}
+                      {isRemoved && (
+                        <span style={{
+                          marginLeft: '6px',
+                          padding: '1px 6px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          fontWeight: '500',
+                          background: '#fee2e2',
+                          color: '#991b1b'
+                        }}>
+                          Kaldırıldı
+                        </span>
+                      )}
+                    </label>
                     <div style={readonlyValueStyle}>{displayValue}</div>
                   </div>
                 )
@@ -376,11 +447,28 @@ export default function FormUpdateModal({
                 const isRequired = field.isRequired || field.required
                 const hasMatch = matchingFields.some(m => m.fieldCode === fieldCode)
                 
+                // PROMPT-E1: Check if this is a new field (not in old template)
+                const isNewField = newOnlyFields.some(nf => (nf.fieldCode || nf.id) === fieldCode)
+                
                 return (
                   <div key={fieldCode} style={fieldRowStyle}>
                     <label style={labelStyle}>
                       {label}
                       {isRequired && <span style={{ color: '#dc2626', marginLeft: '2px' }}>*</span>}
+                      {/* PROMPT-E1: Show "Yeni" badge for new fields */}
+                      {isNewField && (
+                        <span style={{
+                          marginLeft: '6px',
+                          padding: '1px 6px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          fontWeight: '500',
+                          background: '#dbeafe',
+                          color: '#1e40af'
+                        }}>
+                          Yeni
+                        </span>
+                      )}
                       {hasMatch && (
                         <CheckCircle size={12} style={{ color: '#16a34a', marginLeft: '4px' }} />
                       )}

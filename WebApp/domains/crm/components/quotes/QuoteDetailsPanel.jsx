@@ -726,35 +726,26 @@ export default function QuoteDetailsPanel({
   const priceWarningInfo = getPriceWarningInfo()
   
   // C2: Handle form update when template changed
-  const handleFormUpdateClick = async () => {
-    if (!activeFormTemplate || !quote) return
+  const handleFormUpdateClick = () => {
+    // Use already cached data - no need to fetch again
+    // activeFormTemplate is fetched when quote details open (line ~98)
+    // quoteFormTemplate is fetched when quote details open (line ~136)
     
-    try {
-      // Get old form template fields
-      let oldFields = []
-      if (quote.formTemplateId) {
-        try {
-          const oldTemplate = await formsApi.getTemplateWithFields(quote.formTemplateId)
-          oldFields = oldTemplate?.fields || oldTemplate?.formStructure?.fields || []
-        } catch (err) {
-          console.warn('Could not fetch old template:', err)
-          // Fall back to formConfig
-          oldFields = formConfig?.formStructure?.fields || formConfig?.fields || []
-        }
-      } else {
-        oldFields = formConfig?.formStructure?.fields || formConfig?.fields || []
-      }
-      
-      // Get new form template fields
-      const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
-      
-      setOldFormFields(oldFields)
-      setNewFormFields(newFields)
-      setShowFormUpdateModal(true)
-    } catch (err) {
-      console.error('Error opening form update modal:', err)
-      showToast('Form güncelleme modalı açılamadı', 'error')
+    if (!activeFormTemplate || !quote) {
+      showToast('Form şablonu bilgisi bulunamadı', 'error')
+      return
     }
+    
+    // Get old form template fields from cached quoteFormTemplate
+    const oldFields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
+                      formConfig?.formStructure?.fields || formConfig?.fields || []
+    
+    // Get new form template fields from cached activeFormTemplate
+    const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
+    
+    setOldFormFields(oldFields)
+    setNewFormFields(newFields)
+    setShowFormUpdateModal(true)
   }
   
   // C2/C4: Handle form update save (also handles combined form+price update)
@@ -765,6 +756,12 @@ export default function QuoteDetailsPanel({
       // Update local state - reset both flags since FormUpdateModal handles combined updates
       setFormChangeDetected(false)
       setPriceChangeDetected(false) // C4: Reset price flag too when combined update
+      
+      // FIX: Update quoteFormTemplate with activeFormTemplate (already cached)
+      // Quote is now synced to the active template, so use the cached version
+      if (activeFormTemplate) {
+        setQuoteFormTemplate(activeFormTemplate)
+      }
       
       // D2 FIX: Update local form state with new data from modal
       // Map fieldCode to field.id for state updates
@@ -791,8 +788,7 @@ export default function QuoteDetailsPanel({
         setOriginalFormFieldsData(prev => ({ ...prev, ...newFormValues }))
       }
       
-      // Force quoteFormTemplate refresh - this will reload template with new structure
-      setQuoteFormTemplate(null)
+      // Force template refresh key increment
       setTemplateRefreshKey(prev => prev + 1)
       
       // Refresh quote data from backend
