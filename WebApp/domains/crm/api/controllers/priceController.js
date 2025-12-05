@@ -3,10 +3,12 @@
  * 
  * API routes for managing price parameters and settings
  * Updated for B0: Removed PriceFormulas (merged into PriceSettings)
+ * Updated for Pre-D2-1: Added price_parameter_lookups support
  */
 
 import db from '../../../../db/connection.js';
 import PriceParameters from '../../../../db/models/priceParameters.js';
+import PriceParameterLookups from '../../../../db/models/priceParameterLookups.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
@@ -41,8 +43,7 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get parameter with lookups
-  // Note: Lookups removed - prices now in form_field_options.price_value
+  // Get parameter with lookups (Pre-D2-1: Uses price_parameter_lookups table)
   app.get('/api/price-parameters/:id/with-prices', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
@@ -55,19 +56,36 @@ export function setupPriceRoutes(app) {
         return res.status(404).json({ error: 'Parameter not found' });
       }
 
-      // If form-based parameter, get price options from form_field_options
+      // If form-based parameter, get options from form_field_options and lookups from price_parameter_lookups
       if (parameter.type === 'form' && parameter.formFieldCode) {
-        const priceOptions = await db('quotes.form_field_options as ffo')
+        // Get form field options
+        const options = await db('quotes.form_field_options as ffo')
           .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
           .where('ff.fieldCode', parameter.formFieldCode)
           .where('ffo.isActive', true)
           .select(
             'ffo.id',
-            'ffo.optionValue',
+            'ffo.optionCode',
             'ffo.optionLabel',
-            'ffo.priceValue'
+            'ffo.sortOrder'
           )
           .orderBy('ffo.sortOrder');
+
+        // Get lookup values for this parameter
+        const lookups = await PriceParameterLookups.getByParameterId(id);
+        const lookupMap = {};
+        for (const lookup of lookups) {
+          lookupMap[lookup.optionCode] = parseFloat(lookup.value) || 0;
+        }
+
+        // Combine options with their lookup values
+        const priceOptions = options.map(opt => ({
+          id: opt.id,
+          optionCode: opt.optionCode,
+          optionLabel: opt.optionLabel,
+          sortOrder: opt.sortOrder,
+          value: lookupMap[opt.optionCode] ?? null
+        }));
 
         logger.success(`Parameter fetched with ${priceOptions.length} price options`);
         return res.json({ ...parameter, priceOptions });
@@ -202,6 +220,174 @@ export function setupPriceRoutes(app) {
     } catch (error) {
       logger.error('Failed to delete parameter', { error: error.message });
       res.status(500).json({ error: 'Failed to delete parameter', message: error.message });
+    }
+  });
+
+  // ==================== PARAMETER LOOKUPS (Pre-D2-1) ====================
+  
+  // Get lookups for a parameter
+  app.get('/api/price-parameters/:id/lookups', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/price-parameters/${id}/lookups`);
+      
+      const parameter = await PriceParameters.getById(id);
+      if (!parameter) {
+        logger.warning(`Parameter not found: ${id}`);
+        return res.status(404).json({ error: 'Parameter not found' });
+      }
+
+      const lookups = await PriceParameterLookups.getWithOptionDetails(id);
+      
+      logger.success(`Found ${lookups.length} lookups for parameter ${id}`);
+      res.json({
+        parameterId: parseInt(id),
+        parameterCode: parameter.code,
+        parameterName: parameter.name,
+        formFieldCode: parameter.formFieldCode,
+        lookups
+      });
+    } catch (error) {
+      logger.error('Failed to fetch lookups', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch lookups', message: error.message });
+    }
+  });
+
+  // Save lookups for a parameter (bulk upsert)
+  app.post('/api/price-parameters/:id/lookups', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { lookups } = req.body;
+      
+      logger.info(`POST /api/price-parameters/${id}/lookups`, { count: lookups?.length });
+      
+      const parameter = await PriceParameters.getById(id);
+      if (!parameter) {
+        logger.warning(`Parameter not found: ${id}`);
+        return res.status(404).json({ error: 'Parameter not found' });
+      }
+
+      if (!lookups || !Array.isArray(lookups)) {
+        return res.status(400).json({ 
+          error: 'Invalid request', 
+          details: ['lookups array is required'] 
+        });
+      }
+
+      // Validate lookup entries
+      for (const lookup of lookups) {
+        if (!lookup.optionCode || lookup.value === undefined) {
+          return res.status(400).json({ 
+            error: 'Invalid lookup entry', 
+            details: ['Each lookup must have optionCode and value'] 
+          });
+        }
+      }
+
+      const results = await PriceParameterLookups.bulkUpsert(parseInt(id), lookups);
+      
+      logger.success(`Saved ${results.length} lookups for parameter ${id}`);
+      res.json({
+        success: true,
+        parameterId: parseInt(id),
+        savedCount: results.length,
+        lookups: results
+      });
+    } catch (error) {
+      logger.error('Failed to save lookups', { error: error.message });
+      res.status(500).json({ error: 'Failed to save lookups', message: error.message });
+    }
+  });
+
+  // Update a single lookup
+  app.patch('/api/price-parameters/:id/lookups/:optionCode', requireAuth, async (req, res) => {
+    try {
+      const { id, optionCode } = req.params;
+      const { value } = req.body;
+      
+      logger.info(`PATCH /api/price-parameters/${id}/lookups/${optionCode}`, { value });
+      
+      if (value === undefined) {
+        return res.status(400).json({ 
+          error: 'Invalid request', 
+          details: ['value is required'] 
+        });
+      }
+
+      const lookup = await PriceParameterLookups.upsert({
+        parameterId: parseInt(id),
+        optionCode,
+        value: parseFloat(value)
+      });
+      
+      logger.success(`Updated lookup for parameter ${id}, option ${optionCode}`);
+      res.json(lookup);
+    } catch (error) {
+      logger.error('Failed to update lookup', { error: error.message });
+      res.status(500).json({ error: 'Failed to update lookup', message: error.message });
+    }
+  });
+
+  // Delete a single lookup
+  app.delete('/api/price-parameters/:id/lookups/:optionCode', requireAuth, async (req, res) => {
+    try {
+      const { id, optionCode } = req.params;
+      
+      logger.info(`DELETE /api/price-parameters/${id}/lookups/${optionCode}`);
+      
+      const success = await PriceParameterLookups.deleteByParameterAndOption(
+        parseInt(id), 
+        optionCode
+      );
+      
+      if (!success) {
+        logger.warning(`Lookup not found: parameter ${id}, option ${optionCode}`);
+        return res.status(404).json({ error: 'Lookup not found' });
+      }
+
+      logger.success(`Deleted lookup for parameter ${id}, option ${optionCode}`);
+      res.json({ success: true, message: 'Lookup deleted' });
+    } catch (error) {
+      logger.error('Failed to delete lookup', { error: error.message });
+      res.status(500).json({ error: 'Failed to delete lookup', message: error.message });
+    }
+  });
+
+  // Delete all lookups for a parameter
+  app.delete('/api/price-parameters/:id/lookups', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      logger.info(`DELETE /api/price-parameters/${id}/lookups (all)`);
+      
+      const count = await PriceParameterLookups.deleteByParameterId(parseInt(id));
+      
+      logger.success(`Deleted ${count} lookups for parameter ${id}`);
+      res.json({ success: true, deletedCount: count });
+    } catch (error) {
+      logger.error('Failed to delete lookups', { error: error.message });
+      res.status(500).json({ error: 'Failed to delete lookups', message: error.message });
+    }
+  });
+
+  // Get parameter with lookups (combined)
+  app.get('/api/price-parameters/:id/with-lookups', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/price-parameters/${id}/with-lookups`);
+      
+      const result = await PriceParameters.getWithLookups(parseInt(id));
+      
+      if (!result) {
+        logger.warning(`Parameter not found: ${id}`);
+        return res.status(404).json({ error: 'Parameter not found' });
+      }
+
+      logger.success(`Parameter fetched with ${result.lookups?.length || 0} lookups`);
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed to fetch parameter with lookups', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch parameter', message: error.message });
     }
   });
 

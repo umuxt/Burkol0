@@ -3,9 +3,27 @@ import db from '../connection.js';
 /**
  * FormFields Model
  * Manages form fields and their options
+ * 
+ * Updated for Pre-D2-1: optionCode system
+ * - Options now have unique optionCode (FFOC-XXXX format)
+ * - priceValue moved to price_parameter_lookups table
  */
 
 class FormFields {
+  /**
+   * Generate unique option code
+   * Format: FFOC-XXXX (e.g., FFOC-0001, FFOC-0002)
+   * Uses database sequence for guaranteed uniqueness
+   */
+  static async generateOptionCode() {
+    // Use sequence for guaranteed uniqueness
+    const result = await db.raw(
+      "SELECT nextval('quotes.form_field_option_code_seq') as next_val"
+    );
+    const nextVal = result.rows[0].next_val;
+    return `FFOC-${String(nextVal).padStart(4, '0')}`;
+  }
+
   /**
    * Create a new form field
    */
@@ -87,16 +105,24 @@ class FormFields {
 
   /**
    * Add option to a field
+   * Pre-D2-1: Generates unique optionCode (FFOC-XXXX format)
+   * @param {Object} params - Option parameters
+   * @param {number} params.fieldId - Field ID
+   * @param {string} params.optionLabel - Display label for the option
+   * @param {number} [params.sortOrder=0] - Sort order
+   * @param {boolean} [params.isActive=true] - Is active
    */
-  static async addOption({ fieldId, optionValue, optionLabel, sortOrder = 0, isActive = true, priceValue = null }) {
+  static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true }) {
+    // Generate unique optionCode
+    const optionCode = await this.generateOptionCode();
+    
     const [option] = await db('quotes.form_field_options')
       .insert({
         fieldId: fieldId,
-        optionValue: optionValue,
+        optionCode: optionCode,
         optionLabel: optionLabel,
         sortOrder: sortOrder,
         isActive: isActive,
-        priceValue: priceValue,
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
       })
@@ -107,27 +133,84 @@ class FormFields {
 
   /**
    * Get all options for a field
+   * Pre-D2-1: Returns optionCode instead of optionValue
+   * @param {number} fieldId - Field ID
+   * @param {boolean} [includeInactive=false] - Include inactive options
    */
-  static async getOptions(fieldId) {
-    const options = await db('quotes.form_field_options')
+  static async getOptions(fieldId, includeInactive = false) {
+    let query = db('quotes.form_field_options')
       .where('fieldId', fieldId)
       .orderBy('sortOrder');
+    
+    if (!includeInactive) {
+      query = query.where('isActive', true);
+    }
+    
+    const options = await query.select(
+      'id',
+      'fieldId',
+      'optionCode',
+      'optionLabel',
+      'sortOrder',
+      'isActive',
+      'createdAt',
+      'updatedAt'
+    );
+    
+    return options;
+  }
+
+  /**
+   * Get option by optionCode
+   * Pre-D2-1: Lookup by unique code
+   */
+  static async getOptionByCode(optionCode) {
+    const option = await db('quotes.form_field_options')
+      .where('optionCode', optionCode)
+      .first();
+    
+    return option;
+  }
+
+  /**
+   * Get all options for a field code (across templates)
+   * Pre-D2-1: New method for price calculator
+   */
+  static async getOptionsByFieldCode(fieldCode) {
+    const options = await db('quotes.form_field_options as ffo')
+      .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
+      .where('ff.fieldCode', fieldCode)
+      .where('ffo.isActive', true)
+      .select(
+        'ffo.id',
+        'ffo.optionCode',
+        'ffo.optionLabel',
+        'ffo.optionValue',
+        'ffo.priceValue',
+        'ffo.sortOrder'
+      )
+      .orderBy('ffo.sortOrder');
     
     return options;
   }
 
   /**
    * Update option
+   * Pre-D2-1: optionCode cannot be changed (immutable unique identifier)
    */
   static async updateOption(optionId, updates) {
+    // Prevent optionCode from being changed
+    const { optionCode, ...safeUpdates } = updates;
+    
     const [option] = await db('quotes.form_field_options')
       .where('id', optionId)
       .update({
-        optionValue: updates.optionValue,
-        optionLabel: updates.optionLabel,
-        sortOrder: updates.sortOrder,
-        isActive: updates.isActive,
-        priceValue: updates.priceValue,
+        // optionCode: immutable - cannot be changed
+        optionLabel: safeUpdates.optionLabel,
+        optionValue: safeUpdates.optionValue,  // DEPRECATED: kept for backward compatibility
+        sortOrder: safeUpdates.sortOrder,
+        isActive: safeUpdates.isActive,
+        priceValue: safeUpdates.priceValue,    // DEPRECATED: kept for backward compatibility
         updatedAt: db.fn.now()
       })
       .returning('*');
@@ -148,6 +231,7 @@ class FormFields {
 
   /**
    * Bulk create fields with options
+   * Pre-D2-1: Now generates unique optionCode for each option
    */
   static async bulkCreateWithOptions(templateId, fieldsData) {
     const trx = await db.transaction();
@@ -178,16 +262,28 @@ class FormFields {
 
         // Create options if field is select/multiselect
         if (options && options.length > 0 && ['select', 'multiselect'].includes(fieldInfo.fieldType)) {
-          const optionsToInsert = options.map((opt, idx) => ({
-            fieldId: field.id,
-            optionValue: opt.value,
-            optionLabel: opt.label,
-            sortOrder: opt.sortOrder !== undefined ? opt.sortOrder : idx,
-            isActive: opt.isActive !== undefined ? opt.isActive : true,
-            priceValue: opt.priceValue || null,
-            createdAt: db.fn.now(),
-            updatedAt: db.fn.now()
-          }));
+          // Pre-D2-1: Generate unique optionCode for each option
+          const optionsToInsert = [];
+          for (let idx = 0; idx < options.length; idx++) {
+            const opt = options[idx];
+            // Generate optionCode using sequence
+            const seqResult = await trx.raw(
+              "SELECT nextval('quotes.form_field_option_code_seq') as next_val"
+            );
+            const optionCode = `FFOC-${String(seqResult.rows[0].next_val).padStart(4, '0')}`;
+            
+            optionsToInsert.push({
+              fieldId: field.id,
+              optionCode: optionCode,                    // NEW: Unique option code
+              optionLabel: opt.label,
+              optionValue: opt.value || opt.label,       // DEPRECATED: kept for backward compatibility
+              sortOrder: opt.sortOrder !== undefined ? opt.sortOrder : idx,
+              isActive: opt.isActive !== undefined ? opt.isActive : true,
+              priceValue: opt.priceValue || null,        // DEPRECATED: kept for backward compatibility
+              createdAt: db.fn.now(),
+              updatedAt: db.fn.now()
+            });
+          }
 
           await trx('quotes.form_field_options').insert(optionsToInsert);
         }

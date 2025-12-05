@@ -1340,7 +1340,9 @@ const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
 **Amaç**: Form field options için unique kod sistemi ve parametre bazlı lookup tablosu oluşturma
 
 **Tarih**: 5 Aralık 2025  
-**Durum**: Planlandı
+**Durum**: ✅ **TAMAMLANDI**
+
+**Commit**: `feat(crm):[FP-Pre-D2-1] Option Code System & Parameter Lookup Table`
 
 ---
 
@@ -1576,47 +1578,53 @@ static async addOption({ fieldId, optionLabel, sortOrder = 0, isActive = true })
 #### YAPILACAKLAR
 
 **Faz Pre-D2-1.1: Database Migration**
-- [ ] `026_option_code_system.sql` migration dosyası oluştur
-- [ ] `optionCode` kolonu ekle ve mevcut verileri migrate et
-- [ ] `optionValue` ve `priceValue` kolonlarını kaldır
-- [ ] `price_parameter_lookups` tablosunu oluştur
+- [x] `026_option_code_system.sql` migration dosyası oluştur ✅
+- [x] `optionCode` kolonu ekle ve mevcut verileri migrate et ✅
+- [x] `optionValue` ve `priceValue` kolonları kaldırıldı (temiz başlangıç) ✅
+- [x] `price_parameter_lookups` tablosunu oluştur ✅
 
 **Faz Pre-D2-1.2: Backend Models**
-- [ ] `formFields.js` - `generateOptionCode()` fonksiyonu
-- [ ] `formFields.js` - `addOption()` güncelle (optionCode kullan)
-- [ ] `formFields.js` - `getOptions()` güncelle
-- [ ] `priceParameterLookups.js` - Yeni model oluştur
+- [x] `formFields.js` - `generateOptionCode()` fonksiyonu ✅
+- [x] `formFields.js` - `addOption()` güncelle (optionCode kullan) ✅
+- [x] `formFields.js` - `getOptions()` güncelle ✅
+- [x] `formFields.js` - `getOptionByCode()` yeni metod ✅
+- [x] `formFields.js` - `getOptionsByFieldCode()` yeni metod ✅
+- [x] `priceParameterLookups.js` - Yeni model oluştur ✅
 
 **Faz Pre-D2-1.3: Backend API**
-- [ ] `POST /api/price-parameters/:id/lookups` - Lookup ekle/güncelle
-- [ ] `GET /api/price-parameters/:id/lookups` - Lookup listele
-- [ ] `DELETE /api/price-parameters/:id/lookups/:optionCode` - Lookup sil
+- [x] `POST /api/price-parameters/:id/lookups` - Lookup ekle/güncelle ✅
+- [x] `GET /api/price-parameters/:id/lookups` - Lookup listele ✅
+- [x] `PATCH /api/price-parameters/:id/lookups/:optionCode` - Lookup güncelle ✅
+- [x] `DELETE /api/price-parameters/:id/lookups/:optionCode` - Lookup sil ✅
+- [x] `DELETE /api/price-parameters/:id/lookups` - Tüm lookupları sil ✅
+- [x] `GET /api/price-parameters/:id/with-lookups` - Parametre + lookups ✅
 
 **Faz Pre-D2-1.4: Price Calculator Güncelleme**
-- [ ] `priceCalculator.js` - `optionCode` ile lookup yapacak şekilde güncelle
+- [x] `priceCalculator.js` - `optionCode` ile lookup yapacak şekilde güncelle ✅
+- [x] `priceCalculator.js` - Backward compatibility kaldırıldı (temiz başlangıç) ✅
 
 ---
 
-#### DEĞİŞECEK DOSYALAR
+#### DEĞİŞEN DOSYALAR
 
 | Dosya | Değişiklik |
 |-------|------------|
-| `db/migrations/026_option_code_system.sql` | Yeni migration |
-| `db/models/formFields.js` | optionCode sistemi |
-| `db/models/priceParameterLookups.js` | Yeni model |
-| `db/models/priceParameters.js` | Lookup metodları |
-| `server/priceCalculator.js` | optionCode lookup |
-| `domains/crm/api/controllers/priceController.js` | Lookup API |
+| `db/migrations/026_option_code_system.sql` | Yeni migration ✅ |
+| `db/models/formFields.js` | optionCode sistemi ✅ |
+| `db/models/priceParameterLookups.js` | Yeni model ✅ |
+| `db/models/priceParameters.js` | Lookup metodları ✅ |
+| `server/priceCalculator.js` | optionCode lookup ✅ |
+| `domains/crm/api/controllers/priceController.js` | Lookup API ✅ |
 
 ---
 
 #### TEST KRİTERLERİ
 
-- [ ] Yeni option eklendiğinde otomatik FFOC-XXXX kodu üretiliyor
-- [ ] optionCode tablo genelinde unique
-- [ ] Aynı form alanı farklı parametrelere farklı değerlerle bağlanabiliyor
-- [ ] Fiyat hesaplamada optionCode ile doğru lookup yapılıyor
-- [ ] Eski veriler migrate edilmiş (optionCode üretilmiş)
+- [x] Yeni option eklendiğinde otomatik FFOC-XXXX kodu üretiliyor ✅
+- [x] optionCode tablo genelinde unique ✅
+- [x] Aynı form alanı farklı parametrelere farklı değerlerle bağlanabiliyor ✅
+- [x] Fiyat hesaplamada optionCode ile doğru lookup yapılıyor ✅
+- [x] Mevcut veriler migrate edilmiş (optionCode üretilmiş) ✅
 
 ---
 

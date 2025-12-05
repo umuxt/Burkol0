@@ -1,11 +1,13 @@
 import db from '../connection.js';
+import PriceParameterLookups from './priceParameterLookups.js';
 
 /**
  * PriceParameters Model
  * Manages pricing parameters
  * 
  * Updated for B0: settingId is now required (NOT NULL constraint)
- * Note: Lookup tables removed - prices now stored directly in form_field_options.price_value
+ * Updated for Pre-D2-1: Lookup values now stored in price_parameter_lookups table
+ *                       (replaces old form_field_options.priceValue approach)
  */
 
 class PriceParameters {
@@ -135,7 +137,20 @@ class PriceParameters {
 
   /**
    * Get price value from form field option
+   * Pre-D2-1: Now uses price_parameter_lookups table instead of form_field_options.priceValue
+   * 
+   * @param {number} parameterId - Price parameter ID
+   * @param {string} optionValue - Form field option value
+   * @returns {number|null} Lookup value or null
+   */
+  static async getPriceFromOptionValue(parameterId, optionValue) {
+    return PriceParameterLookups.getValue(parameterId, optionValue);
+  }
+
+  /**
+   * Get price value from form field option (DEPRECATED - backward compatibility)
    * This replaces the old lookup table approach
+   * Pre-D2-1: Fallback to old approach if price_parameter_lookups is empty
    */
   static async getPriceFromFormOption(formFieldCode, optionValue) {
     const option = await db('quotes.form_field_options as ffo')
@@ -152,32 +167,65 @@ class PriceParameters {
   }
 
   /**
+   * Get lookups for a parameter
+   * Pre-D2-1: New method using price_parameter_lookups table
+   */
+  static async getLookups(parameterId) {
+    return PriceParameterLookups.getByParameterId(parameterId);
+  }
+
+  /**
+   * Save lookups for a parameter
+   * Pre-D2-1: Bulk upsert lookup values
+   * @param {number} parameterId - Price parameter ID
+   * @param {Array} lookups - Array of { optionValue, optionLabel, value } objects
+   */
+  static async saveLookups(parameterId, lookups) {
+    return PriceParameterLookups.bulkUpsert(parameterId, lookups);
+  }
+
+  /**
+   * Get parameter with its lookup values
+   * Pre-D2-1: New method for UI
+   */
+  static async getWithLookups(parameterId) {
+    const parameter = await this.getById(parameterId);
+    if (!parameter) return null;
+
+    const lookups = await PriceParameterLookups.getWithOptionDetails(parameterId);
+    return {
+      ...parameter,
+      lookups
+    };
+  }
+
+  /**
    * Get all form-based parameters with their price mappings
+   * Pre-D2-1: Now uses price_parameter_lookups table
    */
   static async getFormBasedParameters() {
     const parameters = await db('quotes.price_parameters as pp')
-      .where('pp.type', 'form')
+      .where('pp.type', 'form_lookup')
       .whereNotNull('pp.formFieldCode')
       .select('pp.*');
 
-    // For each parameter, get the associated field options with prices
+    // For each parameter, get lookups from price_parameter_lookups
     const parametersWithPrices = await Promise.all(
       parameters.map(async (param) => {
-        const options = await db('quotes.form_field_options as ffo')
-          .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
-          .where('ff.fieldCode', param.formFieldCode)
-          .where('ffo.isActive', true)
-          .select(
-            'ffo.id',
-            'ffo.optionValue',
-            'ffo.optionLabel',
-            'ffo.priceValue'
-          )
-          .orderBy('ffo.sortOrder');
+        const lookups = await PriceParameterLookups.getWithOptionDetails(param.id);
+        
+        // Transform to backward-compatible format
+        const priceOptions = lookups.map(l => ({
+          id: l.id,
+          optionValue: l.optionValue,
+          optionLabel: l.optionLabel,
+          priceValue: parseFloat(l.value) || 0
+        }));
 
         return {
           ...param,
-          priceOptions: options
+          priceOptions,
+          lookups  // Pre-D2-1: Also include raw lookups for new UI
         };
       })
     );

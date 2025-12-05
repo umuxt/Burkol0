@@ -1,4 +1,5 @@
 // Server Price Calculator - Server-side price calculation with comprehensive math functions
+// Updated for Pre-D2-1: Uses optionCode for lookup values
 
 // Security validation functions
 function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
@@ -85,13 +86,25 @@ export function calculatePriceServer(quote, settings) {
     // Create parameter values map
     const paramValues = {}
     
+    // Pre-D2-1: Build lookup map from parameters
+    // Each parameter can have its own lookup table: { optionCode: value }
+    const parameterLookupMap = {}
+    settings.parameters.forEach(param => {
+      if (param.lookups && param.lookups.length > 0) {
+        parameterLookupMap[param.id] = {}
+        param.lookups.forEach(lookup => {
+          parameterLookupMap[param.id][lookup.optionCode] = parseFloat(lookup.value) || 0
+        })
+      }
+    })
+    
     settings.parameters.forEach(param => {
       // Use parameter ID for consistency (formulas use IDs)
       const paramKey = param.id
       
       if (param.type === 'fixed') {
         paramValues[paramKey] = parseFloat(param.value) || 0
-      } else if (param.type === 'form') {
+      } else if (param.type === 'form' || param.type === 'form_lookup') {
         let value = 0
         
         if (param.formField === 'qty') {
@@ -124,20 +137,24 @@ export function calculatePriceServer(quote, settings) {
             fieldValue = quote.customFields[param.formField]
           }
           
+          // Pre-D2-1: Use optionCode for lookup values
+          const paramLookups = parameterLookupMap[param.id]
+          
           if (Array.isArray(fieldValue)) {
-            if (param.lookupTable && param.lookupTable.length > 0) {
-              value = fieldValue.reduce((sum, opt) => {
-                const found = param.lookupTable.find(item => item.option === opt)
-                return sum + (found ? (parseFloat(found.value) || 0) : 0)
+            // Multi-select: sum up values for all selected options
+            if (paramLookups) {
+              value = fieldValue.reduce((sum, optionCode) => {
+                const lookupValue = paramLookups[optionCode] || 0
+                return sum + lookupValue
               }, 0)
             } else {
               value = fieldValue.length || 0
             }
-          } else if (param.lookupTable && param.lookupTable.length > 0) {
-            const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
-            value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+          } else if (paramLookups) {
+            // Single select: use optionCode to lookup value
+            value = paramLookups[fieldValue] || 0
           } else {
-            // Direct form value for fields without lookup
+            // Direct form value for fields without lookup (number fields, etc.)
             value = parseFloat(fieldValue) || 0
           }
         }
