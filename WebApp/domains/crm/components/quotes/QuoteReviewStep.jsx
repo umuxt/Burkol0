@@ -198,13 +198,25 @@ export default function QuoteReviewStep({
         <div className="review-grid">
           {formFields.map(field => {
             const value = formData[field.id]
-            const isEmpty = value === null || value === undefined || value === ''
+            const fieldType = field.type || field.fieldType
+            
+            // For checkbox, empty check is different - false is a valid value
+            const isEmpty = fieldType === 'checkbox' 
+              ? (value === null || value === undefined)
+              : (value === null || value === undefined || value === '')
 
             // PROMPT-D2: Get display value - show optionLabel for select/radio fields
             const getDisplayValue = () => {
               if (isEmpty) return '-'
               
-              const fieldType = field.type || field.fieldType
+              // Checkbox - show Evet/Hayır
+              if (fieldType === 'checkbox') {
+                if (value === true || value === 'true' || value === 1 || value === '1') {
+                  return 'Evet'
+                }
+                return 'Hayır'
+              }
+              
               if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options) {
                 const selectedOption = field.options.find(opt => opt.optionCode === value)
                 return selectedOption?.optionLabel || value

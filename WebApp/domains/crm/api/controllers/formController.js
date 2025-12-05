@@ -105,7 +105,8 @@ export function setupFormRoutes(app) {
             placeholder: field.placeholder,
             helpText: field.helpText,
             defaultValue: field.defaultValue,
-            options: field.options?.filter(o => o.id !== null).map(o => o.value || o.label) || [],
+            // Post-D2: Return full option objects with optionCode and optionLabel
+            options: field.options?.filter(o => o.id !== null) || [],
             sortOrder: field.sortOrder
           }))
         }
@@ -471,27 +472,26 @@ export function setupFormRoutes(app) {
   });
 
   // Add field option
+  // Post-D2: optionValue and priceValue removed - optionCode is auto-generated, priceValue moved to lookups
   app.post('/api/form-fields/:fieldId/options', requireAuth, async (req, res) => {
     try {
       const { fieldId } = req.params;
-      const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
+      const { optionLabel, sortOrder, isActive } = req.body;
 
-      logger.info(`POST /api/form-fields/${fieldId}/options`, { optionValue, optionLabel, priceValue });
+      logger.info(`POST /api/form-fields/${fieldId}/options`, { optionLabel });
 
-      if (!optionValue || !optionLabel) {
+      if (!optionLabel) {
         return res.status(400).json({ 
           error: 'Missing required fields', 
-          details: ['optionValue and optionLabel are required'] 
+          details: ['optionLabel is required'] 
         });
       }
 
       const option = await FormFields.addOption({
         fieldId,
-        optionValue,
         optionLabel,
-        sortOrder,
-        isActive: isActive !== undefined ? isActive : true,
-        priceValue: priceValue || null
+        sortOrder: sortOrder || 0,
+        isActive: isActive !== undefined ? isActive : true
       });
 
       logger.success(`Option added: ${option.id}`);
@@ -503,19 +503,18 @@ export function setupFormRoutes(app) {
   });
 
   // Update field option
+  // Post-D2: optionValue and priceValue removed - optionCode is immutable, priceValue moved to lookups
   app.patch('/api/form-fields/:fieldId/options/:optionId', requireAuth, async (req, res) => {
     try {
       const { optionId } = req.params;
-      const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
+      const { optionLabel, sortOrder, isActive } = req.body;
 
       logger.info(`PATCH /api/form-fields/options/${optionId}`);
 
       const updates = {};
-      if (optionValue !== undefined) updates.optionValue = optionValue;
       if (optionLabel !== undefined) updates.optionLabel = optionLabel;
       if (sortOrder !== undefined) updates.sortOrder = sortOrder;
       if (isActive !== undefined) updates.isActive = isActive;
-      if (priceValue !== undefined) updates.priceValue = priceValue;
 
       const option = await FormFields.updateOption(optionId, updates);
       

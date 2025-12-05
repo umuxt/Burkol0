@@ -166,6 +166,23 @@ export const pricingService = {
       throw new Error(err.error || 'get_field_options_failed')
     }
     return response.json()
+  },
+
+  /**
+   * Sync price setting with active form template
+   * Updates linkedFormTemplateId and reloads form field options
+   * @param {number} settingId - Price setting ID
+   */
+  async syncWithForm(settingId) {
+    const response = await fetchWithTimeout(`/api/price-settings/${settingId}/sync-form`, {
+      method: 'POST',
+      headers: withAuth()
+    }, 10000)
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'sync_form_failed')
+    }
+    return response.json()
   }
 }
 

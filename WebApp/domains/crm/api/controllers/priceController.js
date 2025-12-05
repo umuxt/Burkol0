@@ -877,11 +877,61 @@ export function setupPriceRoutes(app) {
         return res.json({ parameters: [], formula: null });
       }
 
-      logger.success(`Active setting found: ${setting.id}`);
+      // Get active form template info for sync check
+      const [activeFormTemplate] = await db('quotes.form_templates')
+        .where('isActive', true)
+        .select('id', 'name', 'version', 'updatedAt')
+        .limit(1);
+
+      // Add form sync info to response
+      setting.activeFormTemplateId = activeFormTemplate?.id || null;
+      setting.activeFormTemplateName = activeFormTemplate?.name || null;
+      setting.activeFormTemplateVersion = activeFormTemplate?.version || null;
+      setting.isFormSynced = setting.linkedFormTemplateId === activeFormTemplate?.id;
+
+      logger.success(`Active setting found: ${setting.id}, formSynced: ${setting.isFormSynced}`);
       res.json(setting);
     } catch (error) {
       logger.error('Failed to fetch active price setting', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch active price setting', message: error.message });
+    }
+  });
+
+  // Sync pricing with current active form template
+  app.post('/api/price-settings/:id/sync-form', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`POST /api/price-settings/${id}/sync-form - Syncing with active form`);
+
+      // Get active form template
+      const [activeFormTemplate] = await db('quotes.form_templates')
+        .where('isActive', true)
+        .select('id', 'name', 'version')
+        .limit(1);
+
+      if (!activeFormTemplate) {
+        return res.status(400).json({ error: 'No active form template found' });
+      }
+
+      // Update linkedFormTemplateId
+      const [updated] = await db('quotes.price_settings')
+        .where('id', id)
+        .update({
+          linkedFormTemplateId: activeFormTemplate.id,
+          updatedAt: db.fn.now()
+        })
+        .returning('*');
+
+      logger.success(`Price setting ${id} synced with form template ${activeFormTemplate.id}`);
+      res.json({
+        success: true,
+        linkedFormTemplateId: activeFormTemplate.id,
+        linkedFormTemplateName: activeFormTemplate.name,
+        linkedFormTemplateVersion: activeFormTemplate.version
+      });
+    } catch (error) {
+      logger.error('Failed to sync with form', { error: error.message });
+      res.status(500).json({ error: 'Failed to sync with form', message: error.message });
     }
   });
 

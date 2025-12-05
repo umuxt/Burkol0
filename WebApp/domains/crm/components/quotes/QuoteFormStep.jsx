@@ -150,6 +150,57 @@ export default function QuoteFormStep({
         break
 
       case 'checkbox':
+        // Single checkbox (true/false) - no options needed
+        if (!options || options.length === 0) {
+          inputElement = (
+            <div className="checkbox-group">
+              <label className="checkbox-option">
+                <input
+                  type="checkbox"
+                  name={id}
+                  checked={value === true || value === 'true' || value === 1 || value === '1'}
+                  onChange={(e) => handleFieldChange(id, e.target.checked, field)}
+                  disabled={disabled || readOnly}
+                />
+                <span>{placeholder || label || 'Evet'}</span>
+              </label>
+            </div>
+          )
+        } else {
+          // Multiple checkboxes with options
+          const selectedCheckValues = Array.isArray(value) ? value : (value ? value.split(',').map(v => v.trim()) : [])
+          inputElement = (
+            <div className="checkbox-group">
+              {options.filter(opt => opt != null).map(opt => {
+                const optCode = opt.optionCode || opt
+                const optLabel = opt.optionLabel || opt
+                return (
+                  <label key={optCode} className="checkbox-option">
+                    <input
+                      type="checkbox"
+                      name={id}
+                      value={optCode}
+                      checked={selectedCheckValues.includes(optCode)}
+                      onChange={(e) => {
+                        let newValues
+                        if (e.target.checked) {
+                          newValues = [...selectedCheckValues, optCode]
+                        } else {
+                          newValues = selectedCheckValues.filter(v => v !== optCode)
+                        }
+                        handleFieldChange(id, newValues, field)
+                      }}
+                      disabled={disabled || readOnly}
+                    />
+                    <span>{optLabel}</span>
+                  </label>
+                )
+              })}
+            </div>
+          )
+        }
+        break
+
       case 'multiselect':
         const selectedValues = Array.isArray(value) ? value : (value ? value.split(',').map(v => v.trim()) : [])
         inputElement = (

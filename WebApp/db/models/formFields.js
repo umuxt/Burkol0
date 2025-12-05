@@ -173,24 +173,47 @@ class FormFields {
   }
 
   /**
-   * Get all options for a field code (across templates)
-   * Pre-D2-1: New method for price calculator
-   * Returns: { id, optionCode, optionLabel, sortOrder }
+   * Get options for a field code from a SPECIFIC template
+   * Post-D2: Pricing stores which template version it's linked to
+   * @param {string} fieldCode - Form field code
+   * @param {number} templateId - Optional: specific template ID to get options from
+   *                              If not provided, uses the active template
+   * Returns: { optionCode, optionLabel, sortOrder }
    */
-  static async getOptionsByFieldCode(fieldCode) {
-    const options = await db('quotes.form_field_options as ffo')
+  static async getOptionsByFieldCode(fieldCode, templateId = null) {
+    let query = db('quotes.form_field_options as ffo')
       .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
+      .join('quotes.form_templates as ft', 'ft.id', 'ff.templateId')
       .where('ff.fieldCode', fieldCode)
       .where('ffo.isActive', true)
       .select(
-        'ffo.id',
         'ffo.optionCode',
         'ffo.optionLabel',
         'ffo.sortOrder'
       )
       .orderBy('ffo.sortOrder');
     
-    return options;
+    if (templateId) {
+      // Get from specific template
+      query = query.where('ft.id', templateId);
+    } else {
+      // Get from active template
+      query = query.where('ft.isActive', true);
+    }
+    
+    return query;
+  }
+
+  /**
+   * Get the active form template info
+   * Returns: { id, name, version, updatedAt }
+   */
+  static async getActiveFormTemplate() {
+    const [template] = await db('quotes.form_templates')
+      .where('isActive', true)
+      .select('id', 'name', 'version', 'updatedAt')
+      .limit(1);
+    return template;
   }
 
   /**
