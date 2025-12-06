@@ -106,7 +106,7 @@ export const formsService = {
   },
 
   /**
-   * Get field options with optionCode (Pre-D2-2)
+   * Get field options with optionCode
    * @param {string} fieldCode - Form field code
    * @returns {Promise<Array<{id, optionCode, optionLabel, sortOrder}>>}
    */

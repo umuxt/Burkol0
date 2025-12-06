@@ -102,7 +102,7 @@ export const pricingService = {
     return response.json()
   },
 
-  // ==================== PARAMETER LOOKUPS (Pre-D2-2) ====================
+  // ==================== PARAMETER LOOKUPS ====================
 
   /**
    * Get lookup values for a parameter

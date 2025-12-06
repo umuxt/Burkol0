@@ -313,15 +313,15 @@ class Quotes {
       if (updates.isCustomer !== undefined) updateData.isCustomer = updates.isCustomer;
       if (updates.customerId !== undefined) updateData.customerId = updates.customerId;
       
-      // C2: Update form template fields
+      // Update form template fields
       if (updates.formTemplateId !== undefined) updateData.formTemplateId = updates.formTemplateId;
       if (updates.formTemplateCode !== undefined) updateData.formTemplateCode = updates.formTemplateCode;
       
-      // C2: Update price setting fields
+      // Update price setting fields
       if (updates.priceSettingId !== undefined) updateData.priceSettingId = updates.priceSettingId;
       if (updates.priceSettingCode !== undefined) updateData.priceSettingCode = updates.priceSettingCode;
       
-      // C2: Update price fields
+      // Update price fields
       if (updates.calculatedPrice !== undefined) updateData.calculatedPrice = updates.calculatedPrice;
       if (updates.finalPrice !== undefined) updateData.finalPrice = updates.finalPrice;
       if (updates.lastCalculatedAt !== undefined) updateData.lastCalculatedAt = updates.lastCalculatedAt;
@@ -343,7 +343,7 @@ class Quotes {
         // Insert new form data
         await this._saveFormData(trx, id, updates.formData);
 
-        // C2: Only recalculate price if calculatedPrice was NOT provided in updates
+        // Only recalculate price if calculatedPrice was NOT provided in updates
         // (means caller wants auto-calculation, not manual override)
         if (updates.calculatedPrice === undefined && quote.priceSettingId) {
           const calculation = await PriceSettings.calculatePrice(quote.priceSettingId, updates.formData);
@@ -371,7 +371,7 @@ class Quotes {
    * Update quote status
    */
   static async updateStatus(id, status, updatedBy) {
-    // PROMPT-13: Validate deliveryDate before approval
+    // Validate deliveryDate before approval
     if (status === 'approved') {
       const quote = await db('quotes.quotes').where('id', id).first();
       if (!quote) {

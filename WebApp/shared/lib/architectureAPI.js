@@ -30,7 +30,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Eski Sürüm',
         icon: '⏰',
         variant: 'outdated',
-        action: null // F1: Action handled by QuoteDetailsPanel
+        action: null
       }
       
     case 'drift':
@@ -38,7 +38,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Değişiklik Var',
         icon: '⚠️',
         variant: 'drift',
-        action: null // F1: Action handled by QuoteDetailsPanel
+        action: null
       }
       
     case 'pending':
@@ -46,7 +46,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Beklemede',
         icon: '⏳',
         variant: 'pending',
-        action: null // F1: Action handled by QuoteDetailsPanel
+        action: null
       }
       
     case 'manual-override':
@@ -62,7 +62,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Hata',
         icon: '❌',
         variant: 'error',
-        action: null // F1: Action handled by QuoteDetailsPanel
+        action: null
       }
       
     default:
@@ -118,8 +118,6 @@ function calculatePriceStatus(quote, currentPriceSettings, currentFormConfig) {
   return { status: 'current', message: 'Price is up to date' }
 }
 
-// F1: batchUpdateQuotes removed - endpoint never existed
-
 /**
  * Get statistics for price statuses across quotes
  */
@@ -163,7 +161,6 @@ function needsPriceUpdate(quote, currentPriceSettings, currentFormConfig) {
 }
 
 // Export the architecture API
-// F1: batchUpdateQuotes removed
 export const architectureAPI = {
   getStatusDisplayInfo,
   calculatePriceStatus,

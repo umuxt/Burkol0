@@ -360,8 +360,6 @@ export const API = {
       return this.applyNewPrice(id)
     }
   },
-  // F1: applyPricesBulk removed - endpoint never existed
-  // F1: applyPricesAll removed - endpoint never existed
   async addUser(email, password, role = 'admin') {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, {
       method: 'POST',
@@ -821,17 +819,17 @@ export const API = {
       return result.totalPrice || 0
     } catch (e) {
       console.error('Price calculation failed:', e)
-      // F1: Return existing price as fallback
+      // Return existing price as fallback
       return parseFloat(quote.calculatedPrice || quote.price) || 0
     }
   },
 
   /**
-   * @deprecated F1: Use /api/price-settings/calculate endpoint instead
+   * @deprecated Use /api/price-settings/calculate endpoint instead
    * This function is kept for backward compatibility but now only returns existing price
    */
   calculatePriceLocal(quote, priceSettings) {
-    console.warn('⚠️ F1: calculatePriceLocal() is deprecated. Use /api/price-settings/calculate endpoint.')
+    console.warn('⚠️ calculatePriceLocal() is deprecated. Use /api/price-settings/calculate endpoint.')
     return parseFloat(quote?.calculatedPrice || quote?.finalPrice || quote?.price) || 0
   },
 

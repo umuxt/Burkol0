@@ -205,7 +205,7 @@ export default function QuoteReviewStep({
               ? (value === null || value === undefined)
               : (value === null || value === undefined || value === '')
 
-            // PROMPT-D2: Get display value - show optionLabel for select/radio fields
+            // Get display value - show optionLabel for select/radio fields
             const getDisplayValue = () => {
               if (isEmpty) return '-'
               

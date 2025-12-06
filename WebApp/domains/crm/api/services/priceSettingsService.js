@@ -28,8 +28,7 @@ const PriceSettings = {
 
   /**
    * Get price setting with parameters (formula is now in price_settings)
-   * Updated for B0: price_formulas table removed
-   * Updated for Pre-D2-2: includes lookups for each parameter
+   * Includes lookups for each parameter
    */
   async getWithDetails(id) {
     const setting = await db('quotes.price_settings')
@@ -45,7 +44,7 @@ const PriceSettings = {
       .where({ settingId: id })
       .select('*');
 
-    // Pre-D2-2: Get lookups for each parameter
+    // Get lookups for each parameter
     const parameterIds = parameters.map(p => p.id);
     let lookupsMap = {};
     
@@ -113,7 +112,7 @@ const PriceSettings = {
         formulaExpression: data.formulaExpression || null,
         isActive: data.isActive || data.is_active || false,
         createdBy: data.createdBy || data.created_by,
-        linkedFormTemplateId: data.linkedFormTemplateId || null  // F1: Link with form template
+        linkedFormTemplateId: data.linkedFormTemplateId || null
       })
       .returning('*');
 
@@ -164,7 +163,7 @@ const PriceSettings = {
 
   /**
    * Calculate price using setting's formula and parameters
-   * F1: Refactored to use calculatePriceServer for proper optionCode lookup support
+   * Uses calculatePriceServer for proper optionCode lookup support
    */
   async calculatePrice(settingId, formData) {
     const settingWithDetails = await this.getWithDetails(settingId);
@@ -179,31 +178,31 @@ const PriceSettings = {
       return { totalPrice: 0, formula: '', settingId };
     }
 
-    // F1: Convert parameters to calculatePriceServer format
+    // Convert parameters to calculatePriceServer format
     // DB format: { id, code, formFieldCode, fixedValue, lookups }
     // calculatePriceServer format: { id, formField, value, lookups }
     const convertedParams = (parameters || []).map(p => ({
-      id: p.code || p.id, // Use code as ID for formula matching
+      id: p.code || p.id,
       type: p.type,
-      formField: p.formFieldCode || p.formField, // Map formFieldCode to formField
-      value: p.fixedValue || p.value, // Map fixedValue to value
+      formField: p.formFieldCode || p.formField,
+      value: p.fixedValue || p.value,
       lookups: p.lookups || []
     }));
 
-    // F1: Build settings object for calculatePriceServer
+    // Build settings object for calculatePriceServer
     const priceSettings = {
       parameters: convertedParams,
       formula: formulaExpression
     };
 
-    // F1: Build quote object for calculatePriceServer
+    // Build quote object for calculatePriceServer
     const quoteData = {
       customFields: formData || {},
       ...formData
     };
 
     try {
-      // F1: Use unified calculation with proper optionCode lookup
+      // Use unified calculation with proper optionCode lookup
       const totalPrice = calculatePriceServer(quoteData, priceSettings);
       
       return {

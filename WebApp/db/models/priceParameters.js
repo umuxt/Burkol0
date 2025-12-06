@@ -5,9 +5,9 @@ import PriceParameterLookups from './priceParameterLookups.js';
  * PriceParameters Model
  * Manages pricing parameters
  * 
- * Updated for B0: settingId is now required (NOT NULL constraint)
- * Updated for Pre-D2-1: Lookup values now stored in price_parameter_lookups table
- *                       (replaces old form_field_options.priceValue approach)
+ * Features:
+ * - settingId is required (NOT NULL constraint)
+ * - Lookup values stored in price_parameter_lookups table
  */
 
 class PriceParameters {

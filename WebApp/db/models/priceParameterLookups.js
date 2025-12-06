@@ -4,8 +4,6 @@ import db from '../connection.js';
  * PriceParameterLookups Model
  * Manages lookup values for price parameters using optionCode
  * 
- * Created for Pre-D2-1: Option Code System
- * 
  * This table stores the mapping between price parameters and form field options via optionCode.
  * Each parameter can have multiple lookup entries (one per optionCode).
  * This allows the same form field option to have different values for different parameters.

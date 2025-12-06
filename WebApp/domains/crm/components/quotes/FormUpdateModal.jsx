@@ -82,15 +82,15 @@ export default function FormUpdateModal({
     return matches
   }, [oldFields, newFields, oldFormData])
 
-  // PROMPT-E1: Find new-only fields (added in new template)
+  // Find new-only fields (added in new template)
   const newOnlyFields = useMemo(() => {
     return newFields.filter(newField => {
       const newCode = newField.fieldCode || newField.id
       return !oldFields.some(oldField => (oldField.fieldCode || oldField.id) === newCode)
-    })
+    })  
   }, [oldFields, newFields])
 
-  // PROMPT-E1: Find removed fields (were in old template, not in new)
+  // Find removed fields (were in old template, not in new)
   const removedFields = useMemo(() => {
     return oldFields.filter(oldField => {
       const oldCode = oldField.fieldCode || oldField.id
@@ -319,7 +319,7 @@ export default function FormUpdateModal({
           <span>
             Form şablonu güncellendi. Lütfen yeni alanları doldurun.
           </span>
-          {/* PROMPT-E1: Summary badges */}
+          {/* Summary badges */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
             <span style={{ 
               padding: '2px 8px', 
@@ -376,10 +376,10 @@ export default function FormUpdateModal({
                 const rawValue = oldFormData[fieldCode] || '—'
                 const label = field.fieldName || field.label || fieldCode
                 
-                // PROMPT-E1: Check if this field was removed in new template
+                // Check if this field was removed in new template
                 const isRemoved = removedFields.some(rf => (rf.fieldCode || rf.id) === fieldCode)
                 
-                // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
+                // For select/radio fields, show optionLabel instead of optionCode
                 const getDisplayValue = (val, fld) => {
                   if (!val || val === '—') return val
                   const fieldType = fld?.type || fld?.fieldType || 'text'
@@ -397,7 +397,7 @@ export default function FormUpdateModal({
                   <div key={fieldCode} style={fieldRowStyle}>
                     <label style={labelStyle}>
                       {label}
-                      {/* PROMPT-E1: Show "Kaldırıldı" badge for removed fields */}
+                      {/* Show "Kaldırıldı" badge for removed fields */}
                       {isRemoved && (
                         <span style={{
                           marginLeft: '6px',

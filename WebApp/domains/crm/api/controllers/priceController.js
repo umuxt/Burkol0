@@ -2,10 +2,9 @@
  * Price Parameters & Settings Routes - PostgreSQL
  * 
  * API routes for managing price parameters and settings
- * Updated for B0: Removed PriceFormulas (merged into PriceSettings)
- * Updated for Pre-D2-1: Added price_parameter_lookups support
- * Updated for Pre-D2-2: Refactored lookup save logic into helper functions
- * Updated for F1: Consolidated price calculation using calculatePriceServer
+ * Features:
+ * - price_parameter_lookups support
+ * - Consolidated price calculation using calculatePriceServer
  */
 
 import db from '../../../../db/connection.js';
@@ -101,7 +100,7 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get parameter with lookups (Pre-D2-1: Uses price_parameter_lookups table)
+  // Get parameter with lookups
   app.get('/api/price-parameters/:id/with-prices', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
@@ -281,7 +280,7 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // ==================== PARAMETER LOOKUPS (Pre-D2-1) ====================
+  // ==================== PARAMETER LOOKUPS ====================
   
   // Get lookups for a parameter
   app.get('/api/price-parameters/:id/lookups', requireAuth, async (req, res) => {
@@ -1022,7 +1021,7 @@ export function setupPriceRoutes(app) {
         const paramData = parameters.map(p => convertParamToDbFormat(p, setting.id));
         const insertedParams = await db('quotes.price_parameters').insert(paramData).returning(['id', 'code']);
         
-        // Pre-D2-2: Save lookups for each parameter
+        // Save lookups for each parameter
         await saveParameterLookups(parameters, insertedParams);
       }
 

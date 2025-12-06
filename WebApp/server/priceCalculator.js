@@ -1,5 +1,5 @@
 // Server Price Calculator - Server-side price calculation with comprehensive math functions
-// Updated for Pre-D2-1: Uses optionCode for lookup values
+// Uses optionCode for lookup values
 
 // Security validation functions
 function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
@@ -86,7 +86,7 @@ export function calculatePriceServer(quote, settings) {
     // Create parameter values map
     const paramValues = {}
     
-    // Pre-D2-1: Build lookup map from parameters
+    // Build lookup map from parameters
     // Each parameter can have its own lookup table: { optionCode: value }
     const parameterLookupMap = {}
     settings.parameters.forEach(param => {
@@ -137,7 +137,7 @@ export function calculatePriceServer(quote, settings) {
             fieldValue = quote.customFields[param.formField]
           }
           
-          // Pre-D2-1: Use optionCode for lookup values
+          // Use optionCode for lookup values
           const paramLookups = parameterLookupMap[param.id]
           
           if (Array.isArray(fieldValue)) {

@@ -11,11 +11,11 @@ const { useState, useEffect, useMemo, useRef } = React;
 export function FormBuilderCompact({ 
   formConfig, 
   onSave, 
-  onActivate, // PROMPT-A1: Aktif Et callback
-  onRevertChanges, // PROMPT-A1.1: Değişiklikleri Geri Al callback
-  onFieldsChange, // PROMPT-A1.1: Fields change detection callback
-  hasChanges = false, // PROMPT-A1.1: From parent - whether form has unsaved changes
-  originalFields = [], // PROMPT-A1.1: From parent - original fields for revert
+  onActivate,
+  onRevertChanges,
+  onFieldsChange,
+  hasChanges = false,
+  originalFields = [],
   isDarkMode, 
   t, 
   showNotification, 
@@ -24,7 +24,7 @@ export function FormBuilderCompact({
   allTemplates = [],
   activeTemplateId = null,
   currentTemplateId = null,
-  isCurrentDraft = false, // PROMPT-A1: Track if current is draft
+  isCurrentDraft = false,
   isNewDraftModalOpen = false,
   isHistoryModalOpen = false,
   newDraftName = '',
@@ -85,7 +85,7 @@ export function FormBuilderCompact({
     }
   }, [formConfig])
 
-  // PROMPT-A1.1: Notify parent when fields change for hasChanges tracking
+  // Notify parent when fields change for hasChanges tracking
   useEffect(() => {
     if (onFieldsChange) {
       onFieldsChange(fields)
@@ -93,7 +93,7 @@ export function FormBuilderCompact({
   }, [fields, onFieldsChange])
 
   // Memoize header buttons to prevent infinite re-renders
-  // PROMPT-A1.1: Button visibility matrix
+  // Button visibility matrix:
   // | isActive | hasChanges | Visible Buttons |
   // |----------|------------|-----------------|
   // | true     | false      | [+Yeni Taslak] |
@@ -362,7 +362,7 @@ export function FormBuilderCompact({
     }
   }, [headerButtons])
 
-  // PROMPT-A1: Handle "Taslağı Kaydet"
+  // Handle draft save
   function handleSaveDraft() {
     if (onSave) {
       const config = {
@@ -375,7 +375,7 @@ export function FormBuilderCompact({
     }
   }
 
-  // PROMPT-A1: Handle "Aktif Et"
+  // Handle template activation
   function handleActivate() {
     const config = {
       name: formSettings.title || 'Teklif Formu',
@@ -1063,7 +1063,7 @@ export function FormBuilderCompact({
                         style: { fontSize: '12px', color: '#6b7280', marginTop: '4px' }
                       }, `Versiyon: ${template.version}`)
                     ),
-                    // PROMPT-A1: Status badges
+                    // Status badges
                     template.isActive 
                       ? React.createElement('span', {
                           style: {

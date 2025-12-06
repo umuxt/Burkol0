@@ -94,9 +94,7 @@ function FormManager({ t, renderHeaderActions }) {
   const [isNewDraftModalOpen, setIsNewDraftModalOpen] = useState(false)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [newDraftName, setNewDraftName] = useState('')
-  // PROMPT-A1: Track if current template is a draft (isActive=false)
   const [isCurrentDraft, setIsCurrentDraft] = useState(false)
-  // PROMPT-A1.1: Track changes for button visibility
   const [hasChanges, setHasChanges] = useState(false)
   const [originalFields, setOriginalFields] = useState([])
 
@@ -131,7 +129,7 @@ function FormManager({ t, renderHeaderActions }) {
         }
         console.log('🔄 FormManager - Converted to frontend format:', frontendConfig)
         setFormConfig(frontendConfig)
-        // PROMPT-A1.1: Store original fields for change detection
+        // Store original fields for change detection
         setOriginalFields(JSON.parse(JSON.stringify(fields)))
         setHasChanges(false)
       } else {
@@ -172,7 +170,7 @@ function FormManager({ t, renderHeaderActions }) {
         name: newDraftName.trim(),
         description: '',
         version: 1,
-        isActive: false // PROMPT-A1: Yeni taslak her zaman inactive başlar
+        isActive: false // New draft starts as inactive
       })
 
       // API returns { success: true, template: {...} }
@@ -185,7 +183,7 @@ function FormManager({ t, renderHeaderActions }) {
         fields: [],
         settings: { title: newTemplate.name, description: '' }
       })
-      setIsCurrentDraft(true) // PROMPT-A1: New draft
+      setIsCurrentDraft(true)
       
       // Template listesini güncelle
       await loadAllTemplates()
@@ -205,7 +203,7 @@ function FormManager({ t, renderHeaderActions }) {
       
       setCurrentTemplateId(selectedTemplateId)
       setTemplateId(selectedTemplateId)
-      setIsCurrentDraft(!template.isActive) // PROMPT-A1: Track if it's a draft
+      setIsCurrentDraft(!template.isActive)
       
       // Convert DB fields to frontend format
       const fields = (template.fields || []).map((field, idx) => dbFieldToFrontend(field, idx))
@@ -217,7 +215,7 @@ function FormManager({ t, renderHeaderActions }) {
         }
       }
       setFormConfig(frontendConfig)
-      // PROMPT-A1.1: Store original fields for change detection
+      // Store original fields for change detection
       setOriginalFields(JSON.parse(JSON.stringify(fields)))
       setHasChanges(false)
       
@@ -229,13 +227,13 @@ function FormManager({ t, renderHeaderActions }) {
     }
   }
 
-  // PROMPT-A1.1: Handle fields change from FormBuilderCompact
+  // Handle fields change from FormBuilderCompact
   const handleFieldsChange = useCallback((newFields) => {
     const changed = JSON.stringify(newFields) !== JSON.stringify(originalFields)
     setHasChanges(changed)
   }, [originalFields])
 
-  // PROMPT-A1.1: Revert changes to original state
+  // Revert changes to original state
   const handleRevertChanges = useCallback(() => {
     if (originalFields.length > 0 || formConfig) {
       const revertedConfig = {
@@ -248,7 +246,7 @@ function FormManager({ t, renderHeaderActions }) {
     }
   }, [originalFields, formConfig])
 
-  // PROMPT-A1: "Taslağı Kaydet" - Always saves as draft (isActive=false)
+  // Save as draft (isActive=false)
   async function saveDraft(config) {
     try {
       console.log('💾 Saving as draft:', config)
@@ -296,7 +294,7 @@ function FormManager({ t, renderHeaderActions }) {
           await createFieldOptions(createdField.id || fieldResponse.id, field.options)
         }
         
-        // PROMPT-A1.1: Update original fields after save
+        // Update original fields after save
         setOriginalFields(JSON.parse(JSON.stringify(config.fields || [])))
         setHasChanges(false)
         showToast('Taslak güncellendi', 'success')
@@ -307,7 +305,7 @@ function FormManager({ t, renderHeaderActions }) {
           name: templateName,
           description: templateDescription,
           version: 1,
-          isActive: false // PROMPT-A1: Her zaman draft olarak kaydet
+          isActive: false // Always save as draft
         })
         
         // API returns { success: true, template: {...} }
@@ -338,7 +336,7 @@ function FormManager({ t, renderHeaderActions }) {
         setCurrentTemplateId(newTemplate.id)
         setTemplateId(newTemplate.id)
         setIsCurrentDraft(true)
-        // PROMPT-A1.1: Update original fields after save
+        // Update original fields after save
         setOriginalFields(JSON.parse(JSON.stringify(config.fields || [])))
         setHasChanges(false)
         
@@ -352,7 +350,7 @@ function FormManager({ t, renderHeaderActions }) {
     }
   }
 
-  // PROMPT-A1: "Aktif Et" - Saves and activates the template
+  // Activate template - saves and activates
   async function activateTemplate(config) {
     try {
       console.log('🚀 Activating template:', config)
@@ -445,7 +443,7 @@ function FormManager({ t, renderHeaderActions }) {
       setTemplateId(targetTemplateId)
       setActiveTemplateId(targetTemplateId)
       setIsCurrentDraft(false)
-      // PROMPT-A1.1: Update original fields after activate
+      // Update original fields after activate
       setOriginalFields(JSON.parse(JSON.stringify(config.fields || [])))
       setHasChanges(false)
       
@@ -473,7 +471,7 @@ function FormManager({ t, renderHeaderActions }) {
     }
   }
 
-  // PROMPT-A1: Legacy saveFormConfig - replaced by saveDraft and activateTemplate
+  // Legacy saveFormConfig - replaced by saveDraft and activateTemplate
   // Kept for backward compatibility if needed
   /*
   async function saveFormConfig(config) {
@@ -570,12 +568,12 @@ function FormManager({ t, renderHeaderActions }) {
   return React.createElement(React.Fragment, null,
     React.createElement(FormBuilderCompact, {
       formConfig,
-      onSave: saveDraft, // PROMPT-A1: "Taslağı Kaydet" için
-      onActivate: activateTemplate, // PROMPT-A1: "Aktif Et" için
-      onRevertChanges: handleRevertChanges, // PROMPT-A1.1: "Değişiklikleri Geri Al" için
-      onFieldsChange: handleFieldsChange, // PROMPT-A1.1: Change detection
-      hasChanges, // PROMPT-A1.1: Button visibility
-      originalFields, // PROMPT-A1.1: For revert functionality
+      onSave: saveDraft,
+      onActivate: activateTemplate,
+      onRevertChanges: handleRevertChanges,
+      onFieldsChange: handleFieldsChange,
+      hasChanges,
+      originalFields,
       isDarkMode: false,
       t,
       showToast,
@@ -584,7 +582,7 @@ function FormManager({ t, renderHeaderActions }) {
       allTemplates,
       activeTemplateId,
       currentTemplateId,
-      isCurrentDraft, // PROMPT-A1: Track if current is draft
+      isCurrentDraft,
       isNewDraftModalOpen,
       isHistoryModalOpen,
       newDraftName,

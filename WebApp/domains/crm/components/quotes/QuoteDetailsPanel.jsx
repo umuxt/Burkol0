@@ -49,33 +49,33 @@ export default function QuoteDetailsPanel({
   const [editStatus, setEditStatus] = useState(null)
   const [editStatusLoading, setEditStatusLoading] = useState(false)
   
-  // D1: Quote's own form template (not active template)
+  // Quote's own form template (not active template)
   const [quoteFormTemplate, setQuoteFormTemplate] = useState(null)
-  const [templateRefreshKey, setTemplateRefreshKey] = useState(0) // Force re-fetch trigger
+  const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
   
-  // C1: Version change detection state
+  // Version change detection state
   const [formChangeDetected, setFormChangeDetected] = useState(false)
   const [priceChangeDetected, setPriceChangeDetected] = useState(false)
   const [activeFormTemplate, setActiveFormTemplate] = useState(null)
   const [activePriceSetting, setActivePriceSetting] = useState(null)
   
-  // C2: Form update modal state
+  // Form update modal state
   const [showFormUpdateModal, setShowFormUpdateModal] = useState(false)
   const [oldFormFields, setOldFormFields] = useState([])
   const [newFormFields, setNewFormFields] = useState([])
   
-  // C3: Price recalculation modal state
+  // Price recalculation modal state
   const [showPriceRecalcModal, setShowPriceRecalcModal] = useState(false)
   const [newCalculatedPrice, setNewCalculatedPrice] = useState(null)
   const [priceRecalcLoading, setPriceRecalcLoading] = useState(false)
-  const [priceChanges, setPriceChanges] = useState(null) // { formulaChanged, oldFormula, newFormula, parameterChanges }
+  const [priceChanges, setPriceChanges] = useState(null)
   
-  // D1: Price confirm modal state for edit mode
+  // Price confirm modal state for edit mode
   const [showPriceConfirmModal, setShowPriceConfirmModal] = useState(false)
-  const [pendingChanges, setPendingChanges] = useState(null) // { formData, quoteData, newPrice, priceDiff, changedFields }
+  const [pendingChanges, setPendingChanges] = useState(null)
   
   // Fetch edit status when quote changes
-  // C1: Optimized - only fetch form/price changes if canEdit=true
+  // Optimized - only fetch form/price changes if canEdit=true
   useEffect(() => {
     if (quote?.id) {
       setEditStatusLoading(true)

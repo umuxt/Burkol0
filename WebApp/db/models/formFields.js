@@ -4,9 +4,9 @@ import db from '../connection.js';
  * FormFields Model
  * Manages form fields and their options
  * 
- * Updated for Pre-D2-1: optionCode system
- * - Options now have unique optionCode (FFOC-XXXX format)
- * - priceValue moved to price_parameter_lookups table
+ * Features:
+ * - Options have unique optionCode (FFOC-XXXX format)
+ * - priceValue stored in price_parameter_lookups table
  */
 
 class FormFields {
@@ -105,7 +105,7 @@ class FormFields {
 
   /**
    * Add option to a field
-   * Pre-D2-1: Generates unique optionCode (FFOC-XXXX format)
+   * Generates unique optionCode (FFOC-XXXX format)
    * @param {Object} params - Option parameters
    * @param {number} params.fieldId - Field ID
    * @param {string} params.optionLabel - Display label for the option
@@ -133,7 +133,7 @@ class FormFields {
 
   /**
    * Get all options for a field
-   * Pre-D2-1: Returns optionCode instead of optionValue
+   * Returns optionCode with each option
    * @param {number} fieldId - Field ID
    * @param {boolean} [includeInactive=false] - Include inactive options
    */
@@ -162,7 +162,7 @@ class FormFields {
 
   /**
    * Get option by optionCode
-   * Pre-D2-1: Lookup by unique code
+   * Lookup by unique code
    */
   static async getOptionByCode(optionCode) {
     const option = await db('quotes.form_field_options')
@@ -218,7 +218,7 @@ class FormFields {
 
   /**
    * Update option
-   * Pre-D2-1: optionCode cannot be changed (immutable unique identifier)
+   * Note: optionCode cannot be changed (immutable unique identifier)
    * Updateable fields: optionLabel, sortOrder, isActive
    */
   static async updateOption(optionId, updates) {
@@ -252,7 +252,7 @@ class FormFields {
 
   /**
    * Bulk create fields with options
-   * Pre-D2-1: Now generates unique optionCode for each option
+   * Generates unique optionCode for each option
    */
   static async bulkCreateWithOptions(templateId, fieldsData) {
     const trx = await db.transaction();
@@ -283,7 +283,7 @@ class FormFields {
 
         // Create options if field is select/multiselect
         if (options && options.length > 0 && ['select', 'multiselect'].includes(fieldInfo.fieldType)) {
-          // Pre-D2-1: Generate unique optionCode for each option
+          // Generate unique optionCode for each option
           const optionsToInsert = [];
           for (let idx = 0; idx < options.length; idx++) {
             const opt = options[idx];

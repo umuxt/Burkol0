@@ -1277,7 +1277,7 @@ function QuotesManager({ t, onLogout }) {
         React.createElement('div', { className: 'quotes-table-container' },
           React.createElement('div', { className: 'quotes-table-wrapper' },
         
-        // F2: Loading state - show spinner only, hide table
+        // Loading state - show spinner only, hide table
         loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
           React.createElement('div', { className: 'spinner' }),
           React.createElement('div', { className: 'loading-text' }, 'Veriler yükleniyor...')
@@ -1290,7 +1290,7 @@ function QuotesManager({ t, onLogout }) {
           React.createElement('div', { className: 'empty-message' }, error)
         ),
         
-        // F2: Table only renders when not loading
+        // Table only renders when not loading
         !loading && !error && React.createElement('table', { className: 'quotes-table' },
           React.createElement('thead', null,
             React.createElement('tr', null,

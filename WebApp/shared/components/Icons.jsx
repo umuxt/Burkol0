@@ -61,16 +61,16 @@ import {
   Lock,
   Unlock,
   
-  // Price warnings (PROMPT-14)
+  // Price warnings
   AlertTriangle,
   RefreshCw,
   Wallet,
   
-  // C3: Price comparison icons
+  // Price comparison icons
   Calculator,
   Sliders,
   
-  // CRM Icons (PROMPT-19)
+  // CRM Icons
   User,
   UserPlus,
   MapPin,
@@ -148,16 +148,16 @@ export const Icons = {
   Lock,
   Unlock,
   
-  // Price warnings (PROMPT-14)
+  // Price warnings
   AlertTriangle,
   RefreshCw,
   Wallet,
   
-  // C3: Price comparison icons
+  // Price comparison icons
   Calculator,
   Sliders,
   
-  // CRM Icons (PROMPT-19)
+  // CRM Icons
   User,
   UserPlus,
   MapPin,
@@ -237,14 +237,14 @@ export {
   Info,
   Lock,
   Unlock,
-  // Price warnings (PROMPT-14)
+  // Price warnings
   AlertTriangle,
   RefreshCw,
   Wallet,
-  // C3: Price comparison icons
+  // Price comparison icons
   Calculator,
   Sliders,
-  // CRM Icons (PROMPT-19)
+  // CRM Icons
   User,
   UserPlus,
   MapPin,

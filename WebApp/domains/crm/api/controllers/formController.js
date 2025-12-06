@@ -514,7 +514,7 @@ export function setupFormRoutes(app) {
     }
   });
 
-  // ==================== FIELD OPTIONS BY CODE (Pre-D2-2) ====================
+  // ==================== FIELD OPTIONS BY CODE ====================
 
   // Get field options by fieldCode (returns optionCode for lookup)
   app.get('/api/form-fields/by-code/:fieldCode/options', requireAuth, async (req, res) => {

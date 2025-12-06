@@ -64,7 +64,7 @@ export default function AddQuoteModal({
     const initialForm = {}
     
     fields.forEach(field => {
-      // PROMPT-D2: Use optionCode for initial radio selection
+      // Use optionCode for initial radio selection
       if (field.type === 'radio' && field.options && field.options.length > 0) {
         const firstOption = field.options[0]
         initialForm[field.id] = firstOption.optionCode || firstOption || ''

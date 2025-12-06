@@ -1,6 +1,5 @@
 import { showToast } from '../../../../shared/components/MESToast.js';
-// Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
-// Updated for Pre-D2-2: Lookup table UI and helper functions
+// Quotes Pricing Manager - Dynamic pricing configuration for quotes domain
 import React from 'react';
 import { priceApi } from '../../services/pricing-service.js';
 import { formsApi } from '../../services/forms-service.js';
@@ -135,7 +134,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
 
   // Sistem bütünlüğü kontrolü - form alanları ve parametreler değiştiğinde
   useEffect(() => {
-    // PROMPT-A2: parameters.length === 0 durumunda da systemIntegrity güncellenmeli
+    // Update systemIntegrity even when parameters.length === 0
     if (formFields.length > 0) {
       if (parameters.length > 0) {
         const integrity = PricingUtils.validateSystemIntegrity(parameters, formFields, userFormula)
@@ -189,8 +188,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     }
   }
 
-  // Pre-D2-2: selectedFormField değiştiğinde o field'ın options'larını API'den yükle
-  // Artık optionCode sistemi kullanılıyor
+  // Load field options when selectedFormField changes
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   
   useEffect(() => {
@@ -265,12 +263,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       const loadedParameters = setting.parameters || []
       const convertedParams = loadedParameters.map(p => ({
         id: p.code,
-        dbId: p.id, // Pre-D2-2: Database ID for lookups
+        dbId: p.id,
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
         value: p.fixedValue,
         formField: p.formFieldCode,
-        lookups: p.lookups || [] // Pre-D2-2: Include lookups
+        lookups: p.lookups || []
       }))
       
       setParameters(convertedParams)
@@ -341,12 +339,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       const loadedParameters = setting.parameters || []
       const convertedParams = loadedParameters.map(p => ({
         id: p.code,
-        dbId: p.id, // Pre-D2-2: Database ID for lookups
+        dbId: p.id,
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
         value: p.fixedValue,
         formField: p.formFieldCode,
-        lookups: p.lookups || [] // Pre-D2-2: Include lookups
+        lookups: p.lookups || []
       }))
       
       setParameters(convertedParams)
@@ -414,7 +412,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     createNewDraft()
   }
 
-  // PROMPT-A2: Değişiklikleri Geri Al - originalData'ya geri dön
+  // Revert changes - restore original data
   function handleRevertChanges() {
     // Orijinal parametreleri geri yükle
     setParameters([...originalData.parameters])
@@ -491,7 +489,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     }
   }
 
-  // PROMPT-A2: Aktif ayar üzerinde değişiklik yapıldığında yeni taslak olarak kaydet
+  // Save as new draft when editing active setting
   async function saveAsNewDraft() {
     try {
       if (!systemIntegrity.canSave) {
@@ -523,9 +521,6 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   }
 
   // VERSION MANAGEMENT FUNCTIONS
-
-  // REMOVED: Old version history functions - now using settings-based versioning
-  // PROMPT-A2: checkSystemIntegrity fonksiyonu kaldırıldı - useEffect ile otomatik güncelleniyor
 
   function addParameter() {
     // Orphan parametreler varsa yeni parametre eklemeyi engelle
@@ -825,7 +820,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     return idMapping.backendToUser[param.id] || String.fromCharCode(65 + index)
   }
 
-  // PROMPT-A2: Lucide SVG Icons
+  // Lucide SVG Icons
   const LUCIDE_PENCIL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
   const LUCIDE_CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
   const LUCIDE_UNDO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>'
@@ -836,12 +831,12 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   const LUCIDE_UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
   const LUCIDE_CHECK_CIRCLE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
 
-  // Render header actions - PROMPT-A2: PROMPT-A1.1 ile tutarlı buton görünürlük matrisi
+  // Render header actions - button visibility matrix
   useEffect(() => {
     const renderFn = renderHeaderActionsRef.current
     if (!renderFn) return
     
-    // PROMPT-A2: isActive kontrolü
+    // isActive check
     // currentSettingId === null → Yeni taslak (henüz kaydedilmemiş)
     // currentSettingId === activeSettingId → Aktif ayar
     // currentSettingId !== activeSettingId → Kayıtlı taslak
@@ -853,7 +848,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     const currentSetting = allSettings.find(s => s.id === currentSettingId)
     const settingName = isNewDraft ? 'Yeni Taslak' : (currentSetting?.name || 'Fiyat Ayarları')
     
-    // Build dynamic buttons based on PROMPT-A1.1 matrix
+    // Build dynamic header buttons based on current state
     const headerButtons = []
     
     // 1. Status Badge - always visible with setting name
@@ -917,7 +912,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     // 3. Dynamic save buttons based on isActive + hasChanges combinations
     if (isActive && hasUnsavedChanges) {
       // isActive=true, hasChanges=true: "Yeni Taslak Olarak Kaydet" (yellow)
-      // PROMPT-A2: saveAsNewDraft kullan - mevcut aktif ayarı değiştirme, yeni taslak oluştur
+      // Save as new draft - don't modify the active setting
       headerButtons.push(
         React.createElement('button', {
           key: 'save-as-new-draft',
