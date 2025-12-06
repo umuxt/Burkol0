@@ -27,7 +27,7 @@ class FormFields {
   /**
    * Create a new form field
    */
-  static async create({ templateId, fieldCode, fieldName, fieldType, sortOrder = 0, isRequired = false, placeholder, helpText, validationRule, defaultValue }) {
+  static async create({ templateId, fieldCode, fieldName, fieldType, sortOrder = 0, isRequired = false, placeholder, helpText, validationRule, defaultValue, showInTable = false, showInFilter = false, tableOrder = 0, filterOrder = 0 }) {
     const [field] = await db('quotes.form_fields')
       .insert({
         templateId: templateId,
@@ -40,6 +40,10 @@ class FormFields {
         helpText: helpText,
         validationRule: validationRule,
         defaultValue: defaultValue,
+        showInTable: showInTable,
+        showInFilter: showInFilter,
+        tableOrder: tableOrder,
+        filterOrder: filterOrder,
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
       })
@@ -312,6 +316,86 @@ class FormFields {
 
       await trx.commit();
       return createdFields;
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  // =====================================================
+  // Display Settings Methods (QT-1)
+  // NOT: Bu metodlar form versiyonunu DEĞİŞTİRMEZ
+  // =====================================================
+
+  /**
+   * Update field display settings (showInTable, showInFilter, tableOrder, filterOrder)
+   * NOT: Bu işlem form versiyonunu DEĞİŞTİRMEZ
+   * @param {number} fieldId - Field ID
+   * @param {object} settings - { showInTable, showInFilter, tableOrder, filterOrder }
+   */
+  static async updateDisplaySettings(fieldId, settings) {
+    const allowedFields = ['showInTable', 'showInFilter', 'tableOrder', 'filterOrder'];
+    const updates = {};
+    
+    for (const key of allowedFields) {
+      if (settings[key] !== undefined) {
+        updates[key] = settings[key];
+      }
+    }
+    
+    if (Object.keys(updates).length === 0) return null;
+    
+    updates.updatedAt = db.fn.now();
+    
+    const [updated] = await db('quotes.form_fields')
+      .where({ id: fieldId })
+      .update(updates)
+      .returning('*');
+    
+    return updated;
+  }
+
+  /**
+   * Get fields with showInTable=true for a template
+   * @param {number} templateId - Template ID
+   * @returns {Array} Fields sorted by tableOrder
+   */
+  static async getTableDisplayFields(templateId) {
+    return db('quotes.form_fields')
+      .where({ templateId, showInTable: true })
+      .orderBy('tableOrder', 'asc')
+      .select('*');
+  }
+
+  /**
+   * Get fields with showInFilter=true for a template
+   * @param {number} templateId - Template ID
+   * @returns {Array} Fields sorted by filterOrder
+   */
+  static async getFilterDisplayFields(templateId) {
+    return db('quotes.form_fields')
+      .where({ templateId, showInFilter: true })
+      .orderBy('filterOrder', 'asc')
+      .select('*');
+  }
+
+  /**
+   * Bulk update display settings for multiple fields
+   * Useful for reordering fields in table/filter
+   * @param {Array} updates - [{ fieldId, showInTable, showInFilter, tableOrder, filterOrder }]
+   */
+  static async bulkUpdateDisplaySettings(updates) {
+    const trx = await db.transaction();
+    
+    try {
+      const results = [];
+      for (const update of updates) {
+        const { fieldId, ...settings } = update;
+        const result = await this.updateDisplaySettings(fieldId, settings);
+        if (result) results.push(result);
+      }
+      await trx.commit();
+      return results;
     } catch (error) {
       await trx.rollback();
       throw error;

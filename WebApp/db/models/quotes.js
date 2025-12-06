@@ -56,8 +56,9 @@ class Quotes {
   /**
    * Create a new quote
    * Updated for B0.2: uses priceSettingId instead of priceFormulaId
+   * Updated for QT-1: added projectName field
    */
-  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceSettingId, notes, formData, createdBy, isCustomer, customerId }) {
+  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceSettingId, notes, formData, createdBy, isCustomer, customerId, projectName }) {
     const trx = await db.transaction();
     
     try {
@@ -95,6 +96,7 @@ class Quotes {
           formTemplateCode: formTemplateCode,
           priceSettingId: priceSettingId,
           priceSettingCode: priceSettingCode,
+          projectName: projectName || null,  // QT-1: Proje adı
           status: 'new',
           notes,
           createdBy: createdBy,
@@ -294,6 +296,7 @@ class Quotes {
 
   /**
    * Update quote
+   * Updated for QT-1: added projectName field
    */
   static async update(id, updates) {
     const trx = await db.transaction();
@@ -312,6 +315,7 @@ class Quotes {
       if (updates.updatedBy) updateData.updatedBy = updates.updatedBy;
       if (updates.isCustomer !== undefined) updateData.isCustomer = updates.isCustomer;
       if (updates.customerId !== undefined) updateData.customerId = updates.customerId;
+      if (updates.projectName !== undefined) updateData.projectName = updates.projectName;  // QT-1
       
       // Update form template fields
       if (updates.formTemplateId !== undefined) updateData.formTemplateId = updates.formTemplateId;
