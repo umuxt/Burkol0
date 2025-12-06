@@ -58,7 +58,7 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | Prompt | Başlık | Durum | Bağımlılık |
 |--------|--------|-------|------------|
 | QT-1 | Database Migration | ✅ Tamamlandı | - |
-| QT-2 | Backend API Güncellemesi | ⏳ Bekliyor | QT-1 |
+| QT-2 | Backend API Güncellemesi | ✅ Tamamlandı | QT-1 |
 | QT-3 | Frontend - Proje Adı Entegrasyonu | ⏳ Bekliyor | QT-2 |
 | QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | QT-2 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
@@ -394,12 +394,52 @@ Aktif template için display alanlarını döner.
 ```
 
 #### GET `/api/quotes` - Güncelleme
-Response'a `projectName` ekle.
+Response'a `projectName` ekle (model zaten döndürüyor, controller değişikliği gerekmez).
+
+#### PATCH `/api/quotes/:id` - Güncelleme
+`projectName` güncellemesini destekle.
 
 ### Dosyalar
-- `server/routes/formRoutes.js` (GÜNCELLEME)
-- `server/routes/quotesRoutes.js` (GÜNCELLEME)
-- `db/models/quotes.js` (GÜNCELLEME)
+- `domains/crm/api/controllers/formController.js` (GÜNCELLEME) - Display endpoint'leri
+- `domains/crm/api/controllers/quoteController.js` (GÜNCELLEME) - projectName desteği
+- `domains/crm/api/services/quoteService.js` (GÜNCELLEME) - projectName wiring
+- `db/models/quotes.js` (QT-1'DE TAMAMLANDI ✅)
+- `db/models/formFields.js` (QT-1'DE TAMAMLANDI ✅)
+
+### ✅ Test Sonuçları (2025-12-06)
+
+**Test Ortamı:** Local Server - http://localhost:3000
+
+#### 1. PUT /api/form-fields/:id/display ✅
+```bash
+curl -X PUT http://localhost:3000/api/form-fields/213/display \
+  -H "Content-Type: application/json" \
+  -d '{"showInTable": true, "showInFilter": true, "tableOrder": 1, "filterOrder": 1}'
+
+# Response:
+{"success":true,"field":{"id":213,"showInTable":true,"showInFilter":true,"tableOrder":1,"filterOrder":1,...}}
+```
+
+#### 2. GET /api/form-templates/:id/display-fields ✅
+```bash
+curl http://localhost:3000/api/form-templates/47/display-fields
+
+# Response:
+{"tableFields":[{"id":213,"fieldCode":"FIELD_...","showInTable":true,...}],"filterFields":[...]}
+```
+
+#### 3. GET /api/quotes - projectName ✅
+```bash
+# Mevcut quotes projectName: 'oldStructure' döndürüyor
+{"projectName": "oldStructure", ...}
+```
+
+#### 4. POST/PATCH /api/quotes - projectName ✅
+- Controller: projectName parametresi kabul ediliyor
+- Service: projectName quoteData'ya ekleniyor
+- Model: projectName veritabanına kaydediliyor
+
+**Sonuç:** Tüm QT-2 testleri başarıyla geçti. ✅
 
 ---
 

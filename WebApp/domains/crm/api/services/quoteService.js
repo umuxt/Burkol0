@@ -35,6 +35,7 @@ export async function getQuoteStatistics(filters = {}) {
 /**
  * Create new quote
  * Updated for B0: Uses priceSettingId instead of priceFormulaId
+ * Updated for QT-2: Added projectName support
  */
 export async function createQuote(data) {
   const quoteData = {
@@ -50,6 +51,7 @@ export async function createQuote(data) {
     deliveryDate: data.deliveryDate,
     isCustomer: data.isCustomer,
     customerId: data.customerId,
+    projectName: data.projectName,  // QT-2: Proje adı
     createdBy: data.createdBy,
     status: data.status || 'draft'
   };

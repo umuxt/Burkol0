@@ -415,6 +415,53 @@ export function setupFormRoutes(app) {
     }
   });
 
+  // ==================== DISPLAY SETTINGS (QT-2) ====================
+
+  // Update field display settings (does NOT change form version)
+  app.put('/api/form-fields/:id/display', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { showInTable, showInFilter, tableOrder, filterOrder } = req.body;
+
+      logger.info(`PUT /api/form-fields/${id}/display`, { showInTable, showInFilter, tableOrder, filterOrder });
+
+      const field = await FormFields.updateDisplaySettings(id, {
+        showInTable,
+        showInFilter,
+        tableOrder,
+        filterOrder
+      });
+
+      if (!field) {
+        logger.warning(`Field not found or no updates: ${id}`);
+        return res.status(404).json({ error: 'Field not found or no updates provided' });
+      }
+
+      logger.success(`Field display settings updated: ${id}`);
+      res.json({ success: true, field });
+    } catch (error) {
+      logger.error('Failed to update display settings', { error: error.message });
+      res.status(500).json({ error: 'Failed to update display settings', message: error.message });
+    }
+  });
+
+  // Get display fields for template (table and filter fields)
+  app.get('/api/form-templates/:id/display-fields', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/form-templates/${id}/display-fields`);
+
+      const tableFields = await FormFields.getTableDisplayFields(id);
+      const filterFields = await FormFields.getFilterDisplayFields(id);
+
+      logger.success(`Found ${tableFields.length} table fields, ${filterFields.length} filter fields`);
+      res.json({ tableFields, filterFields });
+    } catch (error) {
+      logger.error('Failed to get display fields', { error: error.message });
+      res.status(500).json({ error: 'Failed to get display fields', message: error.message });
+    }
+  });
+
   // ==================== FIELD OPTIONS ====================
 
   // Get field options

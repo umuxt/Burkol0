@@ -218,6 +218,8 @@ export function setupQuotesRoutes(app) {
         notes,
         formData,
         deliveryDate,
+        // QT-2: Project name
+        projectName,
         // FILES - yeni eklendi
         files,
         productImages
@@ -339,6 +341,7 @@ export function setupQuotesRoutes(app) {
         formData,
         isCustomer,
         customerId: resolvedCustomerId,
+        projectName,  // QT-2: Proje adı
         createdBy: req.user?.email || 'system'
       });
 
@@ -444,6 +447,7 @@ export function setupQuotesRoutes(app) {
         formData: req.body.formData,
         isCustomer: req.body.isCustomer,
         customerId: req.body.customerId,
+        projectName: req.body.projectName,  // QT-2: Proje adı
         updatedBy: req.user?.email || 'system'
       };
 
