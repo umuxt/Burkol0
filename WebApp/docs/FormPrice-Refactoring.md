@@ -3410,3 +3410,101 @@ const field = fields.find(f => f.fieldCode === key || f.id === key)
 
 ### Migration Notu
 Mevcut price_parameter_lookups verileri korundu. optionCode migration sadece "Formu Güncelle" butonu tıklandığında gerçekleşir.
+
+---
+
+## PROMPT-F3: Versioning Sisteminin Kaldırılması
+
+> **Tarih**: 6 Aralık 2025  
+> **Durum**: ✅ TAMAMLANDI  
+> **Commit**: TBD
+
+### Problem Analizi
+
+Tester'ın raporunda belirtilen `form_templates_code_unique` constraint sorunu araştırıldığında:
+
+1. **`createNewVersion()`** fonksiyonu aynı `code` ile yeni versiyon oluşturmaya çalışıyordu
+2. `form_templates_code_unique` constraint bu işlemi engelliyordu
+3. Analiz sonucu: **Versioning sistemi hiç kullanılmamış**
+   - Tüm `supersedesId` değerleri NULL
+   - Tüm formlar unique code'a sahip
+   - Sadece 1 form `version > 1` (manuel test)
+
+### Karar: Versioning Sistemini Tamamen Kaldır
+
+Kullanılmayan ve constraint hatalarına yol açan versioning sistemi kaldırıldı.
+
+### Database Migration
+
+```sql
+-- 1. Constraint'leri kaldır
+ALTER TABLE quotes.price_settings DROP CONSTRAINT IF EXISTS price_settings_code_version_unique;
+ALTER TABLE quotes.form_templates DROP CONSTRAINT IF EXISTS form_templates_code_unique;
+
+-- 2. İndeksleri kaldır
+DROP INDEX IF EXISTS quotes.form_templates_version_index;
+DROP INDEX IF EXISTS quotes.price_settings_code_version_index;
+
+-- 3. Kolonları kaldır
+ALTER TABLE quotes.form_templates DROP COLUMN IF EXISTS version;
+ALTER TABLE quotes.form_templates DROP COLUMN IF EXISTS "supersedesId";
+ALTER TABLE quotes.price_settings DROP COLUMN IF EXISTS version;
+ALTER TABLE quotes.price_settings DROP COLUMN IF EXISTS "supersedesId";
+```
+
+### Kod Değişiklikleri
+
+#### 1. formTemplates.js (Model)
+- ❌ `createNewVersion()` fonksiyonu kaldırıldı
+- ❌ `getVersions()` fonksiyonu kaldırıldı
+- ✏️ `create()` fonksiyonundan `version` parametresi kaldırıldı
+- ✏️ `getActive()` fonksiyonundan `orderBy('version', 'desc')` kaldırıldı
+- ✏️ `activateVersion()` → `activateTemplate()` olarak yeniden adlandırıldı
+
+#### 2. priceSettingsService.js (Service)
+- ❌ `createNewVersion()` fonksiyonu kaldırıldı
+- ✏️ `create()` fonksiyonundan `version`, `supersedesId` parametreleri kaldırıldı
+
+#### 3. formController.js (API)
+- ❌ `GET /api/form-templates/:code/versions` endpoint kaldırıldı
+- ❌ `POST /api/form-templates/:id/new-version` endpoint kaldırıldı
+- ✏️ `activateVersion()` → `activateTemplate()` çağrısı güncellendi
+
+#### 4. priceController.js (API)
+- ❌ `GET /api/price-formulas/:code/versions` endpoint kaldırıldı
+- ❌ `POST /api/price-formulas/:id/new-version` endpoint kaldırıldı
+- ❌ `POST /api/price-settings/:id/new-version` endpoint kaldırıldı
+- ✏️ `version` select'leri sorgulardan kaldırıldı
+- ✏️ `activeFormTemplateVersion` response'lardan kaldırıldı
+
+#### 5. formFields.js (Model)
+- ✏️ `getActiveFormTemplate()` sorgusundan `version` select kaldırıldı
+
+#### 6. PricingManager.jsx (UI)
+- ❌ `isNewVersionModalOpen`, `newVersionName` state'leri kaldırıldı
+- ❌ "Yeni Sürüm Oluştur" modal'ı kaldırıldı
+- ✏️ `formSyncInfo` state'inden `activeFormTemplateVersion` kaldırıldı
+- ✏️ Uyarı mesajından versiyon gösterimi kaldırıldı
+
+#### 7. QuotesManager.js (UI)
+- ✏️ `priceSettings?.version` → `priceSettings?.code` değiştirildi
+- ✏️ `priceSettings?.versionId` → `priceSettings?.id` değiştirildi
+
+### Korunan Fonksiyonlar
+
+Aşağıdaki temel CRUD fonksiyonları korundu:
+
+| Fonksiyon | Açıklama |
+|-----------|----------|
+| `create()` | Yeni form/setting oluşturma (farklı code ile) |
+| `update()` | Mevcut form/setting güncelleme |
+| `activate()` / `activateTemplate()` | Template/setting aktif etme |
+| `delete()` | Template/setting silme |
+
+### Test Sonuçları
+
+- ✅ Build başarılı
+- ✅ `GET /api/form-templates/active` çalışıyor
+- ✅ `GET /api/price-settings/active` çalışıyor
+- ✅ Form sync işlemi çalışıyor
+- ✅ Quote oluşturma/düzenleme çalışıyor

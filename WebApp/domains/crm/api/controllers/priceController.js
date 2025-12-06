@@ -667,63 +667,6 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Get all versions of a formula -> Gets versions from settings
-  app.get('/api/price-formulas/:code/versions', requireAuth, async (req, res) => {
-    try {
-      const { code } = req.params;
-      logger.info(`GET /api/price-formulas/${code}/versions - Getting setting versions`);
-
-      const versions = await db('quotes.price_settings')
-        .where({ code })
-        .orderBy('version', 'desc')
-        .select('*');
-      
-      const formulas = versions.map(s => ({
-        id: s.id,
-        settingId: s.id,
-        code: s.code,
-        name: s.name,
-        formulaExpression: s.formulaExpression,
-        isActive: s.isActive,
-        version: s.version
-      }));
-
-      logger.success(`Found ${formulas.length} versions for formula ${code}`);
-      res.json(formulas);
-    } catch (error) {
-      logger.error('Failed to fetch formula versions', { error: error.message });
-      res.status(500).json({ error: 'Failed to fetch formula versions', message: error.message });
-    }
-  });
-
-  // Create new version of formula -> Creates new setting version
-  app.post('/api/price-formulas/:id/new-version', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name } = req.body;
-      
-      logger.info(`POST /api/price-formulas/${id}/new-version - Creating new version`);
-
-      const newSetting = await PriceSettings.createNewVersion(parseInt(id), name);
-
-      const formula = {
-        id: newSetting.id,
-        settingId: newSetting.id,
-        code: newSetting.code,
-        name: newSetting.name,
-        formulaExpression: newSetting.formulaExpression,
-        isActive: newSetting.isActive,
-        version: newSetting.version
-      };
-
-      logger.success(`New formula version created: ${formula.id} (version ${formula.version})`);
-      res.status(201).json(formula);
-    } catch (error) {
-      logger.error('Failed to create new formula version', { error: error.message });
-      res.status(500).json({ error: 'Failed to create new formula version', message: error.message });
-    }
-  });
-
   // Activate a specific formula version -> Activates setting
   app.patch('/api/price-formulas/:id/activate', requireAuth, async (req, res) => {
     try {
@@ -800,13 +743,12 @@ export function setupPriceRoutes(app) {
       // Get active form template info for sync check
       const [activeFormTemplate] = await db('quotes.form_templates')
         .where('isActive', true)
-        .select('id', 'name', 'version', 'updatedAt')
+        .select('id', 'name', 'updatedAt')
         .limit(1);
 
       // Add form sync info to response
       setting.activeFormTemplateId = activeFormTemplate?.id || null;
       setting.activeFormTemplateName = activeFormTemplate?.name || null;
-      setting.activeFormTemplateVersion = activeFormTemplate?.version || null;
       setting.isFormSynced = setting.linkedFormTemplateId === activeFormTemplate?.id;
 
       logger.success(`Active setting found: ${setting.id}, formSynced: ${setting.isFormSynced}`);
@@ -836,7 +778,7 @@ export function setupPriceRoutes(app) {
       // Get active form template
       const [activeFormTemplate] = await db('quotes.form_templates')
         .where('isActive', true)
-        .select('id', 'name', 'version')
+        .select('id', 'name')
         .limit(1);
 
       if (!activeFormTemplate) {
@@ -850,7 +792,6 @@ export function setupPriceRoutes(app) {
           success: true,
           linkedFormTemplateId: activeFormTemplate.id,
           linkedFormTemplateName: activeFormTemplate.name,
-          linkedFormTemplateVersion: activeFormTemplate.version,
           migrated: false
         });
       }
@@ -943,7 +884,6 @@ export function setupPriceRoutes(app) {
         success: true,
         linkedFormTemplateId: activeFormTemplate.id,
         linkedFormTemplateName: activeFormTemplate.name,
-        linkedFormTemplateVersion: activeFormTemplate.version,
         migrated: true,
         migratedLookups: migratedCount
       });
@@ -1144,24 +1084,6 @@ export function setupPriceRoutes(app) {
     } catch (error) {
       logger.error('Failed to update price setting', { error: error.message });
       res.status(500).json({ error: 'Failed to update price setting', message: error.message });
-    }
-  });
-
-  // Create new version from existing setting
-  app.post('/api/price-settings/:id/new-version', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name } = req.body;
-      
-      logger.info(`POST /api/price-settings/${id}/new-version - Creating new version`);
-
-      const newSetting = await PriceSettings.createNewVersion(parseInt(id), name);
-      
-      logger.success(`New version created: ${newSetting.id} (v${newSetting.version})`);
-      res.status(201).json(newSetting);
-    } catch (error) {
-      logger.error('Failed to create new version', { error: error.message });
-      res.status(500).json({ error: 'Failed to create new version', message: error.message });
     }
   });
 

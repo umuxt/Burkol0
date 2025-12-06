@@ -9,13 +9,12 @@ class FormTemplates {
   /**
    * Create a new form template
    */
-  static async create({ code, name, description, version = 1, isActive = false, is_active, createdBy }) {
+  static async create({ code, name, description, isActive = false, is_active, createdBy }) {
     const [template] = await db('quotes.form_templates')
       .insert({
         code,
         name,
         description,
-        version,
         isActive: isActive || is_active || false,
         createdBy: createdBy,
         createdAt: db.fn.now(),
@@ -67,12 +66,11 @@ class FormTemplates {
   }
 
   /**
-   * Get active template (latest version)
+   * Get active template
    */
   static async getActive() {
     const template = await db('quotes.form_templates')
       .where('isActive', true)
-      .orderBy('version', 'desc')
       .first();
     
     return template;
@@ -166,64 +164,9 @@ class FormTemplates {
   }
 
   /**
-   * Create new version of a template
+   * Activate a specific template (deactivate all others with same code)
    */
-  static async createNewVersion(templateId, { name, description, createdBy }) {
-    const trx = await db.transaction();
-    
-    try {
-      // Get current template
-      const currentTemplate = await trx('quotes.form_templates')
-        .where('id', templateId)
-        .first();
-      
-      if (!currentTemplate) {
-        throw new Error('Template not found');
-      }
-
-      // Deactivate current template
-      await trx('quotes.form_templates')
-        .where('id', templateId)
-        .update({ isActive: false, updatedAt: db.fn.now() });
-
-      // Create new version
-      const [newTemplate] = await trx('quotes.form_templates')
-        .insert({
-          code: currentTemplate.code,
-          name: name || currentTemplate.name,
-          description: description || currentTemplate.description,
-          version: currentTemplate.version + 1,
-          isActive: true,
-          supersedesId: templateId,
-          createdBy: createdBy,
-          createdAt: db.fn.now(),
-          updatedAt: db.fn.now()
-        })
-        .returning('*');
-
-      await trx.commit();
-      return newTemplate;
-    } catch (error) {
-      await trx.rollback();
-      throw error;
-    }
-  }
-
-  /**
-   * Get all versions of a template
-   */
-  static async getVersions(code) {
-    const versions = await db('quotes.form_templates')
-      .where('code', code)
-      .orderBy('version', 'desc');
-    
-    return versions;
-  }
-
-  /**
-   * Activate a specific version
-   */
-  static async activateVersion(templateId) {
+  static async activateTemplate(templateId) {
     const trx = await db.transaction();
     
     try {

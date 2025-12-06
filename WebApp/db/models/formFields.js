@@ -206,12 +206,12 @@ class FormFields {
 
   /**
    * Get the active form template info
-   * Returns: { id, name, version, updatedAt }
+   * Returns: { id, name, updatedAt }
    */
   static async getActiveFormTemplate() {
     const [template] = await db('quotes.form_templates')
       .where('isActive', true)
-      .select('id', 'name', 'version', 'updatedAt')
+      .select('id', 'name', 'updatedAt')
       .limit(1);
     return template;
   }

@@ -244,7 +244,7 @@ export function setupFormRoutes(app) {
       const { id } = req.params;
       logger.info(`PATCH /api/form-templates/${id}/activate`);
 
-      const template = await FormTemplates.activateVersion(parseInt(id));
+      const template = await FormTemplates.activateTemplate(parseInt(id));
       
       if (!template) {
         logger.warning(`Template not found: ${id}`);
@@ -256,44 +256,6 @@ export function setupFormRoutes(app) {
     } catch (error) {
       logger.error('Failed to activate template', { error: error.message });
       res.status(500).json({ error: 'Failed to activate template', message: error.message });
-    }
-  });
-
-  // Get all versions of a template
-  app.get('/api/form-templates/:code/versions', requireAuth, async (req, res) => {
-    try {
-      const { code } = req.params;
-      logger.info(`GET /api/form-templates/${code}/versions`);
-
-      const versions = await FormTemplates.getVersions(code);
-      
-      logger.success(`Found ${versions.length} versions for template ${code}`);
-      res.json(versions);
-    } catch (error) {
-      logger.error('Failed to fetch template versions', { error: error.message });
-      res.status(500).json({ error: 'Failed to fetch template versions', message: error.message });
-    }
-  });
-
-  // Create new version of template
-  app.post('/api/form-templates/:id/new-version', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, description, createdBy } = req.body;
-      
-      logger.info(`POST /api/form-templates/${id}/new-version`);
-
-      const newTemplate = await FormTemplates.createNewVersion(parseInt(id), {
-        name,
-        description,
-        createdBy
-      });
-
-      logger.success(`New template version created: ${newTemplate.id} (version ${newTemplate.version})`);
-      res.status(201).json(newTemplate);
-    } catch (error) {
-      logger.error('Failed to create new template version', { error: error.message });
-      res.status(500).json({ error: 'Failed to create new template version', message: error.message });
     }
   });
 

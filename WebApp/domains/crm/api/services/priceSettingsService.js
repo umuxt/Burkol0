@@ -112,9 +112,7 @@ const PriceSettings = {
         description: data.description,
         formulaExpression: data.formulaExpression || null,
         isActive: data.isActive || data.is_active || false,
-        version: data.version || 1,
         createdBy: data.createdBy || data.created_by,
-        supersedesId: data.supersedesId || data.supersedes_id || null,
         linkedFormTemplateId: data.linkedFormTemplateId || null  // F1: Link with form template
       })
       .returning('*');
@@ -153,67 +151,6 @@ const PriceSettings = {
     });
 
     return this.getWithDetails(id);
-  },
-
-  /**
-   * Create new version from existing setting
-   * Updated for B0: copies formulaExpression instead of separate formula record
-   */
-  async createNewVersion(currentSettingId, newName) {
-    return db.transaction(async (trx) => {
-      // Get current setting
-      const currentSetting = await trx('quotes.price_settings')
-        .where({ id: currentSettingId })
-        .first();
-
-      if (!currentSetting) {
-        throw new Error('Current setting not found');
-      }
-
-      // Get max version for this code
-      const maxVersionResult = await trx('quotes.price_settings')
-        .where({ code: currentSetting.code })
-        .max('version as maxVersion')
-        .first();
-
-      const nextVersion = (maxVersionResult.maxVersion || 0) + 1;
-
-      // Create new setting with formula
-      const [newSetting] = await trx('quotes.price_settings')
-        .insert({
-          code: currentSetting.code,
-          name: newName || `${currentSetting.name} v${nextVersion}`,
-          description: currentSetting.description,
-          formulaExpression: currentSetting.formulaExpression,
-          isActive: false,
-          version: nextVersion,
-          createdBy: currentSetting.createdBy,
-          supersedesId: currentSettingId
-        })
-        .returning('*');
-
-      // Copy parameters
-      const currentParams = await trx('quotes.price_parameters')
-        .where({ settingId: currentSettingId });
-
-      if (currentParams.length > 0) {
-        const newParams = currentParams.map(p => ({
-          settingId: newSetting.id,
-          code: p.code,
-          name: p.name,
-          type: p.type,
-          fixedValue: p.fixedValue,
-          formFieldCode: p.formFieldCode,
-          unit: p.unit,
-          description: p.description,
-          isActive: p.isActive
-        }));
-
-        await trx('quotes.price_parameters').insert(newParams);
-      }
-
-      return newSetting;
-    });
   },
 
   /**

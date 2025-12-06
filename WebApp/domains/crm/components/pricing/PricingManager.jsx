@@ -57,13 +57,11 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
   const formulaRef = useRef('')
   const renderHeaderActionsRef = useRef(null)
   
-  // Versioning states (like FormManager)
+  // Settings states
   const [allSettings, setAllSettings] = useState([])
   const [activeSettingId, setActiveSettingId] = useState(null)
   const [currentSettingId, setCurrentSettingId] = useState(null)
-  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
-  const [newVersionName, setNewVersionName] = useState('')
   
   // Form fields for parameter creation
   const [formFields, setFormFields] = useState([])
@@ -99,8 +97,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
     isFormSynced: true,
     linkedFormTemplateId: null,
     activeFormTemplateId: null,
-    activeFormTemplateName: null,
-    activeFormTemplateVersion: null
+    activeFormTemplateName: null
   })
   const [isSyncingForm, setIsSyncingForm] = useState(false)
   
@@ -262,8 +259,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         isFormSynced: setting.isFormSynced ?? true,
         linkedFormTemplateId: setting.linkedFormTemplateId,
         activeFormTemplateId: setting.activeFormTemplateId,
-        activeFormTemplateName: setting.activeFormTemplateName,
-        activeFormTemplateVersion: setting.activeFormTemplateVersion
+        activeFormTemplateName: setting.activeFormTemplateName
       })
 
       const loadedParameters = setting.parameters || []
@@ -524,10 +520,6 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
       console.error('Save as new draft error:', e)
       showToast('Taslak oluşturulamadı!', 'error')
     }
-  }
-
-  async function saveAsNewVersion() {
-    setIsNewVersionModalOpen(true)
   }
 
   // VERSION MANAGEMENT FUNCTIONS
@@ -1180,7 +1172,7 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         React.createElement('div', null,
           React.createElement('strong', null, 'Form Değişti! '),
           React.createElement('span', null, 
-            `Fiyatlandırma ayarları "${formSyncInfo.activeFormTemplateName || 'Aktif Form'}" (v${formSyncInfo.activeFormTemplateVersion || '?'}) ile senkronize değil. Seçenekler güncel olmayabilir.`
+            `Fiyatlandırma ayarları "${formSyncInfo.activeFormTemplateName || 'Aktif Form'}" ile senkronize değil. Seçenekler güncel olmayabilir.`
           )
         )
       ),
@@ -2053,67 +2045,6 @@ function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProc
         ) // End of inner flex container
       ) // End of RIGHT COLUMN wrapper
     ), // End of grid - close the two-column layout div
-    
-    // NEW VERSION MODAL
-    isNewVersionModalOpen && React.createElement('div', {
-      style: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-      },
-      onClick: () => setIsNewVersionModalOpen(false)
-    },
-      React.createElement('div', {
-        style: {
-          background: '#fff',
-          borderRadius: '8px',
-          padding: '24px',
-          maxWidth: '500px',
-          width: '90%'
-        },
-        onClick: (e) => e.stopPropagation()
-      },
-        React.createElement('h3', { style: { margin: '0 0 16px 0' } }, 'Yeni Sürüm Oluştur'),
-        React.createElement('p', { style: { margin: '0 0 16px 0', color: '#666' } }, 
-          'Mevcut ayarlardan yeni bir sürüm oluşturulacak. Yeni sürümün adını girin:'
-        ),
-        React.createElement('input', {
-          type: 'text',
-          value: newVersionName,
-          onChange: (e) => setNewVersionName(e.target.value),
-          placeholder: 'Örn: Fiyat Ayarları v2',
-          style: {
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '14px',
-            marginBottom: '16px'
-          },
-          onKeyPress: (e) => e.key === 'Enter' && createNewVersion()
-        }),
-        React.createElement('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-          React.createElement('button', {
-            onClick: () => setIsNewVersionModalOpen(false),
-            className: 'mes-btn',
-            style: { background: '#fff', border: '2px solid #000', color: '#000' }
-          }, 'İptal'),
-          React.createElement('button', {
-            onClick: createNewVersion,
-            className: 'mes-btn',
-            disabled: !newVersionName.trim(),
-            style: { background: '#4F46E5', color: '#fff', border: 'none' }
-          }, 'Oluştur')
-        )
-      )
-    ),
     
     // HISTORY MODAL
     isHistoryModalOpen && React.createElement('div', {

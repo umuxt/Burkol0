@@ -890,14 +890,14 @@ function QuotesManager({ t, onLogout }) {
       },
       applied: {
         // Mevcut versiyon: Şu an aktif olan fiyat hesaplama versiyonu
-        version: item.priceVersionApplied?.versionNumber || item.priceVersion?.versionNumber || item.priceStatus?.settingsVersion || priceSettings?.version || null,
-        versionId: item.priceVersionApplied?.versionId || item.priceVersion?.versionId || item.priceStatus?.settingsVersionId || priceSettings?.versionId || null,
+        version: item.priceVersionApplied?.versionNumber || item.priceVersion?.versionNumber || item.priceStatus?.settingsVersion || priceSettings?.code || null,
+        versionId: item.priceVersionApplied?.versionId || item.priceVersion?.versionId || item.priceStatus?.settingsVersionId || priceSettings?.id || null,
         timestamp: item.priceVersionApplied?.capturedAt || item.priceVersion?.capturedAt || item.priceStatus?.lastApplied || null
       },
       latest: {
         // Güncel versiyon: Sistemdeki en yeni fiyat hesaplama versiyonu
-        version: priceSettings?.version || null,
-        versionId: priceSettings?.versionId || null,
+        version: priceSettings?.code || null,
+        versionId: priceSettings?.id || null,
         timestamp: priceSettings?.updatedAt || null
       }
     }

@@ -137,31 +137,27 @@ export function setupQuotesRoutes(app) {
         ? await PriceSettings.getById(quote.priceSettingId)
         : null;
       
-      // Get active price settings to compare versions
+      // Get active price settings to compare
       const activeSetting = await PriceSettings.getActive();
 
-      const quoteSettingVersion = quote.priceSettingCode || currentSetting?.version || 1;
-      const latestSettingVersion = activeSetting?.version || currentSetting?.version || 1;
-      
-      // Calculate if update needed
-      const versionMismatch = quoteSettingVersion !== latestSettingVersion;
+      // Compare by setting ID instead of version (version column removed)
       const settingIdMismatch = quote.priceSettingId !== activeSetting?.id;
-      const needsUpdate = versionMismatch || settingIdMismatch;
+      const needsUpdate = settingIdMismatch;
 
-      // Build versions object
+      // Build versions object (using code/id for identification, not version number)
       const versions = {
         original: {
-          version: quote.priceSettingCode || 'N/A',
+          version: quote.priceSettingCode || currentSetting?.code || 'N/A',
           versionId: quote.priceSettingId || null,
           timestamp: quote.createdAt
         },
         applied: {
-          version: currentSetting?.version || quote.priceSettingCode || 'N/A',
+          version: currentSetting?.code || quote.priceSettingCode || 'N/A',
           versionId: quote.priceSettingId || null,
           timestamp: quote.lastCalculatedAt || quote.updatedAt
         },
         latest: {
-          version: activeSetting?.version || 'N/A',
+          version: activeSetting?.code || 'N/A',
           versionId: activeSetting?.id || null,
           timestamp: activeSetting?.updatedAt || new Date().toISOString()
         }
@@ -174,7 +170,7 @@ export function setupQuotesRoutes(app) {
         newPrice: quote.finalPrice || quote.calculatedPrice || 0, // Same until recalculated
         reasons: [],
         parameterChanges: { added: [], removed: [], modified: [] },
-        formulaChanged: settingIdMismatch || versionMismatch,
+        formulaChanged: settingIdMismatch,
         comparisonBaseline: 'applied'
       };
 
