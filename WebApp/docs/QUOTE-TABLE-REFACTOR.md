@@ -1,0 +1,1095 @@
+# PROMPT-QT: Quote Tablosu ve Form Entegrasyonu Refactoring
+
+> **Tarih:** 6 Aralık 2025  
+> **Durum:** Planlandı  
+> **Öncelik:** Yüksek  
+> **Bağımlılıklar:** PROMPT-F3 (Form Field Display Options) - Tamamlanmalı
+
+---
+
+## 📋 Özet
+
+Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının eklenmesi ve tablo görünümünün modernizasyonu.
+
+### Ana Hedefler
+1. **Proje Adı (projectName)** - Quotes tablosuna yeni kolon eklenmesi
+2. **Dinamik Tablo Kolonları** - Form alanlarından `showInTable: true` olanların tabloda gösterilmesi
+3. **Dinamik Filtre Sistemi** - Form alanlarından `showInFilter: true` olanların filtrelerde kullanılması
+4. **Freeze Kolonlar** - Sabit kolonların scroll sırasında yerinde kalması
+5. **Event-Based Güncelleme** - Form display değişikliklerinin anlık yansıması
+
+---
+
+## 🎯 Gereksinimler Özeti (Q&A Çıktıları)
+
+### Q1-Q5: Proje Adı (projectName)
+- **Konum:** `quotes` tablosuna doğrudan (form_data değil)
+- **Zorunluluk:** Evet, zorunlu alan
+- **İlişki:** Quote'a bağlı (müşteriye değil)
+- **UI Konumu:** AddQuoteModal Step 1 (Customer Step) - müşteri seçiminin altında
+- **Mevcut Kayıtlar:** `'oldStructure'` değeri ile işaretlenecek
+
+### Q6-Q8: Tablo Kolonları
+- **Kaldırılacak:** Müşteri (yetkili kişi), Telefon, E-posta → Detay panelinde gösterilecek
+- **Sabit Sol (Freeze):** Tarih | Şirket | Proje
+- **Dinamik (Scroll):** Form alanları (`showInTable: true` olanlar)
+- **Sabit Sağ (Freeze):** Fiyat | Termine Kalan | Durum
+
+### Q9-Q11: canEdit = false Senaryosu
+- **Koşul:** Üretim başlamış tekliflerde form düzenleme kapalı
+- **Dinamik Alanlar:** "Detaylara bakınız" + Lucide `FileText` ikonu gösterilecek
+- **colspan:** Tüm dinamik kolonlar tek hücrede birleştirilecek
+- **Tıklama:** Detay panelini açar
+
+### Q12-Q14: Form Manager Entegrasyonu
+- **showInTable/showInFilter Değişikliği:** Form versiyonunu DEĞİŞTİRMEZ
+- **Sadece Versiyon Artıran:** Alan ekleme, silme, tip değişikliği, seçenek değişikliği
+- **Senkronizasyon:** Event dispatch ile (`formDisplaySettingsChanged` custom event)
+
+### Q15-Q17: Teknik Kararlar
+- **Güncelleme Yöntemi:** Event dispatch (her tab değişiminde API çağırmak yerine)
+- **Migration:** Onaylandı (028_quote_table_display.sql)
+- **Kolon Sırası:** Tarih | Şirket | Proje | [Dinamik ←→] | Fiyat | Termine | Durum
+
+---
+
+## 🗂️ Prompt Zinciri
+
+| Prompt | Başlık | Durum | Bağımlılık |
+|--------|--------|-------|------------|
+| QT-1 | Database Migration | ⏳ Bekliyor | - |
+| QT-2 | Backend API Güncellemesi | ⏳ Bekliyor | QT-1 |
+| QT-3 | Frontend - Proje Adı Entegrasyonu | ⏳ Bekliyor | QT-2 |
+| QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | QT-2 |
+| QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
+| QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
+| QT-7 | Event Dispatch Sistemi | ⏳ Bekliyor | QT-4 |
+| QT-8 | Test & Doğrulama | ⏳ Bekliyor | QT-1 → QT-7 |
+
+---
+
+## 📊 Mevcut Sistem Analizi
+
+### Mevcut Dosya Yapısı
+```
+domains/crm/
+├── components/
+│   ├── quotes/
+│   │   ├── QuotesManager.js      # Ana tablo yönetimi (1829 satır, React.createElement)
+│   │   ├── QuotesTabs.jsx        # Tab yönetimi (quotes, customers, forms, pricing)
+│   │   ├── AddQuoteModal.jsx     # 3-step wizard (427 satır)
+│   │   ├── QuoteCustomerStep.jsx # Step 1: Müşteri seçimi
+│   │   ├── QuoteFormStep.jsx     # Step 2: Form doldurma
+│   │   ├── QuoteReviewStep.jsx   # Step 3: Özet ve fiyat
+│   │   ├── QuoteDetailsPanel.jsx # Sağ panel detay görüntüleme
+│   │   └── FormUpdateModal.jsx   # Form güncelleme modalı
+│   └── forms/
+│       └── FormManager.jsx       # Form template yönetimi
+├── services/
+│   ├── quotes-service.js         # Quotes API işlemleri
+│   └── forms-service.js          # Form templates API işlemleri
+├── utils/
+│   ├── table-utils.js            # getTableColumns(), getFieldValue()
+│   └── filter-utils.js           # getFilterOptions(), createFilteredList()
+└── styles/
+    └── quotes.css                # Tablo stilleri
+```
+
+### Mevcut Database Yapısı (quotes schema)
+```sql
+-- quotes.quotes tablosu (mevcut)
+- id, customerName, customerCompany, customerEmail, customerPhone
+- formTemplateId, formVersion
+- status, finalPrice, calculatedPrice
+- deliveryDate, createdAt, updatedAt
+- formData (JSONB), customerId
+-- EKSİK: projectName
+
+-- quotes.form_fields tablosu (mevcut)
+- id, templateId, fieldCode, fieldName, fieldType
+- sortOrder, isRequired, placeholder, options
+- createdAt, updatedAt
+-- EKSİK: showInTable, showInFilter, tableOrder, filterOrder
+```
+
+### Mevcut Tablo Kolonları (QuotesManager.js)
+```javascript
+// getTableColumns(formConfig) mevcut çıktısı:
+[
+  { id: 'date', label: 'Tarih', type: 'date' },
+  { id: 'name', label: 'Müşteri', type: 'text' },      // KALDIRILACAK
+  { id: 'company', label: 'Şirket', type: 'text' },
+  { id: 'proj', label: 'Proje', type: 'text' },
+  { id: 'phone', label: 'Telefon', type: 'phone' },    // KALDIRILACAK
+  { id: 'email', label: 'E-posta', type: 'email' },    // KALDIRILACAK
+  // ... form alanları (sabit)
+  { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
+  { id: 'delivery_date', label: 'Teslimat Tarihi', type: 'text' },
+  { id: 'status', label: 'Durum', type: 'text' }
+]
+```
+
+### Mevcut Sorunlar
+1. **formConfig yüklemesi:** Sadece mount'ta yükleniyor (`useEffect([], [])`)
+2. **Tab değişiminde güncelleme yok:** FormManager'da yapılan değişiklikler QuotesManager'a yansımıyor
+3. **Dinamik kolon desteği yok:** Tüm kolonlar hardcoded
+4. **projectName alanı yok:** Ne DB'de ne UI'da
+
+---
+
+## 📐 Tablo Yapısı (Hedef)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [FREEZE - SOL]          │ [DİNAMİK - SCROLL]           │ [FREEZE - SAĞ]                │
+├─────────────────────────┼──────────────────────────────┼───────────────────────────────┤
+│ Tarih | Şirket | Proje  │ ← Alan1 | Alan2 | Alan3 → │ Fiyat | Termine | Durum       │
+│ 140px   150px    150px  │    120px   120px   120px   │ 120px   110px     100px       │
+└─────────────────────────┴──────────────────────────────┴───────────────────────────────┘
+```
+
+### Kolon Detayları
+
+| # | Kolon | Kaynak | Freeze | Genişlik | Açıklama |
+|---|-------|--------|--------|----------|----------|
+| 1 | Tarih | `createdAt` | ✅ Sol | 140px | Oluşturma tarihi |
+| 2 | Şirket | `customerCompany` | ✅ Sol | 150px | Müşteri şirketi |
+| 3 | Proje | `projectName` | ✅ Sol | 150px | **YENİ** - Proje adı |
+| 4+ | Dinamik | `formFields[showInTable=true]` | ❌ | 120px | Scroll edilebilir alan |
+| -3 | Tahmini Fiyat | `finalPrice` | ✅ Sağ | 120px | Hesaplanan fiyat |
+| -2 | Termine Kalan | `deliveryDate` (calc) | ✅ Sağ | 110px | Gün sayısı |
+| -1 | Durum | `status` | ✅ Sağ | 100px | Dropdown |
+
+### Kaldırılan Kolonlar
+- ~~Müşteri (customerName)~~ → Detay panelinde gösterilecek
+- ~~Telefon (customerPhone)~~ → Detay panelinde gösterilecek
+- ~~E-posta (customerEmail)~~ → Detay panelinde gösterilecek
+
+---
+
+## 🔧 PROMPT-QT1: Database Migration
+
+### Hedef
+`form_fields` ve `quotes` tablolarına yeni kolonların eklenmesi.
+
+### Migration SQL
+
+```sql
+-- Migration: 028_quote_table_display.sql
+-- Tarih: 2025-12-06
+-- Açıklama: Quote tablosu dinamik kolon desteği
+
+-- 1. form_fields tablosuna display kolonları ekle
+ALTER TABLE quotes.form_fields 
+  ADD COLUMN IF NOT EXISTS "showInTable" BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "showInFilter" BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "tableOrder" INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "filterOrder" INTEGER DEFAULT 0;
+
+-- 2. quotes tablosuna projectName kolonu ekle
+ALTER TABLE quotes.quotes 
+  ADD COLUMN IF NOT EXISTS "projectName" VARCHAR(255) DEFAULT 'oldStructure';
+
+-- 3. Mevcut quotes için projectName güncelle (form_data'dan varsa al)
+-- NOT: Bu migration sonrası manuel kontrol gerekebilir
+UPDATE quotes.quotes q
+SET "projectName" = COALESCE(
+  (SELECT qfd."fieldValue" 
+   FROM quotes.quote_form_data qfd 
+   WHERE qfd."quoteId" = q.id 
+   AND qfd."fieldCode" IN ('project', 'proj', 'projectName')
+   LIMIT 1),
+  'oldStructure'
+)
+WHERE q."projectName" IS NULL OR q."projectName" = 'oldStructure';
+
+-- 4. İndeksler
+CREATE INDEX IF NOT EXISTS idx_form_fields_show_in_table 
+  ON quotes.form_fields("templateId", "showInTable") 
+  WHERE "showInTable" = true;
+
+CREATE INDEX IF NOT EXISTS idx_form_fields_show_in_filter 
+  ON quotes.form_fields("templateId", "showInFilter") 
+  WHERE "showInFilter" = true;
+
+CREATE INDEX IF NOT EXISTS idx_quotes_project_name 
+  ON quotes.quotes("projectName");
+```
+
+### Model Güncellemesi (formFields.js)
+
+```javascript
+// Eklenecek metodlar:
+
+/**
+ * Update field display settings (showInTable, showInFilter, tableOrder, filterOrder)
+ * NOT: Bu işlem form versiyonunu DEĞİŞTİRMEZ
+ */
+static async updateDisplaySettings(fieldId, settings) {
+  const allowedFields = ['showInTable', 'showInFilter', 'tableOrder', 'filterOrder'];
+  const updates = {};
+  
+  for (const key of allowedFields) {
+    if (settings[key] !== undefined) {
+      updates[key] = settings[key];
+    }
+  }
+  
+  if (Object.keys(updates).length === 0) return null;
+  
+  updates.updatedAt = db.fn.now();
+  
+  const [updated] = await db('quotes.form_fields')
+    .where({ id: fieldId })
+    .update(updates)
+    .returning('*');
+  
+  return updated;
+}
+
+/**
+ * Get fields with showInTable=true for active template
+ * @returns {Array} Fields sorted by tableOrder
+ */
+static async getTableDisplayFields(templateId) {
+  return db('quotes.form_fields')
+    .where({ templateId, showInTable: true })
+    .orderBy('tableOrder', 'asc')
+    .select('*');
+}
+
+/**
+ * Get fields with showInFilter=true for active template
+ * @returns {Array} Fields sorted by filterOrder
+ */
+static async getFilterDisplayFields(templateId) {
+  return db('quotes.form_fields')
+    .where({ templateId, showInFilter: true })
+    .orderBy('filterOrder', 'asc')
+    .select('*');
+}
+```
+
+### Dosyalar
+- `db/migrations/028_quote_table_display.sql` (YENİ)
+- `db/models/formFields.js` (GÜNCELLEME)
+
+### Doğrulama
+```sql
+-- Kolonların eklendiğini doğrula
+SELECT column_name, data_type, column_default 
+FROM information_schema.columns 
+WHERE table_schema = 'quotes' 
+AND table_name = 'form_fields'
+AND column_name IN ('showInTable', 'showInFilter', 'tableOrder', 'filterOrder');
+
+-- projectName kolonunu doğrula
+SELECT column_name, data_type, column_default 
+FROM information_schema.columns 
+WHERE table_schema = 'quotes' 
+AND table_name = 'quotes'
+AND column_name = 'projectName';
+```
+
+---
+
+## 🔧 PROMPT-QT2: Backend API Güncellemesi
+
+### Hedef
+Form field display ayarlarını güncelleyen ve sorgulayan API endpoint'leri.
+
+### Yeni Endpoint'ler
+
+#### 1. PUT `/api/form-fields/:id/display`
+Display ayarlarını günceller (versiyon değiştirmez).
+
+```javascript
+// Request
+{
+  "showInTable": true,
+  "showInFilter": false,
+  "tableOrder": 2,
+  "filterOrder": 0
+}
+
+// Response
+{
+  "success": true,
+  "field": { ...updatedField }
+}
+```
+
+#### 2. GET `/api/form-templates/:id/display-fields`
+Aktif template için display alanlarını döner.
+
+```javascript
+// Response
+{
+  "tableFields": [
+    { "id": 1, "fieldCode": "materialType", "fieldName": "Malzeme Tipi", "tableOrder": 1 },
+    { "id": 2, "fieldCode": "dimensions", "fieldName": "Boyutlar", "tableOrder": 2 }
+  ],
+  "filterFields": [
+    { "id": 1, "fieldCode": "materialType", "fieldName": "Malzeme Tipi", "filterOrder": 1 }
+  ]
+}
+```
+
+### Quotes API Güncellemesi
+
+#### POST `/api/quotes` - Güncelleme
+`projectName` alanını kabul et ve kaydet.
+
+```javascript
+// Request body'ye eklenen alan
+{
+  // ... mevcut alanlar
+  "projectName": "Proje ABC"
+}
+```
+
+#### GET `/api/quotes` - Güncelleme
+Response'a `projectName` ekle.
+
+### Dosyalar
+- `server/routes/formRoutes.js` (GÜNCELLEME)
+- `server/routes/quotesRoutes.js` (GÜNCELLEME)
+- `db/models/quotes.js` (GÜNCELLEME)
+
+---
+
+## 🔧 PROMPT-QT3: Frontend - Proje Adı Entegrasyonu
+
+### Hedef
+AddQuoteModal ve QuoteDetailsPanel'e proje adı alanının eklenmesi.
+
+### AddQuoteModal Değişiklikleri (QuoteCustomerStep.jsx)
+
+**Mevcut Yapı:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  ○ Mevcut Müşteri  ○ Yeni Müşteri  ○ Müşterisiz  │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ 🔍 Müşteri Ara...                           [v]  │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  (veya Yeni Müşteri seçiliyse:)                         │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ Şirket: [________________]                       │    │
+│  │ Yetkili: [________________]                      │    │
+│  │ E-posta: [________________]                      │    │
+│  │ Telefon: [________________]                      │    │
+│  │ Adres: [________________]                        │    │
+│  └──────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Yeni Yapı (projectName + deliveryDate alt bölümü):**
+```
+┌──────────────────────────────────────────────────────────┐
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  ○ Mevcut Müşteri  ○ Yeni Müşteri  ○ Müşterisiz  │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ 🔍 Müşteri Ara...                           [v]  │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ═══════════════════════════════════════════════════     │
+│  Proje Bilgileri                                         │
+│  ═══════════════════════════════════════════════════     │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ 📁 Proje Adı *                                   │    │
+│  │ [____________________________________]           │    │
+│  │ (Zorunlu alan - tabloda görünür)                 │    │
+│  └──────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ 📅 Tahmini Teslimat Tarihi                       │    │
+│  │ [__ / __ / ____] 📆                              │    │
+│  │ (Opsiyonel - termine hesabında kullanılır)       │    │
+│  └──────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────┘
+```
+
+### QuoteReviewStep.jsx - Özet Görünümü
+```
+┌──────────────────────────────────────────────────────────┐
+│  📋 Teklif Özeti                                         │
+│  ════════════════════════════════════════════════════    │
+│                                                          │
+│  👤 Müşteri Bilgileri                                    │
+│  ├── Şirket: ABC Mühendislik                             │
+│  ├── Yetkili: Ahmet Yılmaz                               │
+│  └── E-posta: ahmet@abc.com                              │
+│                                                          │
+│  📁 Proje Bilgileri                       ← YENİ BÖLÜM   │
+│  ├── Proje Adı: Fabrika Yapı İşleri                      │
+│  └── Tahmini Teslimat: 15/01/2026                        │
+│                                                          │
+│  📝 Form Bilgileri                                       │
+│  └── ...                                                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+### State Değişiklikleri
+
+```javascript
+// QuoteCustomerStep.jsx - customerStepData'ya eklenen alan
+const [customerStepData, setCustomerStepData] = useState({
+  customerType: 'existing',
+  selectedCustomer: null,
+  customerData: null,
+  deliveryDate: '',
+  projectName: ''  // YENİ
+})
+```
+
+### Validasyon
+
+```javascript
+// quote-validation.js - validateCustomerStep güncelleme
+export function validateCustomerStep(data) {
+  const errors = {};
+  
+  // Proje adı zorunlu
+  if (!data.projectName || !data.projectName.trim()) {
+    errors.projectName = 'Proje adı zorunludur';
+  }
+  
+  // ... mevcut validasyonlar
+  
+  return { isValid: Object.keys(errors).length === 0, errors };
+}
+```
+
+### QuoteDetailsPanel.jsx Değişiklikleri
+
+**Mevcut Header Bölümü:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  Teklif #1234                              [Düzenle] [X] │
+│  ════════════════════════════════════════════════════    │
+│  Şirket: ABC Mühendislik                                 │
+│  Durum: [Dropdown]                                       │
+```
+
+**Yeni Header Bölümü:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  Teklif #1234                              [Düzenle] [X] │
+│  ════════════════════════════════════════════════════    │
+│  📁 Proje: Fabrika Yapı İşleri          ← YENİ (öne çık) │
+│  🏢 Şirket: ABC Mühendislik                              │
+│  👤 Yetkili: Ahmet Yılmaz               ← Tabloda yok,   │
+│  📧 E-posta: ahmet@abc.com                  burada var   │
+│  📞 Telefon: 0532 123 4567                               │
+│  Durum: [Dropdown]                                       │
+```
+
+### Dosyalar
+- `domains/crm/components/quotes/QuoteCustomerStep.jsx` (GÜNCELLEME)
+- `domains/crm/components/quotes/AddQuoteModal.jsx` (GÜNCELLEME)
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` (GÜNCELLEME)
+- `domains/crm/components/quotes/QuoteReviewStep.jsx` (GÜNCELLEME)
+- `domains/crm/utils/quote-validation.js` (GÜNCELLEME veya YENİ)
+
+---
+
+## 🔧 PROMPT-QT4: Frontend - Dinamik Tablo Kolonları
+
+### Hedef
+`getTableColumns()` fonksiyonunun aktif form'un display ayarlarına göre dinamik kolon üretmesi.
+
+### Mevcut Yapı (table-utils.js)
+
+```javascript
+export function getTableColumns(formConfig) {
+  const fixedColumns = [
+    { id: 'date', label: 'Tarih', type: 'date' },
+    { id: 'name', label: 'Müşteri', type: 'text' },  // KALDIRILACAK
+    { id: 'company', label: 'Şirket', type: 'text' },
+    { id: 'proj', label: 'Proje', type: 'text' },
+    { id: 'phone', label: 'Telefon', type: 'phone' },  // KALDIRILACAK
+    { id: 'email', label: 'E-posta', type: 'email' }   // KALDIRILACAK
+  ]
+  // ...
+}
+```
+
+### Yeni Yapı
+
+```javascript
+export function getTableColumns(formConfig) {
+  // Sabit Sol Kolonlar (Freeze)
+  const fixedLeftColumns = [
+    { id: 'date', label: 'Tarih', type: 'date', width: 140, freeze: 'left' },
+    { id: 'company', label: 'Şirket', type: 'text', width: 150, freeze: 'left' },
+    { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
+  ];
+  
+  // Dinamik Kolonlar (Scroll) - formConfig'den showInTable=true olanlar
+  const dynamicColumns = [];
+  const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
+  
+  fields
+    .filter(field => field.display?.showInTable === true)
+    .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
+    .forEach(field => {
+      dynamicColumns.push({
+        id: field.fieldCode || field.id,
+        label: field.fieldName || field.label,
+        type: mapFieldType(field.fieldType || field.type),
+        width: 120,
+        freeze: null,
+        isDynamic: true
+      });
+    });
+  
+  // Sabit Sağ Kolonlar (Freeze)
+  const fixedRightColumns = [
+    { id: 'price', label: 'Tahmini Fiyat', type: 'currency', width: 120, freeze: 'right' },
+    { id: 'delivery_date', label: 'Termine Kalan', type: 'text', width: 110, freeze: 'right' },
+    { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
+  ];
+  
+  return [...fixedLeftColumns, ...dynamicColumns, ...fixedRightColumns];
+}
+
+function mapFieldType(fieldType) {
+  const typeMap = {
+    'text': 'text',
+    'textarea': 'text',
+    'number': 'number',
+    'select': 'text',
+    'radio': 'text',
+    'checkbox': 'boolean',
+    'date': 'date'
+  };
+  return typeMap[fieldType] || 'text';
+}
+```
+
+### getFieldValue Güncellemesi
+
+```javascript
+export function getFieldValue(quote, fieldId) {
+  // Sabit alanlar
+  const fixedFieldMap = {
+    'date': () => quote.createdAt || quote.date || '',
+    'company': () => quote.customerCompany || '',
+    'projectName': () => quote.projectName || '',  // YENİ
+    'price': () => quote.finalPrice || quote.calculatedPrice || 0,
+    'delivery_date': () => quote.deliveryDate || '',
+    'status': () => quote.status || 'new'
+  };
+  
+  if (fixedFieldMap[fieldId]) {
+    return fixedFieldMap[fieldId]();
+  }
+  
+  // Dinamik alanlar - formData'dan oku
+  return quote.formData?.[fieldId] || quote.customFields?.[fieldId] || '';
+}
+```
+
+### Dosyalar
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+
+---
+
+## 🔧 PROMPT-QT5: Frontend - Freeze Kolonlar & Scroll + canEdit Kontrolü
+
+### Hedef
+Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.  
+**Önemli:** Üretim başlamış (`canEdit: false`) tekliflerde dinamik alanlar yerine placeholder gösterimi.
+
+### canEdit Senaryoları
+
+| Durum | canEdit | Dinamik Alanlar |
+|-------|---------|-----------------|
+| Yeni teklif (status: new) | ✅ true | Normal görünüm - tüm değerler gösterilir |
+| Onaylandı (status: approved) | ✅ true | Normal görünüm |
+| Üretimde (status: production) | ❌ false | "Detaylara bakınız" placeholder |
+| Tamamlandı (status: completed) | ❌ false | "Detaylara bakınız" placeholder |
+| İptal (status: cancelled) | ❓ | Tasarım kararı gerekli |
+
+### "Detaylara bakınız" UI Mockup
+
+**Normal Satır (canEdit: true):**
+```
+┌────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬────────┐
+│ Tarih  │ Şirket  │ Proje   │ Alan1   │ Alan2   │ Alan3   │ Fiyat   │Termine  │ Durum  │
+├────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼────────┤
+│05/12/25│ ABC Ltd │ ProjABC │ Değer1  │ Değer2  │ Değer3  │ ₺15,000 │ 12 gün  │[Yeni▼] │
+└────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴────────┘
+```
+
+**Locked Satır (canEdit: false - Üretim Başlamış):**
+```
+┌────────┬─────────┬─────────┬───────────────────────────────┬─────────┬─────────┬─────────┐
+│ Tarih  │ Şirket  │ Proje   │        [colspan=3]            │ Fiyat   │Termine  │ Durum   │
+├────────┼─────────┼─────────┼───────────────────────────────┼─────────┼─────────┼─────────┤
+│05/12/25│ ABC Ltd │ ProjXYZ │ 📄 Detaylara bakınız          │ ₺25,000 │ -5 gün  │Üretimde │
+└────────┴─────────┴─────────┴───────────────────────────────┴─────────┴─────────┴─────────┘
+                              ↑
+                              Gri arka plan, italik, tıklanabilir
+                              Lucide FileText ikonu (14px)
+                              Tıklayınca QuoteDetailsPanel açılır
+```
+
+### CSS Yapısı
+
+```css
+/* quotes.css - Yeni stil kuralları */
+
+/* Tablo Container */
+.quotes-table-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.quotes-table-scroll-container {
+  display: flex;
+  width: 100%;
+}
+
+/* Freeze Sol */
+.quotes-table-freeze-left {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+}
+
+/* Dinamik Alanlar - Scroll */
+.quotes-table-dynamic {
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.quotes-table-dynamic::-webkit-scrollbar {
+  height: 8px;
+}
+
+.quotes-table-dynamic::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+/* Freeze Sağ */
+.quotes-table-freeze-right {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: -2px 0 4px rgba(0,0,0,0.1);
+}
+
+/* canEdit=false durumunda dinamik alanlar */
+.quotes-table-locked-cell {
+  background: #f9fafb;
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+}
+```
+
+### Tablo Render Yapısı (QuotesManager.js)
+
+```javascript
+// Dinamik alanlar için canEdit kontrolü
+function renderDynamicCell(quote, column, canEdit) {
+  if (!canEdit && column.isDynamic) {
+    // Üretim başlamış teklif - Lucide ikon ile "Detaylara bakınız"
+    return React.createElement('td', {
+      key: column.id,
+      className: 'quotes-table-locked-cell',
+      colSpan: dynamicColumns.length,
+      onClick: () => handleRowClick(quote)
+    },
+      React.createElement(FileText, { size: 14, style: { marginRight: 4 } }),
+      'Detaylara bakınız'
+    );
+  }
+  
+  return React.createElement('td', { key: column.id },
+    formatFieldValue(getFieldValue(quote, column.id), column, quote, context)
+  );
+}
+```
+
+### Dosyalar
+- `domains/crm/styles/quotes.css` (GÜNCELLEME)
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME)
+
+---
+
+## 🔧 PROMPT-QT6: Frontend - Dinamik Filtre Sistemi
+
+### Hedef
+Form alanlarından `showInFilter: true` olanların FilterPopup'ta gösterilmesi.
+
+### Filtre Tipleri
+
+| Field Type | Filter UI | Açıklama |
+|------------|-----------|----------|
+| `select`, `radio` | Multi-select Dropdown | Seçeneklerden çoklu seçim |
+| `number` | Min-Max Range Input | Sayı aralığı |
+| `text`, `textarea` | Contains Search | Metin içerir araması |
+| `date` | Date Range Picker | Tarih aralığı |
+| `checkbox` | Toggle (Evet/Hayır/Tümü) | Boolean filtre |
+
+### filter-utils.js Güncellemesi
+
+```javascript
+export function getFilterOptions(list, formConfig) {
+  const options = {
+    status: [...new Set(list.map(q => q.status))],
+    // Dinamik filtre seçenekleri
+    dynamicFilters: []
+  };
+  
+  const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
+  
+  fields
+    .filter(field => field.display?.showInFilter === true)
+    .sort((a, b) => (a.display?.filterOrder || 0) - (b.display?.filterOrder || 0))
+    .forEach(field => {
+      const filterDef = {
+        id: field.fieldCode || field.id,
+        label: field.fieldName || field.label,
+        type: field.fieldType || field.type,
+        options: field.options || []
+      };
+      
+      // select/radio için mevcut değerleri topla
+      if (['select', 'radio'].includes(filterDef.type)) {
+        const uniqueValues = new Set();
+        list.forEach(quote => {
+          const value = quote.formData?.[filterDef.id];
+          if (value) uniqueValues.add(value);
+        });
+        filterDef.availableValues = [...uniqueValues];
+      }
+      
+      options.dynamicFilters.push(filterDef);
+    });
+  
+  return options;
+}
+
+export function createFilteredList(list, filters, globalSearch, formConfig) {
+  let result = [...list];
+  
+  // Mevcut sabit filtreler
+  if (filters.status?.length > 0) {
+    result = result.filter(q => filters.status.includes(q.status));
+  }
+  
+  // Dinamik filtreler
+  if (filters.dynamicFilters) {
+    Object.entries(filters.dynamicFilters).forEach(([fieldId, filterValue]) => {
+      if (!filterValue || (Array.isArray(filterValue) && filterValue.length === 0)) return;
+      
+      result = result.filter(quote => {
+        const value = quote.formData?.[fieldId];
+        
+        // Multi-select filtre
+        if (Array.isArray(filterValue)) {
+          return filterValue.includes(value);
+        }
+        
+        // Range filtre
+        if (filterValue.min !== undefined || filterValue.max !== undefined) {
+          const numValue = parseFloat(value) || 0;
+          if (filterValue.min !== undefined && numValue < filterValue.min) return false;
+          if (filterValue.max !== undefined && numValue > filterValue.max) return false;
+          return true;
+        }
+        
+        // Contains filtre
+        if (typeof filterValue === 'string') {
+          return (value || '').toLowerCase().includes(filterValue.toLowerCase());
+        }
+        
+        return true;
+      });
+    });
+  }
+  
+  // Global arama
+  if (globalSearch?.trim()) {
+    const search = globalSearch.toLowerCase();
+    result = result.filter(quote => {
+      // Sabit alanlar
+      if ((quote.customerCompany || '').toLowerCase().includes(search)) return true;
+      if ((quote.projectName || '').toLowerCase().includes(search)) return true;
+      
+      // Dinamik alanlar
+      const formData = quote.formData || {};
+      return Object.values(formData).some(val => 
+        (val || '').toString().toLowerCase().includes(search)
+      );
+    });
+  }
+  
+  return result;
+}
+```
+
+### Dosyalar
+- `domains/crm/utils/filter-utils.js` (GÜNCELLEME)
+- `src/components/modals/FilterPopup.js` (GÜNCELLEME)
+
+---
+
+## 🔧 PROMPT-QT7: Event Dispatch Sistemi
+
+### Hedef
+FormManager'da display ayarı değiştiğinde QuotesManager'ın anında güncellenmesi.
+
+### Event Tanımı
+
+```javascript
+// Event adı: formDisplaySettingsChanged
+// Payload: { templateId, fieldId, changes }
+
+// FormManager.jsx - Display değişikliğinde
+async function handleDisplayChange(fieldId, changes) {
+  try {
+    await formsApi.updateFieldDisplay(fieldId, changes);
+    
+    // Event dispatch - QuotesManager dinleyecek
+    window.dispatchEvent(new CustomEvent('formDisplaySettingsChanged', {
+      detail: {
+        templateId: currentTemplateId,
+        fieldId,
+        changes
+      }
+    }));
+    
+    showToast('Görüntüleme ayarları güncellendi', 'success');
+  } catch (error) {
+    showToast('Güncelleme hatası: ' + error.message, 'error');
+  }
+}
+```
+
+### QuotesManager Listener
+
+```javascript
+// QuotesManager.js - useEffect içinde
+useEffect(() => {
+  function handleDisplayChange(event) {
+    console.log('📊 Form display settings changed:', event.detail);
+    loadFormConfig(); // formConfig'i yeniden yükle
+  }
+  
+  window.addEventListener('formDisplaySettingsChanged', handleDisplayChange);
+  
+  return () => {
+    window.removeEventListener('formDisplaySettingsChanged', handleDisplayChange);
+  };
+}, []);
+```
+
+### Dosyalar
+- `domains/crm/components/forms/FormManager.jsx` (GÜNCELLEME)
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME)
+
+---
+
+## 🔧 PROMPT-QT8: Test & Doğrulama
+
+### Test Senaryoları
+
+#### 1. Proje Adı Testleri
+- [ ] Yeni teklif oluştururken proje adı zorunlu
+- [ ] Proje adı tabloda doğru gösteriliyor
+- [ ] Proje adı detay panelinde düzenlenebiliyor
+- [ ] Mevcut tekliflerde "oldStructure" yazıyor
+
+#### 2. Dinamik Kolon Testleri
+- [ ] `showInTable: true` olan alanlar tabloda görünüyor
+- [ ] `showInTable: false` olan alanlar tabloda görünmüyor
+- [ ] Kolonlar `tableOrder` sırasına göre diziliyor
+- [ ] Dinamik kolonlar yatay scroll ile görüntülenebiliyor
+
+#### 3. Freeze Kolon Testleri
+- [ ] Sol kolonlar (Tarih, Şirket, Proje) scroll sırasında sabit
+- [ ] Sağ kolonlar (Fiyat, Termine, Durum) scroll sırasında sabit
+- [ ] Gölgelendirme doğru görünüyor
+
+#### 4. Filtre Testleri
+- [ ] `showInFilter: true` alanlar FilterPopup'ta görünüyor
+- [ ] Select/Radio için multi-select çalışıyor
+- [ ] Number için min-max çalışıyor
+- [ ] Text için contains araması çalışıyor
+
+#### 5. Event Dispatch Testleri
+- [ ] FormManager'da display değişikliği → QuotesManager güncelleniyor
+- [ ] Sayfa yenilemeden kolonlar değişiyor
+- [ ] Hata durumunda uygun mesaj gösteriliyor
+
+#### 6. canEdit=false Senaryosu
+- [ ] Üretim başlamış teklifte dinamik alanlar yerine "Detaylara bakınız"
+- [ ] Lucide FileText ikonu gösteriliyor
+- [ ] Tıklama ile detay paneli açılıyor
+
+---
+
+## 📁 Etkilenen Dosyalar Özeti
+
+### Database / Backend
+| Dosya | İşlem |
+|-------|-------|
+| `db/migrations/028_quote_table_display.sql` | YENİ |
+| `db/models/formFields.js` | GÜNCELLEME |
+| `db/models/quotes.js` | GÜNCELLEME |
+| `server/routes/formRoutes.js` | GÜNCELLEME |
+| `server/routes/quotesRoutes.js` | GÜNCELLEME |
+
+### Frontend
+| Dosya | İşlem |
+|-------|-------|
+| `domains/crm/components/quotes/QuotesManager.js` | GÜNCELLEME |
+| `domains/crm/components/quotes/QuoteCustomerStep.jsx` | GÜNCELLEME |
+| `domains/crm/components/quotes/AddQuoteModal.jsx` | GÜNCELLEME |
+| `domains/crm/components/quotes/QuoteDetailsPanel.jsx` | GÜNCELLEME |
+| `domains/crm/components/quotes/QuoteReviewStep.jsx` | GÜNCELLEME |
+| `domains/crm/components/forms/FormManager.jsx` | GÜNCELLEME |
+| `domains/crm/utils/table-utils.js` | GÜNCELLEME |
+| `domains/crm/utils/filter-utils.js` | GÜNCELLEME |
+| `domains/crm/utils/quote-validation.js` | GÜNCELLEME |
+| `domains/crm/styles/quotes.css` | GÜNCELLEME |
+| `src/components/modals/FilterPopup.js` | GÜNCELLEME |
+| `domains/crm/services/forms-service.js` | GÜNCELLEME |
+
+---
+
+## 🚨 Dikkat Edilmesi Gerekenler
+
+### 1. Versiyon Kontrolü (KRİTİK)
+- **Display ayarları değiştiğinde form versiyonu DEĞİŞMEZ**
+- Sadece alan ekleme/silme/tip değişikliği/seçenek değişikliği versiyonu artırır
+- `showInTable`, `showInFilter`, `tableOrder`, `filterOrder` değişiklikleri versiyon artırmaz
+
+### 2. Migration Sırası
+- QT-1 migration'ı production'a deploy edilmeden QT-2+ başlamamalı
+- Migration başarısız olursa rollback planı hazır olmalı
+
+### 3. Geriye Uyumluluk
+- Mevcut teklifler `projectName: 'oldStructure'` ile işaretlenecek
+- UI'da "oldStructure" gösterilmemeli, bunun yerine "-" veya boş bırakılmalı
+- Mevcut form_fields kayıtlarında `showInTable: false`, `showInFilter: false` default
+
+### 4. Performans
+- Dinamik kolon sayısı >10 olursa virtualization düşünülmeli
+- formConfig her event'te yeniden yüklenecek - cache stratejisi gerekebilir
+
+### 5. QuotesManager.js Özel Durumlar
+- Bu dosya React.createElement kullanıyor (JSX değil)
+- 1829 satır - dikkatli edit gerekli
+- `loadFormConfig()` fonksiyonu mevcut, sadece event listener eklenecek
+
+### 6. Naming Convention
+- Database kolonları: camelCase (`showInTable`, `projectName`)
+- API response: camelCase
+- Tabloda snake_case kullanılmamalı
+
+### 7. Tab Senkronizasyonu
+- FormManager tab'ında display değişikliği yapılınca event dispatch
+- QuotesManager bu event'i dinleyip formConfig'i yeniden yükleyecek
+- Aynı sayfada oldukları için gerçek zamanlı güncelleme mümkün
+
+---
+
+## 🔄 Bağımlılık Diyagramı
+
+```
+                    ┌─────────────┐
+                    │   QT-1      │
+                    │  Migration  │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │   QT-2      │
+                    │ Backend API │
+                    └──────┬──────┘
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+   ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐
+   │   QT-3      │  │   QT-4      │  │   QT-7      │
+   │ projectName │  │ Dinamik Col │  │Event Dispatch│
+   └─────────────┘  └──────┬──────┘  └─────────────┘
+                           │
+                    ┌──────┴──────┐
+                    │             │
+             ┌──────▼──────┐ ┌────▼────┐
+             │   QT-5      │ │  QT-6   │
+             │Freeze+Scroll│ │ Filters │
+             └─────────────┘ └─────────┘
+                    │             │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │   QT-8      │
+                    │   Test      │
+                    └─────────────┘
+```
+
+---
+
+## 📝 Önemli API Endpoint'leri (Referans)
+
+### Mevcut Endpoint'ler
+| Method | Endpoint | Açıklama |
+|--------|----------|----------|
+| GET | `/api/quotes` | Tüm teklifler |
+| POST | `/api/quotes` | Yeni teklif oluştur |
+| PUT | `/api/quotes/:id` | Teklif güncelle |
+| GET | `/api/form-templates/active` | Aktif form template |
+| GET | `/api/form-templates/:id` | Belirli template |
+
+### Eklenecek Endpoint'ler
+| Method | Endpoint | Açıklama |
+|--------|----------|----------|
+| PUT | `/api/form-fields/:id/display` | Display ayarlarını güncelle |
+| GET | `/api/form-templates/:id/display-fields` | Table/Filter alanlarını getir |
+
+---
+
+## 📅 Tahmini Süre
+
+| Prompt | Tahmini Süre | Zorluk |
+|--------|--------------|--------|
+| QT-1 | 1 saat | 🟢 Kolay |
+| QT-2 | 2 saat | 🟡 Orta |
+| QT-3 | 2 saat | 🟡 Orta |
+| QT-4 | 3 saat | 🔴 Zor |
+| QT-5 | 2 saat | 🔴 Zor |
+| QT-6 | 2 saat | 🟡 Orta |
+| QT-7 | 1 saat | 🟢 Kolay |
+| QT-8 | 2 saat | 🟡 Orta |
+| **TOPLAM** | **~15 saat** | |
+
+---
+
+## 📚 İlgili Dokümantasyon
+
+- [FormPrice-Refactoring.md](./FormPrice-Refactoring.md) - Form ve fiyatlandırma entegrasyonu
+- [CRM-NEWFLOW.md](./CRM-NEWFLOW.md) - CRM akış dokümantasyonu
+- [LOT-TRACKING-SYSTEM-ANALYSIS.md](../Lot-Tracking-Documentation/LOT-TRACKING-SYSTEM-ANALYSIS.md) - Lot takip sistemi
+
+---
+
+*Son Güncelleme: 6 Aralık 2025*
+*Hazırlayan: Claude (Copilot)*
