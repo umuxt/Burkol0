@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import CustomerSearchInput from './CustomerSearchInput.jsx'
 import TurkeyAddressDropdown from '../../../../shared/components/TurkeyAddressDropdown.jsx'
-import { User, UserPlus, FileText } from '../../../../shared/components/Icons.jsx'
+import { User, UserPlus, FileText, FolderOpen } from '../../../../shared/components/Icons.jsx'
 
 /**
  * QuoteCustomerStep - Step 1 of Quote Creation
@@ -46,6 +46,9 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
     notes: ''
   }
   
+  // Project name (YENİ - QT-3)
+  const projectName = data.projectName || ''
+  
   // Delivery date
   const deliveryDate = data.deliveryDate || ''
 
@@ -75,6 +78,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
         postalCode: '',
         notes: ''
       },
+      projectName,
       deliveryDate
     })
   }
@@ -106,6 +110,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           postalCode: customer.postalCode || '',
           notes: customer.notes || ''
         },
+        projectName,
         deliveryDate
       })
     } else {
@@ -113,6 +118,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
         customerType: 'existing',
         selectedCustomer: null,
         customerData: null,
+        projectName,
         deliveryDate
       })
     }
@@ -126,6 +132,14 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
         ...customerData,
         [field]: value
       }
+    })
+  }
+
+  // Handle project name change (YENİ - QT-3)
+  function handleProjectNameChange(value) {
+    onChange({
+      ...data,
+      projectName: value
     })
   }
 
@@ -420,11 +434,30 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
         </div>
       )}
 
-      {/* Delivery Date */}
-      <div className="delivery-date-section">
-        <h4 className="form-section-title">Teslimat Bilgileri</h4>
+      {/* Proje Bilgileri - YENİ QT-3 */}
+      <div className="project-info-section">
+        <h4 className="form-section-title">
+          <FolderOpen size={16} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
+          Proje Bilgileri
+        </h4>
+        <div className="form-group" style={{ maxWidth: '100%' }}>
+          <label className="form-label">
+            Proje Adı <span className="required-asterisk">*</span>
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => handleProjectNameChange(e.target.value)}
+            className={`form-input ${errors.projectName ? 'input-error' : ''}`}
+            placeholder="Proje adını girin (örn: Fabrika Yapı İşleri)"
+          />
+          {errors.projectName && (
+            <span className="field-error">{errors.projectName}</span>
+          )}
+        </div>
+        
         <div className="form-group" style={{ maxWidth: '300px' }}>
-          <label className="form-label">Teslim Tarihi</label>
+          <label className="form-label">Tahmini Teslimat Tarihi</label>
           <input
             type="date"
             value={deliveryDate}
@@ -432,6 +465,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
             className="form-input"
             min={new Date().toISOString().split('T')[0]}
           />
+          <span className="field-hint">Opsiyonel - termine hesabında kullanılır</span>
         </div>
       </div>
     </div>

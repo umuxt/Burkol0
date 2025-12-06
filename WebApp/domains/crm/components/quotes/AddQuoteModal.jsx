@@ -32,6 +32,7 @@ export default function AddQuoteModal({
     customerType: 'existing',
     selectedCustomer: null,
     customerData: null,
+    projectName: '',
     deliveryDate: ''
   })
   
@@ -198,7 +199,7 @@ export default function AddQuoteModal({
       }
       
       // Build quote data based on customer type
-      const { customerType, selectedCustomer, customerData, deliveryDate } = customerStepData
+      const { customerType, selectedCustomer, customerData, projectName, deliveryDate } = customerStepData
       
       const quotePayload = {
         // Customer type for new flow
@@ -216,6 +217,9 @@ export default function AddQuoteModal({
         customerPhone: customerData?.phone || selectedCustomer?.phone || '',
         customerCompany: customerData?.company || selectedCustomer?.company || '',
         customerAddress: customerData?.address || selectedCustomer?.address || '',
+        
+        // Project name (YENİ - QT-3)
+        projectName: projectName || '',
         
         // Form data
         formData,

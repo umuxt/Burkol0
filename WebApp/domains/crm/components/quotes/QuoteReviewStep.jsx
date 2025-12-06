@@ -35,7 +35,7 @@ export default function QuoteReviewStep({
   onEditStep,
   t
 }) {
-  const { customerType, selectedCustomer, customerData, deliveryDate } = customerStepData || {}
+  const { customerType, selectedCustomer, customerData, projectName, deliveryDate } = customerStepData || {}
   const displayCustomer = customerData || selectedCustomer || {}
   const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
 
@@ -173,6 +173,36 @@ export default function QuoteReviewStep({
             <div className="review-item full-width">
               <span className="review-label"><Calendar size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />Teslim Tarihi:</span>
               <span className="review-value highlight">{deliveryDate}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Proje Bilgileri - YENİ QT-3 */}
+      <div className="review-section">
+        <div className="review-section-header">
+          <h4 className="review-section-title">
+            <span className="section-icon"><FolderOpen size={16} /></span>
+            Proje Bilgileri
+          </h4>
+          <button
+            type="button"
+            className="review-edit-btn"
+            onClick={() => onEditStep?.(1)}
+          >
+            <Pencil size={12} style={{ marginRight: '4px' }} /> Düzenle
+          </button>
+        </div>
+
+        <div className="review-grid">
+          <div className="review-item">
+            <span className="review-label">Proje Adı:</span>
+            <span className="review-value highlight">{formatValue(projectName)}</span>
+          </div>
+          {deliveryDate && (
+            <div className="review-item">
+              <span className="review-label">Tahmini Teslimat:</span>
+              <span className="review-value">{deliveryDate}</span>
             </div>
           )}
         </div>

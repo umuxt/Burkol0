@@ -204,6 +204,7 @@ export default function QuoteDetailsPanel({
       initialForm.customerPhone = quote.customerPhone || ''
       initialForm.customerCompany = quote.customerCompany || ''
       initialForm.customerAddress = quote.customerAddress || ''
+      initialForm.projectName = quote.projectName || ''  // YENİ - QT-3
       initialForm.deliveryDate = quote.deliveryDate ? quote.deliveryDate.split('T')[0] : ''
       initialForm.notes = quote.notes || ''
       
@@ -436,6 +437,7 @@ export default function QuoteDetailsPanel({
         customerPhone: form.customerPhone || quote.customerPhone,
         customerCompany: form.customerCompany || quote.customerCompany,
         customerAddress: form.customerAddress || quote.customerAddress,
+        projectName: form.projectName || quote.projectName,  // YENİ - QT-3
         deliveryDate: form.deliveryDate || quote.deliveryDate,
         notes: form.notes || quote.notes,
         // Status
@@ -1186,6 +1188,7 @@ export default function QuoteDetailsPanel({
                 </span>
               </div>
 
+              {/* Proje Adı - QT-3 */}
               <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                 <span className="detail-label" style={{ 
                   fontWeight: '600', 
@@ -1194,7 +1197,41 @@ export default function QuoteDetailsPanel({
                   minWidth: '120px', 
                   marginRight: '8px' 
                 }}>
-                  Tarih:
+                  <FolderOpen size={12} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+                  Proje Adı:
+                </span>
+                {editing ? (
+                  <input
+                    type="text"
+                    name="projectName"
+                    value={form.projectName || ''}
+                    onChange={handleInputChange}
+                    style={{
+                      padding: '6px 10px',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: 'white',
+                      flex: 1
+                    }}
+                    placeholder="Proje adı"
+                  />
+                ) : (
+                  <span style={{ fontSize: '12px', color: '#111827', fontWeight: '500' }}>
+                    {quote.projectName || '—'}
+                  </span>
+                )}
+              </div>
+
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <span className="detail-label" style={{ 
+                  fontWeight: '600', 
+                  fontSize: '12px', 
+                  color: '#374151', 
+                  minWidth: '120px', 
+                  marginRight: '8px' 
+                }}>
+                  Teklif Tarihi:
                 </span>
                 <span style={{ fontSize: '12px', color: '#111827' }}>
                   {quote.createdAt ? new Date(quote.createdAt).toLocaleString('tr-TR', { 
@@ -1205,6 +1242,42 @@ export default function QuoteDetailsPanel({
                     minute: '2-digit' 
                   }) : ''}
                 </span>
+              </div>
+
+              {/* Teslim Tarihi - QT-3 */}
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <span className="detail-label" style={{ 
+                  fontWeight: '600', 
+                  fontSize: '12px', 
+                  color: '#374151', 
+                  minWidth: '120px', 
+                  marginRight: '8px' 
+                }}>
+                  Teslim Tarihi:
+                </span>
+                {editing ? (
+                  <input
+                    type="date"
+                    name="deliveryDate"
+                    value={form.deliveryDate || ''}
+                    onChange={handleInputChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      padding: '6px 10px',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: 'white'
+                    }}
+                  />
+                ) : (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: form.deliveryDate || quote.deliveryDate ? '#111827' : '#9ca3af'
+                  }}>
+                    {form.deliveryDate || (quote.deliveryDate ? quote.deliveryDate.split('T')[0] : 'Belirtilmedi')}
+                  </span>
+                )}
               </div>
 
               {/* Durum */}
@@ -1602,35 +1675,6 @@ export default function QuoteDetailsPanel({
                   <span style={{ fontSize: '12px', color: '#111827' }}>
                     {quote.customerPhone || '—'}
                   </span>
-                </div>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    Teslimat Tarihi:
-                  </span>
-                  {editing ? (
-                    <input
-                      type="date"
-                      name="deliveryDate"
-                      value={form.deliveryDate || ''}
-                      onChange={handleInputChange}
-                      min={new Date().toISOString().split('T')[0]}
-                      style={{
-                        padding: '6px 10px',
-                        border: '1px solid #3b82f6',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        background: 'white'
-                      }}
-                    />
-                  ) : (
-                    <span style={{ 
-                      fontSize: '12px', 
-                      color: form.deliveryDate || quote.deliveryDate ? '#111827' : '#ef4444',
-                      fontWeight: form.deliveryDate || quote.deliveryDate ? 'normal' : '500'
-                    }}>
-                      {form.deliveryDate || (quote.deliveryDate ? quote.deliveryDate.split('T')[0] : 'Belirtilmedi')}
-                    </span>
-                  )}
                 </div>
               </div>
 

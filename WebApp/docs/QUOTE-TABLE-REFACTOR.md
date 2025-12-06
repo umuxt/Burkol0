@@ -27,7 +27,7 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 - **Zorunluluk:** Evet, zorunlu alan
 - **İlişki:** Quote'a bağlı (müşteriye değil)
 - **UI Konumu:** AddQuoteModal Step 1 (Customer Step) - müşteri seçiminin altında
-- **Mevcut Kayıtlar:** `'oldStructure'` değeri ile işaretlenecek
+- **Mevcut Kayıtlar:** ~~`'oldStructure'` değeri ile işaretlenecek~~ → **Test verileri silinecek** (2025-12-07 kararı)
 
 ### Q6-Q8: Tablo Kolonları
 - **Kaldırılacak:** Müşteri (yetkili kişi), Telefon, E-posta → Detay panelinde gösterilecek
@@ -59,7 +59,7 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 |--------|--------|-------|------------|
 | QT-1 | Database Migration | ✅ Tamamlandı | - |
 | QT-2 | Backend API Güncellemesi | ✅ Tamamlandı | QT-1 |
-| QT-3 | Frontend - Proje Adı Entegrasyonu | ⏳ Bekliyor | QT-2 |
+| QT-3 | Frontend - Proje Adı Entegrasyonu | ✅ Tamamlandı | QT-2 |
 | QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | QT-2 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
 | QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
@@ -448,6 +448,14 @@ curl http://localhost:3000/api/form-templates/47/display-fields
 ### Hedef
 AddQuoteModal ve QuoteDetailsPanel'e proje adı alanının eklenmesi.
 
+### ⚙️ Kararlar (2025-12-07)
+| Konu | Karar |
+|------|-------|
+| `oldStructure` gösterimi | ❌ Gerek yok - eski test verileri silinecek |
+| Icon seçimi | `FolderOpen` kullanılacak (📂 açık klasör - aktif proje hissi) |
+| maxLength validasyonu | ❌ Frontend'de eklenmeyecek (DB: VARCHAR(255)) |
+| Validation dosyası | `quote-validation.js` mevcut - güncelleme yapılacak |
+
 ### AddQuoteModal Değişiklikleri (QuoteCustomerStep.jsx)
 
 **Mevcut Yapı:**
@@ -581,7 +589,66 @@ export function validateCustomerStep(data) {
 - `domains/crm/components/quotes/AddQuoteModal.jsx` (GÜNCELLEME)
 - `domains/crm/components/quotes/QuoteDetailsPanel.jsx` (GÜNCELLEME)
 - `domains/crm/components/quotes/QuoteReviewStep.jsx` (GÜNCELLEME)
-- `domains/crm/utils/quote-validation.js` (GÜNCELLEME veya YENİ)
+- `domains/crm/utils/quote-validation.js` (GÜNCELLEME)
+
+### Uygulama Adımları
+1. **QuoteCustomerStep.jsx:** `projectName` state extraction, onChange'lere ekleme, "Proje Bilgileri" section (FolderOpen icon)
+2. **AddQuoteModal.jsx:** Initial state'e `projectName: ''`, handleSubmit payload'a ekleme
+3. **QuoteReviewStep.jsx:** Destructure + "Proje Bilgileri" section gösterimi
+4. **QuoteDetailsPanel.jsx:** Form initialization, handleSubmit, header display/edit
+5. **quote-validation.js:** `validateCustomerStep` fonksiyonuna projectName zorunlu kontrolü
+
+### ✅ Test Sonuçları (2025-12-07)
+
+**Test Ortamı:** Local Build - Vite + Local Server - Node.js
+
+#### 1. Build Testi ✅
+```
+✓ 1819 modules transformed
+✓ built in 2.50s
+```
+
+#### 2. Backend API Testleri ✅
+```bash
+# POST /api/quotes - projectName kaydetme
+curl -X POST http://localhost:3000/api/quotes -d '{"projectName": "QT-3 Test Projesi"}'
+# Response: {"projectName": "QT-3 Test Projesi"} ✅
+
+# GET /api/quotes - projectName döndürme
+curl http://localhost:3000/api/quotes
+# Response: projectName alanı mevcut ✅
+
+# PATCH /api/quotes/:id - projectName güncelleme
+curl -X PATCH http://localhost:3000/api/quotes/TKF-20251207-0001 -d '{"projectName": "Güncellenmiş"}'
+# Response: {"success": true, "projectName": "QT-3 Güncellenmiş Proje"} ✅
+```
+
+#### 3. Database Kontrolü ✅
+```sql
+SELECT id, "customerCompany", "projectName" FROM quotes.quotes;
+-- projectName doğru kaydedilmiş ✅
+```
+
+#### 4. Dosya Değişiklikleri ✅
+- `QuoteCustomerStep.jsx`: projectName state, handleProjectNameChange, "Proje Bilgileri" section ✅
+- `AddQuoteModal.jsx`: customerStepData initial state, handleSubmit payload ✅
+- `QuoteReviewStep.jsx`: projectName destructure, Proje Bilgileri section ✅
+- `QuoteDetailsPanel.jsx`: Temel Bilgiler bölümüne Proje Adı + Teslim Tarihi taşındı ✅
+- `quote-validation.js`: validateCustomerStep projectName kontrolü ✅
+
+#### 5. Eski Test Verileri Temizliği ✅
+```sql
+DELETE 2 -- quote_files
+DELETE 10 -- quote_form_data
+DELETE 5 -- quotes
+```
+
+#### 6. UI Düzeltmeleri ✅
+- **Temel Bilgiler bölümü:** Teklif ID, Proje Adı, Teklif Tarihi, Teslim Tarihi, Durum
+- **Müşteri Bilgileri bölümü:** Ad Soyad, Şirket, E-posta, Telefon (projectName ve deliveryDate kaldırıldı)
+- **"Tarih" → "Teklif Tarihi"** olarak güncellendi
+
+**Sonuç:** Tüm QT-3 implementasyonu tamamlandı. ✅
 
 ---
 
@@ -1071,8 +1138,8 @@ useEffect(() => {
 - Migration başarısız olursa rollback planı hazır olmalı
 
 ### 3. Geriye Uyumluluk
-- Mevcut teklifler `projectName: 'oldStructure'` ile işaretlenecek
-- UI'da "oldStructure" gösterilmemeli, bunun yerine "-" veya boş bırakılmalı
+- ~~Mevcut teklifler `projectName: 'oldStructure'` ile işaretlenecek~~ → **Test verileri silinecek**
+- ~~UI'da "oldStructure" gösterilmemeli, bunun yerine "-" veya boş bırakılmalı~~ → **Gerek kalmadı**
 - Mevcut form_fields kayıtlarında `showInTable: false`, `showInFilter: false` default
 
 ### 4. Performans

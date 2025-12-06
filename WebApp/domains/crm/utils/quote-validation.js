@@ -136,7 +136,12 @@ export function validateFieldValue(field, value) {
  */
 export function validateCustomerStep(data) {
   const errors = {}
-  const { customerType, selectedCustomer, customerData } = data
+  const { customerType, selectedCustomer, customerData, projectName } = data
+  
+  // Proje adı zorunlu - YENİ QT-3
+  if (!projectName || !projectName.trim()) {
+    errors.projectName = 'Proje adı zorunludur'
+  }
   
   if (customerType === 'existing') {
     if (!selectedCustomer) {
