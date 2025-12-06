@@ -2368,89 +2368,192 @@ if (activeFormTemplate) {
 
 ---
 
-### PROMPT-E2: PriceConfirmModal Componenti
+### PROMPT-E2: PriceConfirmModal Componenti → Ayrı Dosyaya Refactor
 
-**Amaç**: Fiyat onay modal'ının ayrı component olarak oluşturulması
+**Amaç**: Fiyat onay modal'ının inline koddan ayrı component dosyasına taşınması (FormUpdateModal ile tutarlılık için)
 
-**Yapılacaklar**:
+**Mevcut Durum**: QuoteDetailsPanel.jsx içinde inline olarak implemente edilmiş (satır 2432-2580)
 
-1. **PriceConfirmModal.jsx oluştur**:
-   ```jsx
-   export default function PriceConfirmModal({
-     isOpen,
-     currentPrice,
-     newPrice,
-     priceDiff,
-     changes,
-     onConfirm,
-     onCancel
-   }) {
-     if (!isOpen) return null;
-     
-     const isIncrease = priceDiff > 0;
-     
-     return (
-       <div className="modal-overlay">
-         <div className="price-confirm-modal">
-           <div className="modal-header">
-             <h2>Fiyat Değişikliği Onayı</h2>
-             <button onClick={onCancel}>×</button>
-           </div>
-           
-           <div className="modal-content">
-             <div className="price-comparison">
-               <div className="price-item">
-                 <span className="label">Mevcut Fiyat</span>
-                 <span className="value">{currentPrice.toLocaleString('tr-TR')} ₺</span>
-               </div>
-               <div className="price-arrow">→</div>
-               <div className="price-item">
-                 <span className="label">Yeni Fiyat</span>
-                 <span className="value">{newPrice.toLocaleString('tr-TR')} ₺</span>
-               </div>
-             </div>
-             
-             <div className={`price-diff ${isIncrease ? 'increase' : 'decrease'}`}>
-               {isIncrease ? '↑' : '↓'} {Math.abs(priceDiff).toLocaleString('tr-TR')} ₺
-               ({isIncrease ? 'Artış' : 'Azalış'})
-             </div>
-             
-             {changes && changes.length > 0 && (
-               <div className="changes-list">
-                 <h4>Değişiklikler</h4>
-                 <ul>
-                   {changes.map((change, idx) => (
-                     <li key={idx}>
-                       <strong>{change.fieldLabel}:</strong> {change.oldValue} → {change.newValue}
-                     </li>
-                   ))}
-                 </ul>
-               </div>
-             )}
-           </div>
-           
-           <div className="modal-footer">
-             <button className="btn-cancel" onClick={onCancel}>İptal</button>
-             <button className="btn-confirm" onClick={onConfirm}>
-               Onayla ve Kaydet
-             </button>
-           </div>
-         </div>
-       </div>
-     );
-   }
-   ```
+**Neden Ayrı Dosya?**
+1. QuoteDetailsPanel 2600+ satır - çok büyük
+2. FormUpdateModal ayrı dosyada - tutarlılık gerekli
+3. Gelecekte başka yerlerde kullanılabilir (örn: fatura modülü)
+4. İzole test edilebilirlik
+
+---
+
+#### MEVCUT YAPIYI ANALİZ
+
+**State Değişkenleri (Taşınacak):**
+```jsx
+const [showPriceConfirmModal, setShowPriceConfirmModal] = useState(false)  // satır 73
+const [pendingChanges, setPendingChanges] = useState(null)                  // satır 74
+```
+
+**pendingChanges Yapısı:**
+```jsx
+{
+  formData: { fieldCode: value, ... },     // Yeni form verileri
+  quoteData: { formData, calculatedPrice }, // API payload
+  newPrice: number,                         // Yeni hesaplanan fiyat
+  priceDiff: number,                        // Fiyat farkı (+ veya -)
+  changedFields: [                          // Değişen alanlar listesi
+    { fieldName: string, oldValue: any, newValue: any }
+  ]
+}
+```
+
+**Modal'ı Tetikleyen Fonksiyon (satır 320-355):**
+```jsx
+// handleFormFieldsSave içinde:
+if (Math.abs(priceDiff) > 0.01) {
+  setPendingChanges({ formData, quoteData, newPrice, priceDiff, changedFields })
+  setShowPriceConfirmModal(true)
+  return
+}
+```
+
+**Handler Fonksiyonları:**
+```jsx
+// handlePriceConfirm (satır 463-476)
+const handlePriceConfirm = async () => {
+  if (!pendingChanges) return
+  const { formData, newPrice } = pendingChanges
+  await saveFormFields(formData, newPrice)
+  setShowPriceConfirmModal(false)
+  setPendingChanges(null)
+}
+
+// handlePriceConfirmCancel (satır 479-483)
+const handlePriceConfirmCancel = () => {
+  setShowPriceConfirmModal(false)
+  setPendingChanges(null)
+  // formEditing stays true
+}
+```
+
+**Inline Modal Render (satır 2432-2580):**
+- ~150 satır inline JSX + styles
+- AlertTriangle icon kullanıyor
+- Değişen alanlar listesi
+- Fiyat karşılaştırması (eski/yeni/fark)
+- "Düzenlemeye Dön" ve "Onayla ve Kaydet" butonları
+
+---
+
+#### REFACTORING PLANI
+
+**Adım 1: PriceConfirmModal.jsx Oluştur**
+```jsx
+// domains/crm/components/quotes/PriceConfirmModal.jsx
+import React from 'react'
+import { AlertTriangle } from '../../../../shared/components/Icons.jsx'
+
+export default function PriceConfirmModal({
+  isOpen,
+  currentPrice,        // quote?.finalPrice || quote?.calculatedPrice
+  newPrice,            // pendingChanges.newPrice
+  priceDiff,           // pendingChanges.priceDiff
+  changedFields,       // pendingChanges.changedFields
+  onConfirm,           // handlePriceConfirm
+  onCancel,            // handlePriceConfirmCancel
+  confirmLoading       // optional loading state
+}) {
+  if (!isOpen) return null
+  
+  // ... modal içeriği (mevcut inline koddan taşınacak)
+}
+```
+
+**Adım 2: QuoteDetailsPanel.jsx Değişiklikleri**
+
+Import ekle:
+```jsx
+import PriceConfirmModal from './PriceConfirmModal.jsx'
+```
+
+Inline modal kaldır (satır 2432-2580) ve yerine:
+```jsx
+<PriceConfirmModal
+  isOpen={showPriceConfirmModal && pendingChanges !== null}
+  currentPrice={parseFloat(quote?.finalPrice || quote?.calculatedPrice || 0)}
+  newPrice={pendingChanges?.newPrice || 0}
+  priceDiff={pendingChanges?.priceDiff || 0}
+  changedFields={pendingChanges?.changedFields || []}
+  onConfirm={handlePriceConfirm}
+  onCancel={handlePriceConfirmCancel}
+/>
+```
+
+---
+
+#### KONTROL LİSTESİ (Refactoring Sonrası Test)
+
+**State & Props Geçişi:**
+- [ ] `isOpen` prop doğru çalışıyor (`showPriceConfirmModal && pendingChanges`)
+- [ ] `currentPrice` doğru geçiyor (quote.finalPrice veya calculatedPrice)
+- [ ] `newPrice` doğru geçiyor (pendingChanges.newPrice)
+- [ ] `priceDiff` doğru geçiyor (pendingChanges.priceDiff)
+- [ ] `changedFields` array doğru geçiyor
+- [ ] `onConfirm` callback çağrılıyor
+- [ ] `onCancel` callback çağrılıyor
+
+**UI Doğrulaması:**
+- [ ] Modal overlay (arka plan karartma) çalışıyor
+- [ ] Modal merkezi konumda açılıyor
+- [ ] Header (ikon + başlık + açıklama) görünüyor
+- [ ] Değişen alanlar listesi render ediliyor
+- [ ] Her alan için `fieldName: oldValue → newValue` formatı
+- [ ] Fiyat karşılaştırma kutusu görünüyor (mevcut/yeni/fark)
+- [ ] Artış/azalış renk kodlaması doğru (turuncu/yeşil)
+- [ ] "Düzenlemeye Dön" butonu çalışıyor
+- [ ] "Onayla ve Kaydet" butonu çalışıyor
+
+**Fonksiyonel Test:**
+- [ ] Form düzenleme → fiyat değişince modal açılıyor
+- [ ] İptal → modal kapanıyor, form düzenleme modunda kalıyor
+- [ ] Onayla → saveFormFields çağrılıyor, modal kapanıyor
+- [ ] Kayıt sonrası toast mesajı görünüyor
+- [ ] onRefreshQuote çağrılıyor (liste güncelleniyor)
+
+**Edge Cases:**
+- [ ] changedFields boş array ise bölüm gizleniyor
+- [ ] priceDiff = 0 ise modal açılmamalı (handleFormFieldsSave'de kontrol)
+- [ ] pendingChanges null ise modal render edilmemeli
+
+---
 
 **Değişecek Dosyalar**:
-- `domains/crm/components/quotes/PriceConfirmModal.jsx` (yeni)
-- `domains/crm/styles/quotes.css` (modal stilleri)
+- `domains/crm/components/quotes/PriceConfirmModal.jsx` (YENİ)
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx` (inline modal kaldır, import ekle)
 
-**Test Kriterleri**:
-- [ ] Modal açılıp kapanabiliyor
-- [ ] Fiyat karşılaştırması görünüyor
-- [ ] Fark artış/azalış olarak gösteriliyor
-- [ ] Değişiklik listesi görünüyor
-- [ ] Onaylama kaydı tetikliyor
+**Test Kriterleri** (Mevcut - Inline):
+- [x] Modal açılıp kapanabiliyor
+- [x] Fiyat karşılaştırması görünüyor
+- [x] Fark artış/azalış olarak gösteriliyor
+- [x] Değişiklik listesi görünüyor
+- [x] Onaylama kaydı tetikliyor
+
+**Durum**: ✅ **TAMAMLANDI** (D1 içinde inline olarak implemente edildi)
+**Tarih**: 4 Aralık 2025
+
+### Gerçekleştirilen Değişiklikler
+
+Modal QuoteDetailsPanel.jsx içinde inline olarak implemente edildi (satır ~2432-2580):
+
+**Özellikler:**
+- Fiyat değişikliği onay modal'ı (`showPriceConfirmModal` state)
+- Değişen alanların listesi (`pendingChanges.changedFields`)
+- Fiyat karşılaştırması (mevcut vs yeni)
+- Renk kodlu fark gösterimi (artış: turuncu, azalış: yeşil)
+- "Düzenlemeye Dön" ve "Onayla ve Kaydet" butonları
+- optionCode → optionLabel dönüşümü (select/radio fields için)
+
+**Tetiklenme Senaryosu:**
+1. Quote detayında form alanları düzenlenirken
+2. Kaydet'e tıklanınca fiyat hesaplanır
+3. Fiyat farkı varsa modal açılır
+4. Kullanıcı onaylarsa kayıt yapılır
 
 ---
 
