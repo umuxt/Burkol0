@@ -323,7 +323,8 @@ export default function QuoteDetailsPanel({
             const changedFields = []
             Object.entries(formFieldsData).forEach(([key, value]) => {
               if (originalFormFieldsData[key] !== value) {
-                const field = fields.find(f => f.id === key)
+                // F1-FIX: Match by fieldCode (from API) or id (from formStructure)
+                const field = fields.find(f => f.fieldCode === key || f.id === key)
                 
                 // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
                 const getDisplayValue = (val, fld) => {

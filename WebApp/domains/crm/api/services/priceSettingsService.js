@@ -1,9 +1,11 @@
 /**
  * PriceSettings Model - Master version control for pricing configurations
  * Updated for B0: price_formulas table removed, formulaExpression is now in price_settings
+ * Updated for F1: Uses calculatePriceServer for proper optionCode lookup support
  */
 
 import db from '../../../../db/connection.js';
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
 
 const PriceSettings = {
   /**
@@ -58,6 +60,7 @@ const PriceSettings = {
           acc[lookup.parameterId] = [];
         }
         acc[lookup.parameterId].push({
+          id: lookup.id, // F1-C: Include ID for migration updates
           optionCode: lookup.optionCode,
           value: parseFloat(lookup.value) || 0
         });
@@ -99,6 +102,7 @@ const PriceSettings = {
   /**
    * Create new price setting
    * Updated for B0: includes formulaExpression
+   * Updated for F1: includes linkedFormTemplateId
    */
   async create(data) {
     const [setting] = await db('quotes.price_settings')
@@ -110,7 +114,8 @@ const PriceSettings = {
         isActive: data.isActive || data.is_active || false,
         version: data.version || 1,
         createdBy: data.createdBy || data.created_by,
-        supersedesId: data.supersedesId || data.supersedes_id || null
+        supersedesId: data.supersedesId || data.supersedes_id || null,
+        linkedFormTemplateId: data.linkedFormTemplateId || null  // F1: Link with form template
       })
       .returning('*');
 
@@ -222,7 +227,7 @@ const PriceSettings = {
 
   /**
    * Calculate price using setting's formula and parameters
-   * Moved from priceFormulas.js (table removed in B0)
+   * F1: Refactored to use calculatePriceServer for proper optionCode lookup support
    */
   async calculatePrice(settingId, formData) {
     const settingWithDetails = await this.getWithDetails(settingId);
@@ -234,96 +239,51 @@ const PriceSettings = {
     const { formulaExpression, parameters } = settingWithDetails;
     
     if (!formulaExpression) {
-      return { totalPrice: 0, evaluatedFormula: '', parameterValues: {} };
+      return { totalPrice: 0, formula: '', settingId };
     }
 
-    const parameterValues = {};
-    const calculationDetails = [];
+    // F1: Convert parameters to calculatePriceServer format
+    // DB format: { id, code, formFieldCode, fixedValue, lookups }
+    // calculatePriceServer format: { id, formField, value, lookups }
+    const convertedParams = (parameters || []).map(p => ({
+      id: p.code || p.id, // Use code as ID for formula matching
+      type: p.type,
+      formField: p.formFieldCode || p.formField, // Map formFieldCode to formField
+      value: p.fixedValue || p.value, // Map fixedValue to value
+      lookups: p.lookups || []
+    }));
 
-    // Resolve each parameter value
-    for (const param of parameters) {
-      let value = null;
-      let source = null;
+    // F1: Build settings object for calculatePriceServer
+    const priceSettings = {
+      parameters: convertedParams,
+      formula: formulaExpression
+    };
 
-      if (param.type === 'fixed') {
-        value = parseFloat(param.fixedValue) || 0;
-        source = 'fixed';
-      } else if (param.type === 'form_lookup') {
-        // Get value from form data using formFieldCode
-        const fieldCode = param.formFieldCode || param.code;
-        if (formData[fieldCode] !== undefined) {
-          value = parseFloat(formData[fieldCode]) || 0;
-          source = 'form';
-        }
-      }
-
-      parameterValues[param.code] = value || 0;
-      calculationDetails.push({
-        parameterCode: param.code,
-        parameterName: param.name,
-        parameterValue: value || 0,
-        source,
-        unit: param.unit
-      });
-    }
-
-    // Evaluate formula
-    let evaluatedFormula = formulaExpression.trim();
-    
-    // Remove leading equals sign if present (Excel-style)
-    if (evaluatedFormula.startsWith('=')) {
-      evaluatedFormula = evaluatedFormula.substring(1).trim();
-    }
+    // F1: Build quote object for calculatePriceServer
+    const quoteData = {
+      customFields: formData || {},
+      ...formData
+    };
 
     try {
-      // Replace parameter codes with their values
-      for (const [code, value] of Object.entries(parameterValues)) {
-        const regex = new RegExp(`\\b${code}\\b`, 'g');
-        evaluatedFormula = evaluatedFormula.replace(regex, value);
-      }
-
-      // Replace form field values that might be in the formula directly
-      for (const [fieldCode, fieldValue] of Object.entries(formData)) {
-        const regex = new RegExp(`\\b${fieldCode}\\b`, 'g');
-        const numericValue = parseFloat(fieldValue) || 0;
-        evaluatedFormula = evaluatedFormula.replace(regex, numericValue);
-      }
-
-      // Check for undefined variables and replace with 0
-      const identifierRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
-      const mathConstants = ['Math', 'PI', 'E', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sqrt'];
-      const matches = evaluatedFormula.match(identifierRegex) || [];
+      // F1: Use unified calculation with proper optionCode lookup
+      const totalPrice = calculatePriceServer(quoteData, priceSettings);
       
-      for (const varName of matches) {
-        if (!mathConstants.includes(varName)) {
-          const regex = new RegExp(`\\b${varName}\\b`, 'g');
-          evaluatedFormula = evaluatedFormula.replace(regex, '0');
-        }
-      }
-
-      // Evaluate the expression
-      const totalPrice = eval(evaluatedFormula);
-
       return {
         totalPrice: isNaN(totalPrice) ? 0 : totalPrice,
         formula: formulaExpression,
-        evaluatedFormula,
-        parameterValues,
-        calculationDetails
+        settingId
       };
     } catch (error) {
-      console.error('Formula evaluation failed:', {
-        originalFormula: formulaExpression,
-        evaluatedFormula,
-        parameterValues,
+      console.error('Price calculation failed:', {
+        settingId,
+        formula: formulaExpression,
         error: error.message
       });
       return {
         totalPrice: 0,
         formula: formulaExpression,
-        evaluatedFormula,
-        parameterValues,
-        calculationDetails,
+        settingId,
         error: error.message
       };
     }

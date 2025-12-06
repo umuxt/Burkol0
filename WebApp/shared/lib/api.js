@@ -360,20 +360,8 @@ export const API = {
       return this.applyNewPrice(id)
     }
   },
-  async applyPricesBulk(ids = []) {
-    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-bulk`, {
-      method: 'POST',
-      headers: withAuth({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ ids })
-    })
-    if (!res.ok) throw new Error('bulk apply failed')
-    return await res.json()
-  },
-  async applyPricesAll() {
-    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-all`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
-    if (!res.ok) throw new Error('apply all failed')
-    return await res.json()
-  },
+  // F1: applyPricesBulk removed - endpoint never existed
+  // F1: applyPricesAll removed - endpoint never existed
   async addUser(email, password, role = 'admin') {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, {
       method: 'POST',
@@ -823,143 +811,28 @@ export const API = {
   // Price calculation preview
   async calculatePricePreview(quote, priceSettings) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/calculate-price`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings/calculate`, {
         method: 'POST',
         headers: withAuth({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ quote, priceSettings })
+        body: JSON.stringify({ formData: quote.formData || quote.customFields || quote })
       })
       if (!res.ok) throw new Error('price calculation failed')
       const result = await res.json()
-      return result.calculatedPrice || 0
+      return result.totalPrice || 0
     } catch (e) {
       console.error('Price calculation failed:', e)
-      // Fallback to local calculation if server fails
-      return this.calculatePriceLocal(quote, priceSettings)
+      // F1: Return existing price as fallback
+      return parseFloat(quote.calculatedPrice || quote.price) || 0
     }
   },
 
-  // Local price calculation fallback
-  calculatePriceLocal(quote, priceSettings) {    
-    if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
-      console.log('⚠️ Missing priceSettings data, returning fallback price')
-      return quote.calculatedPrice || quote.price || 0
-    }
-
-    try {
-      // Create parameter values map
-      const paramValues = {}
-      
-      console.log('📊 Processing parameters:', priceSettings.parameters.length)
-      
-      priceSettings.parameters.forEach(param => {
-        if (!param || !param.id) return
-        
-        if (param.type === 'fixed') {
-          paramValues[param.id] = parseFloat(param.value) || 0
-          console.log(`📌 Fixed param ${param.id} = ${paramValues[param.id]}`)
-        } else if (param.type === 'form') {
-          let value = 0
-          
-          if (param.formField === 'qty') {
-            value = parseFloat(quote.qty) || 0
-          } else if (param.formField === 'thickness') {
-            value = parseFloat(quote.thickness) || 0
-          } else if (param.formField === 'dimensions') {
-            // Calculate area from dimensions
-            const l = parseFloat(quote.dimsL)
-            const w = parseFloat(quote.dimsW)
-            if (!isNaN(l) && !isNaN(w)) {
-              value = l * w
-            } else {
-              const dims = quote.dims || ''
-              const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
-              if (match) {
-                value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
-              }
-            }
-          } else {
-            // For custom form fields
-            let fieldValue = quote[param.formField] || quote.customFields?.[param.formField]
-            
-            if (Array.isArray(fieldValue)) {
-              // Multi-select: sum all lookup values
-              value = fieldValue.reduce((sum, opt) => {
-                const lookup = param.lookupTable?.find(l => l.option === opt)
-                return sum + (parseFloat(lookup?.value) || 0)
-              }, 0)
-            } else if (param.lookupTable && fieldValue) {
-              // Single select: find lookup value
-              const lookup = param.lookupTable.find(l => l.option === fieldValue)
-              value = parseFloat(lookup?.value) || 0
-            } else {
-              value = parseFloat(fieldValue) || 0
-            }
-          }
-          
-          paramValues[param.id] = value
-          console.log(`📋 Form param ${param.id} (${param.formField}) = ${value}`)
-        }
-      })
-
-      // Simple formula evaluation (basic math operations)
-      let formula = priceSettings.formula
-      console.log('🎯 Original formula:', formula)
-      
-      // Replace parameter IDs with values
-      Object.keys(paramValues).forEach(paramId => {
-        const regex = new RegExp(`\\b${paramId}\\b`, 'g')
-        formula = formula.replace(regex, paramValues[paramId])
-      })
-      
-      console.log('🔄 Substituted formula:', formula)
-
-      // Clean up formula for safe evaluation
-      formula = formula.trim()
-      
-      // Check for invalid characters that could cause syntax errors
-      if (!formula || formula === '' || /[=;{}[\]<>]/.test(formula)) {
-        console.warn('⚠️ Invalid formula detected:', formula)
-        return quote.calculatedPrice || quote.price || 0
-      }
-
-      // Handle Excel-style functions like MARKUP, DISCOUNT, etc.
-      try {
-        // Convert Excel functions to JavaScript equivalents
-        formula = formula.replace(/\bMARKUP\s*\(/g, 'MARKUP(')
-        formula = formula.replace(/\bDISCOUNT\s*\(/g, 'DISCOUNT(')
-        formula = formula.replace(/\bVAT\s*\(/g, 'VAT(')
-        formula = formula.replace(/\bMAX\s*\(/g, 'Math.max(')
-        formula = formula.replace(/\bMIN\s*\(/g, 'Math.min(')
-        formula = formula.replace(/\bABS\s*\(/g, 'Math.abs(')
-        formula = formula.replace(/\bSQRT\s*\(/g, 'Math.sqrt(')
-        
-        // Define business functions in evaluation context
-        const mathContext = {
-          MARKUP: (cost, markupPercent) => cost * (1 + markupPercent / 100),
-          DISCOUNT: (price, discountPercent) => price * (1 - discountPercent / 100),
-          VAT: (amount, vatRate) => amount * (1 + vatRate / 100),
-          Math: Math
-        }
-        
-        // Create function names for context
-        const contextKeys = Object.keys(mathContext).join(', ')
-        
-        console.log('🧮 Evaluating formula:', formula)
-        const result = Function(contextKeys, `"use strict"; return (${formula})`)(
-          ...Object.values(mathContext)
-        )
-        console.log('✅ Calculation result:', result)
-        return isNaN(result) ? 0 : Number(result)
-      } catch (e) {
-        console.error('❌ Formula evaluation error:', e)
-        console.error('❌ Failed formula:', formula)
-        console.error('❌ Parameter values:', paramValues)
-        return quote.calculatedPrice || quote.price || 0
-      }
-    } catch (error) {
-      console.error('❌ Local price calculation error:', error)
-      return quote.calculatedPrice || quote.price || 0
-    }
+  /**
+   * @deprecated F1: Use /api/price-settings/calculate endpoint instead
+   * This function is kept for backward compatibility but now only returns existing price
+   */
+  calculatePriceLocal(quote, priceSettings) {
+    console.warn('⚠️ F1: calculatePriceLocal() is deprecated. Use /api/price-settings/calculate endpoint.')
+    return parseFloat(quote?.calculatedPrice || quote?.finalPrice || quote?.price) || 0
   },
 
   // Version comparison for quotes

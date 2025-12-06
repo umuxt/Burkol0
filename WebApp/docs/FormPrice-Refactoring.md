@@ -3120,7 +3120,7 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-Post-D2-Faz1**: Form-Price Sync System ✅ (5 Aralık 2025)
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
-- [x] **PROMPT-F1**: Calculate-price API endpoint ✅
+- [x] **PROMPT-F1**: Backend Fiyat Hesaplama API Konsolidasyonu ✅ (6 Aralık 2025)
 - [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
 
 ---
@@ -3194,3 +3194,211 @@ ADD COLUMN "linkedFormTemplateId" INTEGER REFERENCES quotes.form_templates(id);
 | `priceValue` kod kullanımı (form context) | ✅ Yok (sadece comment) |
 | `server/formRoutes.js` | ✅ Silindi |
 
+---
+
+## PROMPT-F1: Backend Fiyat Hesaplama API Konsolidasyonu
+
+**Commit**: `feat(backend): [FP-F1] Consolidate price calculation with calculatePriceServer`
+**Tarih**: 6 Aralık 2025
+
+### Amaç
+Dağınık fiyat hesaplama mantığını tek bir authoritative kaynakta (`calculatePriceServer`) birleştirmek ve `optionCode` lookup desteğini tüm hesaplamalara eklemek.
+
+### Problem Analizi
+
+#### Tespit Edilen Kritik Bug (6 Aralık 2025)
+Select/dropdown alanlarından gelen `optionCode` (örn: `FFOC-001`) lookup tablosundaki sayısal değere çevrilmiyordu. Bu yüzden fiyat hesaplamaları **YANLIŞ** sonuç veriyordu.
+
+```
+Kullanıcı "Malzeme" alanında "Alüminyum" seçiyor → optionCode: FFOC-001
+Lookup tablosunda: FFOC-001 = 50 (birim fiyat)
+Beklenen: Formülde 50 kullanılmalı
+Gerçek: Formülde "FFOC-001" (string) → parseFloat("FFOC-001") = NaN → 0
+```
+
+#### İkili Hesaplama Sistemi Sorunu
+| Fonksiyon | Lookup Kullanımı | Durum |
+|-----------|------------------|-------|
+| `calculatePriceServer()` | ✅ optionCode + parameterLookupMap | **DOĞRU** |
+| `PriceSettings.calculatePrice()` | ❌ lookups kullanmıyor | YANLIŞ |
+| `POST /api/price-settings/calculate` | ❌ inline evaluation, lookups yok | YANLIŞ |
+| `calculatePriceLocal()` | ⚠️ lookupTable (eski format) | ESKİ |
+
+### Yapılan Değişiklikler
+
+#### 1. Ana Fiyat Hesaplama Endpoint'i Refaktör
+**Dosya**: `domains/crm/api/controllers/priceController.js`
+
+```javascript
+// ESKİ: Inline formula evaluation (140+ satır)
+// - Parameter değerlerini manuel eşleme
+// - Excel fonksiyonlarını manuel dönüştürme
+// - optionCode lookup desteği YOK
+
+// YENİ: calculatePriceServer kullanımı
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
+
+// Convert parameters to calculatePriceServer format
+const convertedParams = (setting.parameters || []).map(p => ({
+  id: p.code || p.id,
+  type: p.type,
+  formField: p.formFieldCode || p.formField,
+  value: p.fixedValue || p.value,
+  lookups: p.lookups || []
+}));
+
+const totalPrice = calculatePriceServer(quoteData, priceSettings);
+```
+
+#### 2. Service Layer Refaktör
+**Dosya**: `domains/crm/api/services/priceSettingsService.js`
+
+```javascript
+// ESKİ: 80+ satır inline formula evaluation
+// - eval() kullanımı (güvenlik riski)
+// - optionCode lookup desteği YOK
+
+// YENİ: calculatePriceServer kullanımı
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
+
+async calculatePrice(settingId, formData) {
+  // ... parameter conversion ...
+  const totalPrice = calculatePriceServer(quoteData, priceSettings);
+  return { totalPrice, formula, settingId };
+}
+```
+
+#### 3. Legacy Endpoint Kaldırma
+**Dosya**: `domains/crm/api/controllers/priceController.js`
+
+```javascript
+// KALDIRILDI:
+// POST /api/price-formulas/:id/calculate (B0'da formulas tablosu zaten kaldırılmıştı)
+// POST /api/price-formulas/:formulaId/parameters
+// DELETE /api/price-formulas/:formulaId/parameters/:parameterId
+
+// Yorum olarak işaretlendi:
+// F1: Legacy endpoint removed - use POST /api/price-settings/calculate instead
+```
+
+#### 4. Dead Code Temizliği
+**Dosya**: `shared/lib/api.js`
+
+```javascript
+// KALDIRILDI:
+async applyPricesBulk(ids = []) { ... }  // Endpoint hiç implement edilmemişti
+async applyPricesAll() { ... }            // Endpoint hiç implement edilmemişti
+
+// DEPRECATE EDİLDİ:
+calculatePriceLocal(quote, priceSettings) {
+  console.warn('⚠️ F1: calculatePriceLocal() is deprecated.')
+  return parseFloat(quote?.calculatedPrice || quote?.finalPrice || quote?.price) || 0
+}
+```
+
+**Dosya**: `shared/lib/architectureAPI.js`
+
+```javascript
+// KALDIRILDI:
+async batchUpdateQuotes(quoteIds, action) { ... }  // Endpoint yoktu
+
+// Tüm status action fonksiyonları null yapıldı:
+// F1: Action handled by QuoteDetailsPanel
+action: null
+```
+
+**Dosya**: `domains/crm/utils/price-calculator.js`
+
+```javascript
+// DEPRECATE EDİLDİ:
+export function calculatePrice(quote, priceSettings) {
+  console.warn('⚠️ F1: calculatePrice() is deprecated.')
+  return parseFloat(quote?.calculatedPrice || quote?.finalPrice || quote?.price) || 0
+}
+```
+
+#### 5. Form Sync ile Lookup Migration
+**Dosya**: `domains/crm/api/controllers/priceController.js`
+
+Form template değiştiğinde lookup değerlerinin korunması için optionLabel eşleştirmesi:
+
+```javascript
+// POST /api/price-settings/:id/sync-form
+// F1-C: Migrate lookup values to new optionCodes based on optionLabel matching
+
+// 1. Eski form'un optionCode → optionLabel haritası
+const oldCodeToLabel = { 'FFOC-10100': 'Alüminyum', ... }
+
+// 2. Yeni form'un optionLabel → optionCode haritası  
+const labelToNewCode = { 'Alüminyum': 'FFOC-10116', ... }
+
+// 3. Her lookup için migration
+for (const lookup of param.lookups) {
+  const label = oldCodeToLabel[lookup.optionCode];  // FFOC-10100 → "Alüminyum"
+  const newCode = labelToNewCode[label];            // "Alüminyum" → FFOC-10116
+  await db('price_parameter_lookups').where('id', lookup.id)
+    .update({ optionCode: newCode });
+}
+```
+
+#### 6. Lookup ID Eklenmesi
+**Dosya**: `domains/crm/api/services/priceSettingsService.js`
+
+```javascript
+// getWithDetails() artık lookup.id döndürüyor (migration için gerekli)
+acc[lookup.parameterId].push({
+  id: lookup.id,  // F1-C: Include ID for migration updates
+  optionCode: lookup.optionCode,
+  value: parseFloat(lookup.value) || 0
+});
+```
+
+#### 7. linkedFormTemplateId Auto-Link
+**Dosya**: `domains/crm/api/controllers/priceController.js`
+
+```javascript
+// POST /api/price-settings (create)
+// Yeni price setting oluşturulurken aktif form template ile otomatik link
+
+const [activeFormTemplate] = await db('quotes.form_templates')
+  .where('isActive', true).select('id').limit(1);
+
+const setting = await PriceSettings.create({
+  ...data,
+  linkedFormTemplateId: activeFormTemplate?.id || null
+});
+```
+
+#### 8. optionLabel Display Fix
+**Dosya**: `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+
+```javascript
+// ESKİ: Sadece field.id ile eşleşme
+const field = fields.find(f => f.id === key)
+
+// YENİ: fieldCode VEYA id ile eşleşme
+const field = fields.find(f => f.fieldCode === key || f.id === key)
+```
+
+### Güncellenen Dosyalar
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `priceController.js` | F1 refactor: calculatePriceServer kullanımı, legacy endpoint kaldırma, sync-form migration |
+| `priceSettingsService.js` | F1 refactor: calculatePriceServer, lookup.id eklenmesi, linkedFormTemplateId |
+| `api.js` | Dead code temizliği, calculatePriceLocal deprecation |
+| `architectureAPI.js` | Dead code temizliği, action fonksiyonları kaldırma |
+| `price-calculator.js` | calculatePrice deprecation |
+| `QuoteDetailsPanel.jsx` | optionLabel display fix |
+
+### Test Senaryoları
+1. ✅ Form edit sonrası fiyat hesaplaması doğru çalışıyor (optionCode → lookup value)
+2. ✅ Quote oluşturma sırasında fiyat doğru hesaplanıyor
+3. ✅ Legacy endpoint'ler temizlendi
+4. ✅ "Formu Güncelle" butonuna basılınca lookup değerleri korunuyor
+5. ✅ Yeni price setting oluşturulunca linkedFormTemplateId otomatik atanıyor
+6. ✅ optionLabel display fix çalışıyor (optionCode yerine optionLabel gösteriliyor)
+7. ✅ Console'da ölü endpoint hataları yok
+
+### Migration Notu
+Mevcut price_parameter_lookups verileri korundu. optionCode migration sadece "Formu Güncelle" butonu tıklandığında gerçekleşir.

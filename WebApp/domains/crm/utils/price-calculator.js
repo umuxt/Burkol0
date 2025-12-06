@@ -1,8 +1,15 @@
 // Price calculation and update logic for quotes
-import API from '../../../shared/lib/api.js'
+// F1: Local calculation deprecated - all calculations now done via backend API
+// F1: calculatePrice function kept for UI fallback only
 
+/**
+ * @deprecated F1: Use priceApi.calculatePrice() for actual calculations
+ * This function now only returns the quote's existing price as fallback
+ */
 export function calculatePrice(quote, priceSettings) {
-  return API.calculatePriceLocal(quote, priceSettings)
+  // F1: Return existing price - actual calculation should be done via backend
+  console.warn('⚠️ F1: calculatePrice() is deprecated. Use priceApi.calculatePrice() for actual calculations.')
+  return parseFloat(quote?.calculatedPrice || quote?.finalPrice || quote?.price) || 0
 }
 
 export function needsPriceUpdate(quote) {
@@ -33,18 +40,19 @@ export function getPriceChangeType(quote, priceSettings) {
   }
   if (['outdated', 'unknown', 'error'].includes(status)) return 'formula-changed'
 
-  if (!quote || !priceSettings) return null
+  if (!quote) return null
 
   if (quote.priceChangeType) return quote.priceChangeType
 
-  try {
+  // F1: Local calculation removed - rely on priceStatus from backend
+  // If there's a pending calculated price, compare it
+  if (quote.pendingCalculatedPrice !== undefined) {
     const currentPrice = parseFloat(quote.calculatedPrice) || 0
-    const newPrice = calculatePrice(quote, priceSettings)
-    return Math.abs(currentPrice - newPrice) > 0.01 ? 'price-changed' : null
-  } catch (e) {
-    console.error('❌ Local price calculation failed:', e)
-    return null
+    const pendingPrice = parseFloat(quote.pendingCalculatedPrice) || 0
+    return Math.abs(currentPrice - pendingPrice) > 0.01 ? 'price-changed' : null
   }
+
+  return null
 }
 
 export function getChanges(quote) {

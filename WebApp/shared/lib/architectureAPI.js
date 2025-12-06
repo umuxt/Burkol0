@@ -1,10 +1,13 @@
 /**
  * Architecture API - Price Status Management
  * Handles price status display, actions, and business logic
+ * 
+ * F1: Removed dead endpoint references - actions now handled by components directly
  */
 
 /**
  * Get display information for price status
+ * F1: Removed action functions that called non-existent endpoints
  */
 function getStatusDisplayInfo(priceStatus) {
   if (!priceStatus || typeof priceStatus !== 'object') {
@@ -19,7 +22,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Güncel',
         icon: '✅',
         variant: 'current',
-        action: null // No action needed for current prices
+        action: null
       }
       
     case 'outdated':
@@ -27,17 +30,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Eski Sürüm',
         icon: '⏰',
         variant: 'outdated',
-        action: async (quoteId) => {
-          // Action to update price to current version
-          const response = await fetch(`/api/quotes/${quoteId}/update-price`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'update-to-current' })
-          })
-          if (!response.ok) {
-            throw new Error('Fiyat güncelleme başarısız')
-          }
-        }
+        action: null // F1: Action handled by QuoteDetailsPanel
       }
       
     case 'drift':
@@ -45,17 +38,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Değişiklik Var',
         icon: '⚠️',
         variant: 'drift',
-        action: async (quoteId) => {
-          // Action to recalculate and apply new price
-          const response = await fetch(`/api/quotes/${quoteId}/recalculate-price`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'recalculate' })
-          })
-          if (!response.ok) {
-            throw new Error('Fiyat yeniden hesaplama başarısız')
-          }
-        }
+        action: null // F1: Action handled by QuoteDetailsPanel
       }
       
     case 'pending':
@@ -63,17 +46,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Beklemede',
         icon: '⏳',
         variant: 'pending',
-        action: async (quoteId) => {
-          // Action to apply pending calculation
-          const response = await fetch(`/api/quotes/${quoteId}/apply-price`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'apply-pending' })
-          })
-          if (!response.ok) {
-            throw new Error('Bekleyen fiyat uygulama başarısız')
-          }
-        }
+        action: null // F1: Action handled by QuoteDetailsPanel
       }
       
     case 'manual-override':
@@ -81,7 +54,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Manuel',
         icon: '🔒',
         variant: 'manual',
-        action: null // Manual overrides don't have automated actions
+        action: null
       }
       
     case 'error':
@@ -89,17 +62,7 @@ function getStatusDisplayInfo(priceStatus) {
         label: 'Hata',
         icon: '❌',
         variant: 'error',
-        action: async (quoteId) => {
-          // Action to retry price calculation
-          const response = await fetch(`/api/quotes/${quoteId}/recalculate-price`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'retry' })
-          })
-          if (!response.ok) {
-            throw new Error('Fiyat hesaplama yeniden deneme başarısız')
-          }
-        }
+        action: null // F1: Action handled by QuoteDetailsPanel
       }
       
     default:
@@ -155,33 +118,7 @@ function calculatePriceStatus(quote, currentPriceSettings, currentFormConfig) {
   return { status: 'current', message: 'Price is up to date' }
 }
 
-/**
- * Batch update quotes based on their price status
- */
-async function batchUpdateQuotes(quoteIds, action = 'update-to-current') {
-  const results = []
-  
-  for (const quoteId of quoteIds) {
-    try {
-      const response = await fetch(`/api/quotes/${quoteId}/update-price`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
-      })
-      
-      if (response.ok) {
-        results.push({ quoteId, status: 'success' })
-      } else {
-        const error = await response.text()
-        results.push({ quoteId, status: 'error', error })
-      }
-    } catch (error) {
-      results.push({ quoteId, status: 'error', error: error.message })
-    }
-  }
-  
-  return results
-}
+// F1: batchUpdateQuotes removed - endpoint never existed
 
 /**
  * Get statistics for price statuses across quotes
@@ -226,10 +163,10 @@ function needsPriceUpdate(quote, currentPriceSettings, currentFormConfig) {
 }
 
 // Export the architecture API
+// F1: batchUpdateQuotes removed
 export const architectureAPI = {
   getStatusDisplayInfo,
   calculatePriceStatus,
-  batchUpdateQuotes,
   getPriceStatusStatistics,
   formatPriceStatus,
   needsPriceUpdate

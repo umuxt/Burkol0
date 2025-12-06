@@ -5,12 +5,14 @@
  * Updated for B0: Removed PriceFormulas (merged into PriceSettings)
  * Updated for Pre-D2-1: Added price_parameter_lookups support
  * Updated for Pre-D2-2: Refactored lookup save logic into helper functions
+ * Updated for F1: Consolidated price calculation using calculatePriceServer
  */
 
 import db from '../../../../db/connection.js';
 import PriceParameters from '../../../../db/models/priceParameters.js';
 import PriceParameterLookups from '../../../../db/models/priceParameterLookups.js';
 import PriceSettings from '../services/priceSettingsService.js';
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
 import { requireAuth } from '../../../../server/auth.js';
 import logger from '../../utils/logger.js';
 
@@ -753,90 +755,8 @@ export function setupPriceRoutes(app) {
     }
   });
 
-  // Calculate price with formula -> Uses PriceSettings.calculatePrice
-  app.post('/api/price-formulas/:id/calculate', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { formData } = req.body;
-
-      logger.info(`POST /api/price-formulas/${id}/calculate`);
-
-      if (!formData) {
-        return res.status(400).json({ 
-          error: 'Missing required field', 
-          details: ['formData is required'] 
-        });
-      }
-
-      const result = await PriceSettings.calculatePrice(parseInt(id), formData);
-
-      logger.success(`Price calculated: ${result.totalPrice}`);
-      res.json(result);
-    } catch (error) {
-      logger.error('Failed to calculate price', { error: error.message });
-      res.status(500).json({ error: 'Failed to calculate price', message: error.message });
-    }
-  });
-
-  // ==================== FORMULA PARAMETERS (DEPRECATED) ====================
-  // Parameters are now managed through price_parameters table with settingId
-
-  // Add parameter to formula -> Adds parameter to setting
-  app.post('/api/price-formulas/:formulaId/parameters', requireAuth, async (req, res) => {
-    try {
-      const { formulaId } = req.params;
-      const { parameterId, code, name, type, fixedValue, formFieldCode, unit, description, sortOrder } = req.body;
-
-      logger.info(`POST /api/price-formulas/${formulaId}/parameters`);
-
-      // If parameterId provided, this is a link operation (legacy)
-      // In B0, parameters are created directly with settingId
-      const paramData = {
-        settingId: parseInt(formulaId),
-        code: code || `PARAM_${Date.now()}`,
-        name: name || 'New Parameter',
-        type: type || 'fixed',
-        fixedValue: fixedValue,
-        formFieldCode: formFieldCode,
-        unit: unit,
-        description: description,
-        isActive: true
-      };
-
-      const [parameter] = await db('quotes.price_parameters')
-        .insert(paramData)
-        .returning('*');
-
-      logger.success(`Parameter added to setting: ${parameter.id}`);
-      res.status(201).json(parameter);
-    } catch (error) {
-      logger.error('Failed to add parameter to formula', { error: error.message });
-      res.status(500).json({ error: 'Failed to add parameter to formula', message: error.message });
-    }
-  });
-
-  // Remove parameter from formula -> Deletes parameter
-  app.delete('/api/price-formulas/:formulaId/parameters/:parameterId', requireAuth, async (req, res) => {
-    try {
-      const { formulaId, parameterId } = req.params;
-      logger.info(`DELETE /api/price-formulas/${formulaId}/parameters/${parameterId}`);
-
-      const deleted = await db('quotes.price_parameters')
-        .where({ id: parseInt(parameterId), settingId: parseInt(formulaId) })
-        .delete();
-      
-      if (!deleted) {
-        logger.warning(`Parameter not found`);
-        return res.status(404).json({ error: 'Parameter not found' });
-      }
-
-      logger.success(`Parameter removed from setting`);
-      res.json({ success: true, message: 'Parameter removed from formula' });
-    } catch (error) {
-      logger.error('Failed to remove parameter from formula', { error: error.message });
-      res.status(500).json({ error: 'Failed to remove parameter from formula', message: error.message });
-    }
-  });
+  // F1: Legacy endpoint removed - use POST /api/price-settings/calculate instead
+  // POST /api/price-formulas/:id/calculate - REMOVED
 
   // ==================== PRICE SETTINGS (VERSIONING) ====================
 
@@ -898,10 +818,20 @@ export function setupPriceRoutes(app) {
   });
 
   // Sync pricing with current active form template
+  // F1-C: Migrate lookup values to new optionCodes based on optionLabel matching
   app.post('/api/price-settings/:id/sync-form', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
+      const settingId = parseInt(id);
       logger.info(`POST /api/price-settings/${id}/sync-form - Syncing with active form`);
+
+      // Get current price setting with its linked form template
+      const currentSetting = await PriceSettings.getWithDetails(settingId);
+      if (!currentSetting) {
+        return res.status(404).json({ error: 'Price setting not found' });
+      }
+
+      const oldFormTemplateId = currentSetting.linkedFormTemplateId;
 
       // Get active form template
       const [activeFormTemplate] = await db('quotes.form_templates')
@@ -913,21 +843,109 @@ export function setupPriceRoutes(app) {
         return res.status(400).json({ error: 'No active form template found' });
       }
 
+      // If same form template, just update the link
+      if (oldFormTemplateId === activeFormTemplate.id) {
+        logger.info('Same form template, no migration needed');
+        return res.json({
+          success: true,
+          linkedFormTemplateId: activeFormTemplate.id,
+          linkedFormTemplateName: activeFormTemplate.name,
+          linkedFormTemplateVersion: activeFormTemplate.version,
+          migrated: false
+        });
+      }
+
+      // F1-C: Migrate lookups from old optionCodes to new optionCodes
+      let migratedCount = 0;
+      
+      if (oldFormTemplateId && currentSetting.parameters?.length > 0) {
+        // Get old form fields with options
+        const oldFields = await db('quotes.form_fields')
+          .where('templateId', oldFormTemplateId)
+          .select('id', 'fieldCode', 'fieldType');
+        
+        const oldFieldOptions = {};
+        for (const field of oldFields) {
+          if (field.fieldType === 'dropdown' || field.fieldType === 'select' || field.fieldType === 'radio') {
+            const options = await db('quotes.form_field_options')
+              .where('fieldId', field.id)
+              .select('optionCode', 'optionLabel');
+            oldFieldOptions[field.fieldCode] = options;
+          }
+        }
+
+        // Get new form fields with options
+        const newFields = await db('quotes.form_fields')
+          .where('templateId', activeFormTemplate.id)
+          .select('id', 'fieldCode', 'fieldType');
+        
+        const newFieldOptions = {};
+        for (const field of newFields) {
+          if (field.fieldType === 'dropdown' || field.fieldType === 'select' || field.fieldType === 'radio') {
+            const options = await db('quotes.form_field_options')
+              .where('fieldId', field.id)
+              .select('optionCode', 'optionLabel');
+            newFieldOptions[field.fieldCode] = options;
+          }
+        }
+
+        // For each parameter with lookups, migrate to new optionCodes
+        for (const param of currentSetting.parameters) {
+          if (!param.lookups || param.lookups.length === 0) continue;
+          if (!param.formFieldCode) continue;
+
+          const oldOptions = oldFieldOptions[param.formFieldCode] || [];
+          const newOptions = newFieldOptions[param.formFieldCode] || [];
+
+          if (oldOptions.length === 0 || newOptions.length === 0) continue;
+
+          // Create label -> new optionCode mapping
+          const labelToNewCode = {};
+          for (const opt of newOptions) {
+            labelToNewCode[opt.optionLabel] = opt.optionCode;
+          }
+
+          // Create old optionCode -> label mapping
+          const oldCodeToLabel = {};
+          for (const opt of oldOptions) {
+            oldCodeToLabel[opt.optionCode] = opt.optionLabel;
+          }
+
+          // Migrate each lookup
+          for (const lookup of param.lookups) {
+            const label = oldCodeToLabel[lookup.optionCode];
+            if (!label) continue;
+
+            const newOptionCode = labelToNewCode[label];
+            if (!newOptionCode) continue;
+
+            // Update lookup with new optionCode
+            await db('quotes.price_parameter_lookups')
+              .where('id', lookup.id)
+              .update({ optionCode: newOptionCode });
+            
+            migratedCount++;
+            logger.info(`Migrated lookup: ${lookup.optionCode} -> ${newOptionCode} (${label})`);
+          }
+        }
+      }
+
       // Update linkedFormTemplateId
-      const [updated] = await db('quotes.price_settings')
-        .where('id', id)
+      await db('quotes.price_settings')
+        .where('id', settingId)
         .update({
           linkedFormTemplateId: activeFormTemplate.id,
           updatedAt: db.fn.now()
-        })
-        .returning('*');
+        });
 
-      logger.success(`Price setting ${id} synced with form template ${activeFormTemplate.id}`);
+      logger.success(`Price setting ${id} synced with form template ${activeFormTemplate.id}, migrated ${migratedCount} lookups`);
       res.json({
         success: true,
         linkedFormTemplateId: activeFormTemplate.id,
         linkedFormTemplateName: activeFormTemplate.name,
-        linkedFormTemplateVersion: activeFormTemplate.version
+        linkedFormTemplateVersion: activeFormTemplate.version,
+        migrated: true,
+        migratedLookups: migratedCount
       });
     } catch (error) {
       logger.error('Failed to sync with form', { error: error.message });
@@ -936,12 +954,13 @@ export function setupPriceRoutes(app) {
   });
 
   // C2: Calculate price using price setting and form data
+  // F1: Refactored to use calculatePriceServer with proper optionCode lookup support
   app.post('/api/price-settings/calculate', requireAuth, async (req, res) => {
     try {
       const { settingId, formData } = req.body;
       logger.info('POST /api/price-settings/calculate', { settingId, formData });
 
-      // Get the price setting
+      // Get the price setting with details (includes lookups)
       let setting;
       if (settingId) {
         setting = await PriceSettings.getWithDetails(parseInt(settingId));
@@ -954,126 +973,54 @@ export function setupPriceRoutes(app) {
         return res.status(400).json({ error: 'No price setting configured' });
       }
 
-      // Extract formula and parameters
-      const formula = setting.formulaExpression || setting.formula?.formulaExpression || setting.formula?.expression || '';
-      const parameters = setting.parameters || [];
+      // F1: Convert parameters to calculatePriceServer format
+      // DB format: { id, code, formFieldCode, fixedValue, lookups }
+      // calculatePriceServer format: { id, formField, value, lookups }
+      const convertedParams = (setting.parameters || []).map(p => ({
+        id: p.code || p.id, // Use code as ID for formula matching
+        type: p.type,
+        formField: p.formFieldCode || p.formField, // Map formFieldCode to formField
+        value: p.fixedValue || p.value, // Map fixedValue to value
+        lookups: p.lookups || []
+      }));
 
-      // Build variable context from formData and parameters
-      const context = {};
-      
-      // Add parameters with default values
-      parameters.forEach(param => {
-        const key = param.code || param.parameterCode || param.key;
-        const defaultValue = param.fixedValue || param.defaultValue || param.value || 0;
-        context[key] = parseFloat(defaultValue) || 0;
+      // F1: Build settings object for calculatePriceServer
+      const priceSettings = {
+        parameters: convertedParams,
+        formula: setting.formulaExpression || setting.formula?.formulaExpression || ''
+      };
+
+      // F1: Build quote object for calculatePriceServer
+      // calculatePriceServer reads from both top-level and customFields
+      const quoteData = {
+        customFields: formData || {},
+        ...formData // spread form fields to top level too
+      };
+
+      logger.info('F1 DEBUG: Converted settings', { 
+        parametersCount: convertedParams.length, 
+        params: convertedParams.map(p => ({ id: p.id, type: p.type, formField: p.formField, lookupsCount: p.lookups?.length || 0 })),
+        formula: priceSettings.formula
       });
 
-      // Override with form data values
-      if (formData) {
-        Object.entries(formData).forEach(([key, value]) => {
-          const numValue = parseFloat(value);
-          if (!isNaN(numValue)) {
-            context[key] = numValue;
-          } else {
-            context[key] = value;
-          }
-        });
-      }
-
+      // F1: Use unified calculation function with proper optionCode lookup
       let totalPrice = 0;
-
-      // If no formula, try to calculate from parameters or return 0
-      if (!formula) {
-        logger.info('No formula defined, calculating from fixed parameters');
-        // Sum all fixed value parameters as fallback
-        parameters.forEach(param => {
-          if (param.type === 'fixed' && param.fixedValue) {
-            totalPrice += parseFloat(param.fixedValue) || 0;
-          }
-        });
-      } else {
-        // Evaluate the formula
-        try {
-          // Remove leading equals sign if present (Excel-style)
-          let evaluatedFormula = formula.trim();
-          if (evaluatedFormula.startsWith('=')) {
-            evaluatedFormula = evaluatedFormula.substring(1).trim();
-          }
-
-          // Replace parameter codes with their values
-          for (const [code, value] of Object.entries(context)) {
-            if (typeof value === 'number') {
-              const regex = new RegExp(`\\b${code}\\b`, 'g');
-              evaluatedFormula = evaluatedFormula.replace(regex, value);
-            }
-          }
-
-          // Convert Excel-style functions to JavaScript Math functions (case-insensitive)
-          const excelToMath = {
-            'SQRT': 'Math.sqrt',
-            'ABS': 'Math.abs',
-            'CEIL': 'Math.ceil',
-            'CEILING': 'Math.ceil',
-            'FLOOR': 'Math.floor',
-            'ROUND': 'Math.round',
-            'MAX': 'Math.max',
-            'MIN': 'Math.min',
-            'POW': 'Math.pow',
-            'POWER': 'Math.pow',
-            'SIN': 'Math.sin',
-            'COS': 'Math.cos',
-            'TAN': 'Math.tan',
-            'LOG': 'Math.log',
-            'LOG10': 'Math.log10',
-            'EXP': 'Math.exp',
-            'PI': 'Math.PI'
-          };
-          
-          // Replace Excel functions with Math equivalents (case-insensitive)
-          for (const [excel, math] of Object.entries(excelToMath)) {
-            const regex = new RegExp(`\\b${excel}\\b`, 'gi');
-            evaluatedFormula = evaluatedFormula.replace(regex, math);
-          }
-
-          // Replace any remaining unknown identifiers with 0 (undefined variables)
-          // But keep Math and Math.* methods intact (sqrt, abs, floor, etc.)
-          const mathMethods = ['sqrt', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sin', 'cos', 'tan', 'log', 'log10', 'exp', 'PI', 'E'];
-          evaluatedFormula = evaluatedFormula.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
-            // Don't replace Math or Math methods
-            if (match === 'Math' || mathMethods.includes(match)) {
-              return match;
-            }
-            // Replace unknown identifiers with 0
-            return '0';
-          });
-
-          // Handle ^ as power operator (Excel-style)
-          evaluatedFormula = evaluatedFormula.replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1,$2)');
-
-          // Evaluate the expression
-          const evalFn = new Function(`return ${evaluatedFormula}`);
-          totalPrice = evalFn();
-          
-          if (isNaN(totalPrice) || !isFinite(totalPrice)) {
-            totalPrice = 0;
-          }
-          
-          logger.info('Formula evaluated', { original: formula, evaluated: evaluatedFormula, result: totalPrice });
-        } catch (evalError) {
-          logger.warning('Formula evaluation failed', { error: evalError.message, formula });
-          totalPrice = 0;
-        }
+      try {
+        totalPrice = calculatePriceServer(quoteData, priceSettings);
+      } catch (calcError) {
+        logger.error('Price calculation error', { error: calcError.message });
+        // Return 0 on calculation error instead of throwing
+        totalPrice = 0;
       }
 
-      logger.success('Price calculated', { totalPrice, formula: formula || '(no formula - sum of fixed params)' });
+      logger.success('Price calculated', { totalPrice, formula: priceSettings.formula || '(no formula)' });
       res.json({ 
         totalPrice: Math.round(totalPrice * 100) / 100,
         breakdown: {
-          formula: formula || null,
-          context,
+          formula: priceSettings.formula || null,
           settingId: setting.id,
           settingCode: setting.code,
-          parametersUsed: parameters.length
+          parametersUsed: priceSettings.parameters.length
         }
       });
     } catch (error) {
@@ -1113,6 +1060,12 @@ export function setupPriceRoutes(app) {
         return res.status(400).json({ error: 'Name is required' });
       }
 
+      // F1-FIX: Get active form template to link with new price setting
+      const [activeFormTemplate] = await db('quotes.form_templates')
+        .where('isActive', true)
+        .select('id')
+        .limit(1);
+
       // Create setting with formula (B0: formulaExpression is now in price_settings)
       const setting = await PriceSettings.create({
         code: `PRICE_SETTING_${Date.now()}`,
@@ -1120,7 +1073,8 @@ export function setupPriceRoutes(app) {
         description,
         formulaExpression: formula || null,
         isActive: false,
-        version: 1
+        version: 1,
+        linkedFormTemplateId: activeFormTemplate?.id || null  // F1-FIX: Auto-link with active form
       });
 
       // Add parameters if provided
