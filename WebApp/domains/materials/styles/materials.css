@@ -2051,10 +2051,7 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
 
 /* Fiyat sütunu stilleri */
 /* Form Section Styles */
-.form-section-title::before {
-  content: "📋";
-  font-size: 1.2rem;
-}
+/* Emoji icons removed - use lucide icons in JSX instead */
 
 .form-group/* Enhanced form labels */
 .form-group label {
@@ -2096,34 +2093,7 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
 }
 
-/* Section icons */
-.form-section-title[data-section="contact"]::before {
-  content: "📞";
-}
-
-.form-section-title[data-section="address"]::before {
-  content: "📍";
-}
-
-.form-section-title[data-section="financial"]::before {
-  content: "💰";
-}
-
-.form-section-title[data-section="payment"]::before {
-  content: "💳";
-}
-
-.form-section-title[data-section="operational"]::before {
-  content: "⚙️";
-}
-
-.form-section-title[data-section="company"]::before {
-  content: "🏢";
-}
-
-.form-section-title[data-section="notes"]::before {
-  content: "📝";
-}
+/* Section icons removed - use lucide icons in JSX instead */
 
 /* ================================
    ORDERS SPECIFIC STYLES

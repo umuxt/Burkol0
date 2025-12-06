@@ -1,6 +1,261 @@
 /* Quotes Dashboard - MES Design System */
 @import './quote-details-panel.css';
 
+/* ============================================
+   TYPOGRAPHY SYSTEM - Standardized (from MES)
+   ============================================ */
+
+/* === FONT SIZES === */
+.text-xs { font-size: 11px; }
+.text-sm { font-size: 12px; }
+.text-base { font-size: 13px; }
+.text-md { font-size: 14px; }
+
+/* === FONT WEIGHTS === */
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* === TEXT COLORS === */
+.text-dark { color: #111827; }
+.text-gray { color: #374151; }
+.text-muted { color: #6b7280; }
+.text-light { color: #9ca3af; }
+.text-primary { color: #3b82f6; }
+.text-success { color: #16a34a; }
+.text-error { color: #dc2626; }
+.text-primary-var { color: var(--primary, #3b82f6); }
+
+/* === TEXT ALIGNMENT === */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* === TEXT MODIFIERS === */
+.text-italic { font-style: italic; }
+.text-nowrap { white-space: nowrap; }
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* === LABEL STYLES === */
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.label-sm {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.label-bold {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+/* Supplier/Quote Label Block - Standard Label Style */
+.supplier-label-block {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.supplier-label-block-sm {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+/* === COMMON COMBINATIONS === */
+.text-xs-muted { font-size: 11px; color: #6b7280; }
+.text-sm-muted { font-size: 12px; color: #6b7280; }
+.text-xs-light { font-size: 11px; color: #9ca3af; }
+.text-sm-light { font-size: 12px; color: #9ca3af; }
+.text-xs-light-mb { font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
+.text-muted-italic { color: #6b7280; font-style: italic; }
+
+/* === SPECIALIZED TEXT === */
+.text-subtitle { font-size: 14px; color: #6b7280; margin: 0; }
+.text-hint { display: block; font-size: 11px; color: #9ca3af; font-style: italic; margin-top: 4px; }
+.text-required { color: #dc2626; }
+.text-link { color: #3b82f6; cursor: pointer; text-decoration: none; }
+.text-link:hover { text-decoration: underline; }
+
+/* === DETAIL ROWS === */
+.detail-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: #111827;
+  font-weight: 500;
+}
+
+/* ============================================
+   UTILITY CLASSES - From MES Design System
+   ============================================ */
+
+/* Flex Utilities */
+.flex-center-gap-6 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flex-center-gap-8 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flex-center-gap-10 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flex-center-gap-12 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flex-gap-10 {
+  display: flex;
+  gap: 10px;
+}
+
+.full-justify-between {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* Grid Utilities */
+.grid-2-gap-12 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.grid-2-gap-8 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Position Utilities */
+.pos-relative {
+  position: relative;
+}
+
+.pos-relative-z1 {
+  position: relative;
+  z-index: 1;
+}
+
+.pos-z30 {
+  position: relative;
+  z-index: 30;
+}
+
+/* Spacing Utilities */
+.mt-6 { margin-top: 6px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.w-full { width: 100%; }
+
+/* Panel Content */
+.panel-content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+/* ============================================
+   MES FILTER INPUTS - Standard Form Controls
+   Shared styles for all form inputs in CRM
+   ============================================ */
+
+/* MES Filter Input - Standard height */
+.mes-filter-input {
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  min-width: 120px;
+  max-width: none;
+  width: 100%;
+  flex: 1 1 auto;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--foreground, #111827);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.mes-filter-input:focus {
+  outline: none;
+  border-color: var(--primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* MES Filter Input - Compact variant (36px height) */
+.mes-filter-input.is-compact {
+  height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* MES Filter Select - Dropdown button style */
+.mes-filter-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mes-filter-select:hover {
+  border-color: var(--primary, #3b82f6);
+}
+
+/* Text conditional for dropdowns */
+.text-conditional { color: #1f2937; }
+.text-conditional.placeholder { color: #9ca3af; }
+
+/* ============================================
+   QUOTE MODAL - Shipment Modal Inspired Design
+   ============================================ */
+
 .quotes-page {
   display: flex;
   flex-direction: column;
@@ -1339,7 +1594,7 @@ label.mes-btn {
 }
 
 /* ============================================
-   QUOTE MODAL - Step-based Design
+   QUOTE MODAL - Shipment Modal Inspired Design
    ============================================ */
 
 .modal-overlay {
@@ -1356,16 +1611,18 @@ label.mes-btn {
   backdrop-filter: blur(2px);
 }
 
+/* Quote Modal Container - Shipment Style */
 .quote-modal-container {
-  background: white;
+  background-color: var(--card-bg, #ffffff);
   border-radius: 12px;
-  width: min(700px, 95vw);
-  max-height: 90vh;
+  width: 520px;
+  max-width: 95vw;
+  max-height: 85vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
   animation: modalSlideIn 0.25s ease-out;
-  overflow: visible;
 }
 
 @keyframes modalSlideIn {
@@ -1379,58 +1636,92 @@ label.mes-btn {
   }
 }
 
+/* Quote Modal Header - Shipment Style */
 .quote-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
 }
 
-.quote-modal-header h2 {
+/* Quote Header Icon Container */
+.quote-header-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: var(--primary-light, #dbeafe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Quote Modal Title */
+.quote-modal-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: #111827;
 }
 
-.modal-close-btn {
-  width: 32px;
-  height: 32px;
+/* Legacy h2 in header - backward compatibility */
+.quote-modal-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Quote Close Button - Shipment Style */
+.quote-close-btn {
+  background: none;
   border: none;
-  background: #f3f4f6;
-  border-radius: 6px;
-  color: #6b7280;
   cursor: pointer;
-  font-size: 16px;
+  padding: 6px;
+  border-radius: 6px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+
+.quote-close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* Legacy modal-close-btn - backward compatibility */
+.modal-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  color: #9ca3af;
   transition: all 0.2s;
 }
 
 .modal-close-btn:hover {
-  background: #e5e7eb;
+  background: #f3f4f6;
   color: #111827;
 }
 
-/* Step Indicator */
+/* Step Indicator - Shipment Style */
 .quote-step-indicator {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 0;
-  padding: 20px 24px;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background-color: var(--muted-bg, #f9fafb);
+  border-bottom: 1px solid var(--border, #e5e7eb);
 }
 
 .quote-step-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: default;
-  opacity: 0.5;
   transition: all 0.3s ease;
 }
 
@@ -1439,68 +1730,74 @@ label.mes-btn {
 }
 
 .quote-step-item.completed {
-  opacity: 0.8;
   cursor: pointer;
 }
 
 .quote-step-item.completed:hover {
-  opacity: 1;
+  opacity: 0.9;
 }
 
+/* Step Number/Circle - Shipment Style */
 .quote-step-number {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #e5e7eb;
-  color: #6b7280;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   transition: all 0.3s ease;
+  background-color: var(--muted, #e5e7eb);
+  color: #9ca3af;
 }
 
 .quote-step-item.active .quote-step-number {
-  background: #3b82f6;
-  color: white;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+  background-color: var(--primary, #3b82f6);
+  color: #fff;
 }
 
 .quote-step-item.completed .quote-step-number {
-  background: #10b981;
-  color: white;
+  background-color: var(--success, #10b981);
+  color: #fff;
 }
 
+/* Step Label - Shipment Style */
 .quote-step-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .quote-step-item.active .quote-step-label {
   color: #111827;
-  font-weight: 600;
 }
 
+.quote-step-item.completed .quote-step-label {
+  color: #6b7280;
+}
+
+/* Step Connector - Shipment Style */
 .quote-step-connector {
-  width: 40px;
+  width: 24px;
   height: 2px;
-  background: #e5e7eb;
-  margin: 0 12px;
   transition: background 0.3s ease;
+  background-color: var(--border, #d1d5db);
+}
+
+.quote-step-connector.active {
+  background-color: var(--primary, #3b82f6);
 }
 
 .quote-step-connector.completed {
-  background: #10b981;
+  background-color: var(--success, #10b981);
 }
 
-/* Step Content Area */
+/* Step Content Area - Shipment Style */
 .quote-modal-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: visible;
-  padding: 24px;
+  overflow: auto;
+  padding: 20px;
 }
 
 /* Customer search dropdown overflow fix */
@@ -1512,7 +1809,7 @@ label.mes-btn {
 .quote-customer-step {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* Customer Type Selector */
@@ -1527,27 +1824,27 @@ label.mes-btn {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 16px 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  background: #f9fafb;
+  padding: 14px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--muted-bg, #f9fafb);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .customer-type-option:hover {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  border-color: var(--primary, #3b82f6);
+  background: var(--primary-light, #eff6ff);
 }
 
 .customer-type-option.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--primary, #3b82f6);
+  background: var(--primary-light, #eff6ff);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
 .customer-type-icon {
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -1589,19 +1886,23 @@ label.mes-btn {
   font-size: 14px;
 }
 
+/* Customer Search Input - MES Style */
 .customer-search-input {
   width: 100%;
-  padding: 10px 12px 10px 36px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
+  height: 36px;
+  padding: 6px 12px 6px 36px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--foreground, #111827);
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
 }
 
 .customer-search-input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--primary, #3b82f6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -1855,24 +2156,27 @@ label.mes-btn {
 .customer-form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .customer-form-grid .form-group.full-width {
   grid-column: span 2;
 }
 
-/* Form Elements */
+/* Form Elements - MES Style */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
+/* Form Label - MES supplier-label-block style */
 .form-label {
-  font-size: 13px;
+  display: block;
+  font-size: 12px;
   font-weight: 500;
   color: #374151;
+  margin-bottom: 4px;
 }
 
 .form-label .required {
@@ -1880,24 +2184,27 @@ label.mes-btn {
   margin-left: 2px;
 }
 
+/* Form Inputs - MES Style (like shipment modal) */
 .form-input,
 .form-select,
 .form-textarea {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #e5e7eb);
   border-radius: 6px;
-  font-size: 14px;
-  transition: all 0.2s;
-  background: white;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--foreground, #111827);
   width: 100%;
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
 }
 
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--primary, #3b82f6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -1918,6 +2225,7 @@ label.mes-btn {
 .form-textarea {
   resize: vertical;
   min-height: 80px;
+  height: auto;
 }
 
 .field-error {
@@ -2252,17 +2560,23 @@ label.mes-btn {
   font-weight: 500;
 }
 
-/* Modal Footer */
+/* Modal Footer - Shipment Style */
 .quote-modal-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 0 0 12px 12px;
-  position: relative;
-  z-index: 1;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, #e5e7eb);
+  background-color: var(--card-bg, #ffffff);
+}
+
+.modal-footer-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, #e5e7eb);
+  background-color: var(--card-bg, #ffffff);
 }
 
 .footer-left,
@@ -2271,14 +2585,17 @@ label.mes-btn {
   gap: 10px;
 }
 
-/* Buttons */
+/* Buttons - Shipment Style */
 .btn-primary,
 .btn-secondary,
 .btn-cancel,
 .btn-success {
-  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -2286,41 +2603,120 @@ label.mes-btn {
 }
 
 .btn-primary {
-  background: #3b82f6;
-  color: white;
+  background-color: var(--primary, #3b82f6);
+  color: #ffffff;
 }
 
 .btn-primary:hover {
-  background: #2563eb;
+  background-color: var(--primary-dark, #2563eb);
+}
+
+/* Back Button - Shipment Style */
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  background-color: transparent;
+  color: #6b7280;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-back:hover {
+  background-color: var(--muted, #f3f4f6);
 }
 
 .btn-secondary {
-  background: white;
+  background-color: transparent;
   color: #374151;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border, #d1d5db);
 }
 
 .btn-secondary:hover {
-  background: #f3f4f6;
+  background-color: var(--muted, #f3f4f6);
 }
 
+/* Cancel Button - Shipment Style */
 .btn-cancel {
-  background: transparent;
+  padding: 8px 14px;
+  background-color: transparent;
   color: #6b7280;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .btn-cancel:hover {
-  color: #374151;
-  background: #f3f4f6;
+  background-color: var(--muted, #f3f4f6);
+}
+
+/* Next Button - Shipment Style */
+.btn-next {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-next.enabled {
+  background-color: var(--primary, #3b82f6);
+}
+
+.btn-next.enabled:hover {
+  background-color: var(--primary-dark, #2563eb);
+}
+
+.btn-next.disabled {
+  background-color: var(--muted, #9ca3af);
+  cursor: not-allowed;
+}
+
+/* Submit Button - Shipment Style */
+.btn-submit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-submit.enabled {
+  background-color: var(--success, #16a34a);
+}
+
+.btn-submit.enabled:hover {
+  background-color: #15803d;
+}
+
+.btn-submit.disabled {
+  background-color: var(--muted, #9ca3af);
+  cursor: not-allowed;
 }
 
 .btn-success {
-  background: #10b981;
+  background-color: var(--success, #10b981);
   color: white;
 }
 
 .btn-success:hover {
-  background: #059669;
+  background-color: #059669;
 }
 
 .btn-primary:disabled,

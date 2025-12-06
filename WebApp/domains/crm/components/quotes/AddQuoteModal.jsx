@@ -6,7 +6,7 @@ import QuoteCustomerStep from './QuoteCustomerStep.jsx'
 import QuoteFormStep from './QuoteFormStep.jsx'
 import QuoteReviewStep from './QuoteReviewStep.jsx'
 import { validateCustomerStep, validateFormStep } from '../../utils/quote-validation.js'
-import { User, FileEdit, CheckCircle, Check, X } from '../../../../shared/components/Icons.jsx'
+import { User, FileEdit, CheckCircle, Check, X, ClipboardList, ArrowRight, ArrowLeft } from '../../../../shared/components/Icons.jsx'
 
 /**
  * AddQuoteModal - Step-based quote creation modal
@@ -261,28 +261,46 @@ export default function AddQuoteModal({
     }
   }
 
-  // Render step indicator
+  // Render step indicator - Shipment Modal Style
   function renderStepIndicator() {
     return (
       <div className="quote-step-indicator">
         {steps.map((step, index) => (
           <React.Fragment key={step.number}>
-            <div 
-              className={`quote-step-item ${currentStep === step.number ? 'active' : ''} ${currentStep > step.number ? 'completed' : ''}`}
-              onClick={() => {
-                // Allow clicking to go back to completed steps
-                if (step.number < currentStep) {
-                  setCurrentStep(step.number)
-                }
-              }}
-            >
-              <span className="quote-step-number">
-                {currentStep > step.number ? <Check size={14} /> : step.number}
+            <div className="flex-center-gap-6">
+              <div 
+                className={`quote-step-number ${currentStep === step.number ? 'active' : ''} ${currentStep > step.number ? 'completed' : ''}`}
+                style={{ 
+                  backgroundColor: currentStep === step.number ? 'var(--primary, #3b82f6)' : 
+                                   currentStep > step.number ? 'var(--success, #10b981)' : 
+                                   'var(--muted, #e5e7eb)',
+                  color: currentStep >= step.number ? '#fff' : '#9ca3af',
+                  cursor: step.number < currentStep ? 'pointer' : 'default'
+                }}
+                onClick={() => {
+                  if (step.number < currentStep) {
+                    setCurrentStep(step.number)
+                  }
+                }}
+              >
+                {currentStep > step.number ? <Check size={12} /> : step.number}
+              </div>
+              <span 
+                className={`quote-step-label ${currentStep === step.number ? 'active' : ''}`}
+                style={{ 
+                  color: currentStep === step.number ? '#111827' : '#9ca3af'
+                }}
+              >
+                {step.label}
               </span>
-              <span className="quote-step-label">{step.label}</span>
             </div>
             {index < steps.length - 1 && (
-              <div className={`quote-step-connector ${currentStep > step.number ? 'completed' : ''}`} />
+              <div 
+                className={`quote-step-connector ${currentStep > step.number ? 'completed' : ''}`}
+                style={{
+                  backgroundColor: currentStep > step.number ? 'var(--success, #10b981)' : 'var(--border, #d1d5db)'
+                }}
+              />
             )}
           </React.Fragment>
         ))}
@@ -299,13 +317,18 @@ export default function AddQuoteModal({
         className="quote-modal-container" 
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header - Shipment Modal Style */}
         <div className="quote-modal-header">
-          <h2>Yeni Teklif Oluştur</h2>
+          <div className="flex-center-gap-10">
+            <div className="quote-header-icon">
+              <ClipboardList size={18} className="text-primary-var" />
+            </div>
+            <h2 className="quote-modal-title">Yeni Teklif</h2>
+          </div>
           <button
             onClick={onClose}
             disabled={saving}
-            className="modal-close-btn"
+            className="quote-close-btn"
           >
             <X size={18} />
           </button>
@@ -350,22 +373,23 @@ export default function AddQuoteModal({
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="quote-modal-footer">
-          <div className="footer-left">
+        {/* Footer Actions - Shipment Modal Style */}
+        <div className="modal-footer-flex">
+          <div>
             {currentStep > 1 && (
               <button
                 type="button"
                 onClick={handleBack}
                 disabled={saving}
-                className="btn-secondary"
+                className="btn-back"
               >
-                ← Geri
+                <ArrowLeft size={14} />
+                Geri
               </button>
             )}
           </div>
           
-          <div className="footer-right">
+          <div className="flex-gap-10">
             <button
               type="button"
               onClick={onClose}
@@ -379,16 +403,17 @@ export default function AddQuoteModal({
               <button
                 type="button"
                 onClick={handleNext}
-                className="btn-primary"
+                className="btn-next enabled"
               >
-                Sonraki →
+                İleri
+                <ArrowRight size={14} />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={saving}
-                className="btn-success"
+                className="btn-submit enabled"
               >
                 {saving ? 'Kaydediliyor...' : 'Teklif Oluştur'}
               </button>
