@@ -2557,70 +2557,235 @@ Modal QuoteDetailsPanel.jsx içinde inline olarak implemente edildi (satır ~243
 
 ---
 
-### PROMPT-F1: Backend - Fiyat Hesaplama API Optimizasyonu
+### PROMPT-F1: Backend - Fiyat Hesaplama API Konsolidasyonu
 
-**Amaç**: Dinamik fiyat hesaplama için optimize edilmiş endpoint
+**Amaç**: Dağınık fiyat hesaplama mantığını tek bir authoritative kaynakta birleştirmek
 
-**Ön Araştırma**:
-1. `read_file` ile `priceFormulas.js` calculatePrice metodunu incele
-2. Mevcut hesaplama mantığını analiz et
+---
 
-**Yapılacaklar**:
+#### 📊 ARAŞTİRMA BULGULARI (6 Aralık 2025)
 
-1. **Yeni endpoint ekle** (`quoteController.js`):
-   ```javascript
-   // POST /api/quotes/calculate-price
-   app.post('/api/quotes/calculate-price', requireAuth, async (req, res) => {
-     try {
-       const { formData } = req.body;
-       
-       // Aktif price setting'i al
-       const activeSetting = await PriceSettings.getActiveWithDetails();
-       if (!activeSetting || !activeSetting.formula) {
-         return res.status(400).json({ 
-           error: 'No active price setting' 
-         });
-       }
-       
-       // Fiyat hesapla
-       const calculation = await PriceFormulas.calculatePrice(
-         activeSetting.formula.id, 
-         formData
-       );
-       
-       res.json({
-         success: true,
-         price: calculation.totalPrice,
-         details: calculation.calculationDetails,
-         settingCode: activeSetting.code,
-         settingVersion: activeSetting.version
-       });
-     } catch (error) {
-       res.status(500).json({ error: error.message });
-     }
-   });
-   ```
+##### 1. Mevcut Endpoint'ler ve Kullanım Durumları
 
-2. **Frontend service güncelle** (`quotes-service.js`):
-   ```javascript
-   async calculatePrice(formData) {
-     const response = await fetch(`${API_BASE}/api/quotes/calculate-price`, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ formData })
-     });
-     return response.json();
-   }
-   ```
+| Dosya | Endpoint | Durum | Notlar |
+|-------|----------|-------|--------|
+| `priceController.js:939` | `POST /api/price-settings/calculate` | ✅ AKTİF | Ana endpoint - pricingService.js kullanıyor |
+| `priceController.js:757` | `POST /api/price-formulas/:id/calculate` | ⚠️ LEGACY | B0'da formulas tablosu kaldırıldı |
+| `architectureAPI.js:50,94` | `POST /api/quotes/:id/recalculate-price` | ❌ YOK | Endpoint hiç implement edilmemiş |
+| `architectureAPI.js:68` | `POST /api/quotes/:id/apply-price` | ❌ YOK | Endpoint hiç implement edilmemiş |
+| `api.js:364` | `POST /api/quotes/apply-price-bulk` | ❌ YOK | Endpoint hiç implement edilmemiş |
+| `api.js:373` | `POST /api/quotes/apply-price-all` | ❌ YOK | Endpoint hiç implement edilmemiş |
+
+##### 2. Fiyat Hesaplama Fonksiyonları
+
+| Dosya | Fonksiyon | Lookup Sistemi | Durum |
+|-------|----------|----------------|-------|
+| `server/priceCalculator.js` | `calculatePriceServer(quote, settings)` | ✅ optionCode + parameterLookupMap | **DOĞRU** |
+| `priceSettingsService.js:222` | `PriceSettings.calculatePrice(settingId, formData)` | ❌ lookups kullanmıyor | YANLIŞ |
+| `priceController.js:939-1076` | inline evaluation | ❌ lookups kullanmıyor | YANLIŞ |
+| `shared/lib/api.js:842` | `calculatePriceLocal(quote, priceSettings)` | ⚠️ lookupTable (eski format) | ESKİ |
+| `domains/crm/utils/price-calculator.js:4` | `calculatePrice(quote, priceSettings)` | → API.calculatePriceLocal | ESKİ |
+
+##### 3. Veri Akışı Analizi
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        FRONTEND                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ QuotesManager.js                                                         │
+│   └─> calculatePrice(quote, priceSettings)                              │
+│       └─> price-calculator.js                                            │
+│           └─> API.calculatePriceLocal() [lookupTable formatı - ESKİ]    │
+│                                                                          │
+│ QuoteDetailsPanel.jsx (Form Edit sonrası)                               │
+│   └─> pricingService.calculatePrice(settingId, formData)                │
+│       └─> POST /api/price-settings/calculate                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│                        BACKEND                                           │
+├──────────────────────────────────────────────────────────────────────────┤
+│ POST /api/price-settings/calculate (priceController.js:939)             │
+│   └─> Inline formula evaluation                                         │
+│   └─> parameterLookups KULLANILMIYOR! ❌                                │
+│                                                                          │
+│ db/models/quotes.js (create, update, recalculate)                       │
+│   └─> PriceSettings.calculatePrice(priceSettingId, formData)            │
+│       └─> parameterLookups KULLANILMIYOR! ❌                            │
+│                                                                          │
+│ server/priceCalculator.js                                               │
+│   └─> calculatePriceServer(quote, settings)                             │
+│   └─> parameterLookupMap KULLANILIYOR ✅                                │
+│   └─> Tam math context (MARKUP, VAT, DISCOUNT, vb.) ✅                  │
+│   └─> Security validations ✅                                           │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+##### 4. Kritik Sorunlar
+
+> ⚠️ **KRİTİK BUG TESPİT EDİLDİ (6 Aralık 2025)**
+> 
+> Select/dropdown alanlarından gelen `optionCode` (örn: `FFOC-001`) lookup tablosundaki 
+> sayısal değere çevrilmiyor! Bu yüzden fiyat hesaplamaları **YANLIŞ** sonuç veriyor.
+> 
+> **Örnek**:
+> - Kullanıcı "Malzeme" alanında "Alüminyum" seçiyor → `FFOC-001`
+> - Lookup tablosunda `FFOC-001` = `50` (birim fiyat)
+> - Beklenen: Formülde `50` kullanılmalı
+> - Gerçek: Formülde `"FFOC-001"` (string) kullanılıyor → `parseFloat("FFOC-001")` = `NaN` → `0`
+
+🔴 **Problem 1: Lookup Tablosu Kullanılmıyor**
+
+**YANLIŞ - priceSettingsService.js:251-259**:
+```javascript
+} else if (param.type === 'form_lookup') {
+  const fieldCode = param.formFieldCode || param.code;
+  if (formData[fieldCode] !== undefined) {
+    value = parseFloat(formData[fieldCode]) || 0;  // ❌ YANLIŞ! 
+    // optionCode string'ini parseFloat yapıyor, lookup tablosuna bakmıyor
+    source = 'form';
+  }
+}
+```
+
+**DOĞRU - server/priceCalculator.js:140-154**:
+```javascript
+// Pre-D2-1: Use optionCode for lookup values
+const paramLookups = parameterLookupMap[param.id]
+
+if (Array.isArray(fieldValue)) {
+  // Multi-select: sum up values for all selected options
+  if (paramLookups) {
+    value = fieldValue.reduce((sum, optionCode) => {
+      const lookupValue = paramLookups[optionCode] || 0  // ✅ DOĞRU!
+      return sum + lookupValue
+    }, 0)
+  }
+} else if (paramLookups) {
+  // Single select: use optionCode to lookup value
+  value = paramLookups[fieldValue] || 0  // ✅ DOĞRU!
+}
+```
+
+🔴 **Problem 2: İkili Hesaplama Sistemi**
+- `calculatePriceServer()` → **optionCode + parameterLookupMap** kullanıyor (DOĞRU)
+- `PriceSettings.calculatePrice()` → **lookups KULLANMIYOR** (YANLIŞ)
+- `POST /api/price-settings/calculate` → inline evaluation, **lookups yok** (YANLIŞ)
+
+🔴 **Problem 3: Ölü Endpoint Referansları**
+- `architectureAPI.js` dosyasında 4 endpoint referansı var ama hiç implement edilmemiş
+
+🟡 **Problem 4: Legacy Endpoint**
+- `POST /api/price-formulas/:id/calculate` - B0'da formulas tablosu kaldırıldı
+
+🟡 **Problem 5: Frontend Lookup Format Uyumsuzluğu**
+- Frontend: `lookupTable: [{option, value}]` formatı
+- Backend: `optionCode: value` map formatı
+
+---
+
+#### 📋 YAPILACAKLAR
+
+**ADIM 1: `/api/price-settings/calculate` Endpoint'ini Güncelle**
+
+`priceController.js:939-1076` arasındaki inline evaluation'ı kaldır, `calculatePriceServer()` kullan:
+
+```javascript
+// priceController.js - POST /api/price-settings/calculate
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
+
+app.post('/api/price-settings/calculate', requireAuth, async (req, res) => {
+  try {
+    const { settingId, formData } = req.body;
+    
+    // Get setting with details (includes lookups)
+    let setting;
+    if (settingId) {
+      setting = await PriceSettings.getWithDetails(parseInt(settingId));
+    } else {
+      setting = await PriceSettings.getActiveWithDetails();
+    }
+    
+    if (!setting) {
+      return res.status(400).json({ error: 'No price setting configured' });
+    }
+    
+    // Build quote object for calculatePriceServer
+    const quoteData = {
+      customFields: formData || {},
+      ...formData // spread form fields to top level too
+    };
+    
+    // Use unified calculation function
+    const totalPrice = calculatePriceServer(quoteData, setting);
+    
+    res.json({
+      totalPrice: Math.round(totalPrice * 100) / 100,
+      breakdown: {
+        formula: setting.formulaExpression,
+        settingId: setting.id,
+        settingCode: setting.code,
+        parametersUsed: setting.parameters?.length || 0
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to calculate price', { error: error.message });
+    res.status(500).json({ error: 'Failed to calculate price', message: error.message });
+  }
+});
+```
+
+**ADIM 2: `PriceSettings.calculatePrice()` Deprecate Et**
+
+`priceSettingsService.js:222` fonksiyonunu `calculatePriceServer` kullanacak şekilde güncelle:
+
+```javascript
+// priceSettingsService.js
+import { calculatePriceServer } from '../../../../server/priceCalculator.js';
+
+async calculatePrice(settingId, formData) {
+  const setting = await this.getWithDetails(settingId);
+  if (!setting) {
+    throw new Error(`Price setting ${settingId} not found`);
+  }
+  
+  const quoteData = { customFields: formData, ...formData };
+  const totalPrice = calculatePriceServer(quoteData, setting);
+  
+  return {
+    totalPrice,
+    formula: setting.formulaExpression,
+    settingId: setting.id
+  };
+}
+```
+
+**ADIM 3: Legacy Endpoint Kaldır**
+
+`priceController.js:757` - `POST /api/price-formulas/:id/calculate` endpoint'ini kaldır veya deprecation warning ekle.
+
+**ADIM 4: Ölü Referansları Temizle**
+
+- `architectureAPI.js` → Kullanılmayan endpoint referanslarını kaldır
+- `api.js` → `apply-price-bulk`, `apply-price-all` fonksiyonlarını kaldır
+
+**ADIM 5: Frontend Senkronizasyonu**
+
+`calculatePriceLocal()` fonksiyonunu kaldır veya sadece fallback olarak bırak, tüm hesaplamaları backend'e yönlendir.
+
+---
 
 **Değişecek Dosyalar**:
-- `domains/crm/api/controllers/quoteController.js`
-- `domains/crm/services/quotes-service.js`
+- `domains/crm/api/controllers/priceController.js` (ADIM 1, 3)
+- `domains/crm/api/services/priceSettingsService.js` (ADIM 2)
+- `shared/lib/architectureAPI.js` (ADIM 4)
+- `shared/lib/api.js` (ADIM 4, 5)
+- `domains/crm/utils/price-calculator.js` (ADIM 5)
 
 **Test Kriterleri**:
-- [ ] Endpoint çalışıyor
-- [ ] Aktif setting ile hesaplama yapılıyor
-- [ ] Detaylı breakdown döndürülüyor
+- [ ] `/api/price-settings/calculate` optionCode lookup'larını kullanıyor
+- [ ] Form edit sonrası fiyat hesaplaması doğru çalışıyor
+- [ ] Quote oluşturma/güncelleme sırasında fiyat doğru hesaplanıyor
+- [ ] Legacy endpoint'ler temizlendi veya yönlendirildi
+- [ ] Console'da ölü endpoint hataları yok
 
 ---
 
