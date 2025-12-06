@@ -1276,20 +1276,22 @@ function QuotesManager({ t, onLogout }) {
       React.createElement('div', { className: 'quotes-table-panel' },
         React.createElement('div', { className: 'quotes-table-container' },
           React.createElement('div', { className: 'quotes-table-wrapper' },
-        // Loading overlay for table only
+        
+        // F2: Loading state - show spinner only, hide table
         loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
           React.createElement('div', { className: 'spinner' }),
           React.createElement('div', { className: 'loading-text' }, 'Veriler yükleniyor...')
         ),
         
-        // Error overlay for table only
+        // Error state - show error only
         error && !loading && !bulkProgress && React.createElement('div', { className: 'quotes-empty-state' },
           React.createElement('div', { className: 'empty-icon' }, '⚠️'),
           React.createElement('div', { className: 'empty-title' }, 'Veri yükleme hatası'),
           React.createElement('div', { className: 'empty-message' }, error)
         ),
         
-        React.createElement('table', { className: 'quotes-table' },
+        // F2: Table only renders when not loading
+        !loading && !error && React.createElement('table', { className: 'quotes-table' },
           React.createElement('thead', null,
             React.createElement('tr', null,
               React.createElement('th', { style: { width: '40px', textAlign: 'center' } },

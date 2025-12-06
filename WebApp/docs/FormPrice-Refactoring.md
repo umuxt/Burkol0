@@ -2791,50 +2791,58 @@ async calculatePrice(settingId, formData) {
 
 ### PROMPT-F2: QuotesManager - Sayfa Yüklenme Optimizasyonu
 
-**Amaç**: Liste yüklenirken gereksiz version check sorgularının kaldırılması
+**Commit**: `fix(quotes): [FP-F2] Fix loading state causing table layout shift`
+**Tarih**: 6 Aralık 2025
 
-**Ön Araştırma**:
-1. `read_file` ile `QuotesManager.js` oku
-2. `checkAndProcessVersionUpdates()` fonksiyonunu incele
-3. Performans sorunlarını tespit et
+**Amaç**: Liste yüklenirken tablo layout kaymasını önlemek
 
-**Yapılacaklar**:
+#### Problem Analizi (6 Aralık 2025)
 
-1. **checkAndProcessVersionUpdates kaldır** veya optimize et:
-   ```javascript
-   // ESKİ - her quote için API çağrısı yapıyordu
-   // for (const quote of quotes) {
-   //   await API.compareQuotePriceVersions(quote.id);
-   // }
-   
-   // YENİ - hiçbir şey yapma, detay panelinde yapılacak
-   async function checkAndProcessVersionUpdates(quotesData) {
-     // NOOP - Version kontrolü detay panelinde yapılacak
-     console.log('Version checks moved to detail panel');
-   }
-   ```
+**Tespit Edilen Bug:**
+Quote listesi yüklenirken tablo "aşağı kayıyordu" - loading spinner görünürken tablo boş satırlarla render ediliyordu, veri gelince aniden doluyordu.
 
-2. **Liste yüklemesini basitleştir**:
-   ```javascript
-   async function loadQuotes() {
-     setLoading(true);
-     try {
-       const quotesData = await API.listQuotes();
-       setList(quotesData);
-       // KALDIRILDI: await checkAndProcessVersionUpdates(quotesData);
-     } finally {
-       setLoading(false);
-     }
-   }
-   ```
+**Root Cause:**
+```javascript
+// ESKİ - Loading overlay tablo ile birlikte render ediliyordu
+loading && React.createElement('div', { className: 'quotes-loading' }, ...),
+React.createElement('table', { ... }) // Her zaman render ediliyordu!
+```
 
-**Değişecek Dosyalar**:
-- `domains/crm/components/quotes/QuotesManager.js`
+Loading sırasında:
+1. `list = []` (boş array)
+2. Spinner görünüyor
+3. Tablo header'ları render ediliyor (ama body boş)
+4. API'den veri gelince tablo aniden dolup layout kayıyor
 
-**Test Kriterleri**:
-- [ ] Sayfa yüklenme süresi düştü
-- [ ] Backend'e gereksiz sorgular yapılmıyor
-- [ ] Liste düzgün yükleniyor
+#### Çözüm
+
+**Conditional Table Rendering:**
+```javascript
+// YENİ - Tablo sadece loading bittikten sonra render ediliyor
+loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' }, ...),
+error && !loading && React.createElement('div', { className: 'quotes-empty-state' }, ...),
+!loading && !error && React.createElement('table', { ... }) // Conditional!
+```
+
+#### Mevcut Optimizasyonlar (B0'da Tamamlanmış)
+
+| Optimizasyon | Durum | Açıklama |
+|--------------|-------|----------|
+| `checkAndProcessVersionUpdates` No-op | ✅ B0 | Her quote için API çağrısı kaldırıldı |
+| Version check on-demand | ✅ B0 | Sadece detay panelinde yapılıyor |
+| Price comparison lazy | ✅ C1 | Sadece canEdit=true ise |
+
+#### Değişen Dosyalar
+
+| Dosya | Değişiklik |
+|-------|------------|
+| `QuotesManager.js` | Tablo conditional render (loading ise gizle) |
+
+#### Test Kriterleri
+1. ✅ Loading sırasında sadece spinner görünüyor
+2. ✅ Veri gelince tablo smooth şekilde render ediliyor
+3. ✅ Layout kayması yok
+4. ✅ Error durumunda error mesajı görünüyor
 
 ---
 
@@ -3121,7 +3129,7 @@ Her PROMPT tamamlandığında işaretlenecek:
 - [x] **PROMPT-E1**: FormUpdateModal componenti ✅
 - [x] **PROMPT-E2**: PriceConfirmModal componenti ✅ (D1 içinde inline olarak implemente edildi)
 - [x] **PROMPT-F1**: Backend Fiyat Hesaplama API Konsolidasyonu ✅ (6 Aralık 2025)
-- [ ] **PROMPT-F2**: Sayfa yüklenme optimizasyonu
+- [x] **PROMPT-F2**: Sayfa yüklenme optimizasyonu ✅ (6 Aralık 2025)
 
 ---
 
