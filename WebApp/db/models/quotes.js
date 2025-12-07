@@ -138,6 +138,7 @@ class Quotes {
 
   /**
    * Internal: Save form data
+   * QT-7 FIX: Frontend hem fieldCode hem de DB ID gönderebilir
    */
   static async _saveFormData(trx, quoteId, formData) {
     // Get form fields for this quote's template
@@ -149,15 +150,28 @@ class Quotes {
       .where('templateId', quote.formTemplateId)
       .select('id', 'fieldCode');
 
-    const formDataEntries = Object.entries(formData).map(([fieldCode, value]) => {
-      const field = fields.find(f => f.fieldCode === fieldCode);
+    const formDataEntries = Object.entries(formData).map(([key, value]) => {
+      // QT-7: Key hem fieldCode hem de DB ID olabilir
+      // Önce fieldCode ile eşleştir
+      let field = fields.find(f => f.fieldCode === key);
+      
+      // Bulamazsa DB ID ile dene
       if (!field) {
+        const keyAsNumber = parseInt(key, 10);
+        if (!isNaN(keyAsNumber)) {
+          field = fields.find(f => f.id === keyAsNumber);
+        }
+      }
+      
+      if (!field) {
+        console.warn(`[_saveFormData] Field not found for key: ${key}`);
         return null;
       }
+      
       return {
         quoteId: quoteId,
         fieldId: field.id,
-        fieldCode: fieldCode,
+        fieldCode: field.fieldCode, // Her zaman fieldCode kaydet
         fieldValue: String(value),
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
