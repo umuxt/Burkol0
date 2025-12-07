@@ -971,12 +971,16 @@ input.mes-search-input:focus,
 .quotes-table th.freeze-left,
 .quotes-table td.freeze-left {
   position: sticky;
-  z-index: 2;
   background: #fff;
+}
+
+.quotes-table td.freeze-left {
+  z-index: 2;
 }
 
 .quotes-table th.freeze-left {
   background: #f9fafb;
+  z-index: 12; /* Header + freeze - en üstte */
 }
 
 /* Sol freeze offset'leri (checkbox + 3 kolon) */
@@ -993,12 +997,16 @@ input.mes-search-input:focus,
 .quotes-table th.freeze-right,
 .quotes-table td.freeze-right {
   position: sticky;
-  z-index: 2;
   background: #fff;
+}
+
+.quotes-table td.freeze-right {
+  z-index: 2;
 }
 
 .quotes-table th.freeze-right {
   background: #f9fafb;
+  z-index: 12; /* Header + freeze - en üstte */
 }
 
 /* Sağ freeze offset'leri (3 kolon: price, delivery_date, status) */
