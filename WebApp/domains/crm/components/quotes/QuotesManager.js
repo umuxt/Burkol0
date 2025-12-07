@@ -557,7 +557,7 @@ function QuotesManager({ t, onLogout }) {
     const column = tableColumns.find(col => col.id === columnId)
 
     const getComparableValue = (item) => {
-      const rawValue = getFieldValue(item, columnId)
+      const rawValue = getFieldValue(item, columnId, formConfig)
       if (rawValue === null || rawValue === undefined) return null
 
       if (column?.type === 'date') {
@@ -1344,7 +1344,7 @@ function QuotesManager({ t, onLogout }) {
                 ...tableColumns.map(col => 
                   React.createElement('td', { key: col.id },
                     formatFieldValue(
-                      getFieldValue(item, col.id),
+                      getFieldValue(item, col.id, formConfig),
                       col,
                       item,
                       {

@@ -42,6 +42,7 @@ async function createFieldOptions(fieldId, options) {
 function dbFieldToFrontend(field, index = 0) {
   return {
     id: field.fieldCode,
+    dbId: field.id, // QT-4: Veritabanı ID'si (display güncelleme için gerekli)
     label: field.fieldName,
     type: field.fieldType,
     required: field.isRequired || false,
@@ -50,9 +51,10 @@ function dbFieldToFrontend(field, index = 0) {
     helpText: field.helpText,
     display: {
       formOrder: field.sortOrder || index + 1,
-      tableOrder: field.sortOrder || index + 1,
-      showInTable: true,
-      showInFilter: false
+      tableOrder: field.tableOrder || index + 1,
+      showInTable: field.showInTable || false,
+      showInFilter: field.showInFilter || false,
+      filterOrder: field.filterOrder || 0
     },
     validation: field.validationRule ? JSON.parse(field.validationRule) : {},
     options: (field.options || []).map(opt => ({
@@ -78,6 +80,11 @@ function frontendFieldToApi(field, index = 0) {
     helpText: field.helpText || null,
     sortOrder: field.display?.formOrder || index + 1,
     validationRule: field.validation ? JSON.stringify(field.validation) : null,
+    // QT-4: Display settings
+    showInTable: field.display?.showInTable || false,
+    showInFilter: field.display?.showInFilter || false,
+    tableOrder: field.display?.tableOrder || index + 1,
+    filterOrder: field.display?.filterOrder || 0,
     options: field.options || []
   };
 }
@@ -228,10 +235,48 @@ function FormManager({ t, renderHeaderActions }) {
   }
 
   // Handle fields change from FormBuilderCompact
+  // QT-4: Display settings (showInTable, showInFilter) değişiklikleri hasChanges'i tetiklememeli
   const handleFieldsChange = useCallback((newFields) => {
-    const changed = JSON.stringify(newFields) !== JSON.stringify(originalFields)
-    setHasChanges(changed)
-  }, [originalFields])
+    // Display ayarlarını karşılaştırmadan çıkar
+    const stripDisplaySettings = (fields) => {
+      return fields.map(f => {
+        const { display, ...rest } = f;
+        // display içinden sadece formOrder'ı tut (versiyon etkileyen)
+        return {
+          ...rest,
+          display: display ? { formOrder: display.formOrder } : undefined
+        };
+      });
+    };
+    
+    const strippedNew = stripDisplaySettings(newFields);
+    const strippedOriginal = stripDisplaySettings(originalFields);
+    const changed = JSON.stringify(strippedNew) !== JSON.stringify(strippedOriginal);
+    setHasChanges(changed);
+  }, [originalFields]);
+
+  // QT-4: Handle display settings change (showInTable, showInFilter, tableOrder, filterOrder)
+  // Bu ayarlar anında kaydedilir ve versiyon değiştirmez
+  const handleDisplaySettingsChange = useCallback(async (fieldId, displaySettings) => {
+    try {
+      // fieldId = veritabanı ID'si (FieldEditor'dan geliyor)
+      await formsApi.updateFieldDisplay(fieldId, displaySettings);
+      
+      // Event dispatch - QuotesManager dinleyecek
+      window.dispatchEvent(new CustomEvent('formDisplaySettingsChanged', {
+        detail: {
+          templateId: currentTemplateId,
+          fieldId: fieldId,
+          changes: displaySettings
+        }
+      }));
+      
+      showToast('Görüntüleme ayarları güncellendi', 'success');
+    } catch (error) {
+      console.error('Display settings update error:', error);
+      showToast('Güncelleme hatası: ' + error.message, 'error');
+    }
+  }, [currentTemplateId]);
 
   // Revert changes to original state
   const handleRevertChanges = useCallback(() => {
@@ -284,7 +329,12 @@ function FormManager({ t, renderHeaderActions }) {
             placeholder: field.placeholder,
             defaultValue: field.defaultValue,
             validationRule: field.validationRule,
-            helpText: field.helpText || null
+            helpText: field.helpText || null,
+            // QT-4: Display settings
+            showInTable: field.showInTable || false,
+            showInFilter: field.showInFilter || false,
+            tableOrder: field.tableOrder || 0,
+            filterOrder: field.filterOrder || 0
           })
           
           // API returns { success: true, field: {...}, id: ... }
@@ -323,7 +373,12 @@ function FormManager({ t, renderHeaderActions }) {
             placeholder: field.placeholder,
             defaultValue: field.defaultValue,
             validationRule: field.validationRule,
-            helpText: field.helpText || null
+            helpText: field.helpText || null,
+            // QT-4: Display settings
+            showInTable: field.showInTable || false,
+            showInFilter: field.showInFilter || false,
+            tableOrder: field.tableOrder || 0,
+            filterOrder: field.filterOrder || 0
           })
           
           // API returns { success: true, field: {...}, id: ... }
@@ -389,7 +444,12 @@ function FormManager({ t, renderHeaderActions }) {
             placeholder: field.placeholder,
             defaultValue: field.defaultValue,
             validationRule: field.validationRule,
-            helpText: field.helpText || null
+            helpText: field.helpText || null,
+            // QT-4: Display settings
+            showInTable: field.showInTable || false,
+            showInFilter: field.showInFilter || false,
+            tableOrder: field.tableOrder || 0,
+            filterOrder: field.filterOrder || 0
           })
           
           // API returns { success: true, field: {...}, id: ... }
@@ -423,7 +483,12 @@ function FormManager({ t, renderHeaderActions }) {
             placeholder: field.placeholder,
             defaultValue: field.defaultValue,
             validationRule: field.validationRule,
-            helpText: field.helpText || null
+            helpText: field.helpText || null,
+            // QT-4: Display settings
+            showInTable: field.showInTable || false,
+            showInFilter: field.showInFilter || false,
+            tableOrder: field.tableOrder || 0,
+            filterOrder: field.filterOrder || 0
           })
           
           // API returns { success: true, field: {...}, id: ... }
@@ -523,7 +588,9 @@ function FormManager({ t, renderHeaderActions }) {
           placeholder: field.placeholder,
           defaultValue: field.defaultValue,
           validationRule: field.validationRule,
-          helpText: field.helpText
+          helpText: field.helpText,
+          showInTable: field.showInTable,
+          showInFilter: field.showInFilter
         })
         
         const createdField = await formsApi.createField({
@@ -536,7 +603,12 @@ function FormManager({ t, renderHeaderActions }) {
           placeholder: field.placeholder,
           defaultValue: field.defaultValue,
           validationRule: field.validationRule,
-          helpText: field.helpText || null
+          helpText: field.helpText || null,
+          // QT-4: Display settings
+          showInTable: field.showInTable || false,
+          showInFilter: field.showInFilter || false,
+          tableOrder: field.tableOrder || 0,
+          filterOrder: field.filterOrder || 0
         })
         
         console.log('✅ Field created:', createdField)
@@ -572,6 +644,7 @@ function FormManager({ t, renderHeaderActions }) {
       onActivate: activateTemplate,
       onRevertChanges: handleRevertChanges,
       onFieldsChange: handleFieldsChange,
+      onDisplaySettingsChange: handleDisplaySettingsChange, // QT-4: Display ayarları için ayrı callback
       hasChanges,
       originalFields,
       isDarkMode: false,

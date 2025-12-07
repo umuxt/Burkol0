@@ -20,7 +20,7 @@ function normalizeOption(opt) {
   };
 }
 
-export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldTypes = [], showNotification, fieldEditorRef }) {
+export function FieldEditor({ field, allFields = [], onSave, onCancel, onDisplaySettingsChange, fieldTypes = [], showNotification, fieldEditorRef }) {
   const [fieldForm, setFieldForm] = useState({
     id: '',
     label: '',
@@ -70,6 +70,48 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
         [childKey]: value 
       }
     }))
+  }
+
+  // QT-4: Display ayarları için ayrı handler
+  // Sadece local state güncelle - Kaydet butonuna basıldığında API'ye gidecek
+  function handleDisplayChange(settingKey, value) {
+    setFieldForm(prev => ({
+      ...prev,
+      display: { 
+        ...(prev.display || {}), 
+        [settingKey]: value 
+      }
+    }))
+  }
+
+  // QT-4: Sadece display ayarları mı değişti kontrol et
+  function hasOnlyDisplayChanges() {
+    if (!field) return false; // Yeni alan - normal kaydet
+    
+    const displayFields = ['showInTable', 'showInFilter', 'tableOrder', 'filterOrder'];
+    const originalDisplay = field.display || {};
+    const currentDisplay = fieldForm.display || {};
+    
+    // Display dışı alanları karşılaştır
+    const nonDisplayChanged = 
+      field.label !== fieldForm.label ||
+      field.type !== fieldForm.type ||
+      field.required !== fieldForm.required ||
+      field.placeholder !== fieldForm.placeholder ||
+      JSON.stringify(field.options || []) !== JSON.stringify(fieldForm.options || []) ||
+      JSON.stringify(field.validation || {}) !== JSON.stringify(fieldForm.validation || {});
+    
+    if (nonDisplayChanged) return false;
+    
+    // formOrder değişimi de versiyon gerektiren bir değişiklik
+    if ((originalDisplay.formOrder || 0) !== (currentDisplay.formOrder || 0)) return false;
+    
+    // Sadece display ayarları değişmiş mi?
+    const displayChanged = displayFields.some(key => 
+      (originalDisplay[key] || false) !== (currentDisplay[key] || false)
+    );
+    
+    return displayChanged;
   }
 
   function addOption() {
@@ -143,6 +185,20 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
       fieldForm.id = `field_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     }
 
+    // QT-4: Sadece display ayarları değiştiyse ayrı API çağır
+    if (hasOnlyDisplayChanges() && field?.dbId && onDisplaySettingsChange) {
+      // Sadece display ayarlarını kaydet (form versiyonunu değiştirmez)
+      // Wrapper fonksiyon modal'ı kapatacak ve local state'i güncelleyecek
+      onDisplaySettingsChange(field.dbId, {
+        showInTable: fieldForm.display?.showInTable || false,
+        showInFilter: fieldForm.display?.showInFilter || false,
+        tableOrder: fieldForm.display?.tableOrder || 0,
+        filterOrder: fieldForm.display?.filterOrder || 0
+      });
+      return;
+    }
+
+    // Normal kaydet - form versiyonunu değiştirir
     onSave(fieldForm)
   }
 
@@ -497,7 +553,7 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
           React.createElement('input', {
             type: 'checkbox',
             checked: fieldForm.display?.showInTable || false,
-            onChange: (e) => updateNestedField('display', 'showInTable', e.target.checked),
+            onChange: (e) => handleDisplayChange('showInTable', e.target.checked),
             style: { cursor: 'pointer' }
           }),
           'Tabloda göster'
@@ -527,7 +583,7 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
           React.createElement('input', {
             type: 'checkbox',
             checked: fieldForm.display?.showInFilter || false,
-            onChange: (e) => updateNestedField('display', 'showInFilter', e.target.checked),
+            onChange: (e) => handleDisplayChange('showInFilter', e.target.checked),
             style: { cursor: 'pointer' }
           }),
           'Filtrede göster'

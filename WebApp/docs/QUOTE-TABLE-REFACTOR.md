@@ -63,7 +63,7 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | **PRE-QT4-1** | **Field ID Tutarlılığı (proj → projectName)** | ✅ Tamamlandı | QT-3 |
 | **PRE-QT4-2** | **Gereksiz Kolonların Kaldırılması** | ✅ Tamamlandı | PRE-QT4-1 |
 | **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ✅ Tamamlandı | PRE-QT4-2 |
-| QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | PRE-QT4-3 |
+| QT-4 | Frontend - Dinamik Tablo Kolonları | ✅ Tamamlandı | PRE-QT4-3 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
 | QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
 | QT-7 | Event Dispatch Sistemi | ⏳ Bekliyor | QT-4 |
@@ -919,9 +919,52 @@ export function getFieldValue(quote, fieldId) {
 
 ### Dosyalar
 - `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+- `domains/crm/components/forms/FormManager.jsx` (GÜNCELLEME)
+- `domains/crm/components/forms/formBuilder/FormBuilderCompact.js` (GÜNCELLEME)
+- `domains/crm/components/forms/formBuilder/FieldEditor.js` (GÜNCELLEME)
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME)
+- `domains/crm/services/forms-service.js` (GÜNCELLEME)
+- `domains/crm/api/controllers/formController.js` (GÜNCELLEME)
+- `db/models/formTemplates.js` (GÜNCELLEME)
+- `db/models/quotes.js` (GÜNCELLEME)
 
-### Dosyalar
-- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+### ✅ Test Sonuçları (2025-12-07)
+
+**Test Ortamı:** Local Build + Local Server
+
+#### 1. Build Testi ✅
+```
+✓ 1819 modules transformed
+✓ built in 1.96s
+```
+
+#### 2. Dinamik Kolon Testi ✅
+- `showInTable: true` olan alanlar tabloda görünüyor
+- `showInTable: false` olan alanlar tabloda görünmüyor
+- Kolonlar `tableOrder` sırasına göre sıralanıyor
+
+#### 3. Display Ayarları Kaydı ✅
+- Tabloda göster toggle → DB'ye anında kaydediliyor
+- Filtrede göster toggle → DB'ye anında kaydediliyor
+- Tablo sırası → Kaydet butonuyla DB'ye kaydediliyor
+- Display değişiklikleri form versiyonunu DEĞİŞTİRMİYOR ✅
+
+#### 4. Form Data Görüntüleme ✅
+- Dinamik kolonlarda quote form verileri görüntüleniyor
+- Dropdown alanları için option code yerine option label gösteriliyor
+- `getAll()` API'si artık formData'yı da döndürüyor
+
+#### 5. Dosya Değişiklikleri ✅
+- `table-utils.js`: mapFieldType(), getTableColumns() dinamik kolonlar, getFieldValue() formConfig ile option label lookup
+- `FormManager.jsx`: dbFieldToFrontend() dbId eklendi, handleDisplaySettingsChange callback, display-aware change detection
+- `FormBuilderCompact.js`: onDisplaySettingsChange prop, handleDisplaySettingsChangeLocal wrapper
+- `FieldEditor.js`: handleDisplayChange(), hasOnlyDisplayChanges(), display-only save akışı
+- `forms-service.js`: updateFieldDisplay() fonksiyonu
+- `formController.js`: formStructure.fields'a display kolonları eklendi
+- `formTemplates.js`: getWithFields() sorgusuna display kolonları eklendi
+- `quotes.js`: getAll() artık formData'yı tek sorguda yüklüyor
+
+**Sonuç:** Tüm QT-4 testleri başarıyla geçti. ✅
 
 ---
 

@@ -107,7 +107,12 @@ export function setupFormRoutes(app) {
             defaultValue: field.defaultValue,
             // Post-D2: Return full option objects with optionCode and optionLabel
             options: field.options?.filter(o => o.id !== null) || [],
-            sortOrder: field.sortOrder
+            sortOrder: field.sortOrder,
+            // QT-4: Display settings for dynamic table columns
+            showInTable: field.showInTable || false,
+            showInFilter: field.showInFilter || false,
+            tableOrder: field.tableOrder || 0,
+            filterOrder: field.filterOrder || 0
           }))
         }
       };

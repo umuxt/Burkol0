@@ -142,6 +142,11 @@ class FormTemplates {
         'ff.helpText',
         'ff.validationRule',
         'ff.defaultValue',
+        // QT-4: Display settings for dynamic table columns
+        'ff.showInTable',
+        'ff.showInFilter',
+        'ff.tableOrder',
+        'ff.filterOrder',
         db.raw(`
           json_agg(
             json_build_object(

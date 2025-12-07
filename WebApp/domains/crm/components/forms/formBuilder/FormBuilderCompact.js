@@ -14,6 +14,7 @@ export function FormBuilderCompact({
   onActivate,
   onRevertChanges,
   onFieldsChange,
+  onDisplaySettingsChange, // QT-4: Display ayarları için ayrı callback (versioning tetiklemez)
   hasChanges = false,
   originalFields = [],
   isDarkMode, 
@@ -731,6 +732,32 @@ export function FormBuilderCompact({
     showToast('Alan silindi', 'success')
   }
 
+  // QT-4: Handle display settings change - wrapper that updates local state too
+  function handleDisplaySettingsChangeLocal(fieldDbId, displaySettings) {
+    // Local fields state'ini güncelle
+    setFields(prev => prev.map(f => {
+      if (f.dbId === fieldDbId) {
+        return {
+          ...f,
+          display: {
+            ...f.display,
+            ...displaySettings
+          }
+        };
+      }
+      return f;
+    }));
+    
+    // Parent'a (FormManager) bildir - API çağrısı yapacak
+    if (onDisplaySettingsChange) {
+      onDisplaySettingsChange(fieldDbId, displaySettings);
+    }
+    
+    // Modal'ı kapat
+    setIsFieldEditorOpen(false);
+    setEditingField(null);
+  }
+
   // Reorder fields
   function handleReorderField(fromIndex, toIndex) {
     // sortedFields üzerinde çalıştığımız için önce sıralanmış listeyi al
@@ -886,6 +913,7 @@ export function FormBuilderCompact({
           setIsFieldEditorOpen(false)
           setEditingField(null)
         },
+        onDisplaySettingsChange: handleDisplaySettingsChangeLocal, // QT-4: Local state de güncelleyen wrapper
         showNotification,
         fieldEditorRef: fieldEditorRef
       })

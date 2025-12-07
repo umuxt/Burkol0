@@ -110,6 +110,27 @@ function getPriceChangeButtonSymbol(changeType) {
   }
 }
 
+/**
+ * QT-4: Form field tipini tablo kolon tipine çevir
+ * @param {string} fieldType - Form field tipi
+ * @returns {string} Tablo kolon tipi
+ */
+function mapFieldType(fieldType) {
+  const typeMap = {
+    'text': 'text',
+    'textarea': 'text',
+    'number': 'number',
+    'select': 'text',
+    'radio': 'text',
+    'checkbox': 'boolean',
+    'date': 'date',
+    'email': 'email',
+    'phone': 'phone',
+    'currency': 'currency'
+  };
+  return typeMap[fieldType] || 'text';
+}
+
 export function getTableColumns(formConfig) {
   // PRE-QT4-1, PRE-QT4-2, PRE-QT4-3: Sabit Sol Kolonlar (Freeze)
   // - proj → projectName (PRE-QT4-1)
@@ -121,11 +142,28 @@ export function getTableColumns(formConfig) {
     { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
   ]
   
-  // Add dynamic fields from form config if any
-  const configFields = formConfig?.fields || formConfig?.formStructure?.fields || []
-  const dynamicFields = configFields
-    .filter(field => field.display?.showInTable)
-    .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
+  // QT-4: Dinamik kolonları form config'den oluştur
+  const dynamicColumns = [];
+  const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
+  
+  const filteredAndSorted = fields
+    .filter(field => field.display?.showInTable === true || field.showInTable === true)
+    .sort((a, b) => {
+      const orderA = a.display?.tableOrder ?? a.tableOrder ?? 999;
+      const orderB = b.display?.tableOrder ?? b.tableOrder ?? 999;
+      return orderA - orderB;
+    });
+  
+  filteredAndSorted.forEach(field => {
+    dynamicColumns.push({
+      id: field.fieldCode || field.id,
+      label: field.fieldName || field.label,
+      type: mapFieldType(field.fieldType || field.type),
+      width: 120,
+      freeze: null,
+      isDynamic: true  // QT-5 için önemli flag
+    });
+  });
   
   // PRE-QT4-3: Sabit Sağ Kolonlar (Freeze)
   const fixedRightColumns = [
@@ -134,26 +172,22 @@ export function getTableColumns(formConfig) {
     { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
   ]
   
-  return [...fixedLeftColumns, ...dynamicFields, ...fixedRightColumns]
+  return [...fixedLeftColumns, ...dynamicColumns, ...fixedRightColumns]
 }
 
-export function getFieldValue(quote, fieldId) {
-  // PRE-QT4-1, PRE-QT4-2: Fixed fields güncellendi
-  // - proj → projectName (PRE-QT4-1)
-  // - name, phone, email tablo kolonlarından kaldırıldı (PRE-QT4-2)
-  //   (Not: getter'ları detay paneli için korundu)
-  const fixedFields = ['date', 'company', 'projectName', 'price', 'delivery_date', 'status']
+export function getFieldValue(quote, fieldId, formConfig = null) {
+  // QT-4: Sabit alanlar - map yapısı ile temiz erişim
+  const fixedFieldMap = {
+    'date': () => quote.createdAt || quote.date || '',
+    'company': () => quote.customerCompany || '',
+    'projectName': () => quote.projectName || '',
+    'price': () => quote.finalPrice || quote.calculatedPrice || 0,
+    'delivery_date': () => quote.deliveryDate || '',
+    'status': () => quote.status || 'new'
+  };
   
-  if (fixedFields.includes(fieldId)) {
-    if (fieldId === 'date') {
-      return quote.createdAt || quote.date || ''
-    }
-    if (fieldId === 'company') return quote.customerCompany || ''
-    if (fieldId === 'projectName') return quote.projectName || ''
-    if (fieldId === 'price') return quote.finalPrice || quote.calculatedPrice || 0
-    if (fieldId === 'delivery_date') return quote.deliveryDate || ''
-    
-    return quote[fieldId] || ''
+  if (fixedFieldMap[fieldId]) {
+    return fixedFieldMap[fieldId]();
   }
   
   // Detay paneli için backward compatibility (name, phone, email)
@@ -161,8 +195,28 @@ export function getFieldValue(quote, fieldId) {
   if (fieldId === 'phone') return quote.customerPhone || ''
   if (fieldId === 'email') return quote.customerEmail || ''
   
-  // Dynamic fields are in customFields or formData
-  return quote.customFields?.[fieldId] || quote.formData?.[fieldId] || ''
+  // QT-4: Dinamik alanlar - formData veya customFields'dan oku
+  // PostgreSQL formatı: quote.formData = { FIELD_xxx: value, ... }
+  // Legacy formatı: quote.customFields = { fieldId: value, ... }
+  const rawValue = quote.formData?.[fieldId] || quote.customFields?.[fieldId] || '';
+  
+  // QT-4: Option code ise label'a çevir (dropdown, select, radio alanları için)
+  if (rawValue && formConfig) {
+    const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
+    const field = fields.find(f => (f.fieldCode || f.id) === fieldId);
+    
+    if (field && field.options && field.options.length > 0) {
+      // Option code ile eşleşen option'ı bul
+      const option = field.options.find(opt => 
+        opt.optionCode === rawValue || opt.value === rawValue
+      );
+      if (option) {
+        return option.optionLabel || option.label || rawValue;
+      }
+    }
+  }
+  
+  return rawValue;
 }
 
 export function formatFieldValue(value, column, item, context) {

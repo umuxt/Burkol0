@@ -106,6 +106,22 @@ export const formsService = {
   },
 
   /**
+   * QT-4: Update field display settings (showInTable, showInFilter, tableOrder, filterOrder)
+   * Bu işlem form versiyonunu DEĞİŞTİRMEZ
+   * @param {number} fieldId - Database field ID
+   * @param {object} displaySettings - { showInTable, showInFilter, tableOrder, filterOrder }
+   */
+  async updateFieldDisplay(fieldId, displaySettings) {
+    const response = await fetchWithTimeout(`/api/form-fields/${fieldId}/display`, {
+      method: 'PUT',
+      headers: withAuth(),
+      body: JSON.stringify(displaySettings)
+    }, 10000)
+    if (!response.ok) throw new Error('update_field_display_failed')
+    return response.json()
+  },
+
+  /**
    * Get field options with optionCode
    * @param {string} fieldCode - Form field code
    * @returns {Promise<Array<{id, optionCode, optionLabel, sortOrder}>>}

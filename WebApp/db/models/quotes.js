@@ -208,11 +208,30 @@ class Quotes {
 
     const quotes = await query.orderBy('createdAt', 'desc');
     
+    // QT-4: Get all form data for these quotes in one query
+    const quoteIds = quotes.map(q => q.id);
+    const allFormData = quoteIds.length > 0 
+      ? await db('quotes.quote_form_data')
+          .whereIn('quoteId', quoteIds)
+          .select('quoteId', 'fieldCode', 'fieldValue')
+      : [];
+    
+    // Group form data by quoteId
+    const formDataByQuote = {};
+    allFormData.forEach(item => {
+      if (!formDataByQuote[item.quoteId]) {
+        formDataByQuote[item.quoteId] = {};
+      }
+      formDataByQuote[item.quoteId][item.fieldCode] = item.fieldValue;
+    });
+    
     // Normalize deliveryDate and priceStatus for all quotes
     // Also build manualOverride object for frontend compatibility
     quotes.forEach(quote => {
       this.normalizeDeliveryDate(quote);
       this.normalizePriceStatus(quote);
+      // QT-4: Add formData to each quote
+      quote.formData = formDataByQuote[quote.id] || {};
       // Add manualOverride for frontend
       quote.manualOverride = quote.manualPrice ? {
         active: true,
