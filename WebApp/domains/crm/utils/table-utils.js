@@ -111,14 +111,14 @@ function getPriceChangeButtonSymbol(changeType) {
 }
 
 export function getTableColumns(formConfig) {
-  // Fixed columns that always appear in the table
-  const fixedColumns = [
-    { id: 'date', label: 'Tarih', type: 'date' },
-    { id: 'name', label: 'Müşteri', type: 'text' },
-    { id: 'company', label: 'Şirket', type: 'text' },
-    { id: 'proj', label: 'Proje', type: 'text' },
-    { id: 'phone', label: 'Telefon', type: 'phone' },
-    { id: 'email', label: 'E-posta', type: 'email' }
+  // PRE-QT4-1, PRE-QT4-2, PRE-QT4-3: Sabit Sol Kolonlar (Freeze)
+  // - proj → projectName (PRE-QT4-1)
+  // - name, phone, email kaldırıldı (PRE-QT4-2)
+  // - width, freeze metadata eklendi (PRE-QT4-3)
+  const fixedLeftColumns = [
+    { id: 'date', label: 'Tarih', type: 'date', width: 140, freeze: 'left' },
+    { id: 'company', label: 'Şirket', type: 'text', width: 150, freeze: 'left' },
+    { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
   ]
   
   // Add dynamic fields from form config if any
@@ -127,38 +127,42 @@ export function getTableColumns(formConfig) {
     .filter(field => field.display?.showInTable)
     .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
   
-  // Add fixed end columns
-  const endColumns = [
-    { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
-    { id: 'delivery_date', label: 'Termine Kalan', type: 'text' },
-    { id: 'status', label: 'Durum', type: 'text' }
+  // PRE-QT4-3: Sabit Sağ Kolonlar (Freeze)
+  const fixedRightColumns = [
+    { id: 'price', label: 'Tahmini Fiyat', type: 'currency', width: 120, freeze: 'right' },
+    { id: 'delivery_date', label: 'Termine Kalan', type: 'text', width: 110, freeze: 'right' },
+    { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
   ]
   
-  return [...fixedColumns, ...dynamicFields, ...endColumns]
+  return [...fixedLeftColumns, ...dynamicFields, ...fixedRightColumns]
 }
 
 export function getFieldValue(quote, fieldId) {
-  // Fixed fields are directly on the quote object
-  const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'delivery_date', 'status']
+  // PRE-QT4-1, PRE-QT4-2: Fixed fields güncellendi
+  // - proj → projectName (PRE-QT4-1)
+  // - name, phone, email tablo kolonlarından kaldırıldı (PRE-QT4-2)
+  //   (Not: getter'ları detay paneli için korundu)
+  const fixedFields = ['date', 'company', 'projectName', 'price', 'delivery_date', 'status']
   
   if (fixedFields.includes(fieldId)) {
     if (fieldId === 'date') {
       return quote.createdAt || quote.date || ''
     }
-    // Map frontend field names to backend column names (camelCase)
-    if (fieldId === 'name') return quote.customerName || ''
     if (fieldId === 'company') return quote.customerCompany || ''
-    if (fieldId === 'phone') return quote.customerPhone || ''
-    if (fieldId === 'email') return quote.customerEmail || ''
+    if (fieldId === 'projectName') return quote.projectName || ''
     if (fieldId === 'price') return quote.finalPrice || quote.calculatedPrice || 0
     if (fieldId === 'delivery_date') return quote.deliveryDate || ''
-    if (fieldId === 'proj') return quote.formData?.project || quote.formData?.proj || quote.project || ''
     
     return quote[fieldId] || ''
-  } else {
-    // Dynamic fields are in customFields or formData
-    return quote.customFields?.[fieldId] || quote.formData?.[fieldId] || ''
   }
+  
+  // Detay paneli için backward compatibility (name, phone, email)
+  if (fieldId === 'name') return quote.customerName || ''
+  if (fieldId === 'phone') return quote.customerPhone || ''
+  if (fieldId === 'email') return quote.customerEmail || ''
+  
+  // Dynamic fields are in customFields or formData
+  return quote.customFields?.[fieldId] || quote.formData?.[fieldId] || ''
 }
 
 export function formatFieldValue(value, column, item, context) {

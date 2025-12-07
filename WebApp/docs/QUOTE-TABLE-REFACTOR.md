@@ -60,9 +60,9 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | QT-1 | Database Migration | ✅ Tamamlandı | - |
 | QT-2 | Backend API Güncellemesi | ✅ Tamamlandı | QT-1 |
 | QT-3 | Frontend - Proje Adı Entegrasyonu | ✅ Tamamlandı | QT-2 |
-| **PRE-QT4-1** | **Field ID Tutarlılığı (proj → projectName)** | ⏳ Bekliyor | QT-3 |
-| **PRE-QT4-2** | **Gereksiz Kolonların Kaldırılması** | ⏳ Bekliyor | PRE-QT4-1 |
-| **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ⏳ Bekliyor | PRE-QT4-2 |
+| **PRE-QT4-1** | **Field ID Tutarlılığı (proj → projectName)** | ✅ Tamamlandı | QT-3 |
+| **PRE-QT4-2** | **Gereksiz Kolonların Kaldırılması** | ✅ Tamamlandı | PRE-QT4-1 |
+| **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ✅ Tamamlandı | PRE-QT4-2 |
 | QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | PRE-QT4-3 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
 | QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
@@ -708,7 +708,7 @@ const fixedFields = ['date', 'name', 'company', 'projectName', 'phone', 'email',
 #### Dosyalar
 - `domains/crm/utils/table-utils.js` (GÜNCELLEME)
 
-#### Durum: ⏳ Bekliyor
+#### Durum: ✅ Tamamlandı (2025-12-10)
 
 ---
 
@@ -753,7 +753,7 @@ const fixedFields = ['date', 'company', 'projectName', 'price', 'delivery_date',
 #### Dosyalar
 - `domains/crm/utils/table-utils.js` (GÜNCELLEME)
 
-#### Durum: ⏳ Bekliyor
+#### Durum: ✅ Tamamlandı (2025-12-10)
 
 ---
 
@@ -798,7 +798,7 @@ const fixedRightColumns = [
 #### Dosyalar
 - `domains/crm/utils/table-utils.js` (GÜNCELLEME)
 
-#### Durum: ⏳ Bekliyor
+#### Durum: ✅ Tamamlandı (2025-12-10)
 
 ---
 
