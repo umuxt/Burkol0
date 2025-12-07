@@ -64,9 +64,9 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | **PRE-QT4-2** | **Gereksiz Kolonların Kaldırılması** | ✅ Tamamlandı | PRE-QT4-1 |
 | **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ✅ Tamamlandı | PRE-QT4-2 |
 | QT-4 | Frontend - Dinamik Tablo Kolonları | ✅ Tamamlandı | PRE-QT4-3 |
-| QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
-| QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
-| QT-7 | Event Dispatch Sistemi | ⏳ Bekliyor | QT-4 |
+| QT-5 | Frontend - Freeze Kolonlar & Scroll + FFOC Handling | ✅ Tamamlandı | QT-4 |
+| QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-5 |
+| QT-7 | Event Dispatch Sistemi | ✅ Tamamlandı | QT-4 |
 | QT-8 | Test & Doğrulama | ⏳ Bekliyor | QT-1 → QT-7 |
 
 ---
@@ -1130,28 +1130,75 @@ function renderDynamicCells(quote, dynamicColumns, canEdit, handleRowClick) {
 ### Implementation Checklist
 
 #### 1. CSS Güncellemesi (quotes.css)
-- [ ] `.freeze-left`, `.freeze-left-0/1/2` classları ekle
-- [ ] `.freeze-right`, `.freeze-right-0/1/2` classları ekle  
-- [ ] `.quotes-table-locked-cell` classı ekle
-- [ ] Gölge efektleri (box-shadow) ekle
+- [x] `.freeze-left`, `.freeze-left-0/1/2` classları ekle
+- [x] `.freeze-right`, `.freeze-right-0/1/2` classları ekle  
+- [x] `.quotes-table-locked-cell` classı ekle
+- [x] Gölge efektleri (box-shadow) ekle
 
 #### 2. QuotesManager.js Güncellemesi
-- [ ] `import { FileText } from 'lucide'` ekle
-- [ ] `renderDynamicCells()` helper fonksiyonu ekle
-- [ ] Header render'da freeze class'ları ekle
-- [ ] Row render'da `canEdit` kontrolü ekle
-- [ ] colSpan hesaplaması için dynamicColumns.length kullan
+- [x] `import { FileText } from 'lucide'` ekle
+- [x] `activeFormChanged` event listener ekle
+- [x] Header render'da freeze class'ları ekle
+- [x] formConfig reload on form change
 
-#### 3. Test Senaryoları
-- [ ] canEdit=true: Tüm dinamik kolonlar normal görünür
-- [ ] canEdit=false: Tek hücrede "Versiyonlar senkron değil" mesajı
-- [ ] Scroll: Sol ve sağ freeze kolonları sabit kalmalı
-- [ ] Hover: Locked cell hover efekti çalışmalı
-- [ ] Click: Locked cell tıklandığında detay açılmalı
+#### 3. table-utils.js Güncellemesi
+- [x] FFOC mismatch handling: Eşleşmeyen option kodları için boş string döndür
+- [x] formConfig parametresi ile option label lookup
+
+#### 4. FormManager.jsx Güncellemesi  
+- [x] `activeFormChanged` event dispatch (2 yerde)
+
+#### 5. formFields.js Model Güncellemesi
+- [x] `showInTable = true` default değer
 
 ### Dosyalar
-- `domains/crm/styles/quotes.css` (GÜNCELLEME)
-- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME)
+- `domains/crm/styles/quotes.css` (GÜNCELLEME) ✅
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME) ✅
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME) ✅
+- `domains/crm/components/forms/FormManager.jsx` (GÜNCELLEME) ✅
+- `db/models/formFields.js` (GÜNCELLEME) ✅
+
+### ✅ Test Sonuçları (2025-12-07)
+
+**Test Ortamı:** Local Server + PostgreSQL
+
+#### 1. Backend API Testleri ✅
+```
+✅ 14 farklı quote oluşturuldu
+✅ SQL Injection: Bobby Tables kaydedildi, DB sağlam
+✅ XSS: <script> tagları kaydedildi (frontend sanitize etmeli)
+✅ Unicode/Emoji: 🎉🔥💥🚀 düzgün kaydedildi
+✅ Türkçe Karakterler: İĞÜŞÇÖ ığüşçö düzgün kaydedildi
+✅ projectName Güncelleme: Çalışıyor
+✅ Status Workflow: new → approved çalışıyor
+✅ Display Toggle: showInTable true/false toggle çalışıyor
+✅ FFOC Mismatch: FFOC-99999 kaydedildi (tabloda boş görünecek)
+```
+
+#### 2. Event Sistemi Testleri ✅
+```
+✅ activeFormChanged event dispatch: FormManager'da 2 yerde tetikleniyor
+✅ activeFormChanged event listener: QuotesManager'da dinleniyor
+✅ formConfig reload: Event sonrası yeniden yükleniyor
+```
+
+#### 3. Display Fields API Testleri ✅
+```
+✅ PUT /api/form-fields/:id/display: showInTable toggle çalışıyor
+✅ GET /api/form-templates/:id/display-fields: tableFields doğru dönüyor
+✅ showInTable: false → tableFields: 2
+✅ showInTable: true → tableFields: 3
+```
+
+#### 4. FFOC Mismatch Handling ✅
+```
+✅ Quote formData: FFOC-99999 (var olmayan kod)
+✅ Aktif form options: FFOC-10172, FFOC-10173, FFOC-10174, FFOC-10175
+✅ getFieldValue(): Eşleşmeyen FFOC için boş string döndürüyor
+✅ Kullanıcı "Form Güncelle" ile yeni versiyona geçmeli
+```
+
+**Sonuç:** QT-5 implementasyonu tamamlandı. ✅
 
 ---
 

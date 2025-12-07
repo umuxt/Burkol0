@@ -513,6 +513,12 @@ function FormManager({ t, renderHeaderActions }) {
       setHasChanges(false)
       
       await loadAllTemplates()
+      
+      // Event dispatch - QuotesManager dinleyecek
+      window.dispatchEvent(new CustomEvent('activeFormChanged', {
+        detail: { templateId: targetTemplateId }
+      }))
+      
       showToast('Form aktif edildi!', 'success')
     } catch (e) {
       console.error('Activate error:', e)
@@ -529,6 +535,12 @@ function FormManager({ t, renderHeaderActions }) {
       await loadFormConfig()
       setActiveTemplateId(currentTemplateId)
       setIsCurrentDraft(false)
+      
+      // Event dispatch - QuotesManager dinleyecek
+      window.dispatchEvent(new CustomEvent('activeFormChanged', {
+        detail: { templateId: currentTemplateId }
+      }))
+      
       showToast('Aktif form değiştirildi!', 'success')
     } catch (e) {
       console.error('Failed to activate template:', e)

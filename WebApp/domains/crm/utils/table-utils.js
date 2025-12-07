@@ -175,6 +175,30 @@ export function getTableColumns(formConfig) {
   return [...fixedLeftColumns, ...dynamicColumns, ...fixedRightColumns]
 }
 
+/**
+ * QT-5: Quote'un dinamik field'larının mevcut form config ile uyuşup uyuşmadığını kontrol et
+ * @param {Object} quote - Quote objesi (formData içerir)
+ * @param {Array} dynamicColumns - Tabloda gösterilen dinamik kolonlar
+ * @returns {Object} { hasMismatch: boolean, missingFields: string[], extraFields: string[] }
+ */
+export function checkFieldMismatch(quote, dynamicColumns) {
+  const quoteFieldCodes = Object.keys(quote?.formData || {});
+  const tableFieldCodes = dynamicColumns
+    .filter(col => col.isDynamic)
+    .map(col => col.id);
+  
+  // Quote'ta olan ama tabloda olmayan alanlar
+  const extraFields = quoteFieldCodes.filter(code => !tableFieldCodes.includes(code));
+  
+  // Tabloda olan ama quote'ta olmayan alanlar
+  const missingFields = tableFieldCodes.filter(code => !quoteFieldCodes.includes(code));
+  
+  // Herhangi bir uyuşmazlık var mı?
+  const hasMismatch = extraFields.length > 0 || missingFields.length > 0;
+  
+  return { hasMismatch, missingFields, extraFields };
+}
+
 export function getFieldValue(quote, fieldId, formConfig = null) {
   // QT-4: Sabit alanlar - map yapısı ile temiz erişim
   const fixedFieldMap = {
@@ -212,6 +236,11 @@ export function getFieldValue(quote, fieldId, formConfig = null) {
       );
       if (option) {
         return option.optionLabel || option.label || rawValue;
+      }
+      // QT-5: Eğer option bulunamazsa (eski form versiyonu) boş göster
+      // Kullanıcı "Form Güncelle" ile yeni versiyona geçmeli
+      if (typeof rawValue === 'string' && rawValue.startsWith('FFOC-')) {
+        return '';
       }
     }
   }

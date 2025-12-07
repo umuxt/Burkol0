@@ -17,6 +17,7 @@ import PricingManager from '../pricing/PricingManager.jsx'
 import FormManager from '../forms/FormManager.jsx'
 import CustomersManager from '../customers/CustomersManager.jsx'
 import { showToast } from '../../../../shared/components/MESToast.js'
+import { FileText } from '../../../../shared/components/Icons.jsx'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -184,6 +185,20 @@ function QuotesManager({ t, onLogout }) {
     loadPriceSettings();
     loadFormConfig();
   }, []); // Empty dependency array = only on mount
+
+  // QT-5/D: Aktif form değiştiğinde formConfig'i yeniden yükle
+  useEffect(() => {
+    function handleActiveFormChange(event) {
+      console.log('📊 Active form changed, reloading formConfig:', event.detail);
+      loadFormConfig();
+    }
+    
+    window.addEventListener('activeFormChanged', handleActiveFormChange);
+    
+    return () => {
+      window.removeEventListener('activeFormChanged', handleActiveFormChange);
+    };
+  }, []);
 
   useEffect(() => {
     // Load users only when users tab is active
@@ -1303,12 +1318,22 @@ function QuotesManager({ t, onLogout }) {
                   title: 'Tümünü seç'
                 })
               ),
-              ...tableColumns.map(col => {
+              ...tableColumns.map((col, colIndex) => {
                 const isActive = sortConfig?.columnId === col.id
                 const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
+                // QT-5: Freeze class hesaplama - kolon ID bazında
+                let freezeClass = ''
+                if (col.freeze === 'left') {
+                  const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
+                  freezeClass = `freeze-left freeze-left-${leftIndex}`
+                } else if (col.freeze === 'right') {
+                  const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
+                  freezeClass = `freeze-right freeze-right-${rightIndex}`
+                }
                 return React.createElement('th', { 
                   key: col.id,
-                  style: { minWidth: '120px', whiteSpace: 'nowrap' }
+                  className: freezeClass,
+                  style: { minWidth: col.width || '120px', whiteSpace: 'nowrap' }
                 },
                   React.createElement('button', {
                     type: 'button',
@@ -1341,8 +1366,24 @@ function QuotesManager({ t, onLogout }) {
                     onClick: (e) => e.stopPropagation()
                   })
                 ),
-                ...tableColumns.map(col => 
-                  React.createElement('td', { key: col.id },
+                ...tableColumns.map((col, colIndex) => {
+                  // QT-5: Freeze class hesaplama - kolon ID bazında
+                  let freezeClass = ''
+                  if (col.freeze === 'left') {
+                    const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
+                    freezeClass = `freeze-left freeze-left-${leftIndex}`
+                  } else if (col.freeze === 'right') {
+                    const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
+                    freezeClass = `freeze-right freeze-right-${rightIndex}`
+                  }
+                  
+                  // Dinamik kolon için değer yoksa boş göster, varsa normal göster
+                  const value = getFieldValue(item, col.id, formConfig)
+                  
+                  return React.createElement('td', { 
+                    key: col.id,
+                    className: freezeClass
+                  },
                     formatFieldValue(
                       getFieldValue(item, col.id, formConfig),
                       col,
@@ -1358,7 +1399,7 @@ function QuotesManager({ t, onLogout }) {
                       }
                     )
                   )
-                )
+                })
               )
             })
           )

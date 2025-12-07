@@ -27,7 +27,7 @@ class FormFields {
   /**
    * Create a new form field
    */
-  static async create({ templateId, fieldCode, fieldName, fieldType, sortOrder = 0, isRequired = false, placeholder, helpText, validationRule, defaultValue, showInTable = false, showInFilter = false, tableOrder = 0, filterOrder = 0 }) {
+  static async create({ templateId, fieldCode, fieldName, fieldType, sortOrder = 0, isRequired = false, placeholder, helpText, validationRule, defaultValue, showInTable = true, showInFilter = false, tableOrder = 0, filterOrder = 0 }) {
     const [field] = await db('quotes.form_fields')
       .insert({
         templateId: templateId,
