@@ -65,7 +65,7 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ✅ Tamamlandı | PRE-QT4-2 |
 | QT-4 | Frontend - Dinamik Tablo Kolonları | ✅ Tamamlandı | PRE-QT4-3 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll + FFOC Handling | ✅ Tamamlandı | QT-4 |
-| QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-5 |
+| QT-6 | Frontend - Dinamik Filtre Sistemi | ✅ Tamamlandı | QT-5 |
 | QT-7 | Event Dispatch Sistemi | ✅ Tamamlandı | QT-4 |
 | QT-8 | Test & Doğrulama | ⏳ Bekliyor | QT-1 → QT-7 |
 
@@ -1316,8 +1316,86 @@ export function createFilteredList(list, filters, globalSearch, formConfig) {
 ```
 
 ### Dosyalar
-- `domains/crm/utils/filter-utils.js` (GÜNCELLEME)
-- `src/components/modals/FilterPopup.js` (GÜNCELLEME)
+- `domains/crm/utils/filter-utils.js` (YENİDEN YAZILDI ✅)
+- `src/components/modals/FilterPopup.js` (YENİDEN YAZILDI ✅)
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME ✅)
+
+### ✅ Test Sonuçları (2025-12-07)
+
+**Test Ortamı:** Local Build - Vite
+
+#### 1. Build Testi ✅
+```
+✓ 1819 modules transformed
+✓ built in 1.88s
+```
+
+#### 2. Yeniden Yazılan Dosyalar ✅
+
+**filter-utils.js:**
+- `getFieldsFromConfig()`: Her formConfig formatını destekler (formStructure.fields, fields, steps[].fields)
+- `isFilterableField()`: Hem `showInFilter` hem `display.showInFilter` kontrol eder
+- `getFilterOrder()`: filterOrder sıralaması
+- `getOptionLabel()`: FFOC → label çevirisi
+- `getFilterType()`: Field type'a göre filtre tipi belirleme
+- `getFilterOptions()`: Dinamik filtre seçenekleri (useMemo)
+- `createFilteredList()`: Tüm filtre tiplerini destekler (multiselect, range, dateRange, contains, boolean)
+- `createInitialFilterState()`: formConfig'den dinamik initial state
+
+**FilterPopup.js:**
+- Tab-based yapı kaldırıldı → Accordion/section based tek panel
+- Tüm filtre tipleri için ayrı render fonksiyonları
+- `renderMultiselectFilter()`: Checkbox listesi + Tümünü Seç/Kaldır
+- `renderRangeFilter()`: Min-Max number input
+- `renderDateRangeFilter()`: Tarih aralığı picker
+- `renderContainsFilter()`: Text arama input
+- `renderBooleanFilter()`: Evet/Hayır/Tümü toggle butonları
+- Aktif filtre sayısı badge'leri (section ve header'da)
+- Lucide ikonları (Filter, Calendar, Hash, Type, ToggleLeft, X, Check, RotateCcw)
+- Modern UI tasarımı (rounded corners header/footer)
+
+**QuotesManager.js:**
+- `createInitialFilterState` import edildi
+- Initial filter state sadeleştirildi (hardcoded alanlar kaldırıldı)
+- formConfig değiştiğinde filter state güncelleniyor (useEffect)
+- FilterPopup'a `onClearAll` prop eklendi
+- `filterOptions` ve `filtered` için useMemo eklendi (performans)
+
+#### 3. Desteklenen Filtre Tipleri ✅
+| Field Type | Filter Type | UI Bileşeni |
+|------------|-------------|-------------|
+| select, radio | multiselect | Checkbox listesi |
+| number | range | Min-Max input |
+| date | dateRange | Tarih aralığı picker |
+| text, textarea, email, phone | contains | Arama input |
+| checkbox | boolean | Evet/Hayır/Tümü toggle |
+
+#### 4. Event Entegrasyonu ✅
+- `activeFormChanged` event listener (QT-5'te eklendi)
+- formConfig değiştiğinde filter state otomatik güncelleniyor
+- Mevcut filtre değerleri korunuyor (merge mantığı)
+
+#### 5. Filter Options Davranışı ✅
+- Multiselect filtrelerde form'da tanımlı TÜM seçenekler gösterilir
+- Eski form versiyonundan kalan (silinmiş) option'lar görünmez
+- Label'lar optionLabel alanından çekilir (FFOC kodları değil)
+
+#### 6. useMemo Kullanımı ✅
+```javascript
+// filter-utils.js'den useMemo kaldırıldı (utility fonksiyon)
+// QuotesManager.js'de component içinde useMemo ile sarıldı:
+const filterOptions = React.useMemo(
+  () => getFilterOptions(list, formConfig),
+  [list, formConfig]
+);
+
+const filtered = useMemo(
+  () => createFilteredList(list, filters, globalSearch, formConfig),
+  [list, filters, globalSearch, formConfig]
+);
+```
+
+**Sonuç:** QT-6 implementasyonu tamamlandı. ✅
 
 ---
 

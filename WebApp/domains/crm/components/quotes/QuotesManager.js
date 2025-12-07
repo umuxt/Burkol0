@@ -7,7 +7,7 @@ import { formsApi } from '../../services/forms-service.js'
 import { statusLabel, procLabel, materialLabel } from '../../../../shared/i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from '../../utils/table-utils.js'
 import { calculatePrice, getPriceChangeType } from '../../utils/price-calculator.js'
-import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../../utils/filter-utils.js'
+import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount, createInitialFilterState } from '../../utils/filter-utils.js'
 import QuoteDetailsPanel from './QuoteDetailsPanel.jsx'
 import AddQuoteModal from './AddQuoteModal.jsx'
 import SettingsModalCompact from '../../../../src/components/modals/SettingsModal.js'
@@ -97,9 +97,7 @@ function QuotesManager({ t, onLogout }) {
   const [newUser, setNewUser] = useState({ email: '', password: '', role: 'admin' })
   const [filters, setFilters] = useState({
     status: [],
-    dateRange: { from: '', to: '' },
-    qtyRange: { min: '', max: '' },
-    lockedOnly: false
+    dateRange: { from: '', to: '' }
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -199,6 +197,29 @@ function QuotesManager({ t, onLogout }) {
       window.removeEventListener('activeFormChanged', handleActiveFormChange);
     };
   }, []);
+
+  // QT-6: formConfig değiştiğinde filter state'ini güncelle (dinamik alanları ekle)
+  useEffect(() => {
+    if (formConfig) {
+      const dynamicState = createInitialFilterState(formConfig);
+      setFilters(prev => {
+        // Mevcut filtreleri koru, sadece yeni alanları ekle
+        const merged = { ...dynamicState };
+        Object.keys(prev).forEach(key => {
+          if (prev[key] !== undefined && prev[key] !== null) {
+            // Mevcut değerleri koru (boş olmayan)
+            const isEmpty = Array.isArray(prev[key]) ? prev[key].length === 0 :
+                           typeof prev[key] === 'object' ? (!prev[key].from && !prev[key].to && !prev[key].min && !prev[key].max) :
+                           prev[key] === '' || prev[key] === 'all';
+            if (!isEmpty) {
+              merged[key] = prev[key];
+            }
+          }
+        });
+        return merged;
+      });
+    }
+  }, [formConfig]);
 
   useEffect(() => {
     // Load users only when users tab is active
@@ -559,8 +580,11 @@ function QuotesManager({ t, onLogout }) {
 
   const collator = useMemo(() => new Intl.Collator('tr', { sensitivity: 'base', numeric: true }), [])
 
-  // Use filtered list from utils
-  const filtered = createFilteredList(list, filters, globalSearch, formConfig)
+  // Use filtered list from utils (memoized)
+  const filtered = useMemo(
+    () => createFilteredList(list, filters, globalSearch, formConfig),
+    [list, filters, globalSearch, formConfig]
+  )
   const tableColumns = useMemo(() => getTableColumns(formConfig), [formConfig])
 
   const sortedFiltered = useMemo(() => {
@@ -618,7 +642,10 @@ function QuotesManager({ t, onLogout }) {
     return sorted
   }, [filtered, sortConfig, tableColumns, collator])
 
-  const filterOptions = getFilterOptions(list, formConfig)
+  const filterOptions = React.useMemo(
+    () => getFilterOptions(list, formConfig),
+    [list, formConfig]
+  )
 
   // Pagination logic
   const totalItems = sortedFiltered.length
@@ -1546,8 +1573,8 @@ function QuotesManager({ t, onLogout }) {
       filterOptions,
       formConfig,
       onFilterChange: (category, value, action) => updateFilter(filters, setFilters, category, value, action),
-      onClose: () => setFilterPopup(false),
-      t
+      onClearAll: () => clearFilters(setFilters, setGlobalSearch),
+      onClose: () => setFilterPopup(false)
     }),
 
     // Price review modal
