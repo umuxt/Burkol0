@@ -972,7 +972,15 @@ export function getFieldValue(quote, fieldId) {
 
 ### Hedef
 Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.  
-**Önemli:** Üretim başlamış (`canEdit: false`) tekliflerde dinamik alanlar yerine placeholder gösterimi.
+**Önemli:** Form versiyonu uyumsuz olan (`canEdit: false`) tekliflerde dinamik alanlar yerine uyarı mesajı gösterimi.
+
+### ⚙️ Kararlar (2025-12-07)
+| Konu | Karar |
+|------|-------|
+| canEdit kontrolü | Mevcut `canEdit` field'ı kullanılacak |
+| Freeze yaklaşımı | CSS `position: sticky` (Seçenek A) |
+| Uyumsuz versiyon mesajı | "Versiyonlar senkron değil, Detaylara Bakınız!" |
+| Versiyon bilgisi | `quote.formVersion` vs `activeTemplate.version` karşılaştırması |
 
 ### canEdit Senaryoları
 
@@ -980,11 +988,11 @@ Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.
 |-------|---------|-----------------|
 | Yeni teklif (status: new) | ✅ true | Normal görünüm - tüm değerler gösterilir |
 | Onaylandı (status: approved) | ✅ true | Normal görünüm |
-| Üretimde (status: production) | ❌ false | "Detaylara bakınız" placeholder |
-| Tamamlandı (status: completed) | ❌ false | "Detaylara bakınız" placeholder |
-| İptal (status: cancelled) | ❓ | Tasarım kararı gerekli |
+| Üretimde (status: production) | ❌ false | "Versiyonlar senkron değil, Detaylara Bakınız!" |
+| Tamamlandı (status: completed) | ❌ false | "Versiyonlar senkron değil, Detaylara Bakınız!" |
+| İptal (status: cancelled) | ❌ false | "Versiyonlar senkron değil, Detaylara Bakınız!" |
 
-### "Detaylara bakınız" UI Mockup
+### "Versiyonlar senkron değil" UI Mockup
 
 **Normal Satır (canEdit: true):**
 ```
@@ -995,28 +1003,30 @@ Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.
 └────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴────────┘
 ```
 
-**Locked Satır (canEdit: false - Üretim Başlamış):**
+**Locked Satır (canEdit: false - Versiyon Uyumsuz):**
 ```
-┌────────┬─────────┬─────────┬───────────────────────────────┬─────────┬─────────┬─────────┐
-│ Tarih  │ Şirket  │ Proje   │        [colspan=3]            │ Fiyat   │Termine  │ Durum   │
-├────────┼─────────┼─────────┼───────────────────────────────┼─────────┼─────────┼─────────┤
-│05/12/25│ ABC Ltd │ ProjXYZ │ 📄 Detaylara bakınız          │ ₺25,000 │ -5 gün  │Üretimde │
-└────────┴─────────┴─────────┴───────────────────────────────┴─────────┴─────────┴─────────┘
+┌────────┬─────────┬─────────┬─────────────────────────────────────────┬─────────┬─────────┬─────────┐
+│ Tarih  │ Şirket  │ Proje   │              [colspan=N]                │ Fiyat   │Termine  │ Durum   │
+├────────┼─────────┼─────────┼─────────────────────────────────────────┼─────────┼─────────┼─────────┤
+│05/12/25│ ABC Ltd │ ProjXYZ │ 📄 Versiyonlar senkron değil,          │ ₺25,000 │ -5 gün  │Üretimde │
+│        │         │         │    Detaylara Bakınız!                   │         │         │         │
+└────────┴─────────┴─────────┴─────────────────────────────────────────┴─────────┴─────────┴─────────┘
                               ↑
-                              Gri arka plan, italik, tıklanabilir
+                              Gri arka plan (#f9fafb), italik, tıklanabilir
                               Lucide FileText ikonu (14px)
                               Tıklayınca QuoteDetailsPanel açılır
 ```
 
-### CSS Yapısı
+### CSS Yapısı (position: sticky)
 
 ```css
-/* quotes.css - Yeni stil kuralları */
+/* quotes.css - Freeze kolon stilleri */
 
 /* Tablo Container */
 .quotes-table-wrapper {
   position: relative;
-  overflow: hidden;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 .quotes-table-scroll-container {
@@ -1027,35 +1037,51 @@ Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.
 /* Freeze Sol */
 .quotes-table-freeze-left {
   position: sticky;
+/* Freeze Sol - position: sticky */
+.quotes-table th.freeze-left,
+.quotes-table td.freeze-left {
+  position: sticky;
   left: 0;
   z-index: 2;
   background: #fff;
-  box-shadow: 2px 0 4px rgba(0,0,0,0.1);
 }
 
-/* Dinamik Alanlar - Scroll */
-.quotes-table-dynamic {
-  overflow-x: auto;
-  flex: 1;
-  min-width: 0;
-}
+/* İlk 3 kolon için left offset hesaplama */
+.quotes-table th.freeze-left-0,
+.quotes-table td.freeze-left-0 { left: 0; }
 
-.quotes-table-dynamic::-webkit-scrollbar {
-  height: 8px;
-}
+.quotes-table th.freeze-left-1,
+.quotes-table td.freeze-left-1 { left: 140px; } /* date width */
 
-.quotes-table-dynamic::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
+.quotes-table th.freeze-left-2,
+.quotes-table td.freeze-left-2 { left: 290px; } /* date + company width */
 
-/* Freeze Sağ */
-.quotes-table-freeze-right {
+/* Freeze Sağ - position: sticky */
+.quotes-table th.freeze-right,
+.quotes-table td.freeze-right {
   position: sticky;
   right: 0;
   z-index: 2;
   background: #fff;
-  box-shadow: -2px 0 4px rgba(0,0,0,0.1);
+}
+
+/* Son 3 kolon için right offset hesaplama */
+.quotes-table th.freeze-right-0,
+.quotes-table td.freeze-right-0 { right: 210px; } /* status + delivery width */
+
+.quotes-table th.freeze-right-1,
+.quotes-table td.freeze-right-1 { right: 100px; } /* status width */
+
+.quotes-table th.freeze-right-2,
+.quotes-table td.freeze-right-2 { right: 0; }
+
+/* Freeze kolonları için gölge efekti */
+.quotes-table td.freeze-left:last-of-type {
+  box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+}
+
+.quotes-table td.freeze-right:first-of-type {
+  box-shadow: -2px 0 4px rgba(0,0,0,0.05);
 }
 
 /* canEdit=false durumunda dinamik alanlar */
@@ -1064,6 +1090,11 @@ Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.
   color: #6b7280;
   font-style: italic;
   text-align: center;
+  cursor: pointer;
+}
+
+.quotes-table-locked-cell:hover {
+  background: #f3f4f6;
 }
 ```
 
@@ -1071,25 +1102,52 @@ Sol ve sağ sabit kolonlar, ortada yatay scroll edilebilir dinamik alan.
 
 ```javascript
 // Dinamik alanlar için canEdit kontrolü
-function renderDynamicCell(quote, column, canEdit) {
-  if (!canEdit && column.isDynamic) {
-    // Üretim başlamış teklif - Lucide ikon ile "Detaylara bakınız"
-    return React.createElement('td', {
-      key: column.id,
-      className: 'quotes-table-locked-cell',
-      colSpan: dynamicColumns.length,
-      onClick: () => handleRowClick(quote)
-    },
-      React.createElement(FileText, { size: 14, style: { marginRight: 4 } }),
-      'Detaylara bakınız'
-    );
+function renderDynamicCells(quote, dynamicColumns, canEdit, handleRowClick) {
+  if (!canEdit && dynamicColumns.length > 0) {
+    // Versiyon uyumsuz - tek hücrede uyarı mesajı
+    return [
+      React.createElement('td', {
+        key: 'locked-cell',
+        className: 'quotes-table-locked-cell',
+        colSpan: dynamicColumns.length,
+        onClick: () => handleRowClick(quote)
+      },
+        React.createElement(FileText, { size: 14, style: { marginRight: 6, verticalAlign: 'middle' } }),
+        'Versiyonlar senkron değil, Detaylara Bakınız!'
+      )
+    ];
   }
   
-  return React.createElement('td', { key: column.id },
-    formatFieldValue(getFieldValue(quote, column.id), column, quote, context)
+  // Normal görünüm - her dinamik kolon için ayrı hücre
+  return dynamicColumns.map(col => 
+    React.createElement('td', { key: col.id },
+      formatFieldValue(getFieldValue(quote, col.id, formConfig), col, quote, context)
+    )
   );
 }
 ```
+
+### Implementation Checklist
+
+#### 1. CSS Güncellemesi (quotes.css)
+- [ ] `.freeze-left`, `.freeze-left-0/1/2` classları ekle
+- [ ] `.freeze-right`, `.freeze-right-0/1/2` classları ekle  
+- [ ] `.quotes-table-locked-cell` classı ekle
+- [ ] Gölge efektleri (box-shadow) ekle
+
+#### 2. QuotesManager.js Güncellemesi
+- [ ] `import { FileText } from 'lucide'` ekle
+- [ ] `renderDynamicCells()` helper fonksiyonu ekle
+- [ ] Header render'da freeze class'ları ekle
+- [ ] Row render'da `canEdit` kontrolü ekle
+- [ ] colSpan hesaplaması için dynamicColumns.length kullan
+
+#### 3. Test Senaryoları
+- [ ] canEdit=true: Tüm dinamik kolonlar normal görünür
+- [ ] canEdit=false: Tek hücrede "Versiyonlar senkron değil" mesajı
+- [ ] Scroll: Sol ve sağ freeze kolonları sabit kalmalı
+- [ ] Hover: Locked cell hover efekti çalışmalı
+- [ ] Click: Locked cell tıklandığında detay açılmalı
 
 ### Dosyalar
 - `domains/crm/styles/quotes.css` (GÜNCELLEME)
