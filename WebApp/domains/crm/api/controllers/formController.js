@@ -98,7 +98,8 @@ export function setupFormRoutes(app) {
         ...templateWithFields,
         formStructure: {
           fields: (templateWithFields.fields || []).map(field => ({
-            id: field.fieldCode,
+            id: field.id, // QT-7: Veritabanı ID'si (display güncelleme için gerekli)
+            fieldCode: field.fieldCode, // Field code ayrı tutuldu
             label: field.fieldName,
             type: field.fieldType,
             required: field.isRequired,
@@ -425,10 +426,14 @@ export function setupFormRoutes(app) {
   // Update field display settings (does NOT change form version)
   app.put('/api/form-fields/:id/display', requireAuth, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = parseInt(req.params.id, 10);
       const { showInTable, showInFilter, tableOrder, filterOrder } = req.body;
 
       logger.info(`PUT /api/form-fields/${id}/display`, { showInTable, showInFilter, tableOrder, filterOrder });
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'Invalid field ID' });
+      }
 
       const field = await FormFields.updateDisplaySettings(id, {
         showInTable,

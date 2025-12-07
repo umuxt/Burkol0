@@ -1450,8 +1450,37 @@ useEffect(() => {
 ```
 
 ### Dosyalar
-- `domains/crm/components/forms/FormManager.jsx` (GÜNCELLEME)
-- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME)
+- `domains/crm/components/forms/FormManager.jsx` (GÜNCELLEME ✅)
+- `domains/crm/components/quotes/QuotesManager.js` (GÜNCELLEME ✅)
+
+### ✅ Test Sonuçları (2025-12-07)
+
+#### 1. Event Dispatch (FormManager) ✅
+```javascript
+// FormManager.jsx - handleDisplaySettingsChange içinde
+window.dispatchEvent(new CustomEvent('formDisplaySettingsChanged', {
+  detail: {
+    templateId: currentTemplateId,
+    fieldId: fieldId,
+    changes: displaySettings
+  }
+}));
+```
+
+#### 2. Event Listener (QuotesManager) ✅
+```javascript
+// QuotesManager.js - useEffect içinde
+window.addEventListener('formDisplaySettingsChanged', handleDisplaySettingsChange);
+// + activeFormChanged listener (QT-5'ten)
+```
+
+#### 3. Desteklenen Event'ler ✅
+| Event | Tetiklendiği Yer | Dinleyici |
+|-------|------------------|-----------|
+| `activeFormChanged` | FormManager (form aktifleştiğinde) | QuotesManager |
+| `formDisplaySettingsChanged` | FormManager (showInTable/showInFilter değiştiğinde) | QuotesManager |
+
+**Sonuç:** QT-7 implementasyonu tamamlandı. ✅
 
 ---
 

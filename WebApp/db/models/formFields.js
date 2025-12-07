@@ -345,14 +345,21 @@ class FormFields {
     
     if (Object.keys(updates).length === 0) return null;
     
+    // Önce field'ın var olup olmadığını kontrol et
+    const existingField = await db('quotes.form_fields').where({ id: fieldId }).first();
+    if (!existingField) {
+      console.log(`[FormFields] Field not found with id: ${fieldId}`);
+      return null;
+    }
+    
     updates.updatedAt = db.fn.now();
     
-    const [updated] = await db('quotes.form_fields')
+    const result = await db('quotes.form_fields')
       .where({ id: fieldId })
       .update(updates)
       .returning('*');
     
-    return updated;
+    return result[0] || null;
   }
 
   /**

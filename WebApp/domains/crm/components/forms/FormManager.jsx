@@ -36,16 +36,16 @@ async function createFieldOptions(fieldId, options) {
 
 /**
  * Convert database field format to frontend format
- * DB: { fieldCode, fieldName, fieldType, options: [{optionCode, optionLabel}] }
- * Frontend: { id, label, type, options: [{label, optionCode}] }
+ * DB: { id, fieldCode, fieldName, fieldType, options: [{optionCode, optionLabel}] }
+ * Frontend: { id (fieldCode), dbId (veritabanı ID), label, type, options: [{label, optionCode}] }
  */
 function dbFieldToFrontend(field, index = 0) {
   return {
-    id: field.fieldCode,
-    dbId: field.id, // QT-4: Veritabanı ID'si (display güncelleme için gerekli)
-    label: field.fieldName,
-    type: field.fieldType,
-    required: field.isRequired || false,
+    id: field.fieldCode || field.id, // fieldCode yoksa id kullan (eski format uyumu)
+    dbId: field.id, // QT-4/QT-7: Veritabanı ID'si (display güncelleme için gerekli)
+    label: field.fieldName || field.label,
+    type: field.fieldType || field.type,
+    required: field.isRequired || field.required || false,
     placeholder: field.placeholder,
     defaultValue: field.defaultValue,
     helpText: field.helpText,

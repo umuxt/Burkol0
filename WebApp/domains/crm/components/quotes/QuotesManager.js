@@ -185,16 +185,24 @@ function QuotesManager({ t, onLogout }) {
   }, []); // Empty dependency array = only on mount
 
   // QT-5/D: Aktif form değiştiğinde formConfig'i yeniden yükle
+  // QT-7: Display ayarları değiştiğinde de formConfig'i yeniden yükle
   useEffect(() => {
     function handleActiveFormChange(event) {
       console.log('📊 Active form changed, reloading formConfig:', event.detail);
       loadFormConfig();
     }
     
+    function handleDisplaySettingsChange(event) {
+      console.log('📊 Display settings changed, reloading formConfig:', event.detail);
+      loadFormConfig();
+    }
+    
     window.addEventListener('activeFormChanged', handleActiveFormChange);
+    window.addEventListener('formDisplaySettingsChanged', handleDisplaySettingsChange);
     
     return () => {
       window.removeEventListener('activeFormChanged', handleActiveFormChange);
+      window.removeEventListener('formDisplaySettingsChanged', handleDisplaySettingsChange);
     };
   }, []);
 
