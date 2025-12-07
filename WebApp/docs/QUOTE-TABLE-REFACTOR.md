@@ -60,7 +60,10 @@ Quote tablosunun dinamik form alanlarıyla entegrasyonu, proje adı alanının e
 | QT-1 | Database Migration | ✅ Tamamlandı | - |
 | QT-2 | Backend API Güncellemesi | ✅ Tamamlandı | QT-1 |
 | QT-3 | Frontend - Proje Adı Entegrasyonu | ✅ Tamamlandı | QT-2 |
-| QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | QT-2 |
+| **PRE-QT4-1** | **Field ID Tutarlılığı (proj → projectName)** | ⏳ Bekliyor | QT-3 |
+| **PRE-QT4-2** | **Gereksiz Kolonların Kaldırılması** | ⏳ Bekliyor | PRE-QT4-1 |
+| **PRE-QT4-3** | **Kolon Metadata (width, freeze)** | ⏳ Bekliyor | PRE-QT4-2 |
+| QT-4 | Frontend - Dinamik Tablo Kolonları | ⏳ Bekliyor | PRE-QT4-3 |
 | QT-5 | Frontend - Freeze Kolonlar & Scroll | ⏳ Bekliyor | QT-4 |
 | QT-6 | Frontend - Dinamik Filtre Sistemi | ⏳ Bekliyor | QT-4 |
 | QT-7 | Event Dispatch Sistemi | ⏳ Bekliyor | QT-4 |
@@ -652,66 +655,200 @@ DELETE 5 -- quotes
 
 ---
 
+## 🔧 PRE-QT4: Hazırlık Promptları
+
+> **Not:** QT-4 öncesinde mevcut kod ile plan arasındaki uyumsuzlukları gidermek için hazırlık promptları.
+
+### 🚨 Tespit Edilen Uyumsuzluklar
+
+| # | Sorun | Mevcut Kod | Plan | Aksiyon |
+|---|-------|------------|------|---------|
+| 1 | Field ID uyumsuzluğu | `proj` | `projectName` | PRE-QT4-1 |
+| 2 | Kaldırılacak kolonlar hala var | `name`, `phone`, `email` | Kaldırılmalı | PRE-QT4-2 |
+| 3 | Freeze/width metadata eksik | Yok | Eklenmeli | PRE-QT4-3 |
+| 4 | `mapFieldType()` fonksiyonu | Yok | Eklenmeli | QT-4 |
+| 5 | `isDynamic` flag | Yok | Eklenmeli | QT-4 |
+
+---
+
+### 🔧 PRE-QT4-1: Field ID Tutarlılığı (`proj` → `projectName`)
+
+#### Hedef
+`proj` field ID'sini `projectName` ile değiştirmek (QT-3'te eklenen DB kolonu ile uyum).
+
+#### Değişiklikler
+
+**table-utils.js - getTableColumns():**
+```javascript
+// ESKİ:
+{ id: 'proj', label: 'Proje', type: 'text' }
+
+// YENİ:
+{ id: 'projectName', label: 'Proje', type: 'text' }
+```
+
+**table-utils.js - getFieldValue():**
+```javascript
+// ESKİ:
+if (fieldId === 'proj') return quote.formData?.project || quote.formData?.proj || quote.project || ''
+
+// YENİ:
+if (fieldId === 'projectName') return quote.projectName || ''
+```
+
+**table-utils.js - fixedFields array:**
+```javascript
+// ESKİ:
+const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'delivery_date', 'status']
+
+// YENİ:
+const fixedFields = ['date', 'name', 'company', 'projectName', 'phone', 'email', 'price', 'delivery_date', 'status']
+```
+
+#### Dosyalar
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+
+#### Durum: ⏳ Bekliyor
+
+---
+
+### 🔧 PRE-QT4-2: Gereksiz Kolonların Kaldırılması
+
+#### Hedef
+Tabloda artık gösterilmeyecek kolonların (`name`, `phone`, `email`) kaldırılması.
+
+#### Değişiklikler
+
+**table-utils.js - getTableColumns():**
+```javascript
+// ESKİ:
+const fixedColumns = [
+  { id: 'date', label: 'Tarih', type: 'date' },
+  { id: 'name', label: 'Müşteri', type: 'text' },      // ❌ KALDIRILACAK
+  { id: 'company', label: 'Şirket', type: 'text' },
+  { id: 'projectName', label: 'Proje', type: 'text' },
+  { id: 'phone', label: 'Telefon', type: 'phone' },    // ❌ KALDIRILACAK
+  { id: 'email', label: 'E-posta', type: 'email' }     // ❌ KALDIRILACAK
+]
+
+// YENİ:
+const fixedColumns = [
+  { id: 'date', label: 'Tarih', type: 'date' },
+  { id: 'company', label: 'Şirket', type: 'text' },
+  { id: 'projectName', label: 'Proje', type: 'text' }
+]
+```
+
+**table-utils.js - getFieldValue():**
+```javascript
+// ESKİ:
+const fixedFields = ['date', 'name', 'company', 'projectName', 'phone', 'email', 'price', 'delivery_date', 'status']
+
+// YENİ:
+const fixedFields = ['date', 'company', 'projectName', 'price', 'delivery_date', 'status']
+```
+
+**NOT:** `name`, `phone`, `email` için getFieldValue mantığı korunabilir (detay panelinde kullanılıyor).
+
+#### Dosyalar
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+
+#### Durum: ⏳ Bekliyor
+
+---
+
+### 🔧 PRE-QT4-3: Kolon Metadata Eklenmesi (width, freeze)
+
+#### Hedef
+QT-5 (Freeze Kolonlar) için gerekli metadata'nın kolonlara eklenmesi.
+
+#### Değişiklikler
+
+**table-utils.js - getTableColumns():**
+```javascript
+// ESKİ:
+const fixedColumns = [
+  { id: 'date', label: 'Tarih', type: 'date' },
+  { id: 'company', label: 'Şirket', type: 'text' },
+  { id: 'projectName', label: 'Proje', type: 'text' }
+]
+
+// YENİ:
+const fixedLeftColumns = [
+  { id: 'date', label: 'Tarih', type: 'date', width: 140, freeze: 'left' },
+  { id: 'company', label: 'Şirket', type: 'text', width: 150, freeze: 'left' },
+  { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
+]
+
+// ESKİ:
+const endColumns = [
+  { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
+  { id: 'delivery_date', label: 'Termine Kalan', type: 'text' },
+  { id: 'status', label: 'Durum', type: 'text' }
+]
+
+// YENİ:
+const fixedRightColumns = [
+  { id: 'price', label: 'Tahmini Fiyat', type: 'currency', width: 120, freeze: 'right' },
+  { id: 'delivery_date', label: 'Termine Kalan', type: 'text', width: 110, freeze: 'right' },
+  { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
+]
+```
+
+#### Dosyalar
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
+
+#### Durum: ⏳ Bekliyor
+
+---
+
 ## 🔧 PROMPT-QT4: Frontend - Dinamik Tablo Kolonları
 
 ### Hedef
 `getTableColumns()` fonksiyonunun aktif form'un display ayarlarına göre dinamik kolon üretmesi.
 
-### Mevcut Yapı (table-utils.js)
+### Bağımlılık
+- ✅ PRE-QT4-1: Field ID Tutarlılığı
+- ✅ PRE-QT4-2: Gereksiz Kolonların Kaldırılması
+- ✅ PRE-QT4-3: Kolon Metadata Eklenmesi
+
+### Mevcut Yapı (table-utils.js) - PRE-QT4 SONRASI
 
 ```javascript
 export function getTableColumns(formConfig) {
-  const fixedColumns = [
-    { id: 'date', label: 'Tarih', type: 'date' },
-    { id: 'name', label: 'Müşteri', type: 'text' },  // KALDIRILACAK
-    { id: 'company', label: 'Şirket', type: 'text' },
-    { id: 'proj', label: 'Proje', type: 'text' },
-    { id: 'phone', label: 'Telefon', type: 'phone' },  // KALDIRILACAK
-    { id: 'email', label: 'E-posta', type: 'email' }   // KALDIRILACAK
-  ]
-  // ...
-}
-```
-
-### Yeni Yapı
-
-```javascript
-export function getTableColumns(formConfig) {
-  // Sabit Sol Kolonlar (Freeze)
+  // Sabit Sol Kolonlar (Freeze) - PRE-QT4-2, PRE-QT4-3 sonrası
   const fixedLeftColumns = [
     { id: 'date', label: 'Tarih', type: 'date', width: 140, freeze: 'left' },
     { id: 'company', label: 'Şirket', type: 'text', width: 150, freeze: 'left' },
-    { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
-  ];
+    { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }  // PRE-QT4-1
+  ]
   
-  // Dinamik Kolonlar (Scroll) - formConfig'den showInTable=true olanlar
-  const dynamicColumns = [];
-  const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
-  
-  fields
-    .filter(field => field.display?.showInTable === true)
+  // Dinamik alanlar (mevcut - güncellenmemiş)
+  const configFields = formConfig?.fields || formConfig?.formStructure?.fields || []
+  const dynamicFields = configFields
+    .filter(field => field.display?.showInTable)
     .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
-    .forEach(field => {
-      dynamicColumns.push({
-        id: field.fieldCode || field.id,
-        label: field.fieldName || field.label,
-        type: mapFieldType(field.fieldType || field.type),
-        width: 120,
-        freeze: null,
-        isDynamic: true
-      });
-    });
   
-  // Sabit Sağ Kolonlar (Freeze)
+  // Sabit Sağ Kolonlar (Freeze) - PRE-QT4-3
   const fixedRightColumns = [
     { id: 'price', label: 'Tahmini Fiyat', type: 'currency', width: 120, freeze: 'right' },
     { id: 'delivery_date', label: 'Termine Kalan', type: 'text', width: 110, freeze: 'right' },
     { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
-  ];
+  ]
   
-  return [...fixedLeftColumns, ...dynamicColumns, ...fixedRightColumns];
+  return [...fixedLeftColumns, ...dynamicFields, ...fixedRightColumns]
 }
+```
 
+### QT-4 Eklemeleri
+
+#### 1. mapFieldType() Fonksiyonu (YENİ)
+```javascript
+/**
+ * Form field tipini tablo kolon tipine çevir
+ * @param {string} fieldType - Form field tipi
+ * @returns {string} Tablo kolon tipi
+ */
 function mapFieldType(fieldType) {
   const typeMap = {
     'text': 'text',
@@ -720,21 +857,50 @@ function mapFieldType(fieldType) {
     'select': 'text',
     'radio': 'text',
     'checkbox': 'boolean',
-    'date': 'date'
+    'date': 'date',
+    'email': 'email',
+    'phone': 'phone',
+    'currency': 'currency'
   };
   return typeMap[fieldType] || 'text';
 }
 ```
 
-### getFieldValue Güncellemesi
+#### 2. Dinamik Kolon Oluşturma (GÜNCELLEME)
+```javascript
+// ESKİ:
+const dynamicFields = configFields
+  .filter(field => field.display?.showInTable)
+  .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
+
+// YENİ:
+const dynamicColumns = [];
+const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
+
+fields
+  .filter(field => field.display?.showInTable === true || field.showInTable === true)
+  .sort((a, b) => (a.display?.tableOrder || a.tableOrder || 0) - (b.display?.tableOrder || b.tableOrder || 0))
+  .forEach(field => {
+    dynamicColumns.push({
+      id: field.fieldCode || field.id,
+      label: field.fieldName || field.label,
+      type: mapFieldType(field.fieldType || field.type),
+      width: 120,
+      freeze: null,
+      isDynamic: true  // QT-5 için önemli flag
+    });
+  });
+```
+
+#### 3. getFieldValue() Güncellemesi
 
 ```javascript
 export function getFieldValue(quote, fieldId) {
-  // Sabit alanlar
+  // Sabit alanlar - PRE-QT4-1, PRE-QT4-2 sonrası
   const fixedFieldMap = {
     'date': () => quote.createdAt || quote.date || '',
     'company': () => quote.customerCompany || '',
-    'projectName': () => quote.projectName || '',  // YENİ
+    'projectName': () => quote.projectName || '',  // PRE-QT4-1: proj → projectName
     'price': () => quote.finalPrice || quote.calculatedPrice || 0,
     'delivery_date': () => quote.deliveryDate || '',
     'status': () => quote.status || 'new'
@@ -744,10 +910,15 @@ export function getFieldValue(quote, fieldId) {
     return fixedFieldMap[fieldId]();
   }
   
-  // Dinamik alanlar - formData'dan oku
+  // Dinamik alanlar - formData veya customFields'dan oku
+  // PostgreSQL formatı: quote.formData = { FIELD_xxx: value, ... }
+  // Legacy formatı: quote.customFields = { fieldId: value, ... }
   return quote.formData?.[fieldId] || quote.customFields?.[fieldId] || '';
 }
 ```
+
+### Dosyalar
+- `domains/crm/utils/table-utils.js` (GÜNCELLEME)
 
 ### Dosyalar
 - `domains/crm/utils/table-utils.js` (GÜNCELLEME)
@@ -1179,9 +1350,24 @@ useEffect(() => {
           ┌────────────────┼────────────────┐
           │                │                │
    ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐
-   │   QT-3      │  │   QT-4      │  │   QT-7      │
-   │ projectName │  │ Dinamik Col │  │Event Dispatch│
+   │   QT-3      │  │ PRE-QT4-1   │  │   QT-7      │
+   │ projectName │  │proj→projName│  │Event Dispatch│
    └─────────────┘  └──────┬──────┘  └─────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │ PRE-QT4-2   │
+                    │ Kolon Kaldır│
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │ PRE-QT4-3   │
+                    │width/freeze │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │   QT-4      │
+                    │ Dinamik Col │
+                    └──────┬──────┘
                            │
                     ┌──────┴──────┐
                     │             │
@@ -1226,7 +1412,10 @@ useEffect(() => {
 | QT-1 | 1 saat | 🟢 Kolay |
 | QT-2 | 2 saat | 🟡 Orta |
 | QT-3 | 2 saat | 🟡 Orta |
-| QT-4 | 3 saat | 🔴 Zor |
+| **PRE-QT4-1** | 15 dk | 🟢 Kolay |
+| **PRE-QT4-2** | 15 dk | 🟢 Kolay |
+| **PRE-QT4-3** | 15 dk | 🟢 Kolay |
+| QT-4 | 2 saat | 🟡 Orta |
 | QT-5 | 2 saat | 🔴 Zor |
 | QT-6 | 2 saat | 🟡 Orta |
 | QT-7 | 1 saat | 🟢 Kolay |
@@ -1243,5 +1432,5 @@ useEffect(() => {
 
 ---
 
-*Son Güncelleme: 6 Aralık 2025*
+*Son Güncelleme: 7 Aralık 2025*
 *Hazırlayan: Claude (Copilot)*
