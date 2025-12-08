@@ -79,6 +79,7 @@ router.put('/materials/shipments/:id', requireAuth, shipmentController.updateShi
 router.put('/materials/shipments/:id/status', requireAuth, shipmentController.updateShipmentStatus);
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
 router.post('/materials/shipments/:id/import', requireAuth, importUpload.single('file'), shipmentController.importShipmentConfirmation);
+router.get('/materials/shipments/:id/export/:format', requireAuth, shipmentController.exportShipment);
 router.delete('/materials/shipments/:id', requireAuth, shipmentController.deleteShipment);
 
 // Shipment Items CRUD

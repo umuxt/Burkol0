@@ -4,6 +4,7 @@
  */
 
 import * as shipmentService from '../services/shipmentService.js';
+import * as exportService from '../services/exportService.js';
 
 // ============================================
 // SHIPMENT CRUD (Header)
@@ -409,5 +410,85 @@ export async function importShipmentConfirmation(req, res) {
     }
     console.error('Error importing shipment confirmation:', error);
     res.status(500).json({ error: 'Import işlemi başarısız: ' + error.message });
+  }
+}
+
+// ============================================
+// EXPORT (Generate export files)
+// ============================================
+
+/**
+ * Export shipment in specified format
+ * GET /api/materials/shipments/:id/export/:format
+ * 
+ * Formats: csv, xml, pdf, json
+ * Query params: target (logo_tiger, logo_go, zirve) for XML
+ * 
+ * Returns file download
+ */
+export async function exportShipment(req, res) {
+  try {
+    const { id, format } = req.params;
+    const { target = 'logo_tiger' } = req.query;
+    
+    // Validate format
+    const validFormats = ['csv', 'xml', 'pdf', 'json'];
+    if (!validFormats.includes(format.toLowerCase())) {
+      return res.status(400).json({ error: `Geçersiz format: ${format}. Desteklenen: ${validFormats.join(', ')}` });
+    }
+    
+    // Get shipment with items
+    const shipment = await shipmentService.getShipmentById(id);
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
+    }
+    
+    // Generate export
+    const result = await exportService.generateExport(shipment, format, target);
+    
+    // Update export history in DB
+    await updateExportHistory(id, format);
+    
+    // Set response headers for file download
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    
+    // Send content (buffer for PDF, string for others)
+    if (result.buffer) {
+      res.send(result.buffer);
+    } else {
+      res.send(result.content);
+    }
+    
+  } catch (error) {
+    console.error('Error exporting shipment:', error);
+    res.status(500).json({ error: 'Export başarısız: ' + error.message });
+  }
+}
+
+/**
+ * Update export history in shipment record
+ */
+async function updateExportHistory(shipmentId, format) {
+  try {
+    // Import db here to avoid circular dependency
+    const { default: db } = await import('#db/connection');
+    
+    const shipment = await db('materials.shipments').where('id', shipmentId).first();
+    const history = shipment?.exportHistory || {};
+    
+    history[format] = new Date().toISOString();
+    
+    await db('materials.shipments')
+      .where('id', shipmentId)
+      .update({
+        exportHistory: JSON.stringify(history),
+        lastExportedAt: db.fn.now(),
+        status: shipment?.status === 'pending' ? 'exported' : shipment?.status,
+        updatedAt: db.fn.now()
+      });
+  } catch (error) {
+    console.error('Error updating export history:', error);
+    // Don't throw - export was successful, history update is secondary
   }
 }
