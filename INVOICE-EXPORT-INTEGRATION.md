@@ -2,1943 +2,1106 @@
 
 > **Branch**: `invoice-export`  
 > **Tarih**: 8 Aralık 2025  
-> **Versiyon**: 1.0  
-> **Amaç**: BeePlan'da oluşturulan sevkiyatları Logo/Zirve/Excel'e aktarılabilir formatlarda (CSV/XML/PDF) export etmek
+> **Versiyon**: 2.0  
+> **Yedek**: `INVOICE-EXPORT-INTEGRATION.backup.md`
 
 ---
 
 ## 📋 İÇİNDEKİLER
 
 1. [Genel Bakış](#1-genel-bakış)
-2. [Veritabanı Yapısı](#2-veritabanı-yapısı)
-3. [Backend API](#3-backend-api)
-4. [Export Formatları](#4-export-formatları)
-5. [UI/UX Akışları](#5-uiux-akışları)
-6. [Implementation Plan](#6-implementation-plan)
+2. [Netleştirilmiş Kararlar](#2-netleştirilmiş-kararlar)
+3. [Veritabanı Yapısı](#3-veritabanı-yapısı)
+4. [Backend API](#4-backend-api)
+5. [Export Formatları](#5-export-formatları)
+6. [UI/UX Tasarımı](#6-uiux-tasarımı)
+7. [Veri Akışları](#7-veri-akışları)
+8. [Implementation Prompts](#8-implementation-prompts)
 
 ---
 
 ## 1. GENEL BAKIŞ
 
-### 1.1. Hedef Kullanıcı
+### 1.1. Problem ve Çözüm
 
-**İmalat/Üretim sektöründeki KOBİ'ler**:
-- Quote (Teklif) → WorkOrder (İş Emri) → Production (Üretim) akışı var
-- Muhasebe programı: Logo Tiger/Go, Zirve, Mikro (veya Excel)
-- e-Arşiv/e-Fatura/e-İrsaliye: Gelecekte (şu an manuel)
-- Aylık 50-200 sevkiyat
+**Problem**: 
+- BeePlan kullanıcıları irsaliye/fatura kesme yetkisine sahip değil
+- Logo, Zirve gibi muhasebe yazılımları bu işlemi yapıyor
+- Mevcut sistemler arası veri aktarımı manuel ve hata eğilimli
 
-### 1.2. Temel İhtiyaçlar
+**Çözüm - Hibrit Yaklaşım**:
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   BeePlan'da    │     │  Logo/Zirve'de  │     │  BeePlan'da     │
+│   Sevkiyat      │ ──▶ │  Fatura/İrsaliye│ ──▶ │  Import ile     │
+│   Oluştur       │     │  Kes            │     │  Tamamla        │
+│   + Export      │     │                 │     │  + Stok Düşür   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
 
-1. **Sevkiyat Oluşturma**: Stok sayfasından veya manuel sevkiyat sayfasından
-2. **Müşteri Yönetimi**: CRM'den seç VEYA inline hızlı giriş
-3. **Parçalı Sevkiyat**: Toplam sipariş 1000 adet → 3 sevkiyatta tamamla
-4. **Belge Üretimi**: İrsaliye ve/veya Fatura
-5. **Export Formatları**: CSV (Excel) → XML (Logo/Zirve) → PDF (Yazdırma)
+### 1.2. Hedef Kullanıcı
 
-### 1.3. Kapsam Dışı (v2.0'da)
+**Profil**: 
+- Herhangi bir ERP sistemi kullanmayan veya Excel kullanan KOBİ'ler
+- Tam entegrasyon yerine hibrit yaklaşım isteyenler
+- Kurulum karmaşıklığından kaçınan, kolay kullanım arayan işletmeler
 
-- ❌ GİB e-İrsaliye/e-Fatura entegrasyonu
-- ❌ Quote'tan direkt sevkiyat (şimdilik sadece stok ve manuel)
+**Beklentiler**:
+- Manuel noktalar olabilir, ama akış net olsun
+- Export/import basit olsun
+- Mevcut iş akışlarını bozmadan entegre olsun
+
+### 1.3. Temel Özellikler
+
+| # | Özellik | Açıklama |
+|---|---------|----------|
+| 1 | **Sevkiyat Oluşturma** | Add Shipment Modal (genişletilmiş) veya Stok sayfasından hızlı |
+| 2 | **Müşteri Yönetimi** | CRM'den seç VEYA inline ekle (CRM'e de kaydedilir) |
+| 3 | **Çoklu Kalem** | Bir sevkiyatta birden fazla ürün |
+| 4 | **Belge Tipi** | İrsaliye (fiyatsız) / Fatura (fiyatlı) / İkisi Birden |
+| 5 | **Export** | CSV, XML (Logo/Zirve), PDF, JSON |
+| 6 | **Import** | Muhasebe programından gelen onay dosyası |
+| 7 | **Stok Yönetimi** | Stok, import (completed) anında düşer |
+
+### 1.4. Kapsam Dışı (v2.0+)
+
+- ❌ GİB e-İrsaliye/e-Fatura doğrudan entegrasyonu
+- ❌ Otomatik API entegrasyonu (Logo/Zirve API)
 - ❌ Mobil/tablet UI optimizasyonu
+- ❌ Çoklu depo yönetimi
 
 ---
 
-## 2. VERİTABANI YAPISI
+## 2. NETLEŞTİRİLMİŞ KARARLAR
 
-### 2.1. Migration: `035_invoice_export_integration.sql`
+### 2.1. Temel İş Kuralları
 
-#### A) `materials.shipments` - Yeni Kolonlar
+| # | Konu | Karar | Detay |
+|---|------|-------|-------|
+| 1 | Fiyatsız Fatura | ❌ YOK | Fatura seçilirse fiyat zorunlu |
+| 2 | Yetersiz Stok | ❌ BLOK | Sevkiyat oluşturulamaz, hata verilir |
+| 3 | Stok Düşme | Import anında | Status "completed" olunca stok düşer |
+| 4 | Export Dosyası | Saklanmaz | Her seferinde yeniden üretilir |
+| 5 | Import Dosyası | DB'de saklanır | Dosya + metadata kaydedilir |
+| 6 | Kalem Silme | Import'a kadar | Completed sonrası silinemez |
+| 7 | Müşteri Inline | CRM'e kaydedilir | Yeni müşteri hem sevkiyata hem CRM'e eklenir |
 
-```sql
--- =====================================================
--- Müşteri İlişkisi ve Snapshot
--- =====================================================
-ALTER TABLE materials.shipments
+### 2.2. Export/Import Kararları
 
--- Foreign Key (quotes.customers'a referans)
-ADD COLUMN customerId INTEGER REFERENCES quotes.customers(id),
+| # | Konu | Karar | Detay |
+|---|------|-------|-------|
+| 1 | Formatlar | CSV, XML, PDF, JSON | Tümü desteklenir |
+| 2 | CSV Ayracı | System Settings | `;` / `,` / `tab` seçenekleri |
+| 3 | Hedef Program | Kullanıcı seçer | Logo Tiger, Logo GO, Zirve, Excel |
+| 4 | Belge Numarası | İkili sistem | BeePlan: `SHP-XXXX`, Import sonrası Logo/Zirve no da kaydedilir |
+| 5 | Export Geçmişi | lastExportedAt | Format bazlı timestamp JSONB + son export zamanı |
 
--- JSONB Snapshot (müşteri bilgileri değişse bile irsaliye sabit kalır)
-ADD COLUMN customerSnapshot JSONB,
-/* Örnek:
-{
-  "name": "ABC Limited Şirketi",
-  "company": "ABC Ltd.",
-  "taxOffice": "Kadıköy Vergi Dairesi",
-  "taxNumber": "1234567890",
-  "city": "İstanbul",
-  "district": "Kadıköy",
-  "address": "Örnek Mah. Sanayi Cad. No:5",
-  "phone": "+90 216 555 1234",
-  "email": "info@abcltd.com",
-  "iban": "TR330006100519786457841326"
-}
-*/
+### 2.3. Finans & Vergi Kararları
 
--- =====================================================
--- Müşteri İlişkisi ve Snapshot (ZORUNLU)
--- =====================================================
-ADD COLUMN customerId INTEGER REFERENCES quotes.customers(id),
--- NULL olabilir (kayıtsız müşteri için)
+| # | Konu | Karar | Detay |
+|---|------|-------|-------|
+| 1 | Para Birimi | TRY default | Farklı seçilirse exchangeRate zorunlu |
+| 2 | İskonto | Toggle ile | Satır + genel iskonto, default 0 |
+| 3 | Tevkifat | Dropdown | 5/10, 7/10, 9/10 vs. DB tablosundan |
+| 4 | KDV Muafiyet | DB tablosu | `materials.vat_exemption_codes` (GİB kodları) |
+| 5 | KDV Oranları | Standart | 0, 1, 8, 10, 18, 20 |
 
-ADD COLUMN customerSnapshot JSONB NOT NULL,
--- ⚠️ ZORUNLU: Sevkiyat oluşturulurken müşteri bilgileri buraya kopyalanır
--- Müşteri bilgileri sonradan değişse bile irsaliye/fatura sabit kalır
--- Örnek: {"name":"ABC Ltd","company":"ABC Limited Şti","taxOffice":"Kadıköy VD",...}
+### 2.4. Ek Alanlar Kararları
 
--- =====================================================
--- Denormalize Edilmiş Temel Alanlar (Fallback - KALDIRILDI)
--- =====================================================
--- customerName, customerCompany, deliveryAddress kolonları KALDIRILDI
--- Tüm bilgiler customerSnapshot JSONB'de tutulacak
--- Export sırasında snapshot parse edilir
+| # | Alan | Karar | UI Konumu |
+|---|------|-------|-----------|
+| 1 | Teslim Adresi | Toggle: "Farklı adrese teslim" | Müşteri bölümü |
+| 2 | Depo Kodu | Şimdilik yok | - |
+| 3 | Lot/Seri | Serbest metin | Akordeon: Lot/Seri |
+| 4 | Satır Notu | Opsiyonel | Kalem satırında (opsiyonel) |
+| 5 | Özel Kod | Serbest metin | Akordeon: Ek Bilgiler |
+| 6 | Maliyet Merkezi | Serbest metin | Akordeon: Ek Bilgiler |
 
--- =====================================================
--- Quote İlişkisi (Parçalı Sevkiyat Takibi)
--- =====================================================
-ADD COLUMN quoteId VARCHAR(50) REFERENCES quotes.quotes(id),
-ADD COLUMN isPartialShipment BOOLEAN DEFAULT false,
-ADD COLUMN shippedQuantityTotal DECIMAL(15,4),
--- Bu sevkiyattaki toplam sevk miktarı (tüm items toplamı)
+### 2.5. UI/UX Kararları
 
-ADD COLUMN quoteRemainingQuantity DECIMAL(15,4),
--- Quote'ta kalan miktar (sadece quote bazlı sevkiyatlarda set edilir)
--- Hesaplama: quote.totalQuantity - SUM(shipments.shippedQuantityTotal WHERE quoteId = X)
+| # | Konu | Karar |
+|---|------|-------|
+| 1 | Modal | Mevcut Add Shipment Modal genişletilecek |
+| 2 | Stok Sayfası | Aynı modal, malzeme set edilmiş, tek kalem |
+| 3 | Opsiyonel Alanlar | Minimal akordeonlar içinde gruplu |
+| 4 | Quote Bilgisi | Sol tarafta gösterilir (bilgi amaçlı) |
 
--- =====================================================
--- Belge Bilgileri
--- =====================================================
-ADD COLUMN documentType VARCHAR(20) DEFAULT 'waybill', 
--- Değerler: 'waybill' (sadece irsaliye), 'invoice' (sadece fatura), 'both' (ikisi birden)
+### 2.6. Status Akışı
 
-ADD COLUMN includePrice BOOLEAN DEFAULT false,
--- ⚠️ KURAL: documentType = 'invoice' veya 'both' ise includePrice = true ZORUNLU
--- Validasyon: Fatura kesiyorsak tüm items'larda unitPrice > 0 olmalı
-
--- =====================================================
--- Fiyat Bilgileri (Fatura için)
--- =====================================================
-ADD COLUMN currency VARCHAR(3) DEFAULT 'TRY',
-ADD COLUMN subtotal DECIMAL(15,2), -- Ara toplam (KDV hariç)
-ADD COLUMN taxTotal DECIMAL(15,2), -- Toplam KDV
-ADD COLUMN grandTotal DECIMAL(15,2), -- Genel toplam (KDV dahil)
-
--- =====================================================
--- Export Durumu (Format bazlı timestamp)
--- =====================================================
-ADD COLUMN exportedFormats JSONB,
--- ⚠️ YENİ FORMAT: Her format için ayrı timestamp
--- Örnek: {"csv": "2025-12-08T14:30:00Z", "xml": "2025-12-08T14:31:00Z", "pdf": null}
--- Avantaj: Hangi formatın ne zaman export edildiği takip edilir
-
-ADD COLUMN lastExportedAt TIMESTAMPTZ,
--- Son export zamanı (herhangi bir format için en son tarih)
-
--- =====================================================
--- Denormalize Edilmiş Müşteri Bilgileri - KALDIRILDI
--- =====================================================
--- Aşağıdaki kolonlar KALDIRILDI (customerSnapshot JSONB kullanılacak):
--- - customerTaxOffice
--- - customerTaxNumber
--- - customerCity
--- - customerDistrict
--- İndeksler
-CREATE INDEX idx_shipments_customer ON materials.shipments(customerId);
-CREATE INDEX idx_shipments_quote ON materials.shipments(quoteId);
-CREATE INDEX idx_shipments_document_type ON materials.shipments(documentType);
-CREATE INDEX idx_shipments_last_exported ON materials.shipments(lastExportedAt) WHERE lastExportedAt IS NOT NULL;
+```
+┌─────────┐     ┌─────────┐     ┌──────────┐     ┌───────────┐
+│  draft  │ ──▶ │ pending │ ──▶ │ exported │ ──▶ │ completed │
+└─────────┘     └────┬────┘     └────┬─────┘     └───────────┘
+                     │               │
+                     ▼               ▼
+               ┌───────────┐   ┌───────────┐
+               │ cancelled │   │ cancelled │
+               └───────────┘   └───────────┘
 ```
 
-#### B) `materials.shipment_items` - Yeni Kolonlar
+| Status | Açıklama | İzin Verilen Aksiyonlar |
+|--------|----------|------------------------|
+| draft | Taslak, henüz kaydedilmedi | Düzenle, Sil |
+| pending | Kaydedildi, export bekleniyor | Export, Düzenle, Sil, İptal |
+| exported | Export edildi, import bekleniyor | Import, Re-export, Düzenle, Sil, İptal |
+| completed | Import geldi, tamamlandı | Görüntüle (stok düştü) |
+| cancelled | İptal edildi | Görüntüle |
+
+---
+
+## 3. VERİTABANI YAPISI
+
+> **Migration**: `036_invoice_export_clean.sql`  
+> **Durum**: ✅ UYGULANMIŞ (8 Aralık 2025)
+
+### 3.1. Şema Genel Bakış
+
+```
+materials schema
+├── shipments (✅ GÜNCELLENDİ - 63 kolon)
+├── shipment_items (✅ GÜNCELLENDİ - 36 kolon)  
+├── vat_exemption_codes (✅ YENİ - 7 kolon, 14 kayıt)
+├── withholding_rates (✅ YENİ - 6 kolon, 7 kayıt)
+└── shipment_settings (✅ YENİ - 6 kolon, 8 kayıt)
+
+quotes schema
+└── customers (✅ erpAccountCode eklendi)
+```
+
+### 3.1.1. SHIPMENTS - Tam Kolon Listesi
+
+| Kolon | Tip | Nullable | Default | Kaynak |
+|-------|-----|----------|---------|--------|
+| `id` | integer | NOT NULL | SERIAL | Mevcut |
+| `shipmentCode` | varchar | NOT NULL | - | Mevcut |
+| `shipmentSequence` | integer | NOT NULL | - | Mevcut |
+| `workOrderCode` | varchar | NULL | - | Mevcut |
+| `quoteId` | varchar | NULL | - | Mevcut |
+| `planId` | integer | NULL | - | Mevcut |
+| `customerName` | varchar | NULL | - | Mevcut |
+| `customerCompany` | varchar | NULL | - | Mevcut |
+| `deliveryAddress` | text | NULL | - | Mevcut |
+| `status` | varchar | NULL | 'pending' | Mevcut |
+| `notes` | text | NULL | - | Mevcut |
+| `createdBy` | varchar | NULL | - | Mevcut |
+| `updatedBy` | varchar | NULL | - | Mevcut |
+| `createdAt` | timestamptz | NULL | NOW() | Mevcut |
+| `updatedAt` | timestamptz | NULL | NOW() | Mevcut |
+| `shipmentCompletedAt` | timestamptz | NULL | - | Mevcut |
+| `documentStatus` | varchar | NULL | 'draft' | Mevcut |
+| `externalDocumentId` | varchar | NULL | - | Mevcut |
+| `waybillDate` | timestamptz | NULL | - | Mevcut |
+| `waybillTime` | time | NULL | - | Mevcut |
+| `currency` | varchar | NULL | 'TRY' | Mevcut |
+| `exchangeRate` | numeric | NULL | 1.0 | Mevcut |
+| `transportType` | varchar | NULL | 'OWN_VEHICLE' | Mevcut |
+| `driverName` | varchar | NULL | - | Mevcut |
+| `driverTc` | varchar | NULL | - | Mevcut |
+| `plateNumber` | varchar | NULL | - | Mevcut |
+| `carrierCompany` | varchar | NULL | - | Mevcut |
+| `carrierTcVkn` | varchar | NULL | - | Mevcut |
+| `shipmentType` | varchar | NULL | 'standard' | Mevcut |
+| `sourceDocument` | varchar | NULL | - | Mevcut |
+| `sourceDocumentId` | integer | NULL | - | Mevcut |
+| `netWeight` | numeric | NULL | - | Mevcut |
+| `grossWeight` | numeric | NULL | - | Mevcut |
+| `packageCount` | integer | NULL | - | Mevcut |
+| `packageType` | varchar | NULL | - | Mevcut |
+| `uploadedDocumentPath` | text | NULL | - | Mevcut |
+| `uploadedAt` | timestamptz | NULL | - | Mevcut |
+| `exportedAt` | timestamptz | NULL | - | Mevcut |
+| `archivedAt` | timestamptz | NULL | - | Mevcut |
+| `customerId` | integer | NULL | - | **YENİ** FK→customers |
+| `customerSnapshot` | jsonb | NULL | - | **YENİ** |
+| `useAlternateDelivery` | boolean | NULL | false | **YENİ** |
+| `alternateDeliveryAddress` | jsonb | NULL | - | **YENİ** |
+| `documentType` | varchar | NULL | 'waybill' | **YENİ** |
+| `includePrice` | boolean | NULL | false | **YENİ** |
+| `discountType` | varchar | NULL | - | **YENİ** |
+| `discountValue` | numeric | NULL | 0 | **YENİ** |
+| `discountTotal` | numeric | NULL | 0 | **YENİ** |
+| `subtotal` | numeric | NULL | 0 | **YENİ** |
+| `taxTotal` | numeric | NULL | 0 | **YENİ** |
+| `withholdingTotal` | numeric | NULL | 0 | **YENİ** |
+| `grandTotal` | numeric | NULL | 0 | **YENİ** |
+| `exportHistory` | jsonb | NULL | '{}' | **YENİ** |
+| `lastExportedAt` | timestamptz | NULL | - | **YENİ** |
+| `exportTarget` | varchar | NULL | - | **YENİ** |
+| `importedAt` | timestamptz | NULL | - | **YENİ** |
+| `importedBy` | integer | NULL | - | **YENİ** |
+| `importedFile` | bytea | NULL | - | **YENİ** |
+| `importedFileName` | varchar | NULL | - | **YENİ** |
+| `externalDocNumber` | varchar | NULL | - | **YENİ** |
+| `specialCode` | varchar | NULL | - | **YENİ** |
+| `costCenter` | varchar | NULL | - | **YENİ** |
+| `documentNotes` | text | NULL | - | **YENİ** |
+
+### 3.1.2. SHIPMENT_ITEMS - Tam Kolon Listesi
+
+| Kolon | Tip | Nullable | Default | Kaynak |
+|-------|-----|----------|---------|--------|
+| `id` | integer | NOT NULL | SERIAL | Mevcut |
+| `shipmentId` | integer | NOT NULL | - | Mevcut FK→shipments |
+| `itemCode` | varchar | NULL | - | Mevcut |
+| `itemSequence` | integer | NULL | - | Mevcut |
+| `shipmentCode` | varchar | NULL | - | Mevcut |
+| `materialId` | integer | NULL | - | Mevcut |
+| `materialCode` | varchar | NOT NULL | - | Mevcut |
+| `materialName` | varchar | NULL | - | Mevcut |
+| `quantity` | numeric | NOT NULL | - | Mevcut |
+| `unit` | varchar | NULL | 'adet' | Mevcut |
+| `lotNumber` | varchar | NULL | - | Mevcut |
+| `stockMovementId` | integer | NULL | - | Mevcut |
+| `itemStatus` | varchar | NULL | 'pending' | Mevcut |
+| `notes` | text | NULL | - | Mevcut |
+| `createdAt` | timestamptz | NULL | NOW() | Mevcut |
+| `updatedAt` | timestamptz | NULL | NOW() | Mevcut |
+| `itemType` | varchar | NULL | 'material' | Mevcut |
+| `serviceCardId` | integer | NULL | - | Mevcut FK→service_cards |
+| `quoteItemId` | integer | NULL | - | Mevcut |
+| `unitPrice` | numeric | NULL | - | Mevcut |
+| `taxRate` | integer | NULL | 20 | Mevcut |
+| `discountPercent` | numeric | NULL | 0 | Mevcut |
+| `discountAmount` | numeric | NULL | 0 | Mevcut (trigger) |
+| `subtotal` | numeric | NULL | - | Mevcut (trigger) |
+| `taxAmount` | numeric | NULL | - | Mevcut (trigger) |
+| `totalAmount` | numeric | NULL | - | Mevcut (trigger) |
+| `serialNumbers` | ARRAY | NULL | - | Mevcut |
+| `expiryDate` | date | NULL | - | Mevcut |
+| `productionDate` | date | NULL | - | Mevcut |
+| `erpItemCode` | varchar | NULL | - | Mevcut |
+| `erpLineNumber` | integer | NULL | - | Mevcut |
+| `itemNotes` | text | NULL | - | Mevcut |
+| `vatExemptionId` | integer | NULL | - | **YENİ** FK→vat_exemption_codes |
+| `withholdingRateId` | integer | NULL | - | **YENİ** FK→withholding_rates |
+| `withholdingAmount` | numeric | NULL | 0 | **YENİ** (trigger) |
+| `serialNumber` | varchar | NULL | - | **YENİ** |
+
+### 3.2. YENİ TABLO: `materials.vat_exemption_codes`
+
+KDV muafiyet kodları (GİB standartları):
 
 ```sql
--- =====================================================
--- Fiyat Bilgileri (Fatura için)
--- =====================================================
-ALTER TABLE materials.shipment_items
+CREATE TABLE IF NOT EXISTS materials.vat_exemption_codes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    "isActive" BOOLEAN DEFAULT true,
+    "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
-ADD COLUMN unitPrice DECIMAL(15,2) DEFAULT 0,
--- ⚠️ KURAL: Shipment.includePrice = true ise unitPrice > 0 ZORUNLU
+-- Örnek veriler
+INSERT INTO materials.vat_exemption_codes (code, name) VALUES
+('301', 'Mal ihracatı'),
+('302', 'Hizmet ihracatı'),
+('303', 'Diplomatik istisna'),
+('304', 'Uluslararası taşımacılık'),
+('305', 'Petrol arama'),
+('306', 'Altın-gümüş alımı'),
+('307', 'Yatırım teşvik belgeli'),
+('308', 'Transit ticaret'),
+('309', 'Geçici ithalat'),
+('310', 'Fuar katılımı'),
+('311', 'Deniz-hava araçları'),
+('312', 'Liman-havalimanı hizmetleri'),
+('350', 'Tevkifat (Tam)'),
+('351', 'Tevkifat (Kısmi)');
+```
 
-ADD COLUMN taxRate INTEGER DEFAULT 20, 
--- KDV oranı: 0, 1, 8, 10, 18, 20 (sadece bu değerler geçerli)
--- CHECK CONSTRAINT eklenecek
+### 3.3. YENİ TABLO: `materials.withholding_rates`
 
-ADD COLUMN lineSubtotal DECIMAL(15,2), -- unitPrice * quantity
-ADD COLUMN lineTax DECIMAL(15,2), -- lineSubtotal * (taxRate/100)
-ADD COLUMN lineTotal DECIMAL(15,2), -- lineSubtotal + lineTax
+Tevkifat oranları:
 
--- CHECK CONSTRAINT: KDV oranı kontrolü
-ALTER TABLE materials.shipment_items
-ADD CONSTRAINT chk_tax_rate CHECK (taxRate IN (0, 1, 8, 10, 18, 20));
+```sql
+CREATE TABLE IF NOT EXISTS materials.withholding_rates (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(20) NOT NULL UNIQUE,
+    rate DECIMAL(5,4) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    "isActive" BOOLEAN DEFAULT true,
+    "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
-ADD COLUMN unitPrice DECIMAL(15,2) DEFAULT 0,
-ADD COLUMN taxRate INTEGER DEFAULT 20, -- KDV oranı (0, 1, 8, 10, 18, 20)
-ADD COLUMN lineSubtotal DECIMAL(15,2), -- unitPrice * quantity
-ADD COLUMN lineTax DECIMAL(15,2), -- lineSubtotal * (taxRate/100)
-ADD COLUMN lineTotal DECIMAL(15,2), -- lineSubtotal + lineTax
+-- Örnek veriler
+INSERT INTO materials.withholding_rates (code, rate, name) VALUES
+('1/10', 0.1000, '1/10 Tevkifat'),
+('2/10', 0.2000, '2/10 Tevkifat'),
+('3/10', 0.3000, '3/10 Tevkifat'),
+('4/10', 0.4000, '4/10 Tevkifat'),
+('5/10', 0.5000, '5/10 Tevkifat - Yapım işleri'),
+('7/10', 0.7000, '7/10 Tevkifat - Danışmanlık'),
+('9/10', 0.9000, '9/10 Tevkifat - İşgücü');
+```
 
--- =====================================================
--- Parçalı Sevkiyat Takibi
--- =====================================================
-ADD COLUMN quoteItemId INTEGER, -- İleride quote_items tablosu eklenirse
-ADD COLUMN isPartial BOOLEAN DEFAULT false;
+### 3.4. YENİ TABLO: `materials.shipment_settings`
 
--- Trigger: Fiyat hesaplama (INSERT/UPDATE)
+Sistem ayarları:
+
+```sql
+CREATE TABLE IF NOT EXISTS materials.shipment_settings (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value TEXT NOT NULL,
+    description TEXT,
+    "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "updatedBy" INTEGER
+);
+
+-- Varsayılan ayarlar
+INSERT INTO materials.shipment_settings (key, value, description) VALUES
+('csv_delimiter', ';', 'CSV dosya ayracı: ; veya , veya tab'),
+('default_currency', 'TRY', 'Varsayılan para birimi'),
+('default_tax_rate', '20', 'Varsayılan KDV oranı'),
+('export_target', 'logo_tiger', 'Hedef program: logo_tiger, logo_go, zirve, excel'),
+('company_name', 'Firma Adı', 'PDF için firma adı'),
+('company_address', 'Firma Adresi', 'PDF için adres'),
+('company_tax_office', 'Vergi Dairesi', 'PDF için VD'),
+('company_tax_number', '0000000000', 'PDF için VKN');
+```
+
+### 3.5. GÜNCELLEME: `quotes.customers`
+
+ERP entegrasyonu için eklenen kolonlar:
+
+```sql
+ALTER TABLE quotes.customers
+ADD COLUMN IF NOT EXISTS "erpAccountCode" VARCHAR(50),
+ADD COLUMN IF NOT EXISTS "erpSyncedAt" TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_customers_erp_code 
+ON quotes.customers("erpAccountCode") 
+WHERE "erpAccountCode" IS NOT NULL;
+```
+
+### 3.6. TRIGGER: Fiyat Otomatik Hesaplama
+
+> **Not**: Mevcut kolon isimlerini kullanıyor (subtotal, taxAmount, totalAmount, discountPercent, discountAmount)
+
+```sql
 CREATE OR REPLACE FUNCTION materials.calculate_shipment_item_totals()
 RETURNS TRIGGER AS $$
+DECLARE
+    withholding_rate DECIMAL(5,4);
+    net_subtotal DECIMAL(15,2);
 BEGIN
-  -- Ara toplam
-  NEW."lineSubtotal" := NEW."unitPrice" * NEW.quantity;
-  
-  -- KDV
-  NEW."lineTax" := NEW."lineSubtotal" * (NEW."taxRate" / 100.0);
-  
-  -- Toplam
-  NEW."lineTotal" := NEW."lineSubtotal" + NEW."lineTax";
-  
-  RETURN NEW;
+    -- 1. Ara toplam (miktar * birim fiyat)
+    NEW."subtotal" := COALESCE(NEW."unitPrice", 0) * COALESCE(NEW.quantity, 0);
+    
+    -- 2. Satır iskontosu
+    IF COALESCE(NEW."discountPercent", 0) > 0 THEN
+        NEW."discountAmount" := NEW."subtotal" * (NEW."discountPercent" / 100.0);
+    ELSE
+        NEW."discountAmount" := COALESCE(NEW."discountAmount", 0);
+    END IF;
+    
+    -- 3. Net ara toplam (iskonto sonrası)
+    net_subtotal := NEW."subtotal" - COALESCE(NEW."discountAmount", 0);
+    
+    -- 4. KDV hesabı (muafiyet varsa 0)
+    IF NEW."vatExemptionId" IS NOT NULL THEN
+        NEW."taxAmount" := 0;
+    ELSE
+        NEW."taxAmount" := net_subtotal * (COALESCE(NEW."taxRate", 20) / 100.0);
+    END IF;
+    
+    -- 5. Tevkifat hesabı
+    IF NEW."withholdingRateId" IS NOT NULL THEN
+        SELECT rate INTO withholding_rate 
+        FROM materials.withholding_rates 
+        WHERE id = NEW."withholdingRateId";
+        NEW."withholdingAmount" := NEW."taxAmount" * COALESCE(withholding_rate, 0);
+    ELSE
+        NEW."withholdingAmount" := 0;
+    END IF;
+    
+    -- 6. Satır toplam (net + kdv - tevkifat)
+    NEW."totalAmount" := net_subtotal + NEW."taxAmount" - COALESCE(NEW."withholdingAmount", 0);
+    
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_calculate_item_totals
-  BEFORE INSERT OR UPDATE ON materials.shipment_items
-  FOR EACH ROW
-  EXECUTE FUNCTION materials.calculate_shipment_item_totals();
-```
-
-#### C) `quotes.customers` - ERP Entegrasyonu
-
-```sql
--- =====================================================
--- ERP (Logo/Zirve) Entegrasyonu
--- =====================================================
-ALTER TABLE quotes.customers
-
-ADD COLUMN IF NOT EXISTS erpAccountCode VARCHAR(50), 
--- Logo/Zirve'deki cari kodu (120.01.001 gibi)
-
-ADD COLUMN IF NOT EXISTS erpSyncedAt TIMESTAMPTZ;
--- Son senkronizasyon zamanı
-
-CREATE INDEX idx_customers_erp_code ON quotes.customers(erpAccountCode) 
-WHERE erpAccountCode IS NOT NULL;
-```
-
-### 2.2. Veri Akışı Diagramı
-
-```
-┌─────────────────┐
-│ quotes.customers│ ◄─── Foreign Key (customerId)
-│ + erpAccountCode│
-└────────┬────────┘
-         │
-         │ 1:N
-         ▼
-┌─────────────────────────┐
-│ materials.shipments     │
-│ + customerSnapshot JSONB│ ◄─── Tarihsel kayıt (değişmez)
-│ + quoteId               │
-│ + documentType          │
-│ + subtotal, taxTotal    │
-│ + exportedFormats       │
-└────────┬────────────────┘
-         │
-         │ 1:N
-         ▼
-┌──────────────────────────┐
-│ materials.shipment_items │
-│ + unitPrice              │
-│ + taxRate                │
-│ + lineTotal (trigger)    │
-└──────────────────────────┘
+CREATE TRIGGER shipment_items_calculate_totals
+    BEFORE INSERT OR UPDATE ON materials.shipment_items
+    FOR EACH ROW
+    EXECUTE FUNCTION materials.calculate_shipment_item_totals();
 ```
 
 ---
 
-## 3. BACKEND API
+## 4. BACKEND API
 
-### 3.1. Endpoint'ler
+### 4.1. Route Yapısı
 
-#### **Shipment Routes** (`/api/materials/shipments`)
-
-```javascript
-// shipmentRoutes.js
-
-router.post('/', shipmentController.createShipment);
-// Body: { customerId?, customerSnapshot?, items: [], documentType, includePrice }
-// Response: { shipment, exportUrls: { csv, xml, pdf } }
-
-router.post('/quick', shipmentController.createQuickShipment);
-// Stok sayfasından hızlı sevkiyat
-// Body: { customerId?, materialCode, quantity, documentType }
-
-router.get('/', shipmentController.getShipments);
-// Query: ?status=pending&customerId=5&startDate=2025-12-01
-
-router.get('/:id', shipmentController.getShipmentDetails);
-// Response: shipment + items + customer + exportedFiles
-
-router.patch('/:id/cancel', shipmentController.cancelShipment);
-// Sevkiyat iptal → stok geri gelir
-
-router.get('/quote/:quoteId/summary', shipmentController.getQuoteShipmentSummary);
-// Parçalı sevkiyat takibi için
-// Response: { totalOrdered, totalShipped, remaining, shipments: [] }
+```
+/api/materials/
+├── shipments/
+│   ├── GET    /                    → Liste (filtreleme)
+│   ├── POST   /                    → Yeni sevkiyat
+│   ├── GET    /:id                 → Detay
+│   ├── PATCH  /:id                 → Güncelle
+│   ├── DELETE /:id                 → Sil
+│   ├── PATCH  /:id/cancel          → İptal et
+│   ├── POST   /:id/import          → Import dosyası yükle
+│   └── GET    /:id/export/:format  → Export (csv/xml/pdf/json)
+│
+├── vat-exemptions/
+│   └── GET    /                    → Liste
+│
+├── withholding-rates/
+│   └── GET    /                    → Liste
+│
+└── settings/
+    ├── GET    /                    → Tüm ayarlar
+    └── PUT    /:key                → Ayar güncelle
 ```
 
-#### **Export Routes** (`/api/materials/export`)
+### 4.2. POST `/api/materials/shipments` - Yeni Sevkiyat
 
-```javascript
-// exportRoutes.js
-
-router.get('/shipment/:id/:format', exportController.exportShipment);
-// format: csv | xml | pdf | json
-// Response: File download (Content-Disposition: attachment)
-
-router.post('/batch', exportController.batchExport);
-// Body: { shipmentIds: [1,2,3], format: 'csv' }
-// Response: ZIP file with multiple exports
+**Request Body:**
+```json
+{
+  "customerId": 5,
+  "customerSnapshot": {
+    "name": "ABC Ltd.",
+    "company": "ABC Limited Şti.",
+    "taxOffice": "Kadıköy VD",
+    "taxNumber": "1234567890",
+    "address": "Örnek Mah. No:5",
+    "city": "İstanbul",
+    "district": "Kadıköy",
+    "phone": "+90 216 555 1234",
+    "email": "info@abc.com"
+  },
+  "useAlternateDelivery": false,
+  "alternateDeliveryAddress": null,
+  "documentType": "invoice",
+  "includePrice": true,
+  "currency": "TRY",
+  "exchangeRate": 1.0,
+  "discountType": null,
+  "discountValue": 0,
+  "exportTarget": "logo_tiger",
+  "specialCode": "",
+  "costCenter": "",
+  "documentNotes": "",
+  "items": [
+    {
+      "materialCode": "M-001",
+      "materialId": 15,
+      "materialName": "Demir Levha",
+      "quantity": 100,
+      "unit": "adet",
+      "unitPrice": 50.00,
+      "taxRate": 20,
+      "discountPercent": 0,
+      "vatExemptionId": null,
+      "withholdingRateId": null,
+      "lotNumber": "",
+      "serialNumber": "",
+      "itemNotes": ""
+    }
+  ]
+}
 ```
 
-### 3.2. Service Layer
-
-#### **shipmentService.js** (Güncellenecek)
-
-```javascript
-/**
- * Yeni sevkiyat oluştur
- * @param {Object} data
- * @param {number} data.customerId - quotes.customers.id (opsiyonel, snapshot varsa)
- * @param {Object} data.customerSnapshot - Müşteri bilgileri snapshot (ZORUNLU)
- * @param {Array} data.items - [{ materialCode, quantity, unitPrice?, taxRate? }]
- * @param {string} data.documentType - 'waybill' | 'invoice' | 'both'
- * @param {boolean} data.includePrice - Fiyat bilgileri dahil mi?
- */
-async function createShipment(data, user) {
-  const trx = await db.transaction();
-  
-  try {
-    // ============================================================
-    // 1. VALİDASYONLAR
-    // ============================================================
-    
-    // 1.1. customerSnapshot zorunlu kontrolü
-    if (!data.customerSnapshot) {
-      throw new Error('customerSnapshot zorunludur. customerId varsa otomatik doldurulur.');
-    }
-    
-    // 1.2. Snapshot'ta zorunlu alanlar
-    const requiredFields = ['name', 'taxOffice', 'taxNumber', 'address', 'city'];
-    for (const field of requiredFields) {
-      if (!data.customerSnapshot[field]) {
-        throw new Error(`customerSnapshot.${field} zorunludur (export için gerekli)`);
-      }
-    }
-    
-    // 1.3. Fatura validasyonu
-    if (data.documentType === 'invoice' || data.documentType === 'both') {
-      if (!data.includePrice) {
-        throw new Error('Fatura kesiyorsanız includePrice=true olmalı');
-      }
-      
-      // Tüm items'larda fiyat kontrolü
-      for (const item of data.items) {
-        if (!item.unitPrice || item.unitPrice <= 0) {
-          throw new Error(`Fatura için tüm ürünlerin fiyatı > 0 olmalı (${item.materialCode})`);
-        }
-      }
-    }
-    
-    // 1.4. Items validasyonu
-    if (!data.items || data.items.length === 0) {
-      throw new Error('En az 1 ürün gerekli');
-    }
-    
-    for (const item of data.items) {
-      // Miktar kontrolü
-      if (!item.quantity || item.quantity <= 0) {
-        throw new Error(`Geçersiz miktar: ${item.materialCode} (${item.quantity})`);
-      }
-      
-      // Stok kontrolü
-      const material = await trx('materials.materials')
-        .where({ code: item.materialCode })
-        .first();
-      
-      if (!material) {
-        throw new Error(`Malzeme bulunamadı: ${item.materialCode}`);
-      }
-      
-      const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
-      if (item.quantity > availableStock) {
-        throw new Error(
-          `Yetersiz stok: ${material.name}. ` +
-          `Mevcut: ${availableStock}, İstenen: ${item.quantity}`
-        );
-      }
-      
-      // KDV oranı kontrolü
-      const validTaxRates = [0, 1, 8, 10, 18, 20];
-      if (item.taxRate && !validTaxRates.includes(item.taxRate)) {
-        throw new Error(`Geçersiz KDV oranı: ${item.taxRate}. Geçerli değerler: ${validTaxRates.join(', ')}`);
-      }
-    }
-    
-    // ============================================================
-    // 2. SHIPMENT CODE OLUŞTUR
-    // ============================================================
-    const shipmentCode = await generateShipmentCode();
-    
-    // ============================================================
-    // 3. FİYAT HESAPLAMALARI (Fatura için)
-    // ============================================================
-    let subtotal = 0, taxTotal = 0, grandTotal = 0, shippedQuantityTotal = 0;
-    
-    const calculatedItems = data.items.map(item => {
-      const quantity = parseFloat(item.quantity);
-      const unitPrice = parseFloat(item.unitPrice || 0);
-      const taxRate = parseInt(item.taxRate || 20);
-      
-      shippedQuantityTotal += quantity;
-      
-      if (data.includePrice) {
-        const lineSubtotal = unitPrice * quantity;
-        const lineTax = lineSubtotal * (taxRate / 100);
-        const lineTotal = lineSubtotal + lineTax;
-        
-        subtotal += lineSubtotal;
-        taxTotal += lineTax;
-        grandTotal += lineTotal;
-        
-        return {
-          ...item,
-          unitPrice,
-          taxRate,
-          lineSubtotal,
-          lineTax,
-          lineTotal
-        };
-      }
-      
-      return { ...item, unitPrice: 0, taxRate: 20 };
-    });
-    
-    // ============================================================
-    // 4. PARÇALI SEVKİYAT HESAPLAMA (Quote varsa)
-    // ============================================================
-    let quoteRemainingQuantity = null;
-    if (data.quoteId) {
-      // Quote'taki toplam ve daha önce sevk edilenleri hesapla
-      const quoteSummary = await getQuoteShipmentSummary(data.quoteId, trx);
-      quoteRemainingQuantity = quoteSummary.totalOrdered - quoteSummary.totalShipped - shippedQuantityTotal;
-    }
-    
-    // ============================================================
-    // 5. SHIPMENT KAYDI OLUŞTUR
-    // ============================================================
-    const [shipment] = await trx('materials.shipments')
-      .insert({
-        shipmentCode,
-        shipmentSequence: parseInt(shipmentCode.split('-')[2], 10),
-        customerId: data.customerId || null,
-        customerSnapshot: data.customerSnapshot, // JSONB
-        quoteId: data.quoteId || null,
-        isPartialShipment: !!data.quoteId,
-        shippedQuantityTotal,
-        quoteRemainingQuantity,
-        documentType: data.documentType || 'waybill',
-        includePrice: data.includePrice || false,
-        currency: data.currency || 'TRY',
-        subtotal: data.includePrice ? subtotal : null,
-        taxTotal: data.includePrice ? taxTotal : null,
-        grandTotal: data.includePrice ? grandTotal : null,
-        exportedFormats: {}, // Boş object
-        status: 'pending',
-        notes: data.notes,
-        createdBy: user?.email || 'system',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-      .returning('*');
-    
-    // ============================================================
-    // 6. ITEMS EKLE + STOK DÜŞ
-    // ============================================================
-    for (const item of calculatedItems) {
-      await trx('materials.shipment_items').insert({
-        shipmentId: shipment.id,
-        materialCode: item.materialCode,
-        quantity: item.quantity,
-        unit: item.unit || 'adet',
-        unitPrice: item.unitPrice,
-        taxRate: item.taxRate,
-        lineSubtotal: item.lineSubtotal || null,
-        lineTax: item.lineTax || null,
-        lineTotal: item.lineTotal || null,
-        lotNumber: item.lotNumber,
-        notes: item.notes,
-        isPartial: !!data.quoteId,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      
-      // Stok düşümü
-      const StockMovements = (await import('./stockMovements.js')).default;
-      await StockMovements.createMovement(trx, {
-        materialCode: item.materialCode,
-        movementType: 'out',
-        subType: 'shipment',
-        quantity: item.quantity,
-        referenceId: shipment.id,
-        referenceType: 'shipment',
-        notes: `Sevkiyat: ${shipmentCode}`,
-        createdBy: user?.email
-      });
-    }
-    
-    await trx.commit();
-    return shipment;
-    
-  } catch (error) {
-    await trx.rollback();
-    throw error;
-  }
-}
-
-/**
- * Hızlı sevkiyat (stok sayfasından tek ürün)
- */
-async function createQuickShipment(data, user) {
-  // customerSnapshot doldur
-  let customerSnapshot = data.customerSnapshot;
-  if (data.customerId && !customerSnapshot) {
-    const customer = await db('quotes.customers')
-      .where({ id: data.customerId })
-      .first();
-    
-    if (!customer) {
-      throw new Error('Müşteri bulunamadı');
-    }
-    
-    customerSnapshot = {
-      name: customer.name,
-      company: customer.company,
-      taxOffice: customer.taxOffice,
-      taxNumber: customer.taxNumber,
-      city: customer.city,
-      district: customer.district,
-      address: customer.address,
-      phone: customer.phone,
-      email: customer.email
-    };
-  }
-  
-  if (!customerSnapshot) {
-    throw new Error('customerSnapshot veya customerId gerekli');
-  }
-  
-  return createShipment({
-    customerId: data.customerId,
-    customerSnapshot,
-    items: [{
-      materialCode: data.materialCode,
-      quantity: data.quantity,
-      unit: data.unit,
-      unitPrice: data.unitPrice,
-      taxRate: data.taxRate || 20
-    }],
-    documentType: data.documentType || 'waybill',
-    includePrice: data.documentType === 'invoice' || data.documentType === 'both',
-    notes: data.notes
-  }, user);
-}
-
-/**
- * Sevkiyat iptal → stok geri
- */
-async function cancelShipment(shipmentId, reason, user) {
-  const trx = await db.transaction();
-  
-  try {
-    const shipment = await trx('materials.shipments')
-      .where({ id: shipmentId })
-      .first();
-    
-    if (!shipment) throw new Error('Sevkiyat bulunamadı');
-    if (shipment.status === 'cancelled') throw new Error('Zaten iptal edilmiş');
-    
-    // Items'ları al
-    const items = await trx('materials.shipment_items')
-      .where({ shipmentId });
-    
-    // Her item için stok geri ekle
-    for (const item of items) {
-      await StockMovements.createMovement({
-        materialCode: item.materialCode,
-        movementType: 'in',
-        subType: 'shipment_cancellation',
-        quantity: item.quantity,
-        referenceId: shipmentId,
-        referenceType: 'shipment',
-        notes: `Sevkiyat iptali: ${shipment.shipmentCode} - ${reason}`
-      }, trx);
-    }
-    
-    // Status güncelle
-    await trx('materials.shipments')
-      .where({ id: shipmentId })
-      .update({
-        status: 'cancelled',
-        notes: db.raw(`CONCAT(COALESCE(notes, ''), '\n[İPTAL] ${reason} - ${new Date().toISOString()}')`)
-      });
-    
-    await trx.commit();
-    return { success: true };
-    
-  } catch (error) {
-    await trx.rollback();
-    throw error;
+**Response (201):**
+```json
+{
+  "success": true,
+  "shipment": {
+    "id": 123,
+    "shipmentCode": "SHP-2025-0045",
+    "status": "pending",
+    "grandTotal": 6000.00
   }
 }
 ```
 
-#### **exportService.js** (YENİ)
+**Validasyonlar:**
+- `customerSnapshot` zorunlu (customerId opsiyonel ama snapshot şart)
+- `documentType = 'invoice'|'both'` → `includePrice = true` zorunlu
+- `includePrice = true` → tüm items'da `unitPrice > 0` zorunlu
+- `currency != 'TRY'` → `exchangeRate > 0` zorunlu
+- Her item için stok kontrolü → yetersizse HATA
 
-```javascript
-// Export Service - Ana modül
+**DB Kolon Eşleştirmesi:**
+| Request Field | DB Column | Tablo |
+|---------------|-----------|-------|
+| `customerId` | `customerId` | shipments |
+| `customerSnapshot` | `customerSnapshot` | shipments |
+| `alternateDeliveryAddress` | `alternateDeliveryAddress` | shipments |
+| `discountPercent` | `discountPercent` | shipment_items |
+| `vatExemptionId` | `vatExemptionId` | shipment_items |
+| `withholdingRateId` | `withholdingRateId` | shipment_items |
 
-import { generateCSV } from './generators/csvGenerator.js';
-import { generateXML } from './generators/xmlGenerator.js';
-import { generatePDF } from './generators/pdfGenerator.js';
-import { generateJSON } from './generators/jsonGenerator.js';
+### 4.3. POST `/api/materials/shipments/:id/import` - Import
 
-/**
- * Sevkiyat export et
- * @param {number} shipmentId
- * @param {string} format - 'csv' | 'xml' | 'pdf' | 'json'
- */
-async function exportShipment(shipmentId, format) {
-  // 1. Shipment + Items + Customer verilerini al
-  const shipment = await db('materials.shipments as s')
-    .where({ 's.id': shipmentId })
-    .first();
-  
-  const items = await db('materials.shipment_items as si')
-    .join('materials.materials as m', 'si.materialCode', 'm.code')
-    .where({ 'si.shipmentId': shipmentId })
-    .select(
-      'si.*',
-      'm.name as materialName',
-      'm.code as materialCode'
-    );
-  
-  const data = {
-    shipment,
-    items,
-    customer: shipment.customerSnapshot || {}
-  };
-  
-  // 2. Format'a göre generate
-  let result;
-  switch (format.toLowerCase()) {
-    case 'csv':
-      result = await generateCSV(data);
-      break;
-    case 'xml':
-      result = await generateXML(data);
-      break;
-    case 'pdf':
-      result = await generatePDF(data);
-      break;
-    case 'json':
-      result = generateJSON(data);
-      break;
-    default:
-      throw new Error(`Desteklenmeyen format: ${format}`);
-  }
-  
-  // 3. Export kaydını güncelle
-  await db('materials.shipments')
-    .where({ id: shipmentId })
-    .update({
-      exportedFormats: db.raw(`
-        COALESCE("exportedFormats", '[]'::jsonb) || ?::jsonb
-      `, [JSON.stringify([format])]),
-      exportedAt: new Date()
-    });
-  
-  return result;
+**Request:** `multipart/form-data`
+- `file`: Yüklenen dosya
+- `externalDocNumber`: Logo/Zirve belge no
+
+**Response:**
+```json
+{
+  "success": true,
+  "shipment": {
+    "id": 123,
+    "status": "completed",
+    "externalDocNumber": "A-2025-001234",
+    "importedAt": "2025-12-08T15:00:00Z"
+  },
+  "stockUpdates": [
+    {"materialCode": "M-001", "change": -100, "newStock": 400}
+  ]
 }
-
-export default {
-  exportShipment
-};
 ```
+
+### 4.4. GET `/api/materials/shipments/:id/export/:format` - Export
+
+**URL:** `/api/materials/shipments/123/export/csv?target=logo_tiger`
+
+**Response:** Dosya download
+- `Content-Type`: `text/csv` | `application/xml` | `application/pdf` | `application/json`
+- `Content-Disposition`: `attachment; filename="SHP-2025-0045.csv"`
 
 ---
 
-## 4. EXPORT FORMATLARI
+## 5. EXPORT FORMATLARI
 
-### 4.1. CSV (Excel Import)
+### 5.1. CSV Formatı
 
-**Dosya**: `generators/csvGenerator.js`
+**Ayraç:** System Settings'den (`csv_delimiter`)
 
-```javascript
-import { stringify } from 'csv-stringify/sync';
-
-/**
- * CSV formatı oluştur
- * Excel'de açılabilir, manuel düzenleme kolay
- */
-export async function generateCSV(data) {
-  const { shipment, items, customer } = data;
-  
-  // Header satırı
-  const records = [];
-  
-  // Müşteri bilgileri (ilk satırlar)
-  records.push(['İrsaliye No', shipment.shipmentCode]);
-  records.push(['Tarih', new Date(shipment.createdAt).toLocaleDateString('tr-TR')]);
-  records.push(['Müşteri', customer.name || shipment.customerName]);
-  records.push(['Vergi No', customer.taxNumber || shipment.customerTaxNumber]);
-  records.push(['Vergi Dairesi', customer.taxOffice || shipment.customerTaxOffice]);
-  records.push(['Adres', customer.address || shipment.deliveryAddress]);
-  records.push([]); // Boş satır
-  
-  // Kalem başlıkları
-  records.push([
-    'Sıra',
-    'Malzeme Kodu',
-    'Malzeme Adı',
-    'Miktar',
-    'Birim',
-    ...(shipment.includePrice ? ['Birim Fiyat', 'KDV %', 'Ara Toplam', 'KDV Tutarı', 'Toplam'] : [])
-  ]);
-  
-  // Kalemler
-  items.forEach((item, index) => {
-    const row = [
-      index + 1,
-      item.materialCode,
-      item.materialName,
-      item.quantity,
-      item.unit,
-      ...(shipment.includePrice ? [
-        item.unitPrice,
-        item.taxRate,
-        item.lineSubtotal,
-        item.lineTax,
-        item.lineTotal
-      ] : [])
-    ];
-    records.push(row);
-  });
-  
-  // Fatura ise toplamlar
-  if (shipment.includePrice) {
-    records.push([]);
-    records.push(['', '', '', '', 'Ara Toplam:', shipment.subtotal]);
-    records.push(['', '', '', '', 'KDV Toplam:', shipment.taxTotal]);
-    records.push(['', '', '', '', 'Genel Toplam:', shipment.grandTotal, shipment.currency]);
-  }
-  
-  const csv = stringify(records, {
-    encoding: 'utf8',
-    bom: true // Excel için UTF-8 BOM
-  });
-  
-  return {
-    content: csv,
-    filename: `${shipment.shipmentCode}.csv`,
-    mimeType: 'text/csv; charset=utf-8'
-  };
-}
+**Kolonlar:**
+```
+Belge No;Tarih;Cari Kodu;Cari Ünvan;VKN;Vergi Dairesi;Adres;Şehir;İlçe;Telefon;Email;
+Stok Kodu;Stok Adı;Miktar;Birim;Birim Fiyat;İskonto %;İskonto Tutar;KDV %;KDV Tutar;
+Tevkifat Oranı;Tevkifat Tutar;Satır Toplam;Lot No;Seri No;Para Birimi;Döviz Kuru;
+Genel İskonto;Ara Toplam;Toplam KDV;Toplam Tevkifat;Genel Toplam
 ```
 
-### 4.2. XML (Logo/Zirve Import)
+### 5.2. XML Formatı (Logo Tiger/GO)
 
-**Dosya**: `generators/xmlGenerator.js`
-
-```javascript
-import { create } from 'xmlbuilder2';
-
-/**
- * Logo Tiger XML formatı oluştur
- * Logo'nun import standardına uygun
- */
-export async function generateXML(data) {
-  const { shipment, items, customer } = data;
-  
-  const root = create({ version: '1.0', encoding: 'UTF-8' })
-    .ele('Irsaliye')
-      .ele('Baslik')
-        .ele('BelgeNo').txt(shipment.shipmentCode).up()
-        .ele('Tarih').txt(new Date(shipment.createdAt).toISOString().split('T')[0]).up()
-        .ele('CariKodu').txt(customer.erpAccountCode || '').up()
-        .ele('CariUnvan').txt(customer.name || shipment.customerName).up()
-        .ele('VergiNo').txt(customer.taxNumber || shipment.customerTaxNumber).up()
-        .ele('VergiDairesi').txt(customer.taxOffice || shipment.customerTaxOffice).up()
-        .ele('Adres').txt(customer.address || shipment.deliveryAddress).up()
-        .ele('Il').txt(customer.city || shipment.customerCity).up()
-        .ele('Ilce').txt(customer.district || shipment.customerDistrict).up()
-      .up()
-      .ele('Satirlar');
-  
-  items.forEach((item, index) => {
-    const satirNode = root.ele('Satir')
-      .ele('SiraNo').txt(index + 1).up()
-      .ele('StokKodu').txt(item.materialCode).up()
-      .ele('StokAdi').txt(item.materialName).up()
-      .ele('Miktar').txt(item.quantity).up()
-      .ele('Birim').txt(item.unit).up();
-    
-    if (shipment.includePrice) {
-      satirNode
-        .ele('BirimFiyat').txt(item.unitPrice).up()
-        .ele('KDVOrani').txt(item.taxRate).up()
-        .ele('AraToplam').txt(item.lineSubtotal).up()
-        .ele('KDVTutar').txt(item.lineTax).up()
-        .ele('Toplam').txt(item.lineTotal).up();
-    }
-    
-    satirNode.up();
-  });
-  
-  if (shipment.includePrice) {
-    root.up()
-      .ele('Toplamlar')
-        .ele('AraToplam').txt(shipment.subtotal).up()
-        .ele('KDVToplam').txt(shipment.taxTotal).up()
-        .ele('GenelToplam').txt(shipment.grandTotal).up()
-        .ele('ParaBirimi').txt(shipment.currency).up();
-  }
-  
-  const xml = root.end({ prettyPrint: true });
-  
-  return {
-    content: xml,
-    filename: `${shipment.shipmentCode}.xml`,
-    mimeType: 'application/xml'
-  };
-}
-```
-
-### 4.3. PDF (Yazdırılabilir İrsaliye)
-
-**Dosya**: `generators/pdfGenerator.js`
-
-```javascript
-import PDFDocument from 'pdfkit';
-
-/**
- * PDF irsaliye/fatura oluştur
- */
-export async function generatePDF(data) {
-  const { shipment, items, customer } = data;
-  
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    const chunks = [];
-    
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => {
-      resolve({
-        content: Buffer.concat(chunks),
-        filename: `${shipment.shipmentCode}.pdf`,
-        mimeType: 'application/pdf'
-      });
-    });
-    doc.on('error', reject);
-    
-    // Başlık
-    doc.fontSize(20).text(
-      shipment.documentType === 'invoice' ? 'FATURA' : 'SEVKİYAT İRSALİYESİ',
-      { align: 'center' }
-    );
-    doc.moveDown();
-    
-    // İrsaliye bilgileri
-    doc.fontSize(10);
-    doc.text(`İrsaliye No: ${shipment.shipmentCode}`);
-    doc.text(`Tarih: ${new Date(shipment.createdAt).toLocaleDateString('tr-TR')}`);
-    doc.moveDown();
-    
-    // Müşteri bilgileri
-    doc.fontSize(12).text('Müşteri Bilgileri:', { underline: true });
-    doc.fontSize(10);
-    doc.text(`${customer.name || shipment.customerName}`);
-    if (customer.company) doc.text(customer.company);
-    doc.text(`VKN/TCKN: ${customer.taxNumber || shipment.customerTaxNumber}`);
-    doc.text(`Vergi Dairesi: ${customer.taxOffice || shipment.customerTaxOffice}`);
-    doc.text(`Adres: ${customer.address || shipment.deliveryAddress}`);
-    doc.moveDown(2);
-    
-    // Kalemler tablosu
-    const tableTop = doc.y;
-    const col1 = 50;
-    const col2 = 100;
-    const col3 = 300;
-    const col4 = 400;
-    const col5 = 450;
-    const col6 = shipment.includePrice ? 500 : null;
-    
-    // Tablo başlıkları
-    doc.fontSize(10).fillColor('#000');
-    doc.text('Sıra', col1, tableTop);
-    doc.text('Kod', col2, tableTop);
-    doc.text('Malzeme Adı', col3, tableTop);
-    doc.text('Miktar', col4, tableTop);
-    doc.text('Birim', col5, tableTop);
-    if (shipment.includePrice) doc.text('Tutar', col6, tableTop);
-    
-    doc.moveTo(col1, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-    
-    // Kalemler
-    let y = tableTop + 25;
-    items.forEach((item, index) => {
-      doc.text(index + 1, col1, y);
-      doc.text(item.materialCode, col2, y);
-      doc.text(item.materialName.substring(0, 30), col3, y);
-      doc.text(item.quantity, col4, y);
-      doc.text(item.unit, col5, y);
-      if (shipment.includePrice) {
-        doc.text(`${item.lineTotal.toFixed(2)} TL`, col6, y);
-      }
-      y += 20;
-    });
-    
-    // Fatura ise toplamlar
-    if (shipment.includePrice) {
-      doc.moveTo(col1, y).lineTo(550, y).stroke();
-      y += 10;
-      doc.fontSize(11);
-      doc.text(`Ara Toplam: ${shipment.subtotal.toFixed(2)} ${shipment.currency}`, 400, y);
-      y += 15;
-      doc.text(`KDV Toplam: ${shipment.taxTotal.toFixed(2)} ${shipment.currency}`, 400, y);
-      y += 15;
-      doc.fontSize(12).fillColor('#c00');
-      doc.text(`Genel Toplam: ${shipment.grandTotal.toFixed(2)} ${shipment.currency}`, 400, y);
-    }
-    
-    doc.end();
-  });
-}
-```
-
----
-
-## 5. UI/UX AKIŞLARI
-
-### 5.1. Stok Sayfasından Hızlı Sevkiyat
-
-**Component**: `HizliSevkiyatModal.jsx`  
-**Konum**: `/WebApp/domains/materials/components/shipments/HizliSevkiyatModal.jsx`  
-**CSS**: Mevcut `materials.css` classları kullanılacak
-
-```jsx
-import React, { useState } from 'react';
-import CustomerAutocomplete from '../../../shared/components/CustomerAutocomplete.jsx';
-
-/**
- * Hızlı Sevkiyat Modal (Stok sayfasından)
- * Props:
- * - material: { code, name, stock, unit }
- * - onClose: () => void
- * - onSuccess: (shipment) => void
- */
-export default function HizliSevkiyatModal({ material, onClose, onSuccess }) {
-  const [customerId, setCustomerId] = useState(null);
-  const [customerSnapshot, setCustomerSnapshot] = useState(null);
-  const [quantity, setQuantity] = useState('');
-  const [documentType, setDocumentType] = useState('waybill');
-  const [includePrice, setIncludePrice] = useState(false);
-  const [unitPrice, setUnitPrice] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const response = await fetch('/api/materials/shipments/quick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId,
-          customerSnapshot,
-          materialCode: material.code,
-          quantity: parseFloat(quantity),
-          documentType,
-          includePrice,
-          unitPrice: includePrice ? parseFloat(unitPrice) : 0,
-          taxRate: 20
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) throw new Error(result.error);
-      
-      onSuccess(result);
-      onClose();
-      
-    } catch (error) {
-      alert('Hata: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <div className="modal-header">
-          <h2>Hızlı Sevkiyat</h2>
-          <button onClick={onClose} className="close-btn">×</button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="form-container">
-          {/* Malzeme (disabled) */}
-          <div className="form-group">
-            <label>Malzeme</label>
-            <input 
-              type="text" 
-              value={`${material.code} - ${material.name}`}
-              disabled
-              className="form-group-input"
-            />
-          </div>
-          
-          {/* Müşteri seçimi */}
-          <div className="form-group">
-            <label>Müşteri *</label>
-            <CustomerAutocomplete
-              onSelect={(customer) => {
-                setCustomerId(customer.id);
-                setCustomerSnapshot(customer);
-              }}
-            />
-          </div>
-          
-          {/* Miktar */}
-          <div className="form-group">
-            <label>Miktar * (Max: {material.stock} {material.unit})</label>
-            <input
-              type="number"
-              step="0.01"
-              max={material.stock}
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-              className="form-group-input"
-            />
-          </div>
-          
-          {/* Belge tipi */}
-          <div className="form-group">
-            <label>Belge Tipi</label>
-            <div className="radio-group">
-              <label>
-                <input
-                  type="radio"
-                  value="waybill"
-                  checked={documentType === 'waybill'}
-                  onChange={(e) => {
-                    setDocumentType(e.target.value);
-                    setIncludePrice(false);
-                  }}
-                />
-                İrsaliye
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="invoice"
-                  checked={documentType === 'invoice'}
-                  onChange={(e) => {
-                    setDocumentType(e.target.value);
-                    setIncludePrice(true);
-                  }}
-                />
-                Fatura
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="both"
-                  checked={documentType === 'both'}
-                  onChange={(e) => {
-                    setDocumentType(e.target.value);
-                    setIncludePrice(true);
-                  }}
-                />
-                İkisi Birden
-              </label>
-            </div>
-          </div>
-          
-          {/* Fiyat (fatura ise) */}
-          {includePrice && (
-            <div className="form-group">
-              <label>Birim Fiyat (TL) *</label>
-              <input
-                type="number"
-                step="0.01"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
-                required
-                className="form-group-input"
-              />
-            </div>
-          )}
-          
-          {/* Buttons */}
-          <div className="modal-footer">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              İptal
-            </button>
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? 'Oluşturuluyor...' : 'Oluştur ve Export'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-```
-
-### 5.2. Manuel Sevkiyat Wizard (3 Adım)
-
-**Component**: `YeniSevkiyatWizard.jsx`  
-**Konum**: `/WebApp/domains/materials/components/shipments/YeniSevkiyatWizard.jsx`
-
-```jsx
-import React, { useState } from 'react';
-
-export default function YeniSevkiyatWizard({ onClose, onSuccess }) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
-    customerId: null,
-    customerSnapshot: null,
-    items: [],
-    documentType: 'waybill',
-    includePrice: false
-  });
-  
-  const steps = [
-    { id: 1, title: 'Müşteri' },
-    { id: 2, title: 'Ürünler' },
-    { id: 3, title: 'Önizleme' }
-  ];
-  
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content modal-large">
-        {/* Progress */}
-        <div className="wizard-progress">
-          {steps.map(step => (
-            <div 
-              key={step.id}
-              className={`wizard-step ${currentStep >= step.id ? 'active' : ''}`}
-            >
-              <div className="step-number">{step.id}</div>
-              <div className="step-title">{step.title}</div>
-            </div>
-          ))}
-        </div>
-        
-        {/* Content */}
-        <div className="wizard-body">
-          {currentStep === 1 && <Step1Customer data={formData} onChange={setFormData} />}
-          {currentStep === 2 && <Step2Items data={formData} onChange={setFormData} />}
-          {currentStep === 3 && <Step3Preview data={formData} />}
-        </div>
-        
-        {/* Navigation */}
-        <div className="modal-footer">
-          <button onClick={onClose} className="btn btn-secondary">İptal</button>
-          
-          {currentStep > 1 && (
-            <button onClick={() => setCurrentStep(currentStep - 1)} className="btn btn-outline">
-              ← Geri
-            </button>
-          )}
-          
-          {currentStep < 3 && (
-            <button 
-              onClick={() => setCurrentStep(currentStep + 1)}
-              className="btn btn-primary"
-            >
-              İleri →
-            </button>
-          )}
-          
-          {currentStep === 3 && (
-            <button onClick={handleSubmit} className="btn btn-success">
-              Kaydet ve Export
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-## 6. IMPLEMENTATION PLAN
-
-### 6.1. Faz 1: Database & Backend (3 gün)
-
-**Görevler:**
-1. ✅ Migration oluştur: `035_invoice_export_integration.sql`
-2. ✅ `shipmentService.js` güncelle (createShipment, cancelShipment)
-3. ✅ `exportService.js` oluştur
-4. ✅ CSV/XML generator'ları yaz
-5. ✅ API endpoint'leri ekle (`shipmentRoutes.js`, `exportRoutes.js`)
-6. ✅ Test: Postman ile API testleri
-
-### 6.2. Faz 2: UI Components (2 gün)
-
-**Görevler:**
-1. ✅ `HizliSevkiyatModal.jsx` (stok sayfası butonu ile entegre)
-2. ✅ `YeniSevkiyatWizard.jsx` (3 adımlı wizard)
-3. ✅ Stok tablosuna "Sevk Et" butonu ekle
-4. ✅ Sevkiyatlar sayfasına "Yeni İrsaliye" butonu ekle
-
-### 6.3. Faz 3: Export & Polish (1 gün)
-
-**Görevler:**
-1. ✅ PDF generator (pdfkit entegrasyonu)
-2. ✅ Export download logic (frontend)
-3. ✅ Error handling & validation
-4. ✅ UI polish (loading states, success messages)
-
-### 6.4. Test Senaryoları
-
-**Manuel Test Checklist:**
-
-- [ ] Stok sayfasından hızlı sevkiyat
-  - [ ] Kayıtlı müşteri ile
-  - [ ] Yeni müşteri (inline form) ile
-  - [ ] Sadece irsaliye (fiyatsız)
-  - [ ] Fatura (fiyatlı)
-  - [ ] CSV/XML/PDF export çalışıyor
-
-- [ ] Manuel sevkiyat (wizard)
-  - [ ] 3 adım sorunsuz geçiş
-  - [ ] Çoklu ürün ekleme
-  - [ ] Stok kontrolü çalışıyor
-  - [ ] Önizleme doğru
-
-- [ ] İptal işlemi
-  - [ ] Stok geri geliyor
-  - [ ] Movement kaydı oluşuyor
-
-- [ ] Parçalı sevkiyat (elle test)
-  - [ ] Quote'a 1000 adet atandı
-  - [ ] 1. sevkiyat: 200 adet
-  - [ ] 2. sevkiyat: 300 adet
-  - [ ] Kalan: 500 adet gösterilmeli
-
----
-
-## 7. ÖNEMLİ NOTLAR
-
-### 7.1. CSS Sınıfları (materials.css'ten)
-
-Kullanılacak mevcut classlar:
-- `.modal-overlay`, `.modal-content`, `.modal-header`, `.modal-footer`
-- `.form-group`, `.form-group-input`, `.radio-group`
-- `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-success`
-- `.wizard-progress`, `.wizard-step`, `.wizard-body`
-- `.table-container`, `.materials-table`
-
-### 7.2. Güvenlik
-
-- ✅ SQL Injection: Parametreli sorgular (Knex ORM)
-- ✅ XSS: React otomatik escape ediyor
-- ✅ CSRF: Eski proje yapısında yok (eklenecek mi?)
-- ✅ File Upload: Export'ta güvenli dosya adı oluştur
-
-### 7.3. Performans
-
-- ✅ Export büyük dosyalar için stream kullan (PDF)
-- ✅ Batch export için queue sistemi düşün (RabbitMQ/Bull?)
-- ✅ customerSnapshot JSONB indexing (GIN index)
-
----
-
----
-
-## 8. EKSİK İMPLEMENTASYON DETAYLARI
-
-### 8.1. Export Service Generator Detayları
-
-#### `csvGenerator.js` - Logo/Excel Uyumlu Format
-
-```javascript
-// WebApp/domains/materials/api/services/export/csvGenerator.js
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
-
-export function generateCSV(shipment, items) {
-  // Logo Tiger/Go import formatı
-  const headers = [
-    'Cari Kodu',
-    'Cari Ünvan',
-    'VKN/TCKN',
-    'Vergi Dairesi',
-    'Adres',
-    'İl',
-    'İlçe',
-    'Telefon',
-    'Email',
-    'İrsaliye No',
-    'İrsaliye Tarihi',
-    'Stok Kodu',
-    'Stok Adı',
-    'Miktar',
-    'Birim',
-    'Birim Fiyat',
-    'KDV %',
-    'Tutar',
-    'KDV Tutarı',
-    'Toplam'
-  ];
-
-  const snapshot = shipment.customerSnapshot;
-  
-  const rows = items.map(item => [
-    snapshot.erpAccountCode || '',
-    snapshot.company || snapshot.name,
-    snapshot.taxNumber,
-    snapshot.taxOffice,
-    snapshot.address,
-    snapshot.city,
-    snapshot.district,
-    snapshot.phone || '',
-    snapshot.email || '',
-    shipment.shipmentCode,
-    format(new Date(shipment.createdAt), 'dd.MM.yyyy', { locale: tr }),
-    item.materialCode,
-    item.materialName || '',
-    item.quantity,
-    item.unit,
-    item.unitPrice || 0,
-    item.taxRate || 20,
-    item.lineSubtotal || 0,
-    item.lineTax || 0,
-    item.lineTotal || 0
-  ]);
-
-  // CSV oluştur (UTF-8 BOM ile - Excel için)
-  const BOM = '\uFEFF';
-  const csvContent = [
-    headers.join(';'),
-    ...rows.map(row => row.join(';'))
-  ].join('\n');
-
-  return BOM + csvContent;
-}
-```
-
-#### `xmlGenerator.js` - Logo XML Format (e-Dönüşüm Standardı)
-
-```javascript
-// WebApp/domains/materials/api/services/export/xmlGenerator.js
-import { format } from 'date-fns';
-
-export function generateLogoXML(shipment, items) {
-  const snapshot = shipment.customerSnapshot;
-  const docType = shipment.documentType === 'invoice' ? 'SATIS_FATURASI' : 'SEVK_IRSALIYESI';
-  
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
 <BELGE>
-  <TIP>${docType}</TIP>
-  <NUMARA>${shipment.shipmentCode}</NUMARA>
-  <TARIH>${format(new Date(shipment.createdAt), 'yyyy-MM-dd')}</TARIH>
+  <TIP>SEVK_IRSALIYESI</TIP>
+  <NUMARA>SHP-2025-0045</NUMARA>
+  <TARIH>2025-12-08</TARIH>
+  <PARA_BIRIMI>TRY</PARA_BIRIMI>
+  <DOVIZ_KURU>1.000000</DOVIZ_KURU>
   
   <CARI>
-    <KODU>${snapshot.erpAccountCode || ''}</KODU>
-    <UNVAN>${snapshot.company || snapshot.name}</UNVAN>
-    <VKN>${snapshot.taxNumber}</VKN>
-    <VERGI_DAIRESI>${snapshot.taxOffice}</VERGI_DAIRESI>
-    <ADRES>${snapshot.address}</ADRES>
-    <IL>${snapshot.city}</IL>
-    <ILCE>${snapshot.district}</ILCE>
-    <TELEFON>${snapshot.phone || ''}</TELEFON>
-    <EMAIL>${snapshot.email || ''}</EMAIL>
+    <KODU>120.01.001</KODU>
+    <UNVAN>ABC Limited Şti.</UNVAN>
+    <VKN>1234567890</VKN>
+    <VERGI_DAIRESI>Kadıköy VD</VERGI_DAIRESI>
+    <ADRES>Örnek Mah. No:5</ADRES>
+    <IL>İstanbul</IL>
+    <ILCE>Kadıköy</ILCE>
+    <TELEFON>+90 216 555 1234</TELEFON>
+    <EMAIL>info@abc.com</EMAIL>
   </CARI>
   
+  <TESLIM_ADRESI>
+    <!-- useAlternateDelivery = true ise doldurulur -->
+  </TESLIM_ADRESI>
+  
   <SATIRLAR>
-${items.map((item, index) => `    <SATIR>
-      <SIRA>${index + 1}</SIRA>
-      <STOK_KODU>${item.materialCode}</STOK_KODU>
-      <STOK_ADI><![CDATA[${item.materialName || ''}]]></STOK_ADI>
-      <MIKTAR>${item.quantity}</MIKTAR>
-      <BIRIM>${item.unit}</BIRIM>
-      ${shipment.includePrice ? `<BIRIM_FIYAT>${item.unitPrice || 0}</BIRIM_FIYAT>
-      <KDV_ORANI>${item.taxRate || 20}</KDV_ORANI>
-      <TUTAR>${item.lineSubtotal || 0}</TUTAR>
-      <KDV_TUTARI>${item.lineTax || 0}</KDV_TUTARI>
-      <TOPLAM>${item.lineTotal || 0}</TOPLAM>` : ''}
-    </SATIR>`).join('\n')}
+    <SATIR>
+      <SIRA>1</SIRA>
+      <STOK_KODU>M-001</STOK_KODU>
+      <STOK_ADI><![CDATA[Demir Levha]]></STOK_ADI>
+      <MIKTAR>100</MIKTAR>
+      <BIRIM>adet</BIRIM>
+      <BIRIM_FIYAT>50.00</BIRIM_FIYAT>
+      <ISKONTO_ORAN>0</ISKONTO_ORAN>
+      <ISKONTO_TUTAR>0.00</ISKONTO_TUTAR>
+      <KDV_ORANI>20</KDV_ORANI>
+      <KDV_MUAFIYET></KDV_MUAFIYET>
+      <TEVKIFAT_ORAN></TEVKIFAT_ORAN>
+      <TEVKIFAT_TUTAR>0.00</TEVKIFAT_TUTAR>
+      <ARA_TOPLAM>5000.00</ARA_TOPLAM>
+      <KDV_TUTAR>1000.00</KDV_TUTAR>
+      <TOPLAM>6000.00</TOPLAM>
+      <LOT_NO></LOT_NO>
+      <SERI_NO></SERI_NO>
+      <NOT></NOT>
+    </SATIR>
   </SATIRLAR>
   
-  ${shipment.includePrice ? `<OZET>
-    <ARA_TOPLAM>${shipment.subtotal}</ARA_TOPLAM>
-    <KDV_TOPLAM>${shipment.taxTotal}</KDV_TOPLAM>
-    <GENEL_TOPLAM>${shipment.grandTotal}</GENEL_TOPLAM>
-  </OZET>` : ''}
-</BELGE>`;
-
-  return xml;
-}
-```
-
-#### `pdfGenerator.js` - Yazdırılabilir İrsaliye/Fatura
-
-```javascript
-// WebApp/domains/materials/api/services/export/pdfGenerator.js
-import PDFDocument from 'pdfkit';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
-
-export async function generatePDF(shipment, items, companyInfo) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    const chunks = [];
-
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    const snapshot = shipment.customerSnapshot;
-    const isInvoice = shipment.documentType === 'invoice' || shipment.includePrice;
-
-    // Header
-    doc.fontSize(20).text(isInvoice ? 'FATURA' : 'SEVKİYAT İRSALİYESİ', { align: 'center' });
-    doc.moveDown();
-
-    // Belge No ve Tarih
-    doc.fontSize(10)
-       .text(`Belge No: ${shipment.shipmentCode}`, 50, 100)
-       .text(`Tarih: ${format(new Date(shipment.createdAt), 'dd.MM.yyyy HH:mm', { locale: tr })}`, 50, 115);
-
-    // Gönderici Bilgileri (Sol)
-    doc.fontSize(12).text('GÖNDERİCİ', 50, 150);
-    doc.fontSize(10)
-       .text(companyInfo.name || 'BeePlan Üretim', 50, 170)
-       .text(`VD: ${companyInfo.taxOffice || ''}`, 50, 185)
-       .text(`VKN: ${companyInfo.taxNumber || ''}`, 50, 200)
-       .text(companyInfo.address || '', 50, 215);
-
-    // Alıcı Bilgileri (Sağ)
-    doc.fontSize(12).text('ALICI', 350, 150);
-    doc.fontSize(10)
-       .text(snapshot.company || snapshot.name, 350, 170)
-       .text(`VD: ${snapshot.taxOffice}`, 350, 185)
-       .text(`VKN: ${snapshot.taxNumber}`, 350, 200)
-       .text(snapshot.address, 350, 215, { width: 200 });
-
-    // Tablo başlıkları
-    const tableTop = 280;
-    doc.fontSize(9)
-       .text('Sıra', 50, tableTop)
-       .text('Stok Kodu', 80, tableTop)
-       .text('Açıklama', 180, tableTop)
-       .text('Miktar', 350, tableTop)
-       .text('Birim', 410, tableTop);
-
-    if (isInvoice) {
-      doc.text('B.Fiyat', 450, tableTop)
-         .text('KDV%', 500, tableTop)
-         .text('Toplam', 530, tableTop);
-    }
-
-    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-
-    // Ürün satırları
-    let yPosition = tableTop + 25;
-    items.forEach((item, index) => {
-      doc.fontSize(8)
-         .text(index + 1, 50, yPosition)
-         .text(item.materialCode, 80, yPosition)
-         .text(item.materialName || '', 180, yPosition, { width: 160 })
-         .text(item.quantity, 350, yPosition)
-         .text(item.unit, 410, yPosition);
-
-      if (isInvoice) {
-        doc.text((item.unitPrice || 0).toFixed(2), 450, yPosition)
-           .text(item.taxRate || 20, 500, yPosition)
-           .text((item.lineTotal || 0).toFixed(2), 530, yPosition);
-      }
-
-      yPosition += 20;
-    });
-
-    // Toplam (Fatura için)
-    if (isInvoice) {
-      yPosition += 20;
-      doc.fontSize(10)
-         .text('Ara Toplam:', 400, yPosition)
-         .text(`${shipment.subtotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
-      
-      yPosition += 15;
-      doc.text('KDV Toplam:', 400, yPosition)
-         .text(`${shipment.taxTotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
-      
-      yPosition += 15;
-      doc.fontSize(12)
-         .text('GENEL TOPLAM:', 400, yPosition)
-         .text(`${shipment.grandTotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
-    }
-
-    // Footer
-    doc.fontSize(8)
-       .text('BeePlan Üretim Yönetim Sistemi', 50, 750, { align: 'center' });
-
-    doc.end();
-  });
-}
-```
-
-### 8.2. Validasyon Kuralları ve İş Mantığı
-
-#### Sevkiyat Oluşturma Validasyonları
-
-```javascript
-// shipmentService.js - validateShipmentData()
-function validateShipmentData(data, items) {
-  const errors = [];
-
-  // 1. Müşteri bilgileri kontrolü
-  if (!data.customerId && !data.customerSnapshot) {
-    errors.push('Müşteri bilgisi zorunludur (customerId veya customerSnapshot)');
-  }
-
-  if (data.customerSnapshot) {
-    const required = ['name', 'taxNumber', 'taxOffice', 'address', 'city'];
-    required.forEach(field => {
-      if (!data.customerSnapshot[field]) {
-        errors.push(`customerSnapshot.${field} zorunludur`);
-      }
-    });
-
-    // VKN/TCKN format kontrolü
-    const taxNumber = data.customerSnapshot.taxNumber;
-    if (taxNumber && !/^\d{10,11}$/.test(taxNumber)) {
-      errors.push('Vergi numarası 10 (VKN) veya 11 (TCKN) haneli olmalıdır');
-    }
-  }
-
-  // 2. Kalem kontrolü
-  if (!items || items.length === 0) {
-    errors.push('En az 1 ürün eklemelisiniz');
-  }
-
-  items.forEach((item, index) => {
-    if (!item.materialCode) {
-      errors.push(`${index + 1}. üründe materialCode zorunludur`);
-    }
-    if (!item.quantity || item.quantity <= 0) {
-      errors.push(`${index + 1}. üründe miktar 0'dan büyük olmalıdır`);
-    }
-  });
-
-  // 3. Fatura kontrolü
-  if (data.documentType === 'invoice' || data.includePrice) {
-    items.forEach((item, index) => {
-      if (item.unitPrice === undefined || item.unitPrice === null) {
-        errors.push(`${index + 1}. üründe fiyat zorunludur (fatura kesilecek)`);
-      }
-      if (item.unitPrice < 0) {
-        errors.push(`${index + 1}. üründe fiyat negatif olamaz`);
-      }
-      if (item.taxRate < 0 || item.taxRate > 100) {
-        errors.push(`${index + 1}. üründe KDV oranı 0-100 arasında olmalıdır`);
-      }
-    });
-  }
-
-  // 4. Stok kontrolü (item validation'da yapılacak)
-  // Her item için ayrı ayrı kontrol edilir
-
-  return errors;
-}
-```
-
-#### Stok Kontrolü Detayları
-
-```javascript
-// shipmentService.js - checkStockAvailability()
-async function checkStockAvailability(items, trx = db) {
-  const stockIssues = [];
-
-  for (const item of items) {
-    const material = await trx('materials.materials')
-      .where({ code: item.materialCode })
-      .first();
-
-    if (!material) {
-      stockIssues.push({
-        materialCode: item.materialCode,
-        issue: 'MATERIAL_NOT_FOUND',
-        message: 'Malzeme bulunamadı'
-      });
-      continue;
-    }
-
-    const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
-
-    if (item.quantity > availableStock) {
-      stockIssues.push({
-        materialCode: item.materialCode,
-        materialName: material.name,
-        issue: 'INSUFFICIENT_STOCK',
-        requested: item.quantity,
-        available: availableStock,
-        shortage: item.quantity - availableStock,
-        message: `Yetersiz stok. Mevcut: ${availableStock} ${material.unit}, İstenen: ${item.quantity} ${material.unit}`
-      });
-    }
-  }
-
-  return stockIssues;
-}
-```
-
-### 8.3. Parçalı Sevkiyat Hesaplama Mantığı
-
-#### Quote Summary Endpoint (Kalan Miktar Hesaplama)
-
-```javascript
-// shipmentService.js - getQuoteShipmentSummary()
-export async function getQuoteShipmentSummary(quoteId) {
-  // 1. Quote bilgilerini al
-  const quote = await db('quotes.quotes')
-    .where({ id: quoteId })
-    .first();
-
-  if (!quote) {
-    throw new Error('Quote bulunamadı');
-  }
-
-  // 2. WorkOrder ve Production Plan output'u al
-  const outputMaterial = await getQuoteOutputMaterial(quoteId);
-
-  if (!outputMaterial) {
-    return {
-      quoteId,
-      hasProduction: false,
-      totalOrdered: null,
-      shipped: 0,
-      remaining: null,
-      shipments: []
-    };
-  }
-
-  // 3. Bu quote için yapılmış sevkiyatları al
-  const shipments = await db('materials.shipments as s')
-    .leftJoin('materials.shipment_items as si', 's.id', 'si.shipmentId')
-    .where({ 's.quoteId': quoteId, 's.status': 'completed' })
-    .whereNot({ 's.status': 'cancelled' })
-    .select(
-      's.id',
-      's.shipmentCode',
-      's.createdAt',
-      db.raw('COALESCE(SUM(si.quantity), 0) as totalQuantity')
-    )
-    .groupBy('s.id', 's.shipmentCode', 's.createdAt')
-    .orderBy('s.createdAt', 'desc');
-
-  const totalShipped = shipments.reduce((sum, s) => sum + parseFloat(s.totalQuantity || 0), 0);
-
-  // 4. Üretim planından beklenen miktarı al (form data'dan veya plan'dan)
-  const expectedQuantity = quote.formData?.quantity || 0; // Form data'dan miktar
-  const remaining = Math.max(0, expectedQuantity - totalShipped);
-
-  return {
-    quoteId,
-    hasProduction: true,
-    outputMaterial: outputMaterial.materialCode,
-    totalOrdered: expectedQuantity,
-    shipped: totalShipped,
-    remaining,
-    shippedPercentage: expectedQuantity > 0 ? ((totalShipped / expectedQuantity) * 100).toFixed(1) : 0,
-    shipments: shipments.map(s => ({
-      id: s.id,
-      code: s.shipmentCode,
-      date: s.createdAt,
-      quantity: parseFloat(s.totalQuantity)
-    }))
-  };
-}
-```
-
-### 8.4. Export Geçmişi Yönetimi
-
-#### Export Format Tracking (Tekil Kayıt)
-
-```javascript
-// shipmentService.js - updateExportHistory()
-async function updateExportHistory(shipmentId, format, trx = db) {
-  const shipment = await trx('materials.shipments')
-    .where({ id: shipmentId })
-    .first();
-
-  let exportedFormats = shipment.exportedFormats || [];
+  <OZET>
+    <GENEL_ISKONTO_TIP></GENEL_ISKONTO_TIP>
+    <GENEL_ISKONTO_DEGER>0</GENEL_ISKONTO_DEGER>
+    <GENEL_ISKONTO_TUTAR>0.00</GENEL_ISKONTO_TUTAR>
+    <ARA_TOPLAM>5000.00</ARA_TOPLAM>
+    <KDV_TOPLAM>1000.00</KDV_TOPLAM>
+    <TEVKIFAT_TOPLAM>0.00</TEVKIFAT_TOPLAM>
+    <GENEL_TOPLAM>6000.00</GENEL_TOPLAM>
+  </OZET>
   
-  // Format zaten export edildiyse, sadece timestamp güncelle
-  const formatExists = exportedFormats.some(f => f.format === format);
-  
-  if (!formatExists) {
-    exportedFormats.push({
-      format, // 'csv' | 'xml' | 'pdf' | 'json'
-      exportedAt: new Date().toISOString()
-    });
-  } else {
-    // Mevcut format'ın timestamp'ini güncelle
-    exportedFormats = exportedFormats.map(f => 
-      f.format === format 
-        ? { ...f, exportedAt: new Date().toISOString() }
-        : f
-    );
-  }
-
-  await trx('materials.shipments')
-    .where({ id: shipmentId })
-    .update({
-      exportedFormats: JSON.stringify(exportedFormats),
-      exportedAt: new Date() // Son export zamanı
-    });
-
-  return exportedFormats;
-}
+  <EK_BILGILER>
+    <OZEL_KOD></OZEL_KOD>
+    <MALIYET_MERKEZI></MALIYET_MERKEZI>
+    <BELGE_NOTU></BELGE_NOTU>
+  </EK_BILGILER>
+</BELGE>
 ```
 
-### 8.5. UI Component Skeleton'ları
+### 5.3. PDF Formatı
 
-#### YeniSevkiyatWizard.jsx - Tam Yapı
+**Yapı:**
+- Header: Gönderici bilgileri (sol), Alıcı bilgileri (sağ)
+- Belge No ve Tarih
+- Ürün tablosu
+- Toplamlar (fatura ise)
+- Footer: BeePlan
 
-```javascript
-// WebApp/domains/materials/components/shipments/YeniSevkiyatWizard.jsx
-import React, { useState } from 'react';
-import Step1CustomerSelection from './wizard/Step1CustomerSelection.jsx';
-import Step2ItemSelection from './wizard/Step2ItemSelection.jsx';
-import Step3ReviewAndExport from './wizard/Step3ReviewAndExport.jsx';
+**Şirket Bilgileri:** `materials.shipment_settings` tablosundan
 
-export default function YeniSevkiyatWizard({ isOpen, onClose, onSuccess }) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [wizardData, setWizardData] = useState({
-    customer: null,      // { customerId, snapshot: {...} }
-    items: [],           // [{ materialCode, quantity, unitPrice, ... }]
-    documentType: 'both',
-    includePrice: false,
-    exportFormats: ['csv', 'xml', 'pdf']
-  });
+### 5.4. JSON Formatı
 
-  const updateWizardData = (field, value) => {
-    setWizardData(prev => ({ ...prev, [field]: value }));
-  };
+Tüm shipment + items verisi JSON olarak.
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 1: return wizardData.customer !== null;
-      case 2: return wizardData.items.length > 0;
-      case 3: return true;
-      default: return false;
-    }
-  };
+---
 
-  const handleSubmit = async () => {
-    try {
-      const response = await fetch('/api/materials/shipments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: wizardData.customer.customerId,
-          customerSnapshot: wizardData.customer.snapshot,
-          items: wizardData.items,
-          documentType: wizardData.documentType,
-          includePrice: wizardData.includePrice,
-          exportFormats: wizardData.exportFormats
-        })
-      });
+## 6. UI/UX TASARIMI
 
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Sevkiyat oluşturulamadı');
-      }
+### 6.1. Add Shipment Modal (Genişletilmiş)
 
-      // Export dosyalarını indir
-      for (const format of wizardData.exportFormats) {
-        const exportResponse = await fetch(`/api/materials/shipments/${result.shipment.id}/export/${format}`);
-        const blob = await exportResponse.blob();
-        
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${result.shipment.shipmentCode}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ YENİ SEVKİYAT                                              [X]     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│ ┌─ MÜŞTERİ BİLGİLERİ ─────────────────────────────────────────────┐ │
+│ │ Müşteri: [____________________▼]  [+ Yeni Müşteri]              │ │
+│ │ Firma: ABC Limited Şti.           VKN: 1234567890               │ │
+│ │ Vergi Dairesi: Kadıköy VD         Adres: Örnek Mah...           │ │
+│ │                                                                  │ │
+│ │ ☐ Farklı adrese teslim                                          │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ ┌─ KALEMLER ───────────────────────────────────────────────────────┐ │
+│ │ Malzeme          | Miktar | Birim | Fiyat  | KDV% | Toplam      │ │
+│ │ [M-001 Demir ▼]  | [100 ] | adet  | [50.00]| [20] | 6,000.00    │ │
+│ │ [+ Kalem Ekle]                                                   │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ ┌─ BELGE TİPİ ─────────────────────────────────────────────────────┐ │
+│ │ ○ İrsaliye (Fiyatsız)  ● Fatura (Fiyatlı)  ○ İkisi Birden       │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ ▸ Para Birimi & Kur ──────────────────────────────── [Akordeon]    │
+│ ▸ İskonto Ayarları ───────────────────────────────── [Akordeon]    │
+│ ▸ Vergi Detayları ────────────────────────────────── [Akordeon]    │
+│ ▸ Lot/Seri Bilgileri ─────────────────────────────── [Akordeon]    │
+│ ▸ Ek Bilgiler ────────────────────────────────────── [Akordeon]    │
+│                                                                     │
+│ ┌─ EXPORT ─────────────────────────────────────────────────────────┐ │
+│ │ Hedef Program: [Logo Tiger ▼]                                    │ │
+│ │ ☑ CSV  ☑ XML  ☐ PDF  ☐ JSON                                     │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│                              [İptal]  [Kaydet & Export]            │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-      onSuccess(result.shipment);
-      onClose();
-    } catch (error) {
-      console.error('Shipment creation error:', error);
-      alert(error.message);
-    }
-  };
+### 6.2. Akordeon Detayları
 
-  if (!isOpen) return null;
+**▸ Para Birimi & Kur**
+```
+Para Birimi: [TRY ▼]
+Döviz Kuru: [______] (TRY dışında zorunlu)
+```
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content wizard-modal">
-        <div className="modal-header">
-          <h2>Yeni Sevkiyat Oluştur</h2>
-          <button onClick={onClose} className="btn-close">×</button>
-        </div>
+**▸ İskonto Ayarları**
+```
+☐ Satır İskontosu Uygula (her kalemde % alanı açılır)
+☐ Genel İskonto Uygula
+  Tip: ○ Yüzde  ○ Tutar
+  Değer: [______] % veya TL
+```
 
-        <div className="wizard-progress">
-          <div className={`wizard-step ${currentStep >= 1 ? 'active' : ''}`}>1. Müşteri</div>
-          <div className={`wizard-step ${currentStep >= 2 ? 'active' : ''}`}>2. Ürünler</div>
-          <div className={`wizard-step ${currentStep >= 3 ? 'active' : ''}`}>3. Önizleme</div>
-        </div>
+**▸ Vergi Detayları**
+```
+Varsayılan KDV: [20% ▼]
+Tevkifat: [Yok ▼] (5/10, 7/10, 9/10...)
+KDV Muafiyet: [Yok ▼] (301, 302, 351...)
+```
 
-        <div className="wizard-body">
-          {currentStep === 1 && (
-            <Step1CustomerSelection
-              data={wizardData}
-              onChange={updateWizardData}
-            />
-          )}
-          {currentStep === 2 && (
-            <Step2ItemSelection
-              data={wizardData}
-              onChange={updateWizardData}
-            />
-          )}
-          {currentStep === 3 && (
-            <Step3ReviewAndExport
-              data={wizardData}
-              onChange={updateWizardData}
-            />
-          )}
-        </div>
+**▸ Lot/Seri Bilgileri**
+```
+(Her kalem için ayrı ayrı)
+```
 
-        <div className="modal-footer">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-            disabled={currentStep === 1}
-          >
-            ← Geri
-          </button>
+**▸ Ek Bilgiler**
+```
+Özel Kod: [________________]
+Maliyet Merkezi: [________________]
+Belge Notu: [________________]
+```
 
-          {currentStep < 3 ? (
-            <button
-              className="btn btn-primary"
-              onClick={() => setCurrentStep(prev => prev + 1)}
-              disabled={!canProceed()}
-            >
-              İleri →
-            </button>
-          ) : (
-            <button
-              className="btn btn-success"
-              onClick={handleSubmit}
-            >
-              Kaydet ve Export
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+### 6.3. Stok Sayfası - Hızlı Sevkiyat
+
+Aynı modal, farklar:
+- Malzeme readonly (set edilmiş)
+- Tek kalem (çoklu ekleme yok)
+- Miktar max = mevcut stok
+
+### 6.4. Sevkiyatlar Listesi
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ SEVKİYATLAR                                         [+ Yeni Sevkiyat]   │
+├──────────────────────────────────────────────────────────────────────────┤
+│ [Status: Tümü ▼] [Tarih: Son 30 gün ▼] [Ara: ____________]              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Kod        | Müşteri      | Tarih    | Tutar     | Durum    | İşlemler  │
+│ SHP-0045   | ABC Ltd.     | 08.12.25 | 6,000 TL  | Pending  | 📤 ✏️ 🗑️  │
+│ SHP-0044   | XYZ A.Ş.     | 07.12.25 | 12,500 TL | Exported | 📤 📥 ✏️  │
+│ SHP-0043   | DEF Ltd.     | 06.12.25 | 3,200 TL  | Completed| 👁️       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+📤 = Export     ✏️ = Düzenle     🗑️ = Sil
+📥 = Import     👁️ = Görüntüle
+```
+
+### 6.5. Export Sonrası Modal
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ✅ Export Başarılı!                                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ 📥 Dosya indirildi: SHP-2025-0045.csv                       │
+│                                                             │
+│ Logo/Zirve'den işlem tamamlandıktan sonra                   │
+│ onay dosyasını yükleyebilirsiniz:                           │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │        📁 Dosya Seç veya Sürükle                        │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ Resmi Belge No: [__________________]                        │
+│                                                             │
+│              [Şimdi Değil]  [Dosya Yükle & Tamamla]        │
+│                                                             │
+│ 💡 Daha sonra: Sevkiyatlar > SHP-0045 > Import              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 9. AÇIK SORULAR VE KARARLAR
+## 7. VERİ AKIŞLARI
 
-### 9.1. Netleştirilmiş Kararlar
+### 7.1. Yeni Sevkiyat (Full Flow)
 
-✅ **Müşteri Adı/Adresi Garantisi**: `customerSnapshot` JSONB zorunludur. NULL olamaz.
+```
+1. Kullanıcı [+ Yeni Sevkiyat] tıklar
+   ↓
+2. Add Shipment Modal açılır
+   ↓
+3. Müşteri seçer (CRM'den veya inline yeni)
+   → Yeni müşteri ise CRM'e de kaydedilir
+   ↓
+4. Kalem(ler) ekler
+   → Her kalem için stok kontrolü yapılır
+   → Yetersizse HATA gösterilir
+   ↓
+5. Belge tipi seçer (İrsaliye/Fatura/İkisi)
+   → Fatura ise fiyatlar zorunlu
+   ↓
+6. Opsiyonel: Akordeonları açar (iskonto, tevkifat, lot...)
+   ↓
+7. Export formatları seçer
+   ↓
+8. [Kaydet & Export] tıklar
+   ↓
+9. Backend:
+   - Shipment kaydı oluşturulur (status: pending)
+   - Items kaydedilir (fiyatlar trigger ile hesaplanır)
+   - Seçili formatlarda dosyalar üretilir
+   ↓
+10. Frontend:
+    - Dosyalar indirilir
+    - "Import yüklemek ister misiniz?" modal açılır
+```
 
-✅ **Fatura Fiyat Zorunluluğu**: 
-- `documentType === 'invoice'` ise `unitPrice` her item için zorunludur
-- Validation `validateShipmentData()` fonksiyonunda yapılır
+### 7.2. Import (Tamamlama)
 
-✅ **Export Geçmişi**: 
-- `exportedFormats` JSONB array: `[{format: 'csv', exportedAt: '2025-12-08T14:30:00Z'}, ...]`
-- Her format için ayrı timestamp
-- `exportedAt` kolonunda son export zamanı (kolay sorgu için)
+```
+1. Kullanıcı Logo/Zirve'de işlemi tamamlar
+   ↓
+2. BeePlan'da sevkiyatı bulur (status: exported)
+   ↓
+3. [📥 Import] tıklar
+   ↓
+4. Dosya seçer + Resmi belge no girer
+   ↓
+5. [Yükle] tıklar
+   ↓
+6. Backend:
+   - Dosya DB'ye kaydedilir (importedFile)
+   - externalDocNumber set edilir
+   - status → 'completed'
+   - STOK DÜŞÜRÜLÜR (her item için)
+   ↓
+7. Frontend:
+   - Başarı mesajı
+   - Stok güncellemeleri gösterilir
+```
 
-✅ **Kısmi Sevkiyat Kalan Miktar**: 
-- Quote'ta fiziksel kolon YOK
-- `getQuoteShipmentSummary(quoteId)` endpoint'i dinamik hesaplama yapar
-- Frontend cache edebilir (performance için)
+### 7.3. Stok Sayfasından Hızlı Sevkiyat
 
-✅ **Stok Kontrolü**: 
-- `checkStockAvailability()` fonksiyonu zorunludur
-- Yetersiz stokta bile sevkiyat oluşabilir (uyarı ile)
-- Frontend'de kullanıcıya uyarı gösterilir
-
-✅ **KDV Oranı**: 
-- Türkiye standartları: 0, 1, 8, 10, 18, 20
-- Validation regex: `^(0|1|8|10|18|20)$`
-
-✅ **Denormalize Kolonlar**: 
-- `customerName`, `customerCompany`, `deliveryAddress` KALDIRILDI
-- Tüm bilgiler `customerSnapshot` JSONB'de
-- Export'ta snapshot parse edilir
-
-### 9.2. Implementation Sırası (GÜNCEL)
-
-**Faz 0: Hazırlık (ŞU AN)** ✅
-- [x] Dokümantasyon tamamlandı
-- [ ] Teknik review (geliştirici onayı)
-- [ ] CSS class'ları kontrol edildi
-
-**Faz 1: Database & Backend (2 gün)** ⏳
-- [ ] Migration 035 oluştur ve çalıştır
-- [ ] `shipments.js`, `shipmentItems.js` model güncelle
-- [ ] `shipmentService.js` fonksiyonları yaz
-- [ ] `exportService.js` ve generator'lar oluştur
-- [ ] API routes ekle
-- [ ] Postman test
-
-**Faz 2: UI Components (2 gün)** ⏳
-- [ ] `HizliSevkiyatModal.jsx` oluştur
-- [ ] `YeniSevkiyatWizard.jsx` ve step component'ları
-- [ ] Stok tablosuna "Sevk Et" butonu entegrasyonu
-- [ ] Sevkiyatlar sayfası UI güncellemeleri
-
-**Faz 3: Export & Test (1 gün)** ⏳
-- [ ] PDF generator entegrasyonu (pdfkit)
-- [ ] Export download logic
-- [ ] Error handling ve validation testleri
-- [ ] Manuel test senaryoları (checklist)
-
-**Faz 4: Quote Entegrasyonu (v2.0 - Gelecek)** 🔮
-- [ ] Quote detay sayfasına sevkiyat widget'ı
-- [ ] `QuoteSevkiyatModal.jsx`
-- [ ] Parçalı sevkiyat UI (progress bar)
+```
+1. Stok tablosunda malzeme satırında [Sevk Et] tıklar
+   ↓
+2. Hızlı Sevkiyat Modal açılır
+   - Malzeme: SET (readonly)
+   - Max miktar: Mevcut stok
+   ↓
+3. Müşteri seçer
+   ↓
+4. Miktar girer (stok limitli)
+   ↓
+5. Belge tipi seçer
+   ↓
+6. [Kaydet & Export]
+   ↓
+7. Normal akış devam eder
+```
 
 ---
 
-**Son Güncelleme**: 8 Aralık 2025 - 16:45  
-**Hazırlayan**: GitHub Copilot  
-**Durum**: 📝 Dokümantasyon Tamamlandı (Hazırlık Aşaması) - Implementation Başlamadı
+## 8. IMPLEMENTATION PROMPTS
+
+> Bu bölüm, implementasyonu adım adım yapabilmek için hazırlanmış prompt'ları içerir.
+> Her prompt bağımsız çalıştırılabilir ve önceki adımların tamamlanmış olduğunu varsayar.
+
+### 8.1. FAZ 1: Veritabanı
+
+**Prompt 1.1: Yeni Tablolar**
+```
+INVOICE-EXPORT-INTEGRATION.md dokümanındaki "3.2, 3.3, 3.4" bölümlerini referans alarak:
+
+1. materials.vat_exemption_codes tablosunu oluştur
+2. materials.withholding_rates tablosunu oluştur  
+3. materials.shipment_settings tablosunu oluştur
+4. Örnek verileri ekle
+
+SQL dosyası olarak migration oluşturma, doğrudan çalıştırılacak SQL ver.
+```
+
+**Prompt 1.2: Shipments Güncelleme**
+```
+INVOICE-EXPORT-INTEGRATION.md dokümanındaki "3.5" bölümünü referans alarak:
+
+materials.shipments tablosuna yeni kolonları ekle.
+IF NOT EXISTS kullan, mevcut veriyi bozma.
+```
+
+**Prompt 1.3: Shipment Items Güncelleme**
+```
+INVOICE-EXPORT-INTEGRATION.md dokümanındaki "3.6" bölümünü referans alarak:
+
+materials.shipment_items tablosuna yeni kolonları ekle.
+Trigger'ı oluştur (3.8).
+```
+
+**Prompt 1.4: Customers Güncelleme**
+```
+INVOICE-EXPORT-INTEGRATION.md dokümanındaki "3.7" bölümünü referans alarak:
+
+quotes.customers tablosuna erpAccountCode ve erpSyncedAt kolonlarını ekle.
+```
+
+### 8.2. FAZ 2: Backend API
+
+**Prompt 2.1: Lookup API'ler**
+```
+Yeni endpoint'ler oluştur:
+- GET /api/materials/vat-exemptions
+- GET /api/materials/withholding-rates
+- GET /api/materials/settings
+- PUT /api/materials/settings/:key
+
+Mevcut materials routes yapısına uygun şekilde.
+```
+
+**Prompt 2.2: Shipment Service Güncelleme**
+```
+WebApp/domains/materials/api/services/shipmentService.js dosyasını güncelle:
+
+1. createShipment fonksiyonuna yeni alanları ekle
+2. Validasyon kurallarını uygula (INVOICE-EXPORT-INTEGRATION.md 4.2)
+3. Stok kontrolü ekle (yetersizse hata)
+```
+
+**Prompt 2.3: Import Endpoint**
+```
+POST /api/materials/shipments/:id/import endpoint'i oluştur:
+
+1. Dosya upload (multipart/form-data)
+2. externalDocNumber kaydet
+3. Status → completed
+4. Stok düşür (her item için)
+5. stockUpdates döndür
+```
+
+**Prompt 2.4: Export Service**
+```
+WebApp/domains/materials/api/services/exportService.js oluştur:
+
+1. generateCSV fonksiyonu (ayraç settings'den)
+2. generateXML fonksiyonu (Logo Tiger formatı)
+3. generatePDF fonksiyonu (pdfkit)
+4. generateJSON fonksiyonu
+```
+
+### 8.3. FAZ 3: Frontend UI
+
+**Prompt 3.1: Add Shipment Modal Güncelleme**
+```
+Mevcut AddShipmentModal.jsx dosyasını INVOICE-EXPORT-INTEGRATION.md "6.1" bölümüne göre güncelle:
+
+1. Müşteri seçimi (CRM dropdown + inline ekleme)
+2. Belge tipi seçimi (irsaliye/fatura/ikisi)
+3. Akordeon grupları (para birimi, iskonto, vergi, lot, ek bilgiler)
+4. Export format seçimi
+5. customerSnapshot oluşturma
+```
+
+**Prompt 3.2: Akordeon Componentleri**
+```
+6.2 bölümündeki akordeon detaylarını component olarak oluştur:
+
+1. CurrencyAccordion.jsx
+2. DiscountAccordion.jsx
+3. TaxAccordion.jsx
+4. LotSerialAccordion.jsx
+5. ExtraInfoAccordion.jsx
+```
+
+**Prompt 3.3: Sevkiyatlar Listesi**
+```
+6.4 bölümündeki tasarıma göre ShipmentsTable.jsx güncelle:
+
+1. Filtreleme (status, tarih, arama)
+2. Status badge'leri
+3. İşlem butonları (export, import, düzenle, sil)
+4. Import modal trigger
+```
+
+**Prompt 3.4: Export Sonrası Modal**
+```
+6.5 bölümündeki tasarıma göre ExportSuccessModal.jsx oluştur:
+
+1. Başarı mesajı
+2. Dosya bilgisi
+3. Import file upload alanı
+4. Resmi belge no input
+5. "Şimdi Değil" ve "Yükle" butonları
+```
+
+### 8.4. FAZ 4: Export Generators
+
+**Prompt 4.1: CSV Generator**
+```
+5.1 bölümündeki format ve kolonlara göre csvGenerator.js oluştur:
+
+1. Settings'den ayraç al
+2. UTF-8 BOM ekle (Excel uyumu)
+3. Tüm kolonları dahil et
+```
+
+**Prompt 4.2: XML Generator**
+```
+5.2 bölümündeki Logo Tiger XML formatına göre xmlGenerator.js oluştur:
+
+1. Tüm alanları dahil et
+2. CDATA kullan (özel karakterler için)
+3. Zirve formatı için ayrı fonksiyon (opsiyonel)
+```
+
+**Prompt 4.3: PDF Generator**
+```
+5.3 bölümüne göre pdfGenerator.js oluştur:
+
+1. pdfkit kullan
+2. Şirket bilgilerini settings'den al
+3. Fatura/İrsaliye başlığı
+4. Ürün tablosu
+5. Toplamlar
+```
+
+### 8.5. FAZ 5: Test & Polish
+
+**Prompt 5.1: Validasyon Testleri**
+```
+Aşağıdaki senaryoları test et:
+
+1. Fatura + fiyatsız item → HATA
+2. Yetersiz stok → HATA
+3. TRY dışı para birimi + exchangeRate yok → HATA
+4. customerSnapshot eksik → HATA
+```
+
+**Prompt 5.2: E2E Test**
+```
+Tam akışı test et:
+
+1. Yeni sevkiyat oluştur
+2. CSV export et
+3. Import yükle
+4. Status = completed kontrol
+5. Stok düştü mü kontrol
+```
+
+---
+
+## 📋 CHECKLIST
+
+### Veritabanı ✅ TAMAMLANDI
+- [x] vat_exemption_codes tablosu (14 kayıt)
+- [x] withholding_rates tablosu (7 kayıt)
+- [x] shipment_settings tablosu (8 kayıt)
+- [x] shipments yeni kolonlar
+- [x] shipment_items yeni kolonlar
+- [x] customers erpAccountCode
+- [x] Trigger: calculate_shipment_item_totals
+
+### Backend
+- [ ] GET /vat-exemptions
+- [ ] GET /withholding-rates
+- [ ] GET/PUT /settings
+- [ ] POST /shipments (güncel)
+- [ ] POST /shipments/:id/import
+- [ ] GET /shipments/:id/export/:format
+
+### Export Generators
+- [ ] csvGenerator.js
+- [ ] xmlGenerator.js
+- [ ] pdfGenerator.js
+- [ ] jsonGenerator.js
+
+### Frontend
+- [ ] AddShipmentModal güncelleme
+- [ ] Akordeon componentleri
+- [ ] ShipmentsTable güncelleme
+- [ ] ExportSuccessModal
+- [ ] ImportModal
+
+### Test
+- [ ] Validasyon testleri
+- [ ] E2E akış testi
+
+---
+
+**Migration Dosyası**: `WebApp/db/migrations/036_invoice_export_clean.sql`  
+**Yedek Dosya**: `INVOICE-EXPORT-INTEGRATION.backup.md`  
+**Son Güncelleme**: 8 Aralık 2025  
+**Durum**: 📝 Dokümantasyon Tamamlandı - Implementation Bekliyor
