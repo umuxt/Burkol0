@@ -643,17 +643,25 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
           // Create stock movement record
           await trx('materials.stock_movements').insert({
             materialId: material.id,
-            materialCode: materialCode,
-            movementType: 'shipment_out',
-            quantity: -quantity,
-            previousStock: currentStock,
-            newStock: newStock,
-            referenceType: 'shipment',
-            referenceId: shipmentId,
-            referenceCode: shipment.shipmentCode,
+            materialCode: material.code,
+            materialName: material.name,
+            type: 'out',
+            subType: 'shipment_completion',
+            status: 'completed',
+            quantity: quantity,
+            unit: material.unit || 'adet',
+            stockBefore: currentStock,
+            stockAfter: newStock,
+            warehouse: 'Warehouse',
+            location: material.storage || 'Main',
             notes: `Sevkiyat tamamlandı: ${shipment.shipmentCode} → ${externalDocNumber}`,
-            createdBy: user?.email || 'system',
-            createdAt: trx.fn.now()
+            reason: 'Import completion',
+            reference: shipment.shipmentCode,
+            referenceType: 'shipment',
+            movementDate: new Date(),
+            approved: true,
+            userId: user?.id || 'system',
+            userName: user?.email || 'system'
           });
           
           stockUpdates.push({
@@ -707,7 +715,8 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
         shipmentCode: updatedShipment.shipmentCode,
         status: updatedShipment.status,
         externalDocNumber: updatedShipment.externalDocNumber,
-        importedAt: updatedShipment.importedAt
+        importedAt: updatedShipment.importedAt,
+        importedFileName: updatedShipment.importedFileName
       },
       stockUpdates
     };

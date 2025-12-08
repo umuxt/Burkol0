@@ -492,3 +492,57 @@ async function updateExportHistory(shipmentId, format) {
     // Don't throw - export was successful, history update is secondary
   }
 }
+
+// ============================================
+// DOWNLOAD IMPORTED FILE
+// ============================================
+
+/**
+ * Download imported file
+ * GET /api/materials/shipments/:id/imported-file
+ * 
+ * Returns the imported file as download
+ */
+export async function downloadImportedFile(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const { default: db } = await import('#db/connection');
+    
+    const shipment = await db('materials.shipments')
+      .select('importedFile', 'importedFileName', 'shipmentCode')
+      .where('id', id)
+      .first();
+    
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
+    }
+    
+    if (!shipment.importedFile) {
+      return res.status(404).json({ error: 'Bu sevkiyat için yüklenmiş dosya bulunamadı' });
+    }
+    
+    const fileName = shipment.importedFileName || `${shipment.shipmentCode}_import`;
+    
+    // Determine content type from filename
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    const contentTypes = {
+      'pdf': 'application/pdf',
+      'xml': 'application/xml',
+      'csv': 'text/csv',
+      'json': 'application/json',
+      'txt': 'text/plain',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(shipment.importedFile);
+    
+  } catch (error) {
+    console.error('Error downloading imported file:', error);
+    res.status(500).json({ error: 'Dosya indirilemedi: ' + error.message });
+  }
+}

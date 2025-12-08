@@ -4990,3 +4990,341 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
   background: rgba(16, 185, 129, 0.15);
   color: rgb(16, 185, 129);
 }
+
+/* ===========================================
+   ACCORDION STYLES - AddShipmentModal
+   =========================================== */
+.shipment-accordion {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.shipment-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: var(--muted-bg, #f9fafb);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.shipment-accordion-header:hover {
+  background-color: #f3f4f6;
+}
+
+.shipment-accordion-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shipment-accordion-header-left svg {
+  color: #6b7280;
+}
+
+.shipment-accordion-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.shipment-accordion-content {
+  padding: 14px;
+  background-color: #ffffff;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+/* Accordion Content Grid */
+.accordion-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.accordion-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* Form Labels in Modal */
+.shipment-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.shipment-form-label-required::after {
+  content: ' *';
+  color: #dc2626;
+}
+
+.shipment-form-label-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+/* Checkbox and Radio Labels */
+.shipment-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+}
+
+.shipment-checkbox-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.shipment-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+}
+
+/* Accordion Sub-sections */
+.accordion-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accordion-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 24px;
+}
+
+/* Export Format Checkboxes */
+.export-format-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.export-format-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+/* Item Detail Panel */
+.item-detail-panel {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.item-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.item-detail-label {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.item-detail-note {
+  margin-top: 10px;
+}
+
+/* Discount Row Flex */
+.discount-inline-flex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discount-input {
+  width: 100px;
+}
+
+/* Section Headers in Modal */
+.shipment-section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 10px;
+}
+
+/* Accordion Inner Sections */
+.accordion-section {
+  margin-bottom: 12px;
+}
+
+.accordion-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Export Checkbox Group */
+.export-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.export-format-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+/* Customer Info Box */
+.customer-info-box {
+  background-color: var(--muted-bg, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.customer-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.customer-info-label {
+  color: #6b7280;
+}
+
+.customer-info-value {
+  color: #111827;
+}
+
+.customer-info-address {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+/* New Customer Form */
+.new-customer-form {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+/* Text Colors for Modal */
+.text-dark { color: #111827; }
+.text-medium { color: #374151; }
+.text-muted { color: #6b7280; }
+.text-light { color: #9ca3af; }
+.text-error { color: #dc2626; }
+.text-success { color: #16a34a; }
+.text-primary { color: #3b82f6; }
+
+/* Modal Section Header */
+.modal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* Button Link Small */
+.btn-link-sm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #3b82f6;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-link-sm:hover {
+  color: #1d4ed8;
+  background-color: #eff6ff;
+}
+
+/* Dropdown Empty State */
+.dropdown-empty-state {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Form Grid Layouts */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.form-col-span-2 {
+  grid-column: span 2;
+}
+
+/* Summary Section Styles */
+.summary-customer-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.summary-section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.summary-address {
+  margin-top: 6px;
+}
+
+/* Input Width Helpers */
+.price-input {
+  width: 80px;
+}
+
+.discount-percent-input {
+  width: 60px;
+}
+
+/* Scrollable Dropdown */
+.dropdown-menu-scrollable {
+  max-height: 250px;
+  overflow-y: auto;
+}
+

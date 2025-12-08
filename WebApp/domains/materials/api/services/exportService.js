@@ -9,6 +9,33 @@ import db from '#db/connection';
 import PDFDocument from 'pdfkit';
 
 // ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Normalize Turkish characters to ASCII equivalents for PDF
+ * PDFKit's Helvetica font doesn't support Turkish characters
+ * @param {string} text - Text with Turkish characters
+ * @returns {string} Normalized text
+ */
+function normalizeTurkish(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'I')
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'U')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 'S')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C');
+}
+
+// ============================================
 // SETTINGS HELPER
 // ============================================
 
@@ -157,7 +184,7 @@ export async function generateXML(shipment, target = 'logo_tiger') {
   <NUMARA>${escapeXML(shipment.shipmentCode || '')}</NUMARA>
   <TARIH>${formatDate(shipment.createdAt)}</TARIH>
   <PARA_BIRIMI>${shipment.currency || 'TRY'}</PARA_BIRIMI>
-  <DOVIZ_KURU>${(shipment.exchangeRate || 1).toFixed(6)}</DOVIZ_KURU>
+  <DOVIZ_KURU>${Number(shipment.exchangeRate || 1).toFixed(6)}</DOVIZ_KURU>
   
   <CARI>
     <KODU>${escapeXML(customer.erpAccountCode || '')}</KODU>
@@ -195,18 +222,18 @@ export async function generateXML(shipment, target = 'logo_tiger') {
       <SIRA>${index + 1}</SIRA>
       <STOK_KODU>${escapeXML(item.materialCode || '')}</STOK_KODU>
       <STOK_ADI><![CDATA[${item.materialName || ''}]]></STOK_ADI>
-      <MIKTAR>${item.quantity || 0}</MIKTAR>
+      <MIKTAR>${Number(item.quantity || 0)}</MIKTAR>
       <BIRIM>${escapeXML(item.unit || 'adet')}</BIRIM>
-      <BIRIM_FIYAT>${(item.unitPrice || 0).toFixed(2)}</BIRIM_FIYAT>
-      <ISKONTO_ORAN>${item.discountPercent || 0}</ISKONTO_ORAN>
-      <ISKONTO_TUTAR>${(item.discountAmount || 0).toFixed(2)}</ISKONTO_TUTAR>
-      <KDV_ORANI>${item.taxRate || 20}</KDV_ORANI>
+      <BIRIM_FIYAT>${Number(item.unitPrice || 0).toFixed(2)}</BIRIM_FIYAT>
+      <ISKONTO_ORAN>${Number(item.discountPercent || 0)}</ISKONTO_ORAN>
+      <ISKONTO_TUTAR>${Number(item.discountAmount || 0).toFixed(2)}</ISKONTO_TUTAR>
+      <KDV_ORANI>${Number(item.taxRate || 20)}</KDV_ORANI>
       <KDV_MUAFIYET>${escapeXML(item.vatExemptionCode || '')}</KDV_MUAFIYET>
       <TEVKIFAT_ORAN>${escapeXML(item.withholdingCode || '')}</TEVKIFAT_ORAN>
-      <TEVKIFAT_TUTAR>${(item.withholdingAmount || 0).toFixed(2)}</TEVKIFAT_TUTAR>
-      <ARA_TOPLAM>${(item.subtotal || 0).toFixed(2)}</ARA_TOPLAM>
-      <KDV_TUTAR>${(item.taxAmount || 0).toFixed(2)}</KDV_TUTAR>
-      <TOPLAM>${(item.totalAmount || 0).toFixed(2)}</TOPLAM>
+      <TEVKIFAT_TUTAR>${Number(item.withholdingAmount || 0).toFixed(2)}</TEVKIFAT_TUTAR>
+      <ARA_TOPLAM>${Number(item.subtotal || 0).toFixed(2)}</ARA_TOPLAM>
+      <KDV_TUTAR>${Number(item.taxAmount || 0).toFixed(2)}</KDV_TUTAR>
+      <TOPLAM>${Number(item.totalAmount || 0).toFixed(2)}</TOPLAM>
       <LOT_NO>${escapeXML(item.lotNumber || '')}</LOT_NO>
       <SERI_NO>${escapeXML(item.serialNumber || '')}</SERI_NO>
       <NOT>${escapeXML(item.itemNotes || '')}</NOT>
@@ -218,12 +245,12 @@ export async function generateXML(shipment, target = 'logo_tiger') {
   
   <OZET>
     <GENEL_ISKONTO_TIP>${escapeXML(shipment.discountType || '')}</GENEL_ISKONTO_TIP>
-    <GENEL_ISKONTO_DEGER>${shipment.discountValue || 0}</GENEL_ISKONTO_DEGER>
-    <GENEL_ISKONTO_TUTAR>${(shipment.discountTotal || 0).toFixed(2)}</GENEL_ISKONTO_TUTAR>
-    <ARA_TOPLAM>${(shipment.subtotal || 0).toFixed(2)}</ARA_TOPLAM>
-    <KDV_TOPLAM>${(shipment.taxTotal || 0).toFixed(2)}</KDV_TOPLAM>
-    <TEVKIFAT_TOPLAM>${(shipment.withholdingTotal || 0).toFixed(2)}</TEVKIFAT_TOPLAM>
-    <GENEL_TOPLAM>${(shipment.grandTotal || 0).toFixed(2)}</GENEL_TOPLAM>
+    <GENEL_ISKONTO_DEGER>${Number(shipment.discountValue || 0)}</GENEL_ISKONTO_DEGER>
+    <GENEL_ISKONTO_TUTAR>${Number(shipment.discountTotal || 0).toFixed(2)}</GENEL_ISKONTO_TUTAR>
+    <ARA_TOPLAM>${Number(shipment.subtotal || 0).toFixed(2)}</ARA_TOPLAM>
+    <KDV_TOPLAM>${Number(shipment.taxTotal || 0).toFixed(2)}</KDV_TOPLAM>
+    <TEVKIFAT_TOPLAM>${Number(shipment.withholdingTotal || 0).toFixed(2)}</TEVKIFAT_TOPLAM>
+    <GENEL_TOPLAM>${Number(shipment.grandTotal || 0).toFixed(2)}</GENEL_TOPLAM>
   </OZET>
   
   <EK_BILGILER>
@@ -266,9 +293,9 @@ export async function generatePDF(shipment) {
   const customer = shipment.customerSnapshot || {};
   const items = shipment.items || [];
   
-  // Determine document title
+  // Determine document title (already ASCII-safe for PDF)
   const docTitle = shipment.documentType === 'invoice' ? 'FATURA' : 
-                   shipment.documentType === 'both' ? 'FATURA / İRSALİYE' : 'SEVK İRSALİYESİ';
+                   shipment.documentType === 'both' ? 'FATURA / IRSALIYE' : 'SEVK IRSALIYESI';
   
   return new Promise((resolve, reject) => {
     try {
@@ -291,16 +318,18 @@ export async function generatePDF(shipment) {
       doc.on('error', reject);
       
       // ===== HEADER =====
+      // Note: Using Helvetica which has limited Turkish support
+      // For full Turkish support, register a custom font like 'DejaVu Sans'
       // Company info (left)
       doc.fontSize(14).font('Helvetica-Bold')
-         .text(company.company_name || 'Firma Adı', 50, 50);
+         .text(normalizeTurkish(company.company_name || 'Firma Adi'), 50, 50);
       doc.fontSize(9).font('Helvetica')
-         .text(company.company_address || '', 50, 68)
-         .text(`VD: ${company.company_tax_office || ''} / VKN: ${company.company_tax_number || ''}`, 50, 80);
+         .text(normalizeTurkish(company.company_address || ''), 50, 68)
+         .text(`VD: ${normalizeTurkish(company.company_tax_office || '')} / VKN: ${company.company_tax_number || ''}`, 50, 80);
       
       // Document title and info (right)
       doc.fontSize(16).font('Helvetica-Bold')
-         .text(docTitle, 350, 50, { width: 200, align: 'right' });
+         .text(normalizeTurkish(docTitle), 350, 50, { width: 200, align: 'right' });
       doc.fontSize(10).font('Helvetica')
          .text(`Belge No: ${shipment.shipmentCode || ''}`, 350, 75, { width: 200, align: 'right' })
          .text(`Tarih: ${formatDate(shipment.createdAt)}`, 350, 90, { width: 200, align: 'right' });
@@ -309,12 +338,12 @@ export async function generatePDF(shipment) {
       doc.moveTo(50, 115).lineTo(545, 115).stroke();
       
       doc.fontSize(10).font('Helvetica-Bold')
-         .text('MÜŞTERİ BİLGİLERİ', 50, 125);
+         .text('MUSTERI BILGILERI', 50, 125);
       doc.fontSize(9).font('Helvetica')
-         .text(`Firma: ${customer.company || customer.name || ''}`, 50, 140)
-         .text(`VKN: ${customer.taxNumber || ''} / VD: ${customer.taxOffice || ''}`, 50, 152)
-         .text(`Adres: ${customer.address || ''}`, 50, 164)
-         .text(`${customer.city || ''} ${customer.district || ''}`, 50, 176)
+         .text(`Firma: ${normalizeTurkish(customer.company || customer.name || '')}`, 50, 140)
+         .text(`VKN: ${customer.taxNumber || ''} / VD: ${normalizeTurkish(customer.taxOffice || '')}`, 50, 152)
+         .text(`Adres: ${normalizeTurkish(customer.address || '')}`, 50, 164)
+         .text(`${normalizeTurkish(customer.city || '')} ${normalizeTurkish(customer.district || '')}`, 50, 176)
          .text(`Tel: ${customer.phone || ''} / Email: ${customer.email || ''}`, 50, 188);
       
       // ===== ITEMS TABLE =====
@@ -330,7 +359,7 @@ export async function generatePDF(shipment) {
       if (shipment.includePrice) {
         doc.text('#', 50, tableTop)
            .text('Kod', 80, tableTop)
-           .text('Ürün Adı', 160, tableTop)
+           .text('Urun Adi', 160, tableTop)
            .text('Miktar', 310, tableTop)
            .text('Birim', 360, tableTop)
            .text('B.Fiyat', 400, tableTop)
@@ -339,7 +368,7 @@ export async function generatePDF(shipment) {
       } else {
         doc.text('#', 50, tableTop)
            .text('Kod', 80, tableTop)
-           .text('Ürün Adı', 180, tableTop)
+           .text('Urun Adi', 180, tableTop)
            .text('Miktar', 380, tableTop)
            .text('Birim', 460, tableTop);
       }
@@ -359,18 +388,18 @@ export async function generatePDF(shipment) {
         if (shipment.includePrice) {
           doc.text(String(index + 1), 50, y)
              .text(item.materialCode || '', 80, y, { width: 75 })
-             .text(item.materialName || '', 160, y, { width: 145 })
+             .text(normalizeTurkish(item.materialName || ''), 160, y, { width: 145 })
              .text(formatNumber(item.quantity), 310, y)
-             .text(item.unit || 'adet', 360, y)
+             .text(normalizeTurkish(item.unit || 'adet'), 360, y)
              .text(formatNumber(item.unitPrice), 400, y)
              .text(String(item.taxRate || 20), 460, y)
              .text(formatNumber(item.totalAmount), 505, y);
         } else {
           doc.text(String(index + 1), 50, y)
              .text(item.materialCode || '', 80, y, { width: 95 })
-             .text(item.materialName || '', 180, y, { width: 195 })
+             .text(normalizeTurkish(item.materialName || ''), 180, y, { width: 195 })
              .text(formatNumber(item.quantity), 380, y)
-             .text(item.unit || 'adet', 460, y);
+             .text(normalizeTurkish(item.unit || 'adet'), 460, y);
         }
         
         y += 15;
@@ -388,7 +417,7 @@ export async function generatePDF(shipment) {
         y += 15;
         
         if (shipment.discountTotal > 0) {
-          doc.text('İskonto:', 350, y)
+          doc.text('Iskonto:', 350, y)
              .text('-' + formatCurrency(shipment.discountTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
           y += 15;
         }
@@ -410,7 +439,7 @@ export async function generatePDF(shipment) {
       
       // ===== FOOTER =====
       doc.fontSize(8).font('Helvetica')
-         .text('BeePlan tarafından oluşturuldu', 50, 780, { align: 'center', width: 495 });
+         .text('BeePlan tarafindan olusturuldu', 50, 780, { align: 'center', width: 495 });
       
       doc.end();
     } catch (error) {

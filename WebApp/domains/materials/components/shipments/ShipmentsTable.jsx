@@ -30,7 +30,8 @@ export default function ShipmentsTable({
       return new Date(dateString).toLocaleDateString('tr-TR', {
         day: '2-digit',
         month: '2-digit',
-        year: '2-digit'
+        year: '2-digit',
+        timeZone: 'Europe/Istanbul'
       });
     } catch (e) {
       return dateString;

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { shipmentsService } from '../../../services/shipments-service.js'
 import { customersService } from '../../../../crm/services/customers-service.js'
-import { Truck, X, Package, Plus, Trash2, ChevronDown, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus } from 'lucide-react'
+import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, DollarSign, Percent, FileText, Settings } from 'lucide-react'
 
 /**
  * CreateShipmentModal - 3 Aşamalı Wizard (Invoice Export Entegrasyonu)
- * Adım 1: Sevkiyat Bilgileri (Müşteri, Belge Tipi, İş Emri, Teklif)
- * Adım 2: Malzeme Ekleme (Kalemler + Fiyat)
+ * Adım 1: Sevkiyat Bilgileri (Müşteri, Belge Tipi, İş Emri, Teklif, Akordeonlar)
+ * Adım 2: Malzeme Ekleme (Kalemler + Fiyat + Lot/Seri)
  * Adım 3: Özet ve Onay
  */
 export default function AddShipmentModal({ 
@@ -16,6 +16,15 @@ export default function AddShipmentModal({
 }) {
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1)
+  
+  // Accordion states
+  const [openAccordions, setOpenAccordions] = useState({
+    currency: false,
+    discount: false,
+    tax: false,
+    extra: false,
+    export: false
+  })
   
   // Shipment header data (updated for invoice export)
   const [headerData, setHeaderData] = useState({
@@ -32,8 +41,18 @@ export default function AddShipmentModal({
     // Currency
     currency: 'TRY',
     exchangeRate: 1.0,
+    // Discount
+    enableRowDiscount: false,
+    enableGeneralDiscount: false,
+    discountType: 'percent',  // percent | amount
+    discountValue: 0,
+    // Tax
+    defaultTaxRate: 20,
+    defaultWithholdingId: null,
+    defaultVatExemptionId: null,
     // Export
     exportTarget: 'logo_tiger',
+    exportFormats: ['csv'],  // csv, xml, pdf, json
     // Extra
     specialCode: '',
     costCenter: '',
@@ -52,6 +71,8 @@ export default function AddShipmentModal({
   const [workOrders, setWorkOrders] = useState([])
   const [quotes, setQuotes] = useState([])
   const [customers, setCustomers] = useState([])
+  const [vatExemptions, setVatExemptions] = useState([])
+  const [withholdingRates, setWithholdingRates] = useState([])
   const [dataLoading, setDataLoading] = useState(false)
   
   // Dropdown states
@@ -84,18 +105,29 @@ export default function AddShipmentModal({
         shipmentsService.getAvailableMaterials().catch(() => []),
         shipmentsService.getApprovedQuotes().catch(() => []),
         shipmentsService.getCompletedWorkOrders().catch(() => []),
-        customersService.getCustomers().catch(() => [])
-      ]).then(([materialsData, quotesData, workOrdersData, customersData]) => {
+        customersService.getCustomers().catch(() => []),
+        fetch('/api/materials/vat-exemptions').then(r => r.json()).catch(() => []),
+        fetch('/api/materials/withholding-rates').then(r => r.json()).catch(() => [])
+      ]).then(([materialsData, quotesData, workOrdersData, customersData, vatData, withholdingData]) => {
         setMaterials(materialsData)
         setQuotes(quotesData)
         setWorkOrders(workOrdersData)
         setCustomers(Array.isArray(customersData) ? customersData : (customersData?.customers || []))
+        setVatExemptions(Array.isArray(vatData) ? vatData : [])
+        setWithholdingRates(Array.isArray(withholdingData) ? withholdingData : [])
       }).finally(() => {
         setDataLoading(false)
       })
       
       // Reset form
       setCurrentStep(1)
+      setOpenAccordions({
+        currency: false,
+        discount: false,
+        tax: false,
+        extra: false,
+        export: false
+      })
       setHeaderData({
         workOrderCode: '',
         quoteId: '',
@@ -107,7 +139,15 @@ export default function AddShipmentModal({
         includePrice: false,
         currency: 'TRY',
         exchangeRate: 1.0,
+        enableRowDiscount: false,
+        enableGeneralDiscount: false,
+        discountType: 'percent',
+        discountValue: 0,
+        defaultTaxRate: 20,
+        defaultWithholdingId: null,
+        defaultVatExemptionId: null,
         exportTarget: 'logo_tiger',
+        exportFormats: ['csv'],
         specialCode: '',
         costCenter: '',
         notes: ''
@@ -238,11 +278,17 @@ export default function AddShipmentModal({
       quantity: '',
       unit: 'adet',
       unitPrice: '',
-      taxRate: 20,
+      taxRate: headerData.defaultTaxRate || 20,
+      discountPercent: 0,
+      vatExemptionId: headerData.defaultVatExemptionId,
+      withholdingRateId: headerData.defaultWithholdingId,
+      lotNumber: '',
+      serialNumber: '',
       availableStock: 0,
       notes: '',
       dropdownOpen: false,
-      searchTerm: ''
+      searchTerm: '',
+      showDetails: false
     }])
   }
 
@@ -358,8 +404,12 @@ export default function AddShipmentModal({
         // Currency
         currency: headerData.currency,
         exchangeRate: headerData.exchangeRate,
+        // Discount
+        discountType: headerData.enableGeneralDiscount ? headerData.discountType : null,
+        discountValue: headerData.enableGeneralDiscount ? headerData.discountValue : 0,
         // Export
         exportTarget: headerData.exportTarget,
+        exportFormats: headerData.exportFormats,
         // Extra
         specialCode: headerData.specialCode,
         costCenter: headerData.costCenter,
@@ -376,7 +426,9 @@ export default function AddShipmentModal({
           unit: item.unit,
           unitPrice: item.unitPrice ? parseFloat(item.unitPrice) : null,
           taxRate: item.taxRate || 20,
-          discountPercent: item.discountPercent || 0,
+          discountPercent: headerData.enableRowDiscount ? (parseFloat(item.discountPercent) || 0) : 0,
+          vatExemptionId: item.vatExemptionId || null,
+          withholdingRateId: item.withholdingRateId || null,
           lotNumber: item.lotNumber || '',
           serialNumber: item.serialNumber || '',
           itemNotes: item.notes || ''
@@ -491,12 +543,12 @@ export default function AddShipmentModal({
                 <div>
                   {/* MÜŞTERİ BİLGİLERİ */}
                   <div className="mb-16">
-                    <div className="flex items-center justify-between mb-8">
-                      <label className="font-medium text-sm">Müşteri *</label>
+                    <div className="modal-section-header">
+                      <label className="shipment-form-label shipment-form-label-required">Müşteri</label>
                       <button
                         type="button"
                         onClick={() => setShowNewCustomerForm(!showNewCustomerForm)}
-                        className="flex items-center gap-4 text-xs text-blue-600 hover:text-blue-800"
+                        className="btn-link-sm"
                       >
                         <UserPlus size={14} />
                         {showNewCustomerForm ? 'Listeden Seç' : 'Yeni Müşteri'}
@@ -520,11 +572,11 @@ export default function AddShipmentModal({
                             <ChevronDown size={14} />
                           </button>
                           {customerDropdownOpen && (
-                            <div className="dropdown-menu" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                            <div className="dropdown-menu dropdown-menu-scrollable">
                               {/* Search */}
-                              <div className="p-8 border-b border-gray-200">
-                                <div className="relative">
-                                  <Search size={14} className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <div className="dropdown-search-header">
+                                <div className="pos-relative">
+                                  <Search size={14} className="search-icon-absolute" />
                                   <input
                                     type="text"
                                     className="mes-filter-input is-compact w-full pl-28"
@@ -550,13 +602,13 @@ export default function AddShipmentModal({
                                   onClick={() => selectCustomer(c)}
                                 >
                                   <div className="font-medium">{c.company || c.companyName || c.name}</div>
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs-muted">
                                     {c.taxNumber || c.vkn ? `VKN: ${c.taxNumber || c.vkn}` : c.email || ''}
                                   </div>
                                 </div>
                               ))}
                               {filteredCustomers.length === 0 && (
-                                <div className="p-12 text-center text-gray-500 text-xs">Müşteri bulunamadı</div>
+                                <div className="dropdown-empty-state">Müşteri bulunamadı</div>
                               )}
                             </div>
                           )}
@@ -564,22 +616,24 @@ export default function AddShipmentModal({
                         
                         {/* Selected Customer Info */}
                         {headerData.customerSnapshot && (
-                          <div className="bg-gray-50 p-12 rounded-lg text-xs">
-                            <div className="grid grid-cols-2 gap-6">
-                              <div><span className="text-gray-500">Firma:</span> {headerData.customerSnapshot.company || '-'}</div>
-                              <div><span className="text-gray-500">VKN:</span> {headerData.customerSnapshot.taxNumber || '-'}</div>
-                              <div><span className="text-gray-500">VD:</span> {headerData.customerSnapshot.taxOffice || '-'}</div>
-                              <div><span className="text-gray-500">Tel:</span> {headerData.customerSnapshot.phone || '-'}</div>
+                          <div className="customer-info-box">
+                            <div className="customer-info-grid">
+                              <div><span className="customer-info-label">Firma:</span> <span className="customer-info-value">{headerData.customerSnapshot.company || '-'}</span></div>
+                              <div><span className="customer-info-label">VKN:</span> <span className="customer-info-value">{headerData.customerSnapshot.taxNumber || '-'}</span></div>
+                              <div><span className="customer-info-label">VD:</span> <span className="customer-info-value">{headerData.customerSnapshot.taxOffice || '-'}</span></div>
+                              <div><span className="customer-info-label">Tel:</span> <span className="customer-info-value">{headerData.customerSnapshot.phone || '-'}</span></div>
                             </div>
                             {/* Adres bilgisi - il/ilçe dahil */}
                             {(headerData.customerSnapshot.address || headerData.customerSnapshot.city) && (
-                              <div className="mt-6">
-                                <span className="text-gray-500">Adres:</span>{' '}
-                                {[
-                                  headerData.customerSnapshot.address,
-                                  headerData.customerSnapshot.district,
-                                  headerData.customerSnapshot.city
-                                ].filter(Boolean).join(', ') || '-'}
+                              <div className="customer-info-address">
+                                <span className="customer-info-label">Adres:</span>{' '}
+                                <span className="customer-info-value">
+                                  {[
+                                    headerData.customerSnapshot.address,
+                                    headerData.customerSnapshot.district,
+                                    headerData.customerSnapshot.city
+                                  ].filter(Boolean).join(', ') || '-'}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -587,10 +641,10 @@ export default function AddShipmentModal({
                       </>
                     ) : (
                       /* Inline New Customer Form */
-                      <div className="bg-blue-50 p-12 rounded-lg">
-                        <div className="grid grid-cols-2 gap-8 mb-8">
+                      <div className="new-customer-form">
+                        <div className="form-grid-2">
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">Müşteri Adı</label>
+                            <label className="shipment-form-label">Müşteri Adı</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -600,7 +654,7 @@ export default function AddShipmentModal({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">Firma Adı *</label>
+                            <label className="shipment-form-label shipment-form-label-required">Firma Adı</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -610,7 +664,7 @@ export default function AddShipmentModal({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">Vergi Dairesi</label>
+                            <label className="shipment-form-label">Vergi Dairesi</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -620,7 +674,7 @@ export default function AddShipmentModal({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">VKN/TCKN</label>
+                            <label className="shipment-form-label">VKN/TCKN</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -629,8 +683,8 @@ export default function AddShipmentModal({
                               placeholder="1234567890"
                             />
                           </div>
-                          <div className="col-span-2">
-                            <label className="text-xs text-gray-600 mb-4 block">Adres</label>
+                          <div className="form-col-span-2">
+                            <label className="shipment-form-label">Adres</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -640,7 +694,7 @@ export default function AddShipmentModal({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">Telefon</label>
+                            <label className="shipment-form-label">Telefon</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -650,7 +704,7 @@ export default function AddShipmentModal({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-600 mb-4 block">E-posta</label>
+                            <label className="shipment-form-label">E-posta</label>
                             <input
                               type="text"
                               className="mes-filter-input is-compact w-full"
@@ -663,7 +717,7 @@ export default function AddShipmentModal({
                         <button
                           type="button"
                           onClick={handleCreateInlineCustomer}
-                          className="w-full py-8 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                          className="btn-primary-sm w-full"
                         >
                           Müşteriyi Oluştur ve Seç
                         </button>
@@ -673,9 +727,9 @@ export default function AddShipmentModal({
                   
                   {/* BELGE TİPİ */}
                   <div className="mb-16">
-                    <label className="font-medium text-sm mb-8 block">Belge Tipi</label>
-                    <div className="flex gap-12">
-                      <label className="flex items-center gap-6 cursor-pointer">
+                    <label className="shipment-form-label">Belge Tipi</label>
+                    <div className="shipment-radio-group">
+                      <label className="shipment-radio-label">
                         <input
                           type="radio"
                           name="documentType"
@@ -684,9 +738,9 @@ export default function AddShipmentModal({
                           onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'waybill', includePrice: false }))}
                           className="form-radio"
                         />
-                        <span className="text-sm">İrsaliye (Fiyatsız)</span>
+                        <span>İrsaliye (Fiyatsız)</span>
                       </label>
-                      <label className="flex items-center gap-6 cursor-pointer">
+                      <label className="shipment-radio-label">
                         <input
                           type="radio"
                           name="documentType"
@@ -695,9 +749,9 @@ export default function AddShipmentModal({
                           onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'invoice', includePrice: true }))}
                           className="form-radio"
                         />
-                        <span className="text-sm">Fatura (Fiyatlı)</span>
+                        <span>Fatura (Fiyatlı)</span>
                       </label>
-                      <label className="flex items-center gap-6 cursor-pointer">
+                      <label className="shipment-radio-label">
                         <input
                           type="radio"
                           name="documentType"
@@ -706,7 +760,7 @@ export default function AddShipmentModal({
                           onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'both', includePrice: true }))}
                           className="form-radio"
                         />
-                        <span className="text-sm">İkisi Birden</span>
+                        <span>İkisi Birden</span>
                       </label>
                     </div>
                   </div>
@@ -783,7 +837,7 @@ export default function AddShipmentModal({
                   </div>
                   
                   {/* NOTLAR */}
-                  <div>
+                  <div className="mb-16">
                     <label className="supplier-label-block">Sevkiyat Notu (Opsiyonel)</label>
                     <input
                       type="text"
@@ -792,6 +846,291 @@ export default function AddShipmentModal({
                       onChange={(e) => setHeaderData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Sevkiyat ile ilgili notlar..."
                     />
+                  </div>
+                  
+                  {/* ===== AKORDEONLAR ===== */}
+                  <div className="accordion-row">
+                    
+                    {/* PARA BİRİMİ & KUR AKORDEON */}
+                    <div className="shipment-accordion">
+                      <button
+                        type="button"
+                        className="shipment-accordion-header"
+                        onClick={() => setOpenAccordions(prev => ({ ...prev, currency: !prev.currency }))}
+                      >
+                        <div className="shipment-accordion-header-left">
+                          <DollarSign size={14} />
+                          <span className="shipment-accordion-title">Para Birimi & Kur</span>
+                        </div>
+                        {openAccordions.currency ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {openAccordions.currency && (
+                        <div className="shipment-accordion-content">
+                          <div className="accordion-grid-2">
+                            <div>
+                              <label className="shipment-form-label">Para Birimi</label>
+                              <select
+                                className="mes-filter-select w-full"
+                                value={headerData.currency}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, currency: e.target.value }))}
+                              >
+                                <option value="TRY">TRY - Türk Lirası</option>
+                                <option value="USD">USD - Amerikan Doları</option>
+                                <option value="EUR">EUR - Euro</option>
+                                <option value="GBP">GBP - İngiliz Sterlini</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="shipment-form-label">
+                                Döviz Kuru {headerData.currency !== 'TRY' && <span className="text-error">*</span>}
+                              </label>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                className="mes-filter-input is-compact w-full"
+                                value={headerData.exchangeRate}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) || 1 }))}
+                                disabled={headerData.currency === 'TRY'}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* İSKONTO AYARLARI AKORDEON */}
+                    <div className="shipment-accordion">
+                      <button
+                        type="button"
+                        className="shipment-accordion-header"
+                        onClick={() => setOpenAccordions(prev => ({ ...prev, discount: !prev.discount }))}
+                      >
+                        <div className="shipment-accordion-header-left">
+                          <Percent size={14} />
+                          <span className="shipment-accordion-title">İskonto Ayarları</span>
+                        </div>
+                        {openAccordions.discount ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {openAccordions.discount && (
+                        <div className="shipment-accordion-content">
+                          <div className="accordion-row">
+                            <label className="shipment-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={headerData.enableRowDiscount}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, enableRowDiscount: e.target.checked }))}
+                                className="form-checkbox"
+                              />
+                              <span>Satır İskontosu Uygula</span>
+                              <span className="shipment-checkbox-hint">(Her kalemde % alanı açılır)</span>
+                            </label>
+                            
+                            <label className="shipment-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={headerData.enableGeneralDiscount}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, enableGeneralDiscount: e.target.checked }))}
+                                className="form-checkbox"
+                              />
+                              <span>Genel İskonto Uygula</span>
+                            </label>
+                            
+                            {headerData.enableGeneralDiscount && (
+                              <div className="accordion-inline-row">
+                                <div className="discount-inline-flex">
+                                  <label className="shipment-radio-label">
+                                    <input
+                                      type="radio"
+                                      name="discountType"
+                                      checked={headerData.discountType === 'percent'}
+                                      onChange={() => setHeaderData(prev => ({ ...prev, discountType: 'percent' }))}
+                                      className="form-radio"
+                                    />
+                                    <span>Yüzde (%)</span>
+                                  </label>
+                                  <label className="shipment-radio-label">
+                                    <input
+                                      type="radio"
+                                      name="discountType"
+                                      checked={headerData.discountType === 'amount'}
+                                      onChange={() => setHeaderData(prev => ({ ...prev, discountType: 'amount' }))}
+                                      className="form-radio"
+                                    />
+                                    <span>Tutar (TL)</span>
+                                  </label>
+                                </div>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="mes-filter-input is-compact discount-input"
+                                  value={headerData.discountValue}
+                                  onChange={(e) => setHeaderData(prev => ({ ...prev, discountValue: parseFloat(e.target.value) || 0 }))}
+                                  placeholder="0"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* VERGİ DETAYLARI AKORDEON */}
+                    <div className="shipment-accordion">
+                      <button
+                        type="button"
+                        className="shipment-accordion-header"
+                        onClick={() => setOpenAccordions(prev => ({ ...prev, tax: !prev.tax }))}
+                      >
+                        <div className="shipment-accordion-header-left">
+                          <FileText size={14} />
+                          <span className="shipment-accordion-title">Vergi Detayları</span>
+                        </div>
+                        {openAccordions.tax ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {openAccordions.tax && (
+                        <div className="shipment-accordion-content">
+                          <div className="accordion-grid-3">
+                            <div>
+                              <label className="shipment-form-label">Varsayılan KDV</label>
+                              <select
+                                className="mes-filter-select w-full"
+                                value={headerData.defaultTaxRate}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultTaxRate: parseInt(e.target.value) }))}
+                              >
+                                <option value={0}>%0</option>
+                                <option value={1}>%1</option>
+                                <option value={8}>%8</option>
+                                <option value={10}>%10</option>
+                                <option value={18}>%18</option>
+                                <option value={20}>%20</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="shipment-form-label">Tevkifat</label>
+                              <select
+                                className="mes-filter-select w-full"
+                                value={headerData.defaultWithholdingId || ''}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultWithholdingId: e.target.value ? parseInt(e.target.value) : null }))}
+                              >
+                                <option value="">Yok</option>
+                                {withholdingRates.map(w => (
+                                  <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="shipment-form-label">KDV Muafiyet</label>
+                              <select
+                                className="mes-filter-select w-full"
+                                value={headerData.defaultVatExemptionId || ''}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultVatExemptionId: e.target.value ? parseInt(e.target.value) : null }))}
+                              >
+                                <option value="">Yok</option>
+                                {vatExemptions.map(v => (
+                                  <option key={v.id} value={v.id}>{v.code} - {v.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* EK BİLGİLER AKORDEON */}
+                    <div className="shipment-accordion">
+                      <button
+                        type="button"
+                        className="shipment-accordion-header"
+                        onClick={() => setOpenAccordions(prev => ({ ...prev, extra: !prev.extra }))}
+                      >
+                        <div className="shipment-accordion-header-left">
+                          <Settings size={14} />
+                          <span className="shipment-accordion-title">Ek Bilgiler</span>
+                        </div>
+                        {openAccordions.extra ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {openAccordions.extra && (
+                        <div className="shipment-accordion-content">
+                          <div className="accordion-grid-2">
+                            <div>
+                              <label className="shipment-form-label">Özel Kod</label>
+                              <input
+                                type="text"
+                                className="mes-filter-input is-compact w-full"
+                                value={headerData.specialCode}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, specialCode: e.target.value }))}
+                                placeholder="Özel kod..."
+                              />
+                            </div>
+                            <div>
+                              <label className="shipment-form-label">Maliyet Merkezi</label>
+                              <input
+                                type="text"
+                                className="mes-filter-input is-compact w-full"
+                                value={headerData.costCenter}
+                                onChange={(e) => setHeaderData(prev => ({ ...prev, costCenter: e.target.value }))}
+                                placeholder="Maliyet merkezi..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* EXPORT AYARLARI AKORDEON */}
+                    <div className="shipment-accordion">
+                      <button
+                        type="button"
+                        className="shipment-accordion-header"
+                        onClick={() => setOpenAccordions(prev => ({ ...prev, export: !prev.export }))}
+                      >
+                        <div className="shipment-accordion-header-left">
+                          <FileText size={14} />
+                          <span className="shipment-accordion-title">Export Ayarları</span>
+                        </div>
+                        {openAccordions.export ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {openAccordions.export && (
+                        <div className="shipment-accordion-content">
+                          <div className="accordion-section">
+                            <label className="shipment-form-label">Hedef Program</label>
+                            <select
+                              className="mes-filter-select w-full"
+                              value={headerData.exportTarget}
+                              onChange={(e) => setHeaderData(prev => ({ ...prev, exportTarget: e.target.value }))}
+                            >
+                              <option value="logo_tiger">Logo Tiger</option>
+                              <option value="logo_go">Logo GO</option>
+                              <option value="zirve">Zirve</option>
+                              <option value="excel">Excel</option>
+                            </select>
+                          </div>
+                          <div className="accordion-section">
+                            <label className="shipment-form-label">Export Formatları</label>
+                            <div className="export-checkbox-group">
+                              {['csv', 'xml', 'pdf', 'json'].map(format => (
+                                <label key={format} className="shipment-checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={headerData.exportFormats.includes(format)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setHeaderData(prev => ({ ...prev, exportFormats: [...prev.exportFormats, format] }))
+                                      } else {
+                                        setHeaderData(prev => ({ ...prev, exportFormats: prev.exportFormats.filter(f => f !== format) }))
+                                      }
+                                    }}
+                                    className="form-checkbox"
+                                  />
+                                  <span className="export-format-label">{format.toUpperCase()}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
                   </div>
                 </div>
               )}
@@ -916,8 +1255,7 @@ export default function AddShipmentModal({
                                 <input
                                   type="text"
                                   inputMode="decimal"
-                                  className="mes-filter-input is-compact"
-                                  style={{ width: '80px' }}
+                                  className="mes-filter-input is-compact price-input"
                                   value={item.unitPrice || ''}
                                   onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
                                   placeholder="Fiyat"
@@ -927,11 +1265,39 @@ export default function AddShipmentModal({
                               </div>
                             )}
                             
+                            {/* İskonto % - Satır iskontosu açıksa göster */}
+                            {headerData.enableRowDiscount && headerData.includePrice && (
+                              <div className="qty-row-flex">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.1"
+                                  className="mes-filter-input is-compact discount-percent-input"
+                                  value={item.discountPercent || ''}
+                                  onChange={(e) => updateItem(item.id, 'discountPercent', e.target.value)}
+                                  placeholder="İsk%"
+                                />
+                                <span className="text-muted-xs">%</span>
+                              </div>
+                            )}
+                            
                             {item.materialCode && (
                               <span className="mes-badge success">
                                 Mevcut: {formatQty(item.availableStock)}
                               </span>
                             )}
+                            
+                            {/* Detay aç/kapa butonu */}
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.id, 'showDetails', !item.showDetails)}
+                              className="btn-link-sm"
+                              title="Lot/Seri ve diğer detaylar"
+                            >
+                              {item.showDetails ? 'Gizle' : 'Detay'}
+                            </button>
+                            
                             <button
                               type="button"
                               onClick={() => removeItem(item.id)}
@@ -940,6 +1306,72 @@ export default function AddShipmentModal({
                               <Trash2 size={16} />
                             </button>
                           </div>
+                          
+                          {/* Detay Alanları - Lot/Seri/KDV/Tevkifat */}
+                          {item.showDetails && (
+                            <div className="item-detail-panel">
+                              <div className="item-detail-grid">
+                                <div>
+                                  <label className="item-detail-label">Lot No</label>
+                                  <input
+                                    type="text"
+                                    className="mes-filter-input is-compact w-full"
+                                    value={item.lotNumber || ''}
+                                    onChange={(e) => updateItem(item.id, 'lotNumber', e.target.value)}
+                                    placeholder="Lot..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="item-detail-label">Seri No</label>
+                                  <input
+                                    type="text"
+                                    className="mes-filter-input is-compact w-full"
+                                    value={item.serialNumber || ''}
+                                    onChange={(e) => updateItem(item.id, 'serialNumber', e.target.value)}
+                                    placeholder="Seri..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="item-detail-label">KDV %</label>
+                                  <select
+                                    className="mes-filter-select w-full"
+                                    value={item.taxRate}
+                                    onChange={(e) => updateItem(item.id, 'taxRate', parseInt(e.target.value))}
+                                  >
+                                    <option value={0}>%0</option>
+                                    <option value={1}>%1</option>
+                                    <option value={8}>%8</option>
+                                    <option value={10}>%10</option>
+                                    <option value={18}>%18</option>
+                                    <option value={20}>%20</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="item-detail-label">Tevkifat</label>
+                                  <select
+                                    className="mes-filter-select w-full"
+                                    value={item.withholdingRateId || ''}
+                                    onChange={(e) => updateItem(item.id, 'withholdingRateId', e.target.value ? parseInt(e.target.value) : null)}
+                                  >
+                                    <option value="">Yok</option>
+                                    {withholdingRates.map(w => (
+                                      <option key={w.id} value={w.id}>{w.code}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="item-detail-note">
+                                <label className="item-detail-label">Satır Notu</label>
+                                <input
+                                  type="text"
+                                  className="mes-filter-input is-compact w-full"
+                                  value={item.notes || ''}
+                                  onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
+                                  placeholder="Bu kalem için not..."
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -976,8 +1408,8 @@ export default function AddShipmentModal({
                     
                     {/* Customer Snapshot Info */}
                     {headerData.customerSnapshot && (
-                      <div className="mt-12 pt-12 border-t border-gray-200">
-                        <div className="font-medium text-sm mb-8">Müşteri Bilgileri</div>
+                      <div className="summary-customer-section">
+                        <div className="summary-section-title">Müşteri Bilgileri</div>
                         <div className="grid-2-gap-6">
                           <div><span className="text-muted">Firma:</span> {headerData.customerSnapshot.company || '-'}</div>
                           <div><span className="text-muted">Yetkili:</span> {headerData.customerSnapshot.name || '-'}</div>
@@ -987,7 +1419,7 @@ export default function AddShipmentModal({
                           <div><span className="text-muted">E-posta:</span> {headerData.customerSnapshot.email || '-'}</div>
                         </div>
                         {headerData.customerSnapshot.address && (
-                          <div className="mt-6">
+                          <div className="summary-address">
                             <span className="text-muted">Adres:</span> {headerData.customerSnapshot.address}
                           </div>
                         )}
