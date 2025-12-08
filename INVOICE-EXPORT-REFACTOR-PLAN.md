@@ -2141,9 +2141,9 @@ export default QuoteItems;
 - `/WebApp/db/connection.js` - DB bağlantısı
 
 **Test:**
-- [ ] Dosya oluşturuldu
-- [ ] Import hatasız çalışıyor
-- [ ] Fonksiyonlar tanımlı
+- [x] Dosya oluşturuldu
+- [x] Import hatasız çalışıyor
+- [x] Fonksiyonlar tanımlı
 
 ---
 
@@ -2210,9 +2210,9 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 10.1.1
 - P2.1'de oluşturduğumuz quoteItems.js
 
 **Test:**
-- [ ] Dosya oluşturuldu
-- [ ] Import'lar hatasız
-- [ ] Tüm fonksiyonlar tanımlı
+- [x] Dosya oluşturuldu
+- [x] Import'lar hatasız
+- [x] Tüm fonksiyonlar tanımlı
 
 ---
 
@@ -2264,9 +2264,9 @@ export async function deleteQuoteItem(itemId) {
 ```
 
 **Test:**
-- [ ] Dosya oluşturuldu
-- [ ] Validasyonlar tanımlı
-- [ ] Model import edilmiş
+- [x] Dosya oluşturuldu
+- [x] Validasyonlar tanımlı
+- [x] Model import edilmiş
 
 ---
 
@@ -2345,9 +2345,9 @@ export async function deleteQuoteItem(req, res) { ... }
 - `/WebApp/domains/crm/api/controllers/` - Mevcut controller'lar
 
 **Test:**
-- [ ] Dosya oluşturuldu
-- [ ] Tüm handler'lar tanımlı
-- [ ] Service'ler import edilmiş
+- [x] Dosya oluşturuldu
+- [x] Tüm handler'lar tanımlı
+- [x] Service'ler import edilmiş
 
 ---
 
@@ -2413,11 +2413,11 @@ Server.js'de bu route'u /api/quotes altına ekle (mevcut quotes route ile birle�
 - `/WebApp/domains/crm/api/routes/` - CRM route'ları
 
 **Test:**
-- [ ] Route'lar tanımlı
-- [ ] server.js'de import edildi
-- [ ] Auth middleware uygulandı
-- [ ] Multer middleware import edildi
-- [ ] `/invoice/import` endpoint'i upload.single('file') kullanıyor
+- [x] Route'lar tanımlı
+- [x] server.js'de import edildi
+- [x] Auth middleware uygulandı
+- [x] Multer middleware import edildi
+- [x] `/invoice/import` endpoint'i upload.single('file') kullanıyor
 
 ---
 
@@ -2470,9 +2470,9 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 10.2.1
 - `/WebApp/domains/materials/api/services/shipmentService.js`
 
 **Test:**
-- [ ] createShipment validasyonları çalışıyor
-- [ ] Yeni alanlar kaydediliyor
-- [ ] getShipmentsByQuoteId çalışıyor
+- [x] createShipment validasyonları çalışıyor
+- [x] Yeni alanlar kaydediliyor
+- [x] getShipmentsByQuoteId çalışıyor
 
 ---
 
@@ -2527,12 +2527,12 @@ Hata varsa düzelt ve tekrar test et.
 ```
 
 **Test Kriterleri (FAZ 2 TAMAMLANDI):**
-- [ ] Server başlıyor
-- [ ] Quote items CRUD çalışıyor
-- [ ] Trigger hesaplamaları doğru
-- [ ] Proforma numara üretiliyor
-- [ ] 7 gün kontrolü çalışıyor
-- [ ] Shipment validasyonları çalışıyor
+- [x] Server başlıyor
+- [x] Quote items CRUD çalışıyor
+- [x] Trigger hesaplamaları doğru
+- [x] Proforma numara üretiliyor
+- [x] 7 gün kontrolü çalışıyor
+- [x] Shipment validasyonları çalışıyor
 
 **⚠️ FAZ 2 TAMAMEN BİTMEDEN FAZ 3/4'E GEÇMEYİN!**
 

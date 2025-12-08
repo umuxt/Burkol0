@@ -44,24 +44,24 @@ const VALID_TRANSITIONS = {
  */
 async function validateStockAvailability(items) {
   const errors = [];
-  
+
   for (const item of items) {
     const material = await db('materials.materials')
       .select('id', 'code', 'name', 'stock', 'reserved', 'wipReserved', 'unit')
       .where('code', item.materialCode)
       .first();
-    
+
     if (!material) {
       errors.push(`Malzeme bulunamadı: ${item.materialCode}`);
       continue;
     }
-    
-    const availableStock = parseFloat(material.stock || 0) 
-      - parseFloat(material.reserved || 0) 
+
+    const availableStock = parseFloat(material.stock || 0)
+      - parseFloat(material.reserved || 0)
       - parseFloat(material.wipReserved || 0);
-    
+
     const requestedQty = parseFloat(item.quantity);
-    
+
     if (requestedQty > availableStock) {
       errors.push(
         `Yetersiz stok: ${material.name} (${material.code}) - ` +
@@ -69,7 +69,7 @@ async function validateStockAvailability(items) {
       );
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors
@@ -84,17 +84,17 @@ async function validateStockAvailability(items) {
 function validateInvoiceExportData(data) {
   const errors = [];
   const { items = [], documentType, includePrice, currency, exchangeRate, customerSnapshot } = data;
-  
+
   // 1. customerSnapshot zorunlu
   if (!customerSnapshot || typeof customerSnapshot !== 'object') {
     errors.push('Müşteri bilgisi (customerSnapshot) zorunludur');
   }
-  
+
   // 2. documentType = 'invoice' veya 'both' ise includePrice = true olmalı
   if ((documentType === 'invoice' || documentType === 'both') && !includePrice) {
     errors.push('Fatura belgesi için fiyat dahil edilmeli (includePrice: true)');
   }
-  
+
   // 3. includePrice = true ise tüm items'da unitPrice > 0 olmalı
   if (includePrice) {
     for (let i = 0; i < items.length; i++) {
@@ -104,14 +104,14 @@ function validateInvoiceExportData(data) {
       }
     }
   }
-  
+
   // 4. currency != 'TRY' ise exchangeRate > 0 zorunlu
   if (currency && currency !== 'TRY') {
     if (!exchangeRate || parseFloat(exchangeRate) <= 0) {
       errors.push(`Döviz kullanıldığında kur belirtilmelidir (${currency})`);
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors
@@ -142,14 +142,14 @@ function validateInvoiceExportData(data) {
  */
 export async function createShipment(data, user) {
   const { items = [], ...shipmentData } = data;
-  
+
   // 1. Basic validation - items required
   if (!items || items.length === 0) {
     const error = new Error('En az bir kalem gerekli');
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   // 2. Validate each item has required fields
   for (const item of items) {
     if (!item.materialCode) {
@@ -163,7 +163,31 @@ export async function createShipment(data, user) {
       throw error;
     }
   }
-  
+
+  // 2.5. Transport validations (NEW)
+  if (shipmentData.driverName && !shipmentData.driverName.trim()) {
+    const error = new Error('Şoför adı boş olamaz');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  if (shipmentData.driverTc && !/^\d{11}$/.test(shipmentData.driverTc)) {
+    const error = new Error('Geçerli şoför TCKN giriniz (11 hane)');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  if (shipmentData.plateNumber && !shipmentData.plateNumber.trim()) {
+    const error = new Error('Araç plakası boş olamaz');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  // Plaka formatını temizle (boşlukları kaldır ve büyük harfe çevir)
+  if (shipmentData.plateNumber) {
+    shipmentData.plateNumber = shipmentData.plateNumber.replace(/\s/g, '').toUpperCase();
+  }
+
   // 3. Invoice/Export validation (if documentType is set)
   if (shipmentData.documentType) {
     const invoiceValidation = validateInvoiceExportData({ ...shipmentData, items });
@@ -174,7 +198,7 @@ export async function createShipment(data, user) {
       throw error;
     }
   }
-  
+
   // 4. Stock availability check - BLOCK if insufficient
   const stockValidation = await validateStockAvailability(items);
   if (!stockValidation.valid) {
@@ -183,7 +207,7 @@ export async function createShipment(data, user) {
     error.details = stockValidation.errors;
     throw error;
   }
-  
+
   // 5. Prepare shipment data with new fields
   const preparedShipmentData = {
     // Existing fields
@@ -191,38 +215,44 @@ export async function createShipment(data, user) {
     workOrderCode: shipmentData.workOrderCode,
     quoteId: shipmentData.quoteId,
     notes: shipmentData.notes,
-    
+
     // Customer fields (new)
     customerId: shipmentData.customerId || null,
     customerSnapshot: shipmentData.customerSnapshot || null,
     customerName: shipmentData.customerSnapshot?.name || shipmentData.customerName,
     customerCompany: shipmentData.customerSnapshot?.company || shipmentData.customerCompany,
     deliveryAddress: shipmentData.customerSnapshot?.address || shipmentData.deliveryAddress,
-    
+
     // Alternate delivery (new)
     useAlternateDelivery: shipmentData.useAlternateDelivery || false,
     alternateDeliveryAddress: shipmentData.alternateDeliveryAddress || null,
-    
+
     // Document type (new)
     documentType: shipmentData.documentType || 'waybill',
     includePrice: shipmentData.includePrice || false,
-    
+
     // Currency (new)
     currency: shipmentData.currency || 'TRY',
     exchangeRate: shipmentData.exchangeRate || 1.0,
-    
+
     // Discount (new)
     discountType: shipmentData.discountType || null,
     discountValue: shipmentData.discountValue || 0,
-    
+
     // Export (new)
     exportTarget: shipmentData.exportTarget || null,
-    
+
     // Extra fields (new)
     specialCode: shipmentData.specialCode || null,
     costCenter: shipmentData.costCenter || null,
     documentNotes: shipmentData.documentNotes || null,
-    
+
+    // Invoice/Waybill separation fields (P1.2 - NEW)
+    dispatchDate: shipmentData.dispatchDate || null,
+    dispatchTime: shipmentData.dispatchTime || null,
+    hidePrice: shipmentData.hidePrice !== undefined ? shipmentData.hidePrice : true,
+    relatedQuoteId: shipmentData.relatedQuoteId || null,
+
     // Transport fields (existing)
     transportType: shipmentData.transportType,
     driverName: shipmentData.driverName,
@@ -230,14 +260,14 @@ export async function createShipment(data, user) {
     plateNumber: shipmentData.plateNumber,
     carrierCompany: shipmentData.carrierCompany,
     carrierTcVkn: shipmentData.carrierTcVkn,
-    
+
     // Weight/Package (existing)
     netWeight: shipmentData.netWeight,
     grossWeight: shipmentData.grossWeight,
     packageCount: shipmentData.packageCount,
     packageType: shipmentData.packageType
   };
-  
+
   // 6. Prepare items with new fields
   const preparedItems = items.map(item => ({
     // Existing fields
@@ -248,21 +278,21 @@ export async function createShipment(data, user) {
     unit: item.unit,
     lotNumber: item.lotNumber,
     notes: item.notes,
-    
+
     // Price fields (new/enhanced)
     unitPrice: item.unitPrice || null,
     taxRate: item.taxRate ?? 20, // Default 20% KDV
     discountPercent: item.discountPercent || 0,
-    
+
     // VAT/Withholding (new)
     vatExemptionId: item.vatExemptionId || null,
     withholdingRateId: item.withholdingRateId || null,
-    
+
     // Serial/Lot (new)
     serialNumber: item.serialNumber || null,
     itemNotes: item.itemNotes || null
   }));
-  
+
   try {
     const result = await Shipments.createShipment(preparedShipmentData, preparedItems, user);
     return result;
@@ -284,20 +314,20 @@ export async function createShipment(data, user) {
  */
 export async function createQuickShipment(data, user) {
   const { productCode, shipmentQuantity, planId, workOrderCode, quoteId, description, lotNumber } = data;
-  
+
   // Validate required fields
   if (!productCode || !shipmentQuantity) {
     const error = new Error('productCode ve shipmentQuantity zorunludur');
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   if (parseFloat(shipmentQuantity) <= 0) {
     const error = new Error('Miktar pozitif olmalıdır');
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   // Convert to multi-item format
   const shipmentDataObj = {
     planId,
@@ -305,14 +335,14 @@ export async function createQuickShipment(data, user) {
     quoteId,
     notes: description
   };
-  
+
   const itemsArray = [{
     materialCode: productCode,
     quantity: shipmentQuantity,
     notes: description,
     lotNumber
   }];
-  
+
   return createShipment({ ...shipmentDataObj, items: itemsArray }, user);
 }
 
@@ -433,7 +463,7 @@ export async function addItemToShipment(shipmentId, itemData, user) {
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   return ShipmentItems.addItemToShipment(shipmentId, itemData, user);
 }
 
@@ -460,7 +490,7 @@ export async function updateItemQuantity(itemId, newQuantity, user) {
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   return ShipmentItems.updateItemQuantity(itemId, newQuantity, user);
 }
 
@@ -584,7 +614,7 @@ export async function getMaterialsForShipment() {
  */
 export async function importShipmentConfirmation(shipmentId, importData, user) {
   const { externalDocNumber, file, fileName } = importData;
-  
+
   // 1. Get shipment with items
   const shipment = await Shipments.getShipmentById(shipmentId);
   if (!shipment) {
@@ -592,29 +622,29 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
     error.code = 'NOT_FOUND';
     throw error;
   }
-  
+
   // 2. Check status - only exported or pending can be imported
   if (shipment.status === 'completed') {
     const error = new Error('Bu sevkiyat zaten tamamlanmış');
     error.code = 'ALREADY_COMPLETED';
     throw error;
   }
-  
+
   if (shipment.status === 'cancelled') {
     const error = new Error('İptal edilmiş sevkiyat tamamlanamaz');
     error.code = 'INVALID_STATUS';
     throw error;
   }
-  
+
   // 3. Validate externalDocNumber
   if (!externalDocNumber || externalDocNumber.trim() === '') {
     const error = new Error('Harici belge numarası zorunludur');
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
-  
+
   const stockUpdates = [];
-  
+
   try {
     // Use transaction for atomicity
     await db.transaction(async (trx) => {
@@ -622,16 +652,16 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
       for (const item of shipment.items || []) {
         const materialCode = item.materialCode;
         const quantity = parseFloat(item.quantity);
-        
+
         // Get current material stock
         const material = await trx('materials.materials')
           .where('code', materialCode)
           .first();
-        
+
         if (material) {
           const currentStock = parseFloat(material.stock || 0);
           const newStock = currentStock - quantity;
-          
+
           // Update stock
           await trx('materials.materials')
             .where('code', materialCode)
@@ -639,7 +669,7 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
               stock: newStock,
               updatedAt: trx.fn.now()
             });
-          
+
           // Create stock movement record
           await trx('materials.stock_movements').insert({
             materialId: material.id,
@@ -663,7 +693,7 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
             userId: user?.id || 'system',
             userName: user?.email || 'system'
           });
-          
+
           stockUpdates.push({
             materialCode,
             materialName: material.name,
@@ -671,7 +701,7 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
             previousStock: currentStock,
             newStock: newStock
           });
-          
+
           // Update shipment item status
           await trx('materials.shipment_items')
             .where('id', item.id)
@@ -682,7 +712,7 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
             });
         }
       }
-      
+
       // 5. Update shipment record
       const updateData = {
         status: 'completed',
@@ -693,21 +723,21 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
         updatedBy: user?.email || 'system',
         updatedAt: trx.fn.now()
       };
-      
+
       // Store file if provided
       if (file && fileName) {
         updateData.importedFile = file;
         updateData.importedFileName = fileName;
       }
-      
+
       await trx('materials.shipments')
         .where('id', shipmentId)
         .update(updateData);
     });
-    
+
     // 6. Return updated shipment and stock changes
     const updatedShipment = await Shipments.getShipmentById(shipmentId);
-    
+
     return {
       success: true,
       shipment: {
@@ -720,7 +750,7 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
       },
       stockUpdates
     };
-    
+
   } catch (error) {
     console.error('Import error:', error);
     if (!error.code) {
@@ -728,6 +758,22 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
     }
     throw error;
   }
+}
+
+// ============================================
+// QUERY HELPERS
+// ============================================
+
+/**
+ * Get shipments by quote ID (for 7-day rule checking)
+ * @param {string} quoteId - Quote ID
+ * @returns {Array} Shipments related to this quote
+ */
+export async function getShipmentsByQuoteId(quoteId) {
+  return await db('materials.shipments')
+    .where('relatedQuoteId', quoteId)
+    .whereNotNull('waybillExportedAt')
+    .orderBy('waybillExportedAt', 'asc');
 }
 
 // Export constants
