@@ -13,6 +13,7 @@ import * as shipmentController from './controllers/shipmentController.js';
 import * as orderController from './controllers/orderController.js';
 import * as supplierController from './controllers/supplierController.js';
 import * as categoryController from './controllers/categoryController.js';
+import * as lookupController from './controllers/lookupController.js';
 
 const router = express.Router();
 
@@ -117,5 +118,14 @@ router.post('/material-categories', requireAuth, categoryController.createMateri
 router.put('/material-categories/:id', requireAuth, categoryController.updateMaterialCategory);
 router.delete('/material-categories/:id', requireAuth, categoryController.deleteMaterialCategory);
 router.get('/material-categories/:id/usage', requireAuth, categoryController.getMaterialCategoryUsage);
+
+// ================================
+// LOOKUP DATA (Invoice/Export Integration)
+// ================================
+router.get('/vat-exemptions', requireAuth, lookupController.getVatExemptions);
+router.get('/withholding-rates', requireAuth, lookupController.getWithholdingRates);
+router.get('/settings', requireAuth, lookupController.getSettings);
+router.put('/settings/:key', requireAuth, lookupController.updateSetting);
+router.post('/settings', requireAuth, lookupController.createSetting);
 
 export default router;
