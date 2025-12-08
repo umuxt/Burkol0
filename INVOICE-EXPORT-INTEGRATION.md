@@ -1116,7 +1116,8 @@ Tam akışı test et:
 - [x] Akordeon componentleri (Prompt 3.2 - 5 accordion: Currency, Discount, Tax, LotSerial, ExtraInfo)
 - [x] ShipmentsTable güncelleme (Prompt 3.3 - yeni kolonlar, filtreler, status icon'ları)
 - [x] ExportSuccessModal (Prompt 3.4 - başarı mesajı, dosya bilgisi, import upload)
-- [ ] ImportModal
+- [x] ShipmentDetailsPanel (Export/Import bilgileri, indirme butonu)
+- [ ] ImportModal (ayrı modal olarak)
 
 ### Test
 - [ ] Validasyon testleri
@@ -1126,5 +1127,5 @@ Tam akışı test et:
 
 **Migration Dosyası**: `WebApp/db/migrations/036_invoice_export_clean.sql`  
 **Yedek Dosya**: `INVOICE-EXPORT-INTEGRATION.backup.md`  
-**Son Güncelleme**: 8 Aralık 2025  
-**Durum**: ✅ FAZ 1 (DB) + FAZ 2 (Backend) Tamamlandı - FAZ 3 (Frontend) Bekliyor
+**Son Güncelleme**: 9 Aralık 2025  
+**Durum**: ✅ FAZ 1-4 Tamamlandı - FAZ 5 (Test) Bekliyor
