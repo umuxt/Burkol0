@@ -77,10 +77,34 @@ ADD COLUMN customerSnapshot JSONB,
 */
 
 -- =====================================================
+-- Müşteri İlişkisi ve Snapshot (ZORUNLU)
+-- =====================================================
+ADD COLUMN customerId INTEGER REFERENCES quotes.customers(id),
+-- NULL olabilir (kayıtsız müşteri için)
+
+ADD COLUMN customerSnapshot JSONB NOT NULL,
+-- ⚠️ ZORUNLU: Sevkiyat oluşturulurken müşteri bilgileri buraya kopyalanır
+-- Müşteri bilgileri sonradan değişse bile irsaliye/fatura sabit kalır
+-- Örnek: {"name":"ABC Ltd","company":"ABC Limited Şti","taxOffice":"Kadıköy VD",...}
+
+-- =====================================================
+-- Denormalize Edilmiş Temel Alanlar (Fallback - KALDIRILDI)
+-- =====================================================
+-- customerName, customerCompany, deliveryAddress kolonları KALDIRILDI
+-- Tüm bilgiler customerSnapshot JSONB'de tutulacak
+-- Export sırasında snapshot parse edilir
+
+-- =====================================================
 -- Quote İlişkisi (Parçalı Sevkiyat Takibi)
 -- =====================================================
 ADD COLUMN quoteId VARCHAR(50) REFERENCES quotes.quotes(id),
 ADD COLUMN isPartialShipment BOOLEAN DEFAULT false,
+ADD COLUMN shippedQuantityTotal DECIMAL(15,4),
+-- Bu sevkiyattaki toplam sevk miktarı (tüm items toplamı)
+
+ADD COLUMN quoteRemainingQuantity DECIMAL(15,4),
+-- Quote'ta kalan miktar (sadece quote bazlı sevkiyatlarda set edilir)
+-- Hesaplama: quote.totalQuantity - SUM(shipments.shippedQuantityTotal WHERE quoteId = X)
 
 -- =====================================================
 -- Belge Bilgileri
@@ -89,8 +113,8 @@ ADD COLUMN documentType VARCHAR(20) DEFAULT 'waybill',
 -- Değerler: 'waybill' (sadece irsaliye), 'invoice' (sadece fatura), 'both' (ikisi birden)
 
 ADD COLUMN includePrice BOOLEAN DEFAULT false,
--- true: fatura kesilecek, fiyatlar zorunlu
--- false: sadece irsaliye, fiyat opsiyonel
+-- ⚠️ KURAL: documentType = 'invoice' veya 'both' ise includePrice = true ZORUNLU
+-- Validasyon: Fatura kesiyorsak tüm items'larda unitPrice > 0 olmalı
 
 -- =====================================================
 -- Fiyat Bilgileri (Fatura için)
@@ -101,29 +125,29 @@ ADD COLUMN taxTotal DECIMAL(15,2), -- Toplam KDV
 ADD COLUMN grandTotal DECIMAL(15,2), -- Genel toplam (KDV dahil)
 
 -- =====================================================
--- Export Durumu
+-- Export Durumu (Format bazlı timestamp)
 -- =====================================================
 ADD COLUMN exportedFormats JSONB,
--- Örnek: ["csv", "xml", "pdf"]
+-- ⚠️ YENİ FORMAT: Her format için ayrı timestamp
+-- Örnek: {"csv": "2025-12-08T14:30:00Z", "xml": "2025-12-08T14:31:00Z", "pdf": null}
+-- Avantaj: Hangi formatın ne zaman export edildiği takip edilir
 
-ADD COLUMN exportedAt TIMESTAMPTZ,
+ADD COLUMN lastExportedAt TIMESTAMPTZ,
+-- Son export zamanı (herhangi bir format için en son tarih)
 
 -- =====================================================
--- Denormalize Edilmiş Müşteri Bilgileri
--- (Export sırasında hızlı erişim için)
+-- Denormalize Edilmiş Müşteri Bilgileri - KALDIRILDI
 -- =====================================================
-ADD COLUMN customerTaxOffice VARCHAR(200),
-ADD COLUMN customerTaxNumber VARCHAR(11),
-ADD COLUMN customerCity VARCHAR(100),
-ADD COLUMN customerDistrict VARCHAR(100),
-ADD COLUMN customerPhone VARCHAR(50),
-ADD COLUMN customerEmail VARCHAR(255);
-
+-- Aşağıdaki kolonlar KALDIRILDI (customerSnapshot JSONB kullanılacak):
+-- - customerTaxOffice
+-- - customerTaxNumber
+-- - customerCity
+-- - customerDistrict
 -- İndeksler
 CREATE INDEX idx_shipments_customer ON materials.shipments(customerId);
 CREATE INDEX idx_shipments_quote ON materials.shipments(quoteId);
 CREATE INDEX idx_shipments_document_type ON materials.shipments(documentType);
-CREATE INDEX idx_shipments_exported ON materials.shipments(exportedAt) WHERE exportedAt IS NOT NULL;
+CREATE INDEX idx_shipments_last_exported ON materials.shipments(lastExportedAt) WHERE lastExportedAt IS NOT NULL;
 ```
 
 #### B) `materials.shipment_items` - Yeni Kolonlar
@@ -133,6 +157,21 @@ CREATE INDEX idx_shipments_exported ON materials.shipments(exportedAt) WHERE exp
 -- Fiyat Bilgileri (Fatura için)
 -- =====================================================
 ALTER TABLE materials.shipment_items
+
+ADD COLUMN unitPrice DECIMAL(15,2) DEFAULT 0,
+-- ⚠️ KURAL: Shipment.includePrice = true ise unitPrice > 0 ZORUNLU
+
+ADD COLUMN taxRate INTEGER DEFAULT 20, 
+-- KDV oranı: 0, 1, 8, 10, 18, 20 (sadece bu değerler geçerli)
+-- CHECK CONSTRAINT eklenecek
+
+ADD COLUMN lineSubtotal DECIMAL(15,2), -- unitPrice * quantity
+ADD COLUMN lineTax DECIMAL(15,2), -- lineSubtotal * (taxRate/100)
+ADD COLUMN lineTotal DECIMAL(15,2), -- lineSubtotal + lineTax
+
+-- CHECK CONSTRAINT: KDV oranı kontrolü
+ALTER TABLE materials.shipment_items
+ADD CONSTRAINT chk_tax_rate CHECK (taxRate IN (0, 1, 8, 10, 18, 20));
 
 ADD COLUMN unitPrice DECIMAL(15,2) DEFAULT 0,
 ADD COLUMN taxRate INTEGER DEFAULT 20, -- KDV oranı (0, 1, 8, 10, 18, 20)
@@ -271,8 +310,8 @@ router.post('/batch', exportController.batchExport);
 /**
  * Yeni sevkiyat oluştur
  * @param {Object} data
- * @param {number} data.customerId - quotes.customers.id (opsiyonel)
- * @param {Object} data.customerSnapshot - Müşteri bilgileri snapshot (zorunlu)
+ * @param {number} data.customerId - quotes.customers.id (opsiyonel, snapshot varsa)
+ * @param {Object} data.customerSnapshot - Müşteri bilgileri snapshot (ZORUNLU)
  * @param {Array} data.items - [{ materialCode, quantity, unitPrice?, taxRate? }]
  * @param {string} data.documentType - 'waybill' | 'invoice' | 'both'
  * @param {boolean} data.includePrice - Fiyat bilgileri dahil mi?
@@ -281,91 +320,182 @@ async function createShipment(data, user) {
   const trx = await db.transaction();
   
   try {
-    // 1. Shipment code oluştur (SHP-2025-0001)
+    // ============================================================
+    // 1. VALİDASYONLAR
+    // ============================================================
+    
+    // 1.1. customerSnapshot zorunlu kontrolü
+    if (!data.customerSnapshot) {
+      throw new Error('customerSnapshot zorunludur. customerId varsa otomatik doldurulur.');
+    }
+    
+    // 1.2. Snapshot'ta zorunlu alanlar
+    const requiredFields = ['name', 'taxOffice', 'taxNumber', 'address', 'city'];
+    for (const field of requiredFields) {
+      if (!data.customerSnapshot[field]) {
+        throw new Error(`customerSnapshot.${field} zorunludur (export için gerekli)`);
+      }
+    }
+    
+    // 1.3. Fatura validasyonu
+    if (data.documentType === 'invoice' || data.documentType === 'both') {
+      if (!data.includePrice) {
+        throw new Error('Fatura kesiyorsanız includePrice=true olmalı');
+      }
+      
+      // Tüm items'larda fiyat kontrolü
+      for (const item of data.items) {
+        if (!item.unitPrice || item.unitPrice <= 0) {
+          throw new Error(`Fatura için tüm ürünlerin fiyatı > 0 olmalı (${item.materialCode})`);
+        }
+      }
+    }
+    
+    // 1.4. Items validasyonu
+    if (!data.items || data.items.length === 0) {
+      throw new Error('En az 1 ürün gerekli');
+    }
+    
+    for (const item of data.items) {
+      // Miktar kontrolü
+      if (!item.quantity || item.quantity <= 0) {
+        throw new Error(`Geçersiz miktar: ${item.materialCode} (${item.quantity})`);
+      }
+      
+      // Stok kontrolü
+      const material = await trx('materials.materials')
+        .where({ code: item.materialCode })
+        .first();
+      
+      if (!material) {
+        throw new Error(`Malzeme bulunamadı: ${item.materialCode}`);
+      }
+      
+      const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
+      if (item.quantity > availableStock) {
+        throw new Error(
+          `Yetersiz stok: ${material.name}. ` +
+          `Mevcut: ${availableStock}, İstenen: ${item.quantity}`
+        );
+      }
+      
+      // KDV oranı kontrolü
+      const validTaxRates = [0, 1, 8, 10, 18, 20];
+      if (item.taxRate && !validTaxRates.includes(item.taxRate)) {
+        throw new Error(`Geçersiz KDV oranı: ${item.taxRate}. Geçerli değerler: ${validTaxRates.join(', ')}`);
+      }
+    }
+    
+    // ============================================================
+    // 2. SHIPMENT CODE OLUŞTUR
+    // ============================================================
     const shipmentCode = await generateShipmentCode();
     
-    // 2. Customer snapshot hazırla
-    let customerSnapshot = data.customerSnapshot;
-    if (data.customerId && !customerSnapshot) {
-      const customer = await db('quotes.customers')
-        .where({ id: data.customerId })
-        .first();
-      customerSnapshot = {
-        name: customer.name,
-        company: customer.company,
-        taxOffice: customer.taxOffice,
-        taxNumber: customer.taxNumber,
-        city: customer.city,
-        district: customer.district,
-        address: customer.address,
-        phone: customer.phone,
-        email: customer.email,
-        iban: customer.iban
-      };
-    }
+    // ============================================================
+    // 3. FİYAT HESAPLAMALARI (Fatura için)
+    // ============================================================
+    let subtotal = 0, taxTotal = 0, grandTotal = 0, shippedQuantityTotal = 0;
     
-    // 3. Fiyat toplamlarını hesapla (fatura için)
-    let subtotal = 0, taxTotal = 0, grandTotal = 0;
-    if (data.includePrice) {
-      data.items.forEach(item => {
-        const lineSubtotal = item.unitPrice * item.quantity;
-        const lineTax = lineSubtotal * (item.taxRate / 100);
+    const calculatedItems = data.items.map(item => {
+      const quantity = parseFloat(item.quantity);
+      const unitPrice = parseFloat(item.unitPrice || 0);
+      const taxRate = parseInt(item.taxRate || 20);
+      
+      shippedQuantityTotal += quantity;
+      
+      if (data.includePrice) {
+        const lineSubtotal = unitPrice * quantity;
+        const lineTax = lineSubtotal * (taxRate / 100);
+        const lineTotal = lineSubtotal + lineTax;
+        
         subtotal += lineSubtotal;
         taxTotal += lineTax;
-      });
-      grandTotal = subtotal + taxTotal;
+        grandTotal += lineTotal;
+        
+        return {
+          ...item,
+          unitPrice,
+          taxRate,
+          lineSubtotal,
+          lineTax,
+          lineTotal
+        };
+      }
+      
+      return { ...item, unitPrice: 0, taxRate: 20 };
+    });
+    
+    // ============================================================
+    // 4. PARÇALI SEVKİYAT HESAPLAMA (Quote varsa)
+    // ============================================================
+    let quoteRemainingQuantity = null;
+    if (data.quoteId) {
+      // Quote'taki toplam ve daha önce sevk edilenleri hesapla
+      const quoteSummary = await getQuoteShipmentSummary(data.quoteId, trx);
+      quoteRemainingQuantity = quoteSummary.totalOrdered - quoteSummary.totalShipped - shippedQuantityTotal;
     }
     
-    // 4. Shipment kaydı oluştur
+    // ============================================================
+    // 5. SHIPMENT KAYDI OLUŞTUR
+    // ============================================================
     const [shipment] = await trx('materials.shipments')
       .insert({
         shipmentCode,
+        shipmentSequence: parseInt(shipmentCode.split('-')[2], 10),
         customerId: data.customerId || null,
-        customerSnapshot,
+        customerSnapshot: data.customerSnapshot, // JSONB
         quoteId: data.quoteId || null,
-        isPartialShipment: data.isPartialShipment || false,
-        documentType: data.documentType,
-        includePrice: data.includePrice,
+        isPartialShipment: !!data.quoteId,
+        shippedQuantityTotal,
+        quoteRemainingQuantity,
+        documentType: data.documentType || 'waybill',
+        includePrice: data.includePrice || false,
         currency: data.currency || 'TRY',
         subtotal: data.includePrice ? subtotal : null,
         taxTotal: data.includePrice ? taxTotal : null,
         grandTotal: data.includePrice ? grandTotal : null,
-        // Denormalize
-        customerTaxOffice: customerSnapshot.taxOffice,
-        customerTaxNumber: customerSnapshot.taxNumber,
-        customerCity: customerSnapshot.city,
-        customerDistrict: customerSnapshot.district,
-        customerPhone: customerSnapshot.phone,
-        customerEmail: customerSnapshot.email,
+        exportedFormats: {}, // Boş object
         status: 'pending',
-        createdBy: user?.email || 'system'
+        notes: data.notes,
+        createdBy: user?.email || 'system',
+        createdAt: new Date(),
+        updatedAt: new Date()
       })
       .returning('*');
     
-    // 5. Items ekle + stok düş
-    for (const item of data.items) {
+    // ============================================================
+    // 6. ITEMS EKLE + STOK DÜŞ
+    // ============================================================
+    for (const item of calculatedItems) {
       await trx('materials.shipment_items').insert({
         shipmentId: shipment.id,
         materialCode: item.materialCode,
         quantity: item.quantity,
         unit: item.unit || 'adet',
-        unitPrice: item.unitPrice || 0,
-        taxRate: item.taxRate || 20,
-        // lineSubtotal, lineTax, lineTotal → trigger otomatik hesaplar
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+        lineSubtotal: item.lineSubtotal || null,
+        lineTax: item.lineTax || null,
+        lineTotal: item.lineTotal || null,
         lotNumber: item.lotNumber,
-        notes: item.notes
+        notes: item.notes,
+        isPartial: !!data.quoteId,
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
       
       // Stok düşümü
-      await StockMovements.createMovement({
+      const StockMovements = (await import('./stockMovements.js')).default;
+      await StockMovements.createMovement(trx, {
         materialCode: item.materialCode,
         movementType: 'out',
         subType: 'shipment',
         quantity: item.quantity,
         referenceId: shipment.id,
         referenceType: 'shipment',
-        notes: `Sevkiyat: ${shipmentCode}`
-      }, trx);
+        notes: `Sevkiyat: ${shipmentCode}`,
+        createdBy: user?.email
+      });
     }
     
     await trx.commit();
@@ -381,17 +511,47 @@ async function createShipment(data, user) {
  * Hızlı sevkiyat (stok sayfasından tek ürün)
  */
 async function createQuickShipment(data, user) {
+  // customerSnapshot doldur
+  let customerSnapshot = data.customerSnapshot;
+  if (data.customerId && !customerSnapshot) {
+    const customer = await db('quotes.customers')
+      .where({ id: data.customerId })
+      .first();
+    
+    if (!customer) {
+      throw new Error('Müşteri bulunamadı');
+    }
+    
+    customerSnapshot = {
+      name: customer.name,
+      company: customer.company,
+      taxOffice: customer.taxOffice,
+      taxNumber: customer.taxNumber,
+      city: customer.city,
+      district: customer.district,
+      address: customer.address,
+      phone: customer.phone,
+      email: customer.email
+    };
+  }
+  
+  if (!customerSnapshot) {
+    throw new Error('customerSnapshot veya customerId gerekli');
+  }
+  
   return createShipment({
     customerId: data.customerId,
-    customerSnapshot: data.customerSnapshot,
+    customerSnapshot,
     items: [{
       materialCode: data.materialCode,
       quantity: data.quantity,
+      unit: data.unit,
       unitPrice: data.unitPrice,
-      taxRate: data.taxRate
+      taxRate: data.taxRate || 20
     }],
     documentType: data.documentType || 'waybill',
-    includePrice: !!data.unitPrice
+    includePrice: data.documentType === 'invoice' || data.documentType === 'both',
+    notes: data.notes
   }, user);
 }
 
@@ -1113,6 +1273,672 @@ Kullanılacak mevcut classlar:
 
 ---
 
-**Son Güncelleme**: 8 Aralık 2025  
+---
+
+## 8. EKSİK İMPLEMENTASYON DETAYLARI
+
+### 8.1. Export Service Generator Detayları
+
+#### `csvGenerator.js` - Logo/Excel Uyumlu Format
+
+```javascript
+// WebApp/domains/materials/api/services/export/csvGenerator.js
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+
+export function generateCSV(shipment, items) {
+  // Logo Tiger/Go import formatı
+  const headers = [
+    'Cari Kodu',
+    'Cari Ünvan',
+    'VKN/TCKN',
+    'Vergi Dairesi',
+    'Adres',
+    'İl',
+    'İlçe',
+    'Telefon',
+    'Email',
+    'İrsaliye No',
+    'İrsaliye Tarihi',
+    'Stok Kodu',
+    'Stok Adı',
+    'Miktar',
+    'Birim',
+    'Birim Fiyat',
+    'KDV %',
+    'Tutar',
+    'KDV Tutarı',
+    'Toplam'
+  ];
+
+  const snapshot = shipment.customerSnapshot;
+  
+  const rows = items.map(item => [
+    snapshot.erpAccountCode || '',
+    snapshot.company || snapshot.name,
+    snapshot.taxNumber,
+    snapshot.taxOffice,
+    snapshot.address,
+    snapshot.city,
+    snapshot.district,
+    snapshot.phone || '',
+    snapshot.email || '',
+    shipment.shipmentCode,
+    format(new Date(shipment.createdAt), 'dd.MM.yyyy', { locale: tr }),
+    item.materialCode,
+    item.materialName || '',
+    item.quantity,
+    item.unit,
+    item.unitPrice || 0,
+    item.taxRate || 20,
+    item.lineSubtotal || 0,
+    item.lineTax || 0,
+    item.lineTotal || 0
+  ]);
+
+  // CSV oluştur (UTF-8 BOM ile - Excel için)
+  const BOM = '\uFEFF';
+  const csvContent = [
+    headers.join(';'),
+    ...rows.map(row => row.join(';'))
+  ].join('\n');
+
+  return BOM + csvContent;
+}
+```
+
+#### `xmlGenerator.js` - Logo XML Format (e-Dönüşüm Standardı)
+
+```javascript
+// WebApp/domains/materials/api/services/export/xmlGenerator.js
+import { format } from 'date-fns';
+
+export function generateLogoXML(shipment, items) {
+  const snapshot = shipment.customerSnapshot;
+  const docType = shipment.documentType === 'invoice' ? 'SATIS_FATURASI' : 'SEVK_IRSALIYESI';
+  
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<BELGE>
+  <TIP>${docType}</TIP>
+  <NUMARA>${shipment.shipmentCode}</NUMARA>
+  <TARIH>${format(new Date(shipment.createdAt), 'yyyy-MM-dd')}</TARIH>
+  
+  <CARI>
+    <KODU>${snapshot.erpAccountCode || ''}</KODU>
+    <UNVAN>${snapshot.company || snapshot.name}</UNVAN>
+    <VKN>${snapshot.taxNumber}</VKN>
+    <VERGI_DAIRESI>${snapshot.taxOffice}</VERGI_DAIRESI>
+    <ADRES>${snapshot.address}</ADRES>
+    <IL>${snapshot.city}</IL>
+    <ILCE>${snapshot.district}</ILCE>
+    <TELEFON>${snapshot.phone || ''}</TELEFON>
+    <EMAIL>${snapshot.email || ''}</EMAIL>
+  </CARI>
+  
+  <SATIRLAR>
+${items.map((item, index) => `    <SATIR>
+      <SIRA>${index + 1}</SIRA>
+      <STOK_KODU>${item.materialCode}</STOK_KODU>
+      <STOK_ADI><![CDATA[${item.materialName || ''}]]></STOK_ADI>
+      <MIKTAR>${item.quantity}</MIKTAR>
+      <BIRIM>${item.unit}</BIRIM>
+      ${shipment.includePrice ? `<BIRIM_FIYAT>${item.unitPrice || 0}</BIRIM_FIYAT>
+      <KDV_ORANI>${item.taxRate || 20}</KDV_ORANI>
+      <TUTAR>${item.lineSubtotal || 0}</TUTAR>
+      <KDV_TUTARI>${item.lineTax || 0}</KDV_TUTARI>
+      <TOPLAM>${item.lineTotal || 0}</TOPLAM>` : ''}
+    </SATIR>`).join('\n')}
+  </SATIRLAR>
+  
+  ${shipment.includePrice ? `<OZET>
+    <ARA_TOPLAM>${shipment.subtotal}</ARA_TOPLAM>
+    <KDV_TOPLAM>${shipment.taxTotal}</KDV_TOPLAM>
+    <GENEL_TOPLAM>${shipment.grandTotal}</GENEL_TOPLAM>
+  </OZET>` : ''}
+</BELGE>`;
+
+  return xml;
+}
+```
+
+#### `pdfGenerator.js` - Yazdırılabilir İrsaliye/Fatura
+
+```javascript
+// WebApp/domains/materials/api/services/export/pdfGenerator.js
+import PDFDocument from 'pdfkit';
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+
+export async function generatePDF(shipment, items, companyInfo) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks = [];
+
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const snapshot = shipment.customerSnapshot;
+    const isInvoice = shipment.documentType === 'invoice' || shipment.includePrice;
+
+    // Header
+    doc.fontSize(20).text(isInvoice ? 'FATURA' : 'SEVKİYAT İRSALİYESİ', { align: 'center' });
+    doc.moveDown();
+
+    // Belge No ve Tarih
+    doc.fontSize(10)
+       .text(`Belge No: ${shipment.shipmentCode}`, 50, 100)
+       .text(`Tarih: ${format(new Date(shipment.createdAt), 'dd.MM.yyyy HH:mm', { locale: tr })}`, 50, 115);
+
+    // Gönderici Bilgileri (Sol)
+    doc.fontSize(12).text('GÖNDERİCİ', 50, 150);
+    doc.fontSize(10)
+       .text(companyInfo.name || 'BeePlan Üretim', 50, 170)
+       .text(`VD: ${companyInfo.taxOffice || ''}`, 50, 185)
+       .text(`VKN: ${companyInfo.taxNumber || ''}`, 50, 200)
+       .text(companyInfo.address || '', 50, 215);
+
+    // Alıcı Bilgileri (Sağ)
+    doc.fontSize(12).text('ALICI', 350, 150);
+    doc.fontSize(10)
+       .text(snapshot.company || snapshot.name, 350, 170)
+       .text(`VD: ${snapshot.taxOffice}`, 350, 185)
+       .text(`VKN: ${snapshot.taxNumber}`, 350, 200)
+       .text(snapshot.address, 350, 215, { width: 200 });
+
+    // Tablo başlıkları
+    const tableTop = 280;
+    doc.fontSize(9)
+       .text('Sıra', 50, tableTop)
+       .text('Stok Kodu', 80, tableTop)
+       .text('Açıklama', 180, tableTop)
+       .text('Miktar', 350, tableTop)
+       .text('Birim', 410, tableTop);
+
+    if (isInvoice) {
+      doc.text('B.Fiyat', 450, tableTop)
+         .text('KDV%', 500, tableTop)
+         .text('Toplam', 530, tableTop);
+    }
+
+    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+
+    // Ürün satırları
+    let yPosition = tableTop + 25;
+    items.forEach((item, index) => {
+      doc.fontSize(8)
+         .text(index + 1, 50, yPosition)
+         .text(item.materialCode, 80, yPosition)
+         .text(item.materialName || '', 180, yPosition, { width: 160 })
+         .text(item.quantity, 350, yPosition)
+         .text(item.unit, 410, yPosition);
+
+      if (isInvoice) {
+        doc.text((item.unitPrice || 0).toFixed(2), 450, yPosition)
+           .text(item.taxRate || 20, 500, yPosition)
+           .text((item.lineTotal || 0).toFixed(2), 530, yPosition);
+      }
+
+      yPosition += 20;
+    });
+
+    // Toplam (Fatura için)
+    if (isInvoice) {
+      yPosition += 20;
+      doc.fontSize(10)
+         .text('Ara Toplam:', 400, yPosition)
+         .text(`${shipment.subtotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
+      
+      yPosition += 15;
+      doc.text('KDV Toplam:', 400, yPosition)
+         .text(`${shipment.taxTotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
+      
+      yPosition += 15;
+      doc.fontSize(12)
+         .text('GENEL TOPLAM:', 400, yPosition)
+         .text(`${shipment.grandTotal?.toFixed(2) || '0.00'} TL`, 500, yPosition);
+    }
+
+    // Footer
+    doc.fontSize(8)
+       .text('BeePlan Üretim Yönetim Sistemi', 50, 750, { align: 'center' });
+
+    doc.end();
+  });
+}
+```
+
+### 8.2. Validasyon Kuralları ve İş Mantığı
+
+#### Sevkiyat Oluşturma Validasyonları
+
+```javascript
+// shipmentService.js - validateShipmentData()
+function validateShipmentData(data, items) {
+  const errors = [];
+
+  // 1. Müşteri bilgileri kontrolü
+  if (!data.customerId && !data.customerSnapshot) {
+    errors.push('Müşteri bilgisi zorunludur (customerId veya customerSnapshot)');
+  }
+
+  if (data.customerSnapshot) {
+    const required = ['name', 'taxNumber', 'taxOffice', 'address', 'city'];
+    required.forEach(field => {
+      if (!data.customerSnapshot[field]) {
+        errors.push(`customerSnapshot.${field} zorunludur`);
+      }
+    });
+
+    // VKN/TCKN format kontrolü
+    const taxNumber = data.customerSnapshot.taxNumber;
+    if (taxNumber && !/^\d{10,11}$/.test(taxNumber)) {
+      errors.push('Vergi numarası 10 (VKN) veya 11 (TCKN) haneli olmalıdır');
+    }
+  }
+
+  // 2. Kalem kontrolü
+  if (!items || items.length === 0) {
+    errors.push('En az 1 ürün eklemelisiniz');
+  }
+
+  items.forEach((item, index) => {
+    if (!item.materialCode) {
+      errors.push(`${index + 1}. üründe materialCode zorunludur`);
+    }
+    if (!item.quantity || item.quantity <= 0) {
+      errors.push(`${index + 1}. üründe miktar 0'dan büyük olmalıdır`);
+    }
+  });
+
+  // 3. Fatura kontrolü
+  if (data.documentType === 'invoice' || data.includePrice) {
+    items.forEach((item, index) => {
+      if (item.unitPrice === undefined || item.unitPrice === null) {
+        errors.push(`${index + 1}. üründe fiyat zorunludur (fatura kesilecek)`);
+      }
+      if (item.unitPrice < 0) {
+        errors.push(`${index + 1}. üründe fiyat negatif olamaz`);
+      }
+      if (item.taxRate < 0 || item.taxRate > 100) {
+        errors.push(`${index + 1}. üründe KDV oranı 0-100 arasında olmalıdır`);
+      }
+    });
+  }
+
+  // 4. Stok kontrolü (item validation'da yapılacak)
+  // Her item için ayrı ayrı kontrol edilir
+
+  return errors;
+}
+```
+
+#### Stok Kontrolü Detayları
+
+```javascript
+// shipmentService.js - checkStockAvailability()
+async function checkStockAvailability(items, trx = db) {
+  const stockIssues = [];
+
+  for (const item of items) {
+    const material = await trx('materials.materials')
+      .where({ code: item.materialCode })
+      .first();
+
+    if (!material) {
+      stockIssues.push({
+        materialCode: item.materialCode,
+        issue: 'MATERIAL_NOT_FOUND',
+        message: 'Malzeme bulunamadı'
+      });
+      continue;
+    }
+
+    const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
+
+    if (item.quantity > availableStock) {
+      stockIssues.push({
+        materialCode: item.materialCode,
+        materialName: material.name,
+        issue: 'INSUFFICIENT_STOCK',
+        requested: item.quantity,
+        available: availableStock,
+        shortage: item.quantity - availableStock,
+        message: `Yetersiz stok. Mevcut: ${availableStock} ${material.unit}, İstenen: ${item.quantity} ${material.unit}`
+      });
+    }
+  }
+
+  return stockIssues;
+}
+```
+
+### 8.3. Parçalı Sevkiyat Hesaplama Mantığı
+
+#### Quote Summary Endpoint (Kalan Miktar Hesaplama)
+
+```javascript
+// shipmentService.js - getQuoteShipmentSummary()
+export async function getQuoteShipmentSummary(quoteId) {
+  // 1. Quote bilgilerini al
+  const quote = await db('quotes.quotes')
+    .where({ id: quoteId })
+    .first();
+
+  if (!quote) {
+    throw new Error('Quote bulunamadı');
+  }
+
+  // 2. WorkOrder ve Production Plan output'u al
+  const outputMaterial = await getQuoteOutputMaterial(quoteId);
+
+  if (!outputMaterial) {
+    return {
+      quoteId,
+      hasProduction: false,
+      totalOrdered: null,
+      shipped: 0,
+      remaining: null,
+      shipments: []
+    };
+  }
+
+  // 3. Bu quote için yapılmış sevkiyatları al
+  const shipments = await db('materials.shipments as s')
+    .leftJoin('materials.shipment_items as si', 's.id', 'si.shipmentId')
+    .where({ 's.quoteId': quoteId, 's.status': 'completed' })
+    .whereNot({ 's.status': 'cancelled' })
+    .select(
+      's.id',
+      's.shipmentCode',
+      's.createdAt',
+      db.raw('COALESCE(SUM(si.quantity), 0) as totalQuantity')
+    )
+    .groupBy('s.id', 's.shipmentCode', 's.createdAt')
+    .orderBy('s.createdAt', 'desc');
+
+  const totalShipped = shipments.reduce((sum, s) => sum + parseFloat(s.totalQuantity || 0), 0);
+
+  // 4. Üretim planından beklenen miktarı al (form data'dan veya plan'dan)
+  const expectedQuantity = quote.formData?.quantity || 0; // Form data'dan miktar
+  const remaining = Math.max(0, expectedQuantity - totalShipped);
+
+  return {
+    quoteId,
+    hasProduction: true,
+    outputMaterial: outputMaterial.materialCode,
+    totalOrdered: expectedQuantity,
+    shipped: totalShipped,
+    remaining,
+    shippedPercentage: expectedQuantity > 0 ? ((totalShipped / expectedQuantity) * 100).toFixed(1) : 0,
+    shipments: shipments.map(s => ({
+      id: s.id,
+      code: s.shipmentCode,
+      date: s.createdAt,
+      quantity: parseFloat(s.totalQuantity)
+    }))
+  };
+}
+```
+
+### 8.4. Export Geçmişi Yönetimi
+
+#### Export Format Tracking (Tekil Kayıt)
+
+```javascript
+// shipmentService.js - updateExportHistory()
+async function updateExportHistory(shipmentId, format, trx = db) {
+  const shipment = await trx('materials.shipments')
+    .where({ id: shipmentId })
+    .first();
+
+  let exportedFormats = shipment.exportedFormats || [];
+  
+  // Format zaten export edildiyse, sadece timestamp güncelle
+  const formatExists = exportedFormats.some(f => f.format === format);
+  
+  if (!formatExists) {
+    exportedFormats.push({
+      format, // 'csv' | 'xml' | 'pdf' | 'json'
+      exportedAt: new Date().toISOString()
+    });
+  } else {
+    // Mevcut format'ın timestamp'ini güncelle
+    exportedFormats = exportedFormats.map(f => 
+      f.format === format 
+        ? { ...f, exportedAt: new Date().toISOString() }
+        : f
+    );
+  }
+
+  await trx('materials.shipments')
+    .where({ id: shipmentId })
+    .update({
+      exportedFormats: JSON.stringify(exportedFormats),
+      exportedAt: new Date() // Son export zamanı
+    });
+
+  return exportedFormats;
+}
+```
+
+### 8.5. UI Component Skeleton'ları
+
+#### YeniSevkiyatWizard.jsx - Tam Yapı
+
+```javascript
+// WebApp/domains/materials/components/shipments/YeniSevkiyatWizard.jsx
+import React, { useState } from 'react';
+import Step1CustomerSelection from './wizard/Step1CustomerSelection.jsx';
+import Step2ItemSelection from './wizard/Step2ItemSelection.jsx';
+import Step3ReviewAndExport from './wizard/Step3ReviewAndExport.jsx';
+
+export default function YeniSevkiyatWizard({ isOpen, onClose, onSuccess }) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [wizardData, setWizardData] = useState({
+    customer: null,      // { customerId, snapshot: {...} }
+    items: [],           // [{ materialCode, quantity, unitPrice, ... }]
+    documentType: 'both',
+    includePrice: false,
+    exportFormats: ['csv', 'xml', 'pdf']
+  });
+
+  const updateWizardData = (field, value) => {
+    setWizardData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1: return wizardData.customer !== null;
+      case 2: return wizardData.items.length > 0;
+      case 3: return true;
+      default: return false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const response = await fetch('/api/materials/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: wizardData.customer.customerId,
+          customerSnapshot: wizardData.customer.snapshot,
+          items: wizardData.items,
+          documentType: wizardData.documentType,
+          includePrice: wizardData.includePrice,
+          exportFormats: wizardData.exportFormats
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Sevkiyat oluşturulamadı');
+      }
+
+      // Export dosyalarını indir
+      for (const format of wizardData.exportFormats) {
+        const exportResponse = await fetch(`/api/materials/shipments/${result.shipment.id}/export/${format}`);
+        const blob = await exportResponse.blob();
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${result.shipment.shipmentCode}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      onSuccess(result.shipment);
+      onClose();
+    } catch (error) {
+      console.error('Shipment creation error:', error);
+      alert(error.message);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content wizard-modal">
+        <div className="modal-header">
+          <h2>Yeni Sevkiyat Oluştur</h2>
+          <button onClick={onClose} className="btn-close">×</button>
+        </div>
+
+        <div className="wizard-progress">
+          <div className={`wizard-step ${currentStep >= 1 ? 'active' : ''}`}>1. Müşteri</div>
+          <div className={`wizard-step ${currentStep >= 2 ? 'active' : ''}`}>2. Ürünler</div>
+          <div className={`wizard-step ${currentStep >= 3 ? 'active' : ''}`}>3. Önizleme</div>
+        </div>
+
+        <div className="wizard-body">
+          {currentStep === 1 && (
+            <Step1CustomerSelection
+              data={wizardData}
+              onChange={updateWizardData}
+            />
+          )}
+          {currentStep === 2 && (
+            <Step2ItemSelection
+              data={wizardData}
+              onChange={updateWizardData}
+            />
+          )}
+          {currentStep === 3 && (
+            <Step3ReviewAndExport
+              data={wizardData}
+              onChange={updateWizardData}
+            />
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+            disabled={currentStep === 1}
+          >
+            ← Geri
+          </button>
+
+          {currentStep < 3 ? (
+            <button
+              className="btn btn-primary"
+              onClick={() => setCurrentStep(prev => prev + 1)}
+              disabled={!canProceed()}
+            >
+              İleri →
+            </button>
+          ) : (
+            <button
+              className="btn btn-success"
+              onClick={handleSubmit}
+            >
+              Kaydet ve Export
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 9. AÇIK SORULAR VE KARARLAR
+
+### 9.1. Netleştirilmiş Kararlar
+
+✅ **Müşteri Adı/Adresi Garantisi**: `customerSnapshot` JSONB zorunludur. NULL olamaz.
+
+✅ **Fatura Fiyat Zorunluluğu**: 
+- `documentType === 'invoice'` ise `unitPrice` her item için zorunludur
+- Validation `validateShipmentData()` fonksiyonunda yapılır
+
+✅ **Export Geçmişi**: 
+- `exportedFormats` JSONB array: `[{format: 'csv', exportedAt: '2025-12-08T14:30:00Z'}, ...]`
+- Her format için ayrı timestamp
+- `exportedAt` kolonunda son export zamanı (kolay sorgu için)
+
+✅ **Kısmi Sevkiyat Kalan Miktar**: 
+- Quote'ta fiziksel kolon YOK
+- `getQuoteShipmentSummary(quoteId)` endpoint'i dinamik hesaplama yapar
+- Frontend cache edebilir (performance için)
+
+✅ **Stok Kontrolü**: 
+- `checkStockAvailability()` fonksiyonu zorunludur
+- Yetersiz stokta bile sevkiyat oluşabilir (uyarı ile)
+- Frontend'de kullanıcıya uyarı gösterilir
+
+✅ **KDV Oranı**: 
+- Türkiye standartları: 0, 1, 8, 10, 18, 20
+- Validation regex: `^(0|1|8|10|18|20)$`
+
+✅ **Denormalize Kolonlar**: 
+- `customerName`, `customerCompany`, `deliveryAddress` KALDIRILDI
+- Tüm bilgiler `customerSnapshot` JSONB'de
+- Export'ta snapshot parse edilir
+
+### 9.2. Implementation Sırası (GÜNCEL)
+
+**Faz 0: Hazırlık (ŞU AN)** ✅
+- [x] Dokümantasyon tamamlandı
+- [ ] Teknik review (geliştirici onayı)
+- [ ] CSS class'ları kontrol edildi
+
+**Faz 1: Database & Backend (2 gün)** ⏳
+- [ ] Migration 035 oluştur ve çalıştır
+- [ ] `shipments.js`, `shipmentItems.js` model güncelle
+- [ ] `shipmentService.js` fonksiyonları yaz
+- [ ] `exportService.js` ve generator'lar oluştur
+- [ ] API routes ekle
+- [ ] Postman test
+
+**Faz 2: UI Components (2 gün)** ⏳
+- [ ] `HizliSevkiyatModal.jsx` oluştur
+- [ ] `YeniSevkiyatWizard.jsx` ve step component'ları
+- [ ] Stok tablosuna "Sevk Et" butonu entegrasyonu
+- [ ] Sevkiyatlar sayfası UI güncellemeleri
+
+**Faz 3: Export & Test (1 gün)** ⏳
+- [ ] PDF generator entegrasyonu (pdfkit)
+- [ ] Export download logic
+- [ ] Error handling ve validation testleri
+- [ ] Manuel test senaryoları (checklist)
+
+**Faz 4: Quote Entegrasyonu (v2.0 - Gelecek)** 🔮
+- [ ] Quote detay sayfasına sevkiyat widget'ı
+- [ ] `QuoteSevkiyatModal.jsx`
+- [ ] Parçalı sevkiyat UI (progress bar)
+
+---
+
+**Son Güncelleme**: 8 Aralık 2025 - 16:45  
 **Hazırlayan**: GitHub Copilot  
-**Durum**: ✅ Dokümantasyon Tamamlandı - Implementation Başlayabilir
+**Durum**: 📝 Dokümantasyon Tamamlandı (Hazırlık Aşaması) - Implementation Başlamadı
