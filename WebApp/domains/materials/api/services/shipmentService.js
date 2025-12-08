@@ -2,6 +2,11 @@
  * Shipment Service (Refactored)
  * Handles outgoing shipments with multi-item support
  * Uses Shipments and ShipmentItems models
+ * 
+ * Updated for Invoice Export Integration (8 Aralık 2025)
+ * - Added invoice/export related fields
+ * - Stock validation (block if insufficient)
+ * - Price validation for invoices
  */
 
 import db from '#db/connection';
@@ -12,15 +17,106 @@ const SHIPMENT_STATUSES = {
   PENDING: 'pending',
   SHIPPED: 'shipped',
   DELIVERED: 'delivered',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
+  EXPORTED: 'exported',
+  COMPLETED: 'completed'
+};
+
+const DOCUMENT_TYPES = {
+  WAYBILL: 'waybill',    // İrsaliye (fiyatsız)
+  INVOICE: 'invoice',     // Fatura (fiyatlı)
+  BOTH: 'both'           // İkisi birden
 };
 
 const VALID_TRANSITIONS = {
-  pending: ['shipped', 'cancelled'],
+  pending: ['shipped', 'exported', 'cancelled'],
   shipped: ['delivered', 'cancelled'],
+  exported: ['completed', 'cancelled'],
   delivered: [],
+  completed: [],
   cancelled: []
 };
+
+/**
+ * Validate stock availability for all items
+ * @param {Array} items - Items to check
+ * @returns {Object} { valid: boolean, errors: Array }
+ */
+async function validateStockAvailability(items) {
+  const errors = [];
+  
+  for (const item of items) {
+    const material = await db('materials.materials')
+      .select('id', 'code', 'name', 'stock', 'reserved', 'wipReserved', 'unit')
+      .where('code', item.materialCode)
+      .first();
+    
+    if (!material) {
+      errors.push(`Malzeme bulunamadı: ${item.materialCode}`);
+      continue;
+    }
+    
+    const availableStock = parseFloat(material.stock || 0) 
+      - parseFloat(material.reserved || 0) 
+      - parseFloat(material.wipReserved || 0);
+    
+    const requestedQty = parseFloat(item.quantity);
+    
+    if (requestedQty > availableStock) {
+      errors.push(
+        `Yetersiz stok: ${material.name} (${material.code}) - ` +
+        `İstenen: ${requestedQty}, Mevcut: ${availableStock.toFixed(2)} ${material.unit || 'adet'}`
+      );
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Validate shipment data for invoice export
+ * @param {Object} data - Shipment data
+ * @returns {Object} { valid: boolean, errors: Array }
+ */
+function validateInvoiceExportData(data) {
+  const errors = [];
+  const { items = [], documentType, includePrice, currency, exchangeRate, customerSnapshot } = data;
+  
+  // 1. customerSnapshot zorunlu
+  if (!customerSnapshot || typeof customerSnapshot !== 'object') {
+    errors.push('Müşteri bilgisi (customerSnapshot) zorunludur');
+  }
+  
+  // 2. documentType = 'invoice' veya 'both' ise includePrice = true olmalı
+  if ((documentType === 'invoice' || documentType === 'both') && !includePrice) {
+    errors.push('Fatura belgesi için fiyat dahil edilmeli (includePrice: true)');
+  }
+  
+  // 3. includePrice = true ise tüm items'da unitPrice > 0 olmalı
+  if (includePrice) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.unitPrice || parseFloat(item.unitPrice) <= 0) {
+        errors.push(`Kalem ${i + 1}: Fiyat dahil seçildiğinde birim fiyat zorunludur (${item.materialCode})`);
+      }
+    }
+  }
+  
+  // 4. currency != 'TRY' ise exchangeRate > 0 zorunlu
+  if (currency && currency !== 'TRY') {
+    if (!exchangeRate || parseFloat(exchangeRate) <= 0) {
+      errors.push(`Döviz kullanıldığında kur belirtilmelidir (${currency})`);
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
 
 // ============================================
 // SHIPMENT CRUD (Header)
@@ -28,21 +124,33 @@ const VALID_TRANSITIONS = {
 
 /**
  * Create a new shipment with multiple items
+ * Updated for Invoice Export Integration
+ * 
  * @param {Object} data - Shipment data with items array
  * @param {Object} user - Current user
  * @returns {Object} Created shipment with items
+ * 
+ * New fields supported:
+ * - customerId, customerSnapshot (müşteri bilgileri)
+ * - documentType: 'waybill' | 'invoice' | 'both'
+ * - includePrice: boolean
+ * - useAlternateDelivery, alternateDeliveryAddress
+ * - currency, exchangeRate
+ * - discountType, discountValue
+ * - exportTarget, specialCode, costCenter, documentNotes
+ * - Item level: unitPrice, taxRate, discountPercent, vatExemptionId, withholdingRateId, serialNumber, itemNotes
  */
 export async function createShipment(data, user) {
   const { items = [], ...shipmentData } = data;
   
-  // Validate
+  // 1. Basic validation - items required
   if (!items || items.length === 0) {
     const error = new Error('En az bir kalem gerekli');
     error.code = 'VALIDATION_ERROR';
     throw error;
   }
   
-  // Validate each item
+  // 2. Validate each item has required fields
   for (const item of items) {
     if (!item.materialCode) {
       const error = new Error('Her kalem için malzeme kodu gerekli');
@@ -56,8 +164,107 @@ export async function createShipment(data, user) {
     }
   }
   
+  // 3. Invoice/Export validation (if documentType is set)
+  if (shipmentData.documentType) {
+    const invoiceValidation = validateInvoiceExportData({ ...shipmentData, items });
+    if (!invoiceValidation.valid) {
+      const error = new Error(invoiceValidation.errors.join('\n'));
+      error.code = 'VALIDATION_ERROR';
+      error.details = invoiceValidation.errors;
+      throw error;
+    }
+  }
+  
+  // 4. Stock availability check - BLOCK if insufficient
+  const stockValidation = await validateStockAvailability(items);
+  if (!stockValidation.valid) {
+    const error = new Error('Yetersiz stok:\n' + stockValidation.errors.join('\n'));
+    error.code = 'INSUFFICIENT_STOCK';
+    error.details = stockValidation.errors;
+    throw error;
+  }
+  
+  // 5. Prepare shipment data with new fields
+  const preparedShipmentData = {
+    // Existing fields
+    planId: shipmentData.planId,
+    workOrderCode: shipmentData.workOrderCode,
+    quoteId: shipmentData.quoteId,
+    notes: shipmentData.notes,
+    
+    // Customer fields (new)
+    customerId: shipmentData.customerId || null,
+    customerSnapshot: shipmentData.customerSnapshot || null,
+    customerName: shipmentData.customerSnapshot?.name || shipmentData.customerName,
+    customerCompany: shipmentData.customerSnapshot?.company || shipmentData.customerCompany,
+    deliveryAddress: shipmentData.customerSnapshot?.address || shipmentData.deliveryAddress,
+    
+    // Alternate delivery (new)
+    useAlternateDelivery: shipmentData.useAlternateDelivery || false,
+    alternateDeliveryAddress: shipmentData.alternateDeliveryAddress || null,
+    
+    // Document type (new)
+    documentType: shipmentData.documentType || 'waybill',
+    includePrice: shipmentData.includePrice || false,
+    
+    // Currency (new)
+    currency: shipmentData.currency || 'TRY',
+    exchangeRate: shipmentData.exchangeRate || 1.0,
+    
+    // Discount (new)
+    discountType: shipmentData.discountType || null,
+    discountValue: shipmentData.discountValue || 0,
+    
+    // Export (new)
+    exportTarget: shipmentData.exportTarget || null,
+    
+    // Extra fields (new)
+    specialCode: shipmentData.specialCode || null,
+    costCenter: shipmentData.costCenter || null,
+    documentNotes: shipmentData.documentNotes || null,
+    
+    // Transport fields (existing)
+    transportType: shipmentData.transportType,
+    driverName: shipmentData.driverName,
+    driverTc: shipmentData.driverTc,
+    plateNumber: shipmentData.plateNumber,
+    carrierCompany: shipmentData.carrierCompany,
+    carrierTcVkn: shipmentData.carrierTcVkn,
+    
+    // Weight/Package (existing)
+    netWeight: shipmentData.netWeight,
+    grossWeight: shipmentData.grossWeight,
+    packageCount: shipmentData.packageCount,
+    packageType: shipmentData.packageType
+  };
+  
+  // 6. Prepare items with new fields
+  const preparedItems = items.map(item => ({
+    // Existing fields
+    materialCode: item.materialCode,
+    materialId: item.materialId,
+    materialName: item.materialName,
+    quantity: item.quantity,
+    unit: item.unit,
+    lotNumber: item.lotNumber,
+    notes: item.notes,
+    
+    // Price fields (new/enhanced)
+    unitPrice: item.unitPrice || null,
+    taxRate: item.taxRate ?? 20, // Default 20% KDV
+    discountPercent: item.discountPercent || 0,
+    
+    // VAT/Withholding (new)
+    vatExemptionId: item.vatExemptionId || null,
+    withholdingRateId: item.withholdingRateId || null,
+    
+    // Serial/Lot (new)
+    serialNumber: item.serialNumber || null,
+    itemNotes: item.itemNotes || null
+  }));
+  
   try {
-    const result = await Shipments.createShipment(shipmentData, items, user);
+    const result = await Shipments.createShipment(preparedShipmentData, preparedItems, user);
     return result;
   } catch (error) {
     // Re-throw with appropriate code
@@ -360,4 +567,7 @@ export async function getMaterialsForShipment() {
 }
 
 // Export constants
-export { SHIPMENT_STATUSES, VALID_TRANSITIONS };
+export { SHIPMENT_STATUSES, VALID_TRANSITIONS, DOCUMENT_TYPES };
+
+// Export validation helpers for use in controllers
+export { validateStockAvailability, validateInvoiceExportData };
