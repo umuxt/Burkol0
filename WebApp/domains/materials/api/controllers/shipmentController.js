@@ -353,3 +353,61 @@ export async function getMaterialsForShipment(req, res) {
     res.status(500).json({ error: 'Failed to get materials' });
   }
 }
+
+// ============================================
+// IMPORT (Complete shipment with external document)
+// ============================================
+
+/**
+ * Import confirmation from external system (Logo/Zirve)
+ * POST /api/materials/shipments/:id/import
+ * 
+ * Accepts multipart/form-data with:
+ * - file: optional confirmation file
+ * - externalDocNumber: required external document number
+ * 
+ * Actions:
+ * 1. Stores file in DB (if provided)
+ * 2. Sets status to 'completed'
+ * 3. Decreases stock for each item
+ * 4. Returns stock update summary
+ */
+export async function importShipmentConfirmation(req, res) {
+  try {
+    const { id } = req.params;
+    const { externalDocNumber } = req.body;
+    
+    // File is optional - multer puts it in req.file
+    const file = req.file ? req.file.buffer : null;
+    const fileName = req.file ? req.file.originalname : null;
+    
+    const importData = {
+      externalDocNumber,
+      file,
+      fileName
+    };
+    
+    const result = await shipmentService.importShipmentConfirmation(
+      parseInt(id, 10),
+      importData,
+      req.user
+    );
+    
+    res.json(result);
+  } catch (error) {
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'ALREADY_COMPLETED') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'INVALID_STATUS') {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Error importing shipment confirmation:', error);
+    res.status(500).json({ error: 'Import işlemi başarısız: ' + error.message });
+  }
+}

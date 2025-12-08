@@ -4,7 +4,16 @@
  */
 
 import express from 'express';
+import multer from 'multer';
 import { requireAuth } from '#server/auth';
+
+// Multer config for import file upload (store in memory as buffer)
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max
+  }
+});
 
 // Controllers
 import * as materialController from './controllers/materialController.js';
@@ -69,6 +78,7 @@ router.get('/materials/shipments/:id', requireAuth, shipmentController.getShipme
 router.put('/materials/shipments/:id', requireAuth, shipmentController.updateShipment);
 router.put('/materials/shipments/:id/status', requireAuth, shipmentController.updateShipmentStatus);
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
+router.post('/materials/shipments/:id/import', requireAuth, importUpload.single('file'), shipmentController.importShipmentConfirmation);
 router.delete('/materials/shipments/:id', requireAuth, shipmentController.deleteShipment);
 
 // Shipment Items CRUD

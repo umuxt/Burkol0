@@ -566,6 +566,161 @@ export async function getMaterialsForShipment() {
   }).filter(m => m.availableStock > 0);
 }
 
+// ============================================
+// IMPORT (Complete shipment with external document)
+// ============================================
+
+/**
+ * Import confirmation from external system (Logo/Zirve)
+ * Sets status to completed and decreases stock
+ * 
+ * @param {number} shipmentId - Shipment ID
+ * @param {Object} importData - Import data
+ * @param {string} importData.externalDocNumber - External document number (Logo/Zirve)
+ * @param {Buffer} importData.file - Uploaded file buffer (optional)
+ * @param {string} importData.fileName - Original filename (optional)
+ * @param {Object} user - Current user
+ * @returns {Object} { shipment, stockUpdates }
+ */
+export async function importShipmentConfirmation(shipmentId, importData, user) {
+  const { externalDocNumber, file, fileName } = importData;
+  
+  // 1. Get shipment with items
+  const shipment = await Shipments.getShipmentById(shipmentId);
+  if (!shipment) {
+    const error = new Error('Sevkiyat bulunamadı');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+  
+  // 2. Check status - only exported or pending can be imported
+  if (shipment.status === 'completed') {
+    const error = new Error('Bu sevkiyat zaten tamamlanmış');
+    error.code = 'ALREADY_COMPLETED';
+    throw error;
+  }
+  
+  if (shipment.status === 'cancelled') {
+    const error = new Error('İptal edilmiş sevkiyat tamamlanamaz');
+    error.code = 'INVALID_STATUS';
+    throw error;
+  }
+  
+  // 3. Validate externalDocNumber
+  if (!externalDocNumber || externalDocNumber.trim() === '') {
+    const error = new Error('Harici belge numarası zorunludur');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  
+  const stockUpdates = [];
+  
+  try {
+    // Use transaction for atomicity
+    await db.transaction(async (trx) => {
+      // 4. Decrease stock for each item
+      for (const item of shipment.items || []) {
+        const materialCode = item.materialCode;
+        const quantity = parseFloat(item.quantity);
+        
+        // Get current material stock
+        const material = await trx('materials.materials')
+          .where('code', materialCode)
+          .first();
+        
+        if (material) {
+          const currentStock = parseFloat(material.stock || 0);
+          const newStock = currentStock - quantity;
+          
+          // Update stock
+          await trx('materials.materials')
+            .where('code', materialCode)
+            .update({
+              stock: newStock,
+              updatedAt: trx.fn.now()
+            });
+          
+          // Create stock movement record
+          await trx('materials.stock_movements').insert({
+            materialId: material.id,
+            materialCode: materialCode,
+            movementType: 'shipment_out',
+            quantity: -quantity,
+            previousStock: currentStock,
+            newStock: newStock,
+            referenceType: 'shipment',
+            referenceId: shipmentId,
+            referenceCode: shipment.shipmentCode,
+            notes: `Sevkiyat tamamlandı: ${shipment.shipmentCode} → ${externalDocNumber}`,
+            createdBy: user?.email || 'system',
+            createdAt: trx.fn.now()
+          });
+          
+          stockUpdates.push({
+            materialCode,
+            materialName: material.name,
+            change: -quantity,
+            previousStock: currentStock,
+            newStock: newStock
+          });
+          
+          // Update shipment item status
+          await trx('materials.shipment_items')
+            .where('id', item.id)
+            .update({
+              itemStatus: 'completed',
+              stockMovementId: material.id, // Reference to material
+              updatedAt: trx.fn.now()
+            });
+        }
+      }
+      
+      // 5. Update shipment record
+      const updateData = {
+        status: 'completed',
+        externalDocNumber: externalDocNumber.trim(),
+        importedAt: trx.fn.now(),
+        importedBy: user?.id || null,
+        shipmentCompletedAt: trx.fn.now(),
+        updatedBy: user?.email || 'system',
+        updatedAt: trx.fn.now()
+      };
+      
+      // Store file if provided
+      if (file && fileName) {
+        updateData.importedFile = file;
+        updateData.importedFileName = fileName;
+      }
+      
+      await trx('materials.shipments')
+        .where('id', shipmentId)
+        .update(updateData);
+    });
+    
+    // 6. Return updated shipment and stock changes
+    const updatedShipment = await Shipments.getShipmentById(shipmentId);
+    
+    return {
+      success: true,
+      shipment: {
+        id: updatedShipment.id,
+        shipmentCode: updatedShipment.shipmentCode,
+        status: updatedShipment.status,
+        externalDocNumber: updatedShipment.externalDocNumber,
+        importedAt: updatedShipment.importedAt
+      },
+      stockUpdates
+    };
+    
+  } catch (error) {
+    console.error('Import error:', error);
+    if (!error.code) {
+      error.code = 'IMPORT_ERROR';
+    }
+    throw error;
+  }
+}
+
 // Export constants
 export { SHIPMENT_STATUSES, VALID_TRANSITIONS, DOCUMENT_TYPES };
 
