@@ -1069,24 +1069,26 @@ Tam akışı test et:
 - [x] vat_exemption_codes tablosu (14 kayıt)
 - [x] withholding_rates tablosu (7 kayıt)
 - [x] shipment_settings tablosu (8 kayıt)
-- [x] shipments yeni kolonlar
-- [x] shipment_items yeni kolonlar
+- [x] shipments yeni kolonlar (24 kolon)
+- [x] shipment_items yeni kolonlar (4 kolon)
 - [x] customers erpAccountCode
 - [x] Trigger: calculate_shipment_item_totals
 
-### Backend
-- [ ] GET /vat-exemptions
-- [ ] GET /withholding-rates
-- [ ] GET/PUT /settings
-- [ ] POST /shipments (güncel)
-- [ ] POST /shipments/:id/import
-- [ ] GET /shipments/:id/export/:format
+### Backend ✅ TAMAMLANDI
+- [x] GET /vat-exemptions (lookupController.js)
+- [x] GET /withholding-rates (lookupController.js)
+- [x] GET/PUT/POST /settings (lookupController.js)
+- [x] POST /shipments (shipmentService.js - yeni alanlarla)
+- [x] validateStockAvailability (yetersizse BLOK)
+- [x] validateInvoiceExportData (fatura validasyonu)
+- [x] POST /shipments/:id/import (stok düşürme dahil)
+- [x] GET /shipments/:id/export/:format
 
-### Export Generators
-- [ ] csvGenerator.js
-- [ ] xmlGenerator.js
-- [ ] pdfGenerator.js
-- [ ] jsonGenerator.js
+### Export Generators ✅ TAMAMLANDI (exportService.js)
+- [x] generateCSV (ayraç settings'den, UTF-8 BOM)
+- [x] generateXML (Logo Tiger formatı, CDATA)
+- [x] generatePDF (pdfkit, firma bilgileri settings'den)
+- [x] generateJSON (pretty-printed)
 
 ### Frontend
 - [ ] AddShipmentModal güncelleme
@@ -1104,4 +1106,4 @@ Tam akışı test et:
 **Migration Dosyası**: `WebApp/db/migrations/036_invoice_export_clean.sql`  
 **Yedek Dosya**: `INVOICE-EXPORT-INTEGRATION.backup.md`  
 **Son Güncelleme**: 8 Aralık 2025  
-**Durum**: 📝 Dokümantasyon Tamamlandı - Implementation Bekliyor
+**Durum**: ✅ FAZ 1 (DB) + FAZ 2 (Backend) Tamamlandı - FAZ 3 (Frontend) Bekliyor
