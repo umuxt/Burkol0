@@ -9,6 +9,7 @@ import { showToast } from '../../../../shared/components/MESToast.js';
 export default function ShipmentsTabContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [dateFilter, setDateFilter] = useState('30d'); // Default: Son 30 gün
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -65,11 +66,37 @@ export default function ShipmentsTabContent() {
     }
   };
 
+  // Date filter helper
+  const getDateThreshold = (filterDays) => {
+    if (!filterDays) return null; // 'all' - no date filter
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - filterDays);
+    return threshold;
+  };
+
+  // Date presets mapping
+  const DATE_DAYS_MAP = {
+    'all': null,
+    '7d': 7,
+    '30d': 30,
+    '90d': 90
+  };
+
   // Filter logic
   const filteredShipments = shipments.filter(shipment => {
     // Status filter
     if (activeTab !== 'all' && shipment.status !== activeTab) {
       return false;
+    }
+
+    // Date filter
+    const days = DATE_DAYS_MAP[dateFilter];
+    if (days) {
+      const threshold = getDateThreshold(days);
+      const shipmentDate = new Date(shipment.createdAt);
+      if (shipmentDate < threshold) {
+        return false;
+      }
     }
 
     // Search filter
@@ -78,7 +105,7 @@ export default function ShipmentsTabContent() {
       const shipmentCode = (shipment.shipmentCode || '').toLowerCase();
       const code = (shipment.productCode || '').toLowerCase();
       const workOrder = (shipment.workOrderCode || '').toLowerCase();
-      const customer = (shipment.customerName || shipment.customerCompany || '').toLowerCase();
+      const customer = (shipment.customerCompany || shipment.customerName || '').toLowerCase();
       const note = (shipment.description || shipment.notes || '').toLowerCase();
       const id = (shipment.id || '').toString();
       
@@ -133,6 +160,8 @@ export default function ShipmentsTabContent() {
           onSearchChange={setSearchTerm}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
           onRefresh={loadShipments}
           onCreateNew={() => setCreateModalOpen(true)}
           shipments={shipments}

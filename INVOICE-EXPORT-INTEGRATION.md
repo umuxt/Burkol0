@@ -752,22 +752,37 @@ Aynı modal, farklar:
 - Tek kalem (çoklu ekleme yok)
 - Miktar max = mevcut stok
 
-### 6.4. Sevkiyatlar Listesi
+### 6.4. Sevkiyatlar Listesi ✅ GÜNCELLEME
+
+> **Not**: İşlem butonları tabloya EKLENMEDİ. 
+> Satıra tıklanınca detay paneli açılıyor, işlemler oradan yapılıyor.
+
+**Tablo Kolonları:**
+| Kod | Müşteri | Tarih | Sevkiyat Kalemleri | Tutar | Durum |
+
+**Filter Bar (action-bar içinde):**
+- [+ Yeni Sevkiyat] butonu
+- [Yenile] butonu  
+- Status dropdown (Tümü, Beklemede, Export Edildi, Tamamlandı, İptal)
+- Tarih dropdown (Tüm Zamanlar, Son 7/30/90 Gün)
+- Arama inputu
+- Sonuç sayısı
+
+**Durum Kolonu:**
+- Status badge (renk kodlu)
+- Export/Import icon'ları (📤 uploaded, 📥 imported, ✅ completed)
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ SEVKİYATLAR                                         [+ Yeni Sevkiyat]   │
-├──────────────────────────────────────────────────────────────────────────┤
-│ [Status: Tümü ▼] [Tarih: Son 30 gün ▼] [Ara: ____________]              │
-├──────────────────────────────────────────────────────────────────────────┤
-│ Kod        | Müşteri      | Tarih    | Tutar     | Durum    | İşlemler  │
-│ SHP-0045   | ABC Ltd.     | 08.12.25 | 6,000 TL  | Pending  | 📤 ✏️ 🗑️  │
-│ SHP-0044   | XYZ A.Ş.     | 07.12.25 | 12,500 TL | Exported | 📤 📥 ✏️  │
-│ SHP-0043   | DEF Ltd.     | 06.12.25 | 3,200 TL  | Completed| 👁️       │
-└──────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ [+ Yeni Sevkiyat] [Yenile] [Status ▼] [Tarih ▼] [Ara...] 12 sevkiyat          │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ Kod      | Müşteri       | Tarih    | Sevkiyat Kalemleri      | Tutar    | Durum        │
+│ SHP-0045 | ABC Ltd.      | 08.12.25 | [01|M-001|100 adet]     | ₺6.000   | Beklemede    │
+│ SHP-0044 | XYZ A.Ş.      | 07.12.25 | [01|M-002|50] [02|M-003]| ₺12.500  | Exported 📤  │
+│ SHP-0043 | DEF Ltd.      | 06.12.25 | [01|M-004|25 adet]      | ₺3.200   | Tamamlandı ✅│
+└────────────────────────────────────────────────────────────────────────────────┘
 
-📤 = Export     ✏️ = Düzenle     🗑️ = Sil
-📥 = Import     👁️ = Görüntüle
+→ Satıra tıkla = Detay paneli açılır (Export/Import/Düzenle/Sil işlemleri burada)
 ```
 
 ### 6.5. Export Sonrası Modal
@@ -986,14 +1001,20 @@ Mevcut AddShipmentModal.jsx dosyasını INVOICE-EXPORT-INTEGRATION.md "6.1" böl
 5. ExtraInfoAccordion.jsx
 ```
 
-**Prompt 3.3: Sevkiyatlar Listesi**
+**Prompt 3.3: Sevkiyatlar Listesi** ✅ TAMAMLANDI
 ```
 6.4 bölümündeki tasarıma göre ShipmentsTable.jsx güncelle:
 
-1. Filtreleme (status, tarih, arama)
-2. Status badge'leri
-3. İşlem butonları (export, import, düzenle, sil)
-4. Import modal trigger
+1. Yeni kolon sıralaması: Kod | Müşteri | Tarih | Sevkiyat Kalemleri | Tutar | Durum
+2. Müşteri = customerCompany öncelikli
+3. Tutar kolonu eklendi (grandTotal + para birimi)
+4. Filtreler action-bar'a eklendi:
+   - Status dropdown (Tümü, Beklemede, Export Edildi, Tamamlandı, İptal)
+   - Tarih dropdown (Tüm Zamanlar, Son 7/30/90 Gün)
+   - Arama inputu
+   - Sonuç sayısı
+5. Status icon'ları (📤 exported, 📥 imported, ✅ completed)
+6. İşlem butonları tabloya EKLENMEDİ - detay panelinden yapılacak
 ```
 
 **Prompt 3.4: Export Sonrası Modal**
@@ -1091,10 +1112,10 @@ Tam akışı test et:
 - [x] generateJSON (pretty-printed)
 
 ### Frontend
-- [ ] AddShipmentModal güncelleme
-- [ ] Akordeon componentleri
-- [ ] ShipmentsTable güncelleme
-- [ ] ExportSuccessModal
+- [x] AddShipmentModal güncelleme (Prompt 3.1 - CRM dropdown, belge tipi, customerSnapshot)
+- [x] Akordeon componentleri (Prompt 3.2 - 5 accordion: Currency, Discount, Tax, LotSerial, ExtraInfo)
+- [x] ShipmentsTable güncelleme (Prompt 3.3 - yeni kolonlar, filtreler, status icon'ları)
+- [x] ExportSuccessModal (Prompt 3.4 - başarı mesajı, dosya bilgisi, import upload)
 - [ ] ImportModal
 
 ### Test

@@ -4864,3 +4864,129 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
 .text-nowrap {
   white-space: nowrap;
 }
+
+/* ===========================================
+   DROPDOWN STYLES - Filter Dropdowns
+   =========================================== */
+.mes-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.mes-dropdown .mes-filter-button {
+  min-width: 120px;
+  justify-content: space-between;
+}
+
+.mes-dropdown .mes-filter-button svg.rotated {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.mes-dropdown .filter-badge {
+  background: rgb(59, 130, 246);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+.mes-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: white;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdown-fade-in 0.15s ease-out;
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mes-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgb(55, 65, 81);
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.mes-dropdown-item:hover {
+  background: rgb(249, 250, 251);
+}
+
+.mes-dropdown-item.active {
+  background: rgb(239, 246, 255);
+  color: rgb(37, 99, 235);
+  font-weight: 500;
+}
+
+.mes-dropdown-item .item-count {
+  font-size: 11px;
+  color: rgb(156, 163, 175);
+  background: rgb(243, 244, 246);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.mes-dropdown-item.active .item-count {
+  background: rgb(219, 234, 254);
+  color: rgb(59, 130, 246);
+}
+
+/* Filter Result Count */
+.filter-result-count {
+  font-size: 12px;
+  color: rgb(107, 114, 128);
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+/* ===========================================
+   STATUS ICON STYLES - Export/Import Indicators
+   =========================================== */
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.status-icon.is-exported {
+  background: rgba(139, 92, 246, 0.15);
+  color: rgb(139, 92, 246);
+}
+
+.status-icon.is-imported {
+  background: rgba(59, 130, 246, 0.15);
+  color: rgb(59, 130, 246);
+}
+
+.status-icon.is-completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: rgb(16, 185, 129);
+}
