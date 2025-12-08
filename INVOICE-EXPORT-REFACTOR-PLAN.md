@@ -1681,8 +1681,8 @@ Sadece dosyayı oluştur, içerik sonra eklenecek.
 - `/WebApp/db/migrations/037_waybill_invoice_separation.js`
 
 **Test:**
-- [ ] Dosya oluşturuldu
-- [ ] Syntax hatası yok
+- [x] Dosya oluşturuldu
+- [x] Syntax hatası yok
 
 ---
 
@@ -1722,10 +1722,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.1
 - Dokümandaki Bölüm 4.1.1 SQL şeması
 
 **Test:**
-- [ ] `npm run migrate` hatasız çalışıyor
-- [ ] `\d materials.shipments` yeni alanları gösteriyor
-- [ ] Foreign key constraint mevcut
-- [ ] `npm run migrate:rollback` alanları kaldırıyor
+- [x] `npm run migrate` hatasız çalışıyor
+- [x] `\d materials.shipments` yeni alanları gösteriyor
+- [x] Foreign key constraint mevcut
+- [x] `npm run migrate:rollback` alanları kaldırıyor
 
 ---
 
@@ -1769,10 +1769,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.2
 - Dokümandaki Bölüm 4.1.2
 
 **Test:**
-- [ ] Migration hatasız çalışıyor
-- [ ] `\d quotes.quotes` yeni alanları gösteriyor
-- [ ] Unique index mevcut
-- [ ] Rollback çalışıyor
+- [x] Migration hatasız çalışıyor
+- [x] `\d quotes.quotes` yeni alanları gösteriyor
+- [x] Unique index mevcut
+- [x] Rollback çalışıyor
 
 ---
 
@@ -1805,10 +1805,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 5.1
 - Dokümandaki Bölüm 5.1
 
 **Test:**
-- [ ] Migration hatasız çalışıyor
-- [ ] `\d quotes.customers` yeni alanları gösteriyor
-- [ ] Default değerler doğru
-- [ ] Rollback çalışıyor
+- [x] Migration hatasız çalışıyor
+- [x] `\d quotes.customers` yeni alanları gösteriyor
+- [x] Default değerler doğru
+- [x] Rollback çalışıyor
 
 ---
 
@@ -1861,10 +1861,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.3
 - Dokümandaki Bölüm 4.1.3
 
 **Test:**
-- [ ] Migration hatasız çalışıyor
-- [ ] `\d quotes.quote_items` tablo yapısını gösteriyor
-- [ ] Foreign key'ler doğru çalışıyor
-- [ ] Rollback tabloyu siliyor
+- [x] Migration hatasız çalışıyor
+- [x] `\d quotes.quote_items` tablo yapısını gösteriyor
+- [x] Foreign key'ler doğru çalışıyor
+- [x] Rollback tabloyu siliyor
 
 ---
 
@@ -1910,9 +1910,9 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.2
 ```
 
 **Test:**
-- [ ] `SELECT quotes.generate_proforma_number()` çalışıyor
-- [ ] İlk çağrı 'PF-2025-0001' döndürüyor
-- [ ] İkinci çağrı 'PF-2025-0002' döndürüyor
+- [x] `SELECT quotes.generate_proforma_number()` çalışıyor
+- [x] İlk çağrı 'PF-2025-0001' döndürüyor
+- [x] İkinci çağrı 'PF-2025-0002' döndürüyor
 
 ---
 
@@ -1984,10 +1984,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.4
 ```
 
 **Test:**
-- [ ] INSERT INTO quotes.quote_items ... → hesaplamalar otomatik doldu
-- [ ] vatExemptionId verilince taxAmount = 0
-- [ ] withholdingRateId verilince withholdingAmount hesaplandı
-- [ ] UPDATE yapınca değerler yeniden hesaplandı
+- [x] INSERT INTO quotes.quote_items ... → hesaplamalar otomatik doldu
+- [x] vatExemptionId verilince taxAmount = 0
+- [x] withholdingRateId verilince withholdingAmount hesaplandı
+- [x] UPDATE yapınca değerler yeniden hesaplandı
 
 ---
 
@@ -2032,12 +2032,12 @@ Hata varsa düzelt ve tekrar test et.
 ```
 
 **Test Kriterleri (FAZ 1 TAMAMLANDI):**
-- [ ] Migration up hatasız çalışıyor
-- [ ] Tüm yeni alanlar mevcut
-- [ ] Proforma fonksiyonu çalışıyor
-- [ ] Trigger hesaplamaları doğru
-- [ ] Migration down çalışıyor
-- [ ] Tekrar up çalışıyor
+- [x] Migration up hatasız çalışıyor
+- [x] Tüm yeni alanlar mevcut
+- [x] Proforma fonksiyonu çalışıyor
+- [x] Trigger hesaplamaları doğru
+- [x] Migration down çalışıyor
+- [x] Tekrar up çalışıyor
 
 **⚠️ FAZ 1 TAMAMEN BİTMEDEN FAZ 2'YE GEÇMEYİN!**
 
