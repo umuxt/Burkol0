@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { shipmentsService } from '../../../services/shipments-service.js'
-import { Truck, X, Package, Plus, Trash2, ChevronDown, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { customersService } from '../../../../crm/services/customers-service.js'
+import { Truck, X, Package, Plus, Trash2, ChevronDown, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus } from 'lucide-react'
 
 /**
- * CreateShipmentModal - 3 Aşamalı Wizard
- * Adım 1: Sevkiyat Bilgileri (İş Emri, Teklif, Müşteri, Adres)
- * Adım 2: Malzeme Ekleme (Kalemler)
+ * CreateShipmentModal - 3 Aşamalı Wizard (Invoice Export Entegrasyonu)
+ * Adım 1: Sevkiyat Bilgileri (Müşteri, Belge Tipi, İş Emri, Teklif)
+ * Adım 2: Malzeme Ekleme (Kalemler + Fiyat)
  * Adım 3: Özet ve Onay
  */
 export default function AddShipmentModal({ 
@@ -16,13 +17,26 @@ export default function AddShipmentModal({
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1)
   
-  // Shipment header data
+  // Shipment header data (updated for invoice export)
   const [headerData, setHeaderData] = useState({
     workOrderCode: '',
     quoteId: '',
-    customerName: '',
-    customerCompany: '',
-    deliveryAddress: '',
+    // Customer fields
+    customerId: null,
+    customerSnapshot: null,
+    useAlternateDelivery: false,
+    alternateDeliveryAddress: null,
+    // Document type
+    documentType: 'waybill',  // waybill | invoice | both
+    includePrice: false,
+    // Currency
+    currency: 'TRY',
+    exchangeRate: 1.0,
+    // Export
+    exportTarget: 'logo_tiger',
+    // Extra
+    specialCode: '',
+    costCenter: '',
     notes: ''
   })
   
@@ -37,11 +51,28 @@ export default function AddShipmentModal({
   const [materials, setMaterials] = useState([])
   const [workOrders, setWorkOrders] = useState([])
   const [quotes, setQuotes] = useState([])
+  const [customers, setCustomers] = useState([])
   const [dataLoading, setDataLoading] = useState(false)
   
   // Dropdown states
   const [workOrderDropdownOpen, setWorkOrderDropdownOpen] = useState(false)
   const [quoteDropdownOpen, setQuoteDropdownOpen] = useState(false)
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false)
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('')
+  
+  // Inline new customer mode
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
+  const [newCustomerData, setNewCustomerData] = useState({
+    name: '',
+    company: '',
+    taxOffice: '',
+    taxNumber: '',
+    address: '',
+    city: '',
+    district: '',
+    phone: '',
+    email: ''
+  })
   
   const modalRef = useRef(null)
 
@@ -52,11 +83,13 @@ export default function AddShipmentModal({
       Promise.all([
         shipmentsService.getAvailableMaterials().catch(() => []),
         shipmentsService.getApprovedQuotes().catch(() => []),
-        shipmentsService.getCompletedWorkOrders().catch(() => [])
-      ]).then(([materialsData, quotesData, workOrdersData]) => {
+        shipmentsService.getCompletedWorkOrders().catch(() => []),
+        customersService.getCustomers().catch(() => [])
+      ]).then(([materialsData, quotesData, workOrdersData, customersData]) => {
         setMaterials(materialsData)
         setQuotes(quotesData)
         setWorkOrders(workOrdersData)
+        setCustomers(Array.isArray(customersData) ? customersData : (customersData?.customers || []))
       }).finally(() => {
         setDataLoading(false)
       })
@@ -66,13 +99,34 @@ export default function AddShipmentModal({
       setHeaderData({
         workOrderCode: '',
         quoteId: '',
-        customerName: '',
-        customerCompany: '',
-        deliveryAddress: '',
+        customerId: null,
+        customerSnapshot: null,
+        useAlternateDelivery: false,
+        alternateDeliveryAddress: null,
+        documentType: 'waybill',
+        includePrice: false,
+        currency: 'TRY',
+        exchangeRate: 1.0,
+        exportTarget: 'logo_tiger',
+        specialCode: '',
+        costCenter: '',
         notes: ''
       })
       setItems([])
       setError(null)
+      setShowNewCustomerForm(false)
+      setNewCustomerData({
+        name: '',
+        company: '',
+        taxOffice: '',
+        taxNumber: '',
+        address: '',
+        city: '',
+        district: '',
+        phone: '',
+        email: ''
+      })
+      setCustomerSearchTerm('')
     }
   }, [isOpen])
 
@@ -94,7 +148,86 @@ export default function AddShipmentModal({
     setItems(prev => prev.map(item => ({ ...item, dropdownOpen: false })))
     setWorkOrderDropdownOpen(false)
     setQuoteDropdownOpen(false)
+    setCustomerDropdownOpen(false)
   }
+
+  // Select customer from CRM
+  const selectCustomer = (customer) => {
+    const snapshot = {
+      id: customer.id,
+      name: customer.name || '',
+      company: customer.company || customer.companyName || '',
+      taxOffice: customer.taxOffice || '',
+      taxNumber: customer.taxNumber || customer.vkn || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      district: customer.district || '',
+      phone: customer.phone || '',
+      email: customer.email || '',
+      erpAccountCode: customer.erpAccountCode || ''
+    }
+    setHeaderData(prev => ({
+      ...prev,
+      customerId: customer.id,
+      customerSnapshot: snapshot
+    }))
+    setCustomerDropdownOpen(false)
+    setCustomerSearchTerm('')
+  }
+
+  // Create new inline customer
+  const handleCreateInlineCustomer = async () => {
+    if (!newCustomerData.name && !newCustomerData.company) {
+      setError('Müşteri adı veya firma adı gerekli')
+      return
+    }
+    
+    try {
+      // Create in CRM
+      const created = await customersService.createCustomer({
+        name: newCustomerData.name,
+        companyName: newCustomerData.company,
+        taxOffice: newCustomerData.taxOffice,
+        taxNumber: newCustomerData.taxNumber,
+        address: newCustomerData.address,
+        city: newCustomerData.city,
+        district: newCustomerData.district,
+        phone: newCustomerData.phone,
+        email: newCustomerData.email
+      })
+      
+      // Select the new customer
+      selectCustomer(created)
+      setShowNewCustomerForm(false)
+      setNewCustomerData({
+        name: '',
+        company: '',
+        taxOffice: '',
+        taxNumber: '',
+        address: '',
+        city: '',
+        district: '',
+        phone: '',
+        email: ''
+      })
+      
+      // Add to local list
+      setCustomers(prev => [...prev, created])
+    } catch (err) {
+      setError('Müşteri oluşturulamadı: ' + err.message)
+    }
+  }
+
+  // Filter customers by search term
+  const filteredCustomers = customers.filter(c => {
+    if (!customerSearchTerm) return true
+    const term = customerSearchTerm.toLowerCase()
+    return (
+      (c.name || '').toLowerCase().includes(term) ||
+      (c.company || c.companyName || '').toLowerCase().includes(term) ||
+      (c.taxNumber || c.vkn || '').includes(term)
+    )
+  })
 
   // Add new item row
   const addItem = () => {
@@ -104,6 +237,8 @@ export default function AddShipmentModal({
       materialName: '',
       quantity: '',
       unit: 'adet',
+      unitPrice: '',
+      taxRate: 20,
       availableStock: 0,
       notes: '',
       dropdownOpen: false,
@@ -148,7 +283,15 @@ export default function AddShipmentModal({
   }
 
   // Step validation
-  const canProceedToStep2 = () => true // Step 1 fields are optional
+  const canProceedToStep2 = () => {
+    // Müşteri zorunlu (invoice export için)
+    if (!headerData.customerSnapshot) {
+      setError('Müşteri seçimi zorunludur')
+      return false
+    }
+    setError(null)
+    return true
+  }
   
   const canProceedToStep3 = () => {
     if (items.length === 0) {
@@ -168,6 +311,11 @@ export default function AddShipmentModal({
       }
       if (qty > item.availableStock) {
         setError(`Kalem ${i + 1}: Yetersiz stok (Mevcut: ${item.availableStock})`)
+        return false
+      }
+      // Fatura seçildiyse fiyat zorunlu
+      if (headerData.includePrice && (!item.unitPrice || parseFloat(item.unitPrice) <= 0)) {
+        setError(`Kalem ${i + 1}: Fatura için birim fiyat zorunlu`)
         return false
       }
     }
@@ -199,18 +347,45 @@ export default function AddShipmentModal({
     
     try {
       const shipmentData = {
-        ...headerData,
+        // Customer
+        customerId: headerData.customerId,
+        customerSnapshot: headerData.customerSnapshot,
+        useAlternateDelivery: headerData.useAlternateDelivery,
+        alternateDeliveryAddress: headerData.alternateDeliveryAddress,
+        // Document type
+        documentType: headerData.documentType,
+        includePrice: headerData.includePrice,
+        // Currency
+        currency: headerData.currency,
+        exchangeRate: headerData.exchangeRate,
+        // Export
+        exportTarget: headerData.exportTarget,
+        // Extra
+        specialCode: headerData.specialCode,
+        costCenter: headerData.costCenter,
+        notes: headerData.notes,
+        // Legacy fields
+        workOrderCode: headerData.workOrderCode,
+        quoteId: headerData.quoteId,
+        // Items
         items: items.map(item => ({
           materialCode: item.materialCode,
+          materialId: item.materialId,
+          materialName: item.materialName,
           quantity: parseFloat(item.quantity),
           unit: item.unit,
-          notes: item.notes || undefined
+          unitPrice: item.unitPrice ? parseFloat(item.unitPrice) : null,
+          taxRate: item.taxRate || 20,
+          discountPercent: item.discountPercent || 0,
+          lotNumber: item.lotNumber || '',
+          serialNumber: item.serialNumber || '',
+          itemNotes: item.notes || ''
         }))
       }
       
-      // Remove empty header fields
+      // Remove empty/null fields
       Object.keys(shipmentData).forEach(key => {
-        if (shipmentData[key] === '' || shipmentData[key] === undefined) {
+        if (shipmentData[key] === '' || shipmentData[key] === null || shipmentData[key] === undefined) {
           delete shipmentData[key]
         }
       })
@@ -314,21 +489,237 @@ export default function AddShipmentModal({
               {/* ===== STEP 1: Sevkiyat Bilgileri ===== */}
               {currentStep === 1 && (
                 <div>
-                  <p className="text-xs-light-mb">
-                    Sevkiyat için temel bilgileri girin. Bu alanlar opsiyoneldir.
-                  </p>
+                  {/* MÜŞTERİ BİLGİLERİ */}
+                  <div className="mb-16">
+                    <div className="flex items-center justify-between mb-8">
+                      <label className="font-medium text-sm">Müşteri *</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewCustomerForm(!showNewCustomerForm)}
+                        className="flex items-center gap-4 text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        <UserPlus size={14} />
+                        {showNewCustomerForm ? 'Listeden Seç' : 'Yeni Müşteri'}
+                      </button>
+                    </div>
+                    
+                    {!showNewCustomerForm ? (
+                      <>
+                        {/* Customer Dropdown */}
+                        <div className="pos-z30 mb-8">
+                          <button
+                            type="button"
+                            className="mes-filter-select full-justify-between"
+                            onClick={(e) => { e.stopPropagation(); setCustomerDropdownOpen(!customerDropdownOpen); setWorkOrderDropdownOpen(false); setQuoteDropdownOpen(false); }}
+                          >
+                            <span className={`text-conditional ${!headerData.customerSnapshot ? 'placeholder' : ''}`}>
+                              {headerData.customerSnapshot 
+                                ? `${headerData.customerSnapshot.company || headerData.customerSnapshot.name}` 
+                                : 'Müşteri seçin...'}
+                            </span>
+                            <ChevronDown size={14} />
+                          </button>
+                          {customerDropdownOpen && (
+                            <div className="dropdown-menu" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                              {/* Search */}
+                              <div className="p-8 border-b border-gray-200">
+                                <div className="relative">
+                                  <Search size={14} className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    className="mes-filter-input is-compact w-full pl-28"
+                                    value={customerSearchTerm}
+                                    onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                                    placeholder="Müşteri ara..."
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                              {/* Clear */}
+                              <div 
+                                className="dropdown-item-muted"
+                                onClick={() => { setHeaderData(prev => ({ ...prev, customerId: null, customerSnapshot: null })); setCustomerDropdownOpen(false); }}
+                              >
+                                Seçimi temizle
+                              </div>
+                              {/* Options */}
+                              {filteredCustomers.slice(0, 50).map(c => (
+                                <div
+                                  key={c.id}
+                                  className="dropdown-item-action"
+                                  onClick={() => selectCustomer(c)}
+                                >
+                                  <div className="font-medium">{c.company || c.companyName || c.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {c.taxNumber || c.vkn ? `VKN: ${c.taxNumber || c.vkn}` : c.email || ''}
+                                  </div>
+                                </div>
+                              ))}
+                              {filteredCustomers.length === 0 && (
+                                <div className="p-12 text-center text-gray-500 text-xs">Müşteri bulunamadı</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Selected Customer Info */}
+                        {headerData.customerSnapshot && (
+                          <div className="bg-gray-50 p-12 rounded-lg text-xs">
+                            <div className="grid grid-cols-2 gap-6">
+                              <div><span className="text-gray-500">Firma:</span> {headerData.customerSnapshot.company || '-'}</div>
+                              <div><span className="text-gray-500">VKN:</span> {headerData.customerSnapshot.taxNumber || '-'}</div>
+                              <div><span className="text-gray-500">VD:</span> {headerData.customerSnapshot.taxOffice || '-'}</div>
+                              <div><span className="text-gray-500">Tel:</span> {headerData.customerSnapshot.phone || '-'}</div>
+                            </div>
+                            {/* Adres bilgisi - il/ilçe dahil */}
+                            {(headerData.customerSnapshot.address || headerData.customerSnapshot.city) && (
+                              <div className="mt-6">
+                                <span className="text-gray-500">Adres:</span>{' '}
+                                {[
+                                  headerData.customerSnapshot.address,
+                                  headerData.customerSnapshot.district,
+                                  headerData.customerSnapshot.city
+                                ].filter(Boolean).join(', ') || '-'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      /* Inline New Customer Form */
+                      <div className="bg-blue-50 p-12 rounded-lg">
+                        <div className="grid grid-cols-2 gap-8 mb-8">
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">Müşteri Adı</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.name}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="Ad Soyad"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">Firma Adı *</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.company}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, company: e.target.value }))}
+                              placeholder="Firma Ünvanı"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">Vergi Dairesi</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.taxOffice}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, taxOffice: e.target.value }))}
+                              placeholder="Vergi Dairesi"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">VKN/TCKN</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.taxNumber}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, taxNumber: e.target.value }))}
+                              placeholder="1234567890"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-xs text-gray-600 mb-4 block">Adres</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.address}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, address: e.target.value }))}
+                              placeholder="Adres"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">Telefon</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.phone}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, phone: e.target.value }))}
+                              placeholder="+90 5XX XXX XXXX"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 mb-4 block">E-posta</label>
+                            <input
+                              type="text"
+                              className="mes-filter-input is-compact w-full"
+                              value={newCustomerData.email}
+                              onChange={(e) => setNewCustomerData(prev => ({ ...prev, email: e.target.value }))}
+                              placeholder="email@firma.com"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCreateInlineCustomer}
+                          className="w-full py-8 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                        >
+                          Müşteriyi Oluştur ve Seç
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   
-                  <div className="grid-2-gap-12">
-                    {/* Row 1: İş Emri | Teklif */}
-                    {/* Work Order */}
-                    <div className="pos-z30">
-                      <label className="supplier-label-block">
-                        İş Emri
+                  {/* BELGE TİPİ */}
+                  <div className="mb-16">
+                    <label className="font-medium text-sm mb-8 block">Belge Tipi</label>
+                    <div className="flex gap-12">
+                      <label className="flex items-center gap-6 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="documentType"
+                          value="waybill"
+                          checked={headerData.documentType === 'waybill'}
+                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'waybill', includePrice: false }))}
+                          className="form-radio"
+                        />
+                        <span className="text-sm">İrsaliye (Fiyatsız)</span>
                       </label>
+                      <label className="flex items-center gap-6 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="documentType"
+                          value="invoice"
+                          checked={headerData.documentType === 'invoice'}
+                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'invoice', includePrice: true }))}
+                          className="form-radio"
+                        />
+                        <span className="text-sm">Fatura (Fiyatlı)</span>
+                      </label>
+                      <label className="flex items-center gap-6 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="documentType"
+                          value="both"
+                          checked={headerData.documentType === 'both'}
+                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'both', includePrice: true }))}
+                          className="form-radio"
+                        />
+                        <span className="text-sm">İkisi Birden</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* İŞ EMRİ & TEKLİF */}
+                  <div className="grid-2-gap-12 mb-16">
+                    {/* Work Order */}
+                    <div className="pos-z20">
+                      <label className="supplier-label-block">İş Emri (Opsiyonel)</label>
                       <button
                         type="button"
                         className="mes-filter-select full-justify-between"
-                        onClick={(e) => { e.stopPropagation(); setWorkOrderDropdownOpen(!workOrderDropdownOpen); setQuoteDropdownOpen(false); }}
+                        onClick={(e) => { e.stopPropagation(); setWorkOrderDropdownOpen(!workOrderDropdownOpen); setQuoteDropdownOpen(false); setCustomerDropdownOpen(false); }}
                       >
                         <span className={`text-conditional ${!headerData.workOrderCode ? 'placeholder' : ''}`}>
                           {headerData.workOrderCode || 'Seçin...'}
@@ -357,14 +748,12 @@ export default function AddShipmentModal({
                     </div>
 
                     {/* Quote */}
-                    <div className="pos-z30">
-                      <label className="supplier-label-block">
-                        Teklif
-                      </label>
+                    <div className="pos-z20">
+                      <label className="supplier-label-block">Teklif (Opsiyonel)</label>
                       <button
                         type="button"
                         className="mes-filter-select full-justify-between"
-                        onClick={(e) => { e.stopPropagation(); setQuoteDropdownOpen(!quoteDropdownOpen); setWorkOrderDropdownOpen(false); }}
+                        onClick={(e) => { e.stopPropagation(); setQuoteDropdownOpen(!quoteDropdownOpen); setWorkOrderDropdownOpen(false); setCustomerDropdownOpen(false); }}
                       >
                         <span className={`text-conditional ${!headerData.quoteId ? 'placeholder' : ''}`}>
                           {headerData.quoteId || 'Seçin...'}
@@ -391,64 +780,18 @@ export default function AddShipmentModal({
                         </div>
                       )}
                     </div>
-
-                    {/* Row 2: Müşteri Adı | Firma */}
-                    {/* Customer Name */}
-                    <div className="pos-relative-z1">
-                      <label className="supplier-label-block">
-                        Müşteri Adı
-                      </label>
-                      <input
-                        type="text"
-                        className="mes-filter-input is-compact w-full"
-                        value={headerData.customerName}
-                        onChange={(e) => setHeaderData(prev => ({ ...prev, customerName: e.target.value }))}
-                        placeholder="Müşteri adı..."
-                      />
-                    </div>
-
-                    {/* Customer Company */}
-                    <div className="pos-relative-z1">
-                      <label className="supplier-label-block">
-                        Firma
-                      </label>
-                      <input
-                        type="text"
-                        className="mes-filter-input is-compact w-full"
-                        value={headerData.customerCompany}
-                        onChange={(e) => setHeaderData(prev => ({ ...prev, customerCompany: e.target.value }))}
-                        placeholder="Firma adı..."
-                      />
-                    </div>
-
-                    {/* Row 3: Teslimat Adresi | Notlar */}
-                    {/* Delivery Address */}
-                    <div className="pos-relative-z1">
-                      <label className="supplier-label-block">
-                        Teslimat Adresi
-                      </label>
-                      <input
-                        type="text"
-                        className="mes-filter-input is-compact w-full"
-                        value={headerData.deliveryAddress}
-                        onChange={(e) => setHeaderData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
-                        placeholder="Teslimat adresi..."
-                      />
-                    </div>
-
-                    {/* Notes */}
-                    <div className="pos-relative-z1">
-                      <label className="supplier-label-block">
-                        Notlar
-                      </label>
-                      <input
-                        type="text"
-                        className="mes-filter-input is-compact w-full"
-                        value={headerData.notes}
-                        onChange={(e) => setHeaderData(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Sevkiyat notu..."
-                      />
-                    </div>
+                  </div>
+                  
+                  {/* NOTLAR */}
+                  <div>
+                    <label className="supplier-label-block">Sevkiyat Notu (Opsiyonel)</label>
+                    <input
+                      type="text"
+                      className="mes-filter-input is-compact w-full"
+                      value={headerData.notes}
+                      onChange={(e) => setHeaderData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Sevkiyat ile ilgili notlar..."
+                    />
                   </div>
                 </div>
               )}
@@ -550,8 +893,8 @@ export default function AddShipmentModal({
                             )}
                           </div>
 
-                          {/* Quantity & Actions Row */}
-                          <div className="flex-center-gap-8">
+                          {/* Quantity & Price Row */}
+                          <div className="flex-center-gap-8 flex-wrap">
                             <div className="qty-row-flex">
                               <input
                                 type="text"
@@ -566,6 +909,24 @@ export default function AddShipmentModal({
                                 {item.unit}
                               </span>
                             </div>
+                            
+                            {/* Birim Fiyat - Fatura seçiliyse göster */}
+                            {headerData.includePrice && (
+                              <div className="qty-row-flex">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  className="mes-filter-input is-compact"
+                                  style={{ width: '80px' }}
+                                  value={item.unitPrice || ''}
+                                  onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value)}
+                                  placeholder="Fiyat"
+                                  pattern="[0-9]*\.?[0-9]*"
+                                />
+                                <span className="text-muted-xs">TL</span>
+                              </div>
+                            )}
+                            
                             {item.materialCode && (
                               <span className="mes-badge success">
                                 Mevcut: {formatQty(item.availableStock)}
@@ -594,37 +955,51 @@ export default function AddShipmentModal({
                   </p>
 
                   {/* Header Info */}
-                  {(headerData.workOrderCode || headerData.quoteId || headerData.customerName || headerData.customerCompany || headerData.deliveryAddress) && (
-                    <div className="summary-info-box">
-                      <h3 className="section-header">
-                        Sevkiyat Bilgileri
-                      </h3>
-                      <div className="grid-2-gap-6">
-                        {headerData.workOrderCode && (
-                          <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>
-                        )}
-                        {headerData.quoteId && (
-                          <div><span className="text-muted">Teklif:</span> #{headerData.quoteId}</div>
-                        )}
-                        {headerData.customerName && (
-                          <div><span className="text-muted">Müşteri:</span> {headerData.customerName}</div>
-                        )}
-                        {headerData.customerCompany && (
-                          <div><span className="text-muted">Firma:</span> {headerData.customerCompany}</div>
-                        )}
+                  <div className="summary-info-box">
+                    <h3 className="section-header">
+                      Sevkiyat Bilgileri
+                    </h3>
+                    <div className="grid-2-gap-6">
+                      {/* Belge Tipi */}
+                      <div>
+                        <span className="text-muted">Belge Tipi:</span>{' '}
+                        {headerData.documentType === 'waybill' ? 'İrsaliye' : 
+                         headerData.documentType === 'invoice' ? 'Fatura' : 'İrsaliye + Fatura'}
                       </div>
-                      {headerData.deliveryAddress && (
-                        <div className="mt-6">
-                          <span className="text-muted">Adres:</span> {headerData.deliveryAddress}
-                        </div>
+                      {headerData.workOrderCode && (
+                        <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>
                       )}
-                      {headerData.notes && (
-                        <div className="mt-6 text-muted-italic">
-                          Not: {headerData.notes}
-                        </div>
+                      {headerData.quoteId && (
+                        <div><span className="text-muted">Teklif:</span> #{headerData.quoteId}</div>
                       )}
                     </div>
-                  )}
+                    
+                    {/* Customer Snapshot Info */}
+                    {headerData.customerSnapshot && (
+                      <div className="mt-12 pt-12 border-t border-gray-200">
+                        <div className="font-medium text-sm mb-8">Müşteri Bilgileri</div>
+                        <div className="grid-2-gap-6">
+                          <div><span className="text-muted">Firma:</span> {headerData.customerSnapshot.company || '-'}</div>
+                          <div><span className="text-muted">Yetkili:</span> {headerData.customerSnapshot.name || '-'}</div>
+                          <div><span className="text-muted">VKN:</span> {headerData.customerSnapshot.taxNumber || '-'}</div>
+                          <div><span className="text-muted">Vergi Dairesi:</span> {headerData.customerSnapshot.taxOffice || '-'}</div>
+                          <div><span className="text-muted">Telefon:</span> {headerData.customerSnapshot.phone || '-'}</div>
+                          <div><span className="text-muted">E-posta:</span> {headerData.customerSnapshot.email || '-'}</div>
+                        </div>
+                        {headerData.customerSnapshot.address && (
+                          <div className="mt-6">
+                            <span className="text-muted">Adres:</span> {headerData.customerSnapshot.address}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {headerData.notes && (
+                      <div className="mt-6 text-muted-italic">
+                        Not: {headerData.notes}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Items Summary */}
                   <div className="bordered-container-rounded">
