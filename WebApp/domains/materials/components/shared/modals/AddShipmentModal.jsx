@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { shipmentsService } from '../../../services/shipments-service.js'
 import { customersService } from '../../../../crm/services/customers-service.js'
-import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, DollarSign, Percent, FileText, Settings } from 'lucide-react'
+import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, ChevronLeft, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, Settings } from 'lucide-react'
+import TransportAccordion from '../accordions/TransportAccordion.jsx'
 
 /**
  * CreateShipmentModal - 3 Aşamalı Wizard (Invoice Export Entegrasyonu)
@@ -9,14 +10,14 @@ import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, Search, Loa
  * Adım 2: Malzeme Ekleme (Kalemler + Fiyat + Lot/Seri)
  * Adım 3: Özet ve Onay
  */
-export default function AddShipmentModal({ 
-  isOpen, 
-  onClose, 
+export default function AddShipmentModal({
+  isOpen,
+  onClose,
   onSuccess
 }) {
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1)
-  
+
   // Accordion states
   const [openAccordions, setOpenAccordions] = useState({
     currency: false,
@@ -25,11 +26,12 @@ export default function AddShipmentModal({
     extra: false,
     export: false
   })
-  
+
   // Shipment header data (updated for invoice export)
   const [headerData, setHeaderData] = useState({
     workOrderCode: '',
     quoteId: '',
+    relatedQuoteId: '', // For 7-day rule linking (P3.3)
     // Customer fields
     customerId: null,
     customerSnapshot: null,
@@ -56,16 +58,35 @@ export default function AddShipmentModal({
     // Extra
     specialCode: '',
     costCenter: '',
-    notes: ''
+    notes: '',
+    // Transport fields (P3.3)
+    transport: {
+      driverName: '',
+      driverTc: '',
+      plateNumber: '',
+      deliveryPerson: '',
+      receiverPerson: '',
+      deliveryNote: ''
+    },
+    // Waybill date (P3.3)
+    waybillDate: new Date().toISOString().split('T')[0]
   })
-  
+
   // Items list
   const [items, setItems] = useState([])
-  
+
   // Form states
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  
+
+  // Step 4 & 5 states (Export/Import)
+  const [createdShipmentId, setCreatedShipmentId] = useState(null)
+  const [exportStatus, setExportStatus] = useState({ loading: false, success: false, fileName: null, error: null })
+  const [importStatus, setImportStatus] = useState({ loading: false, success: false, error: null })
+  // Step 5 - External Doc Number
+  const [externalDocNumber, setExternalDocNumber] = useState('')
+  const [selectedFile, setSelectedFile] = useState(null)
+
   // Data for dropdowns
   const [materials, setMaterials] = useState([])
   const [workOrders, setWorkOrders] = useState([])
@@ -74,13 +95,15 @@ export default function AddShipmentModal({
   const [vatExemptions, setVatExemptions] = useState([])
   const [withholdingRates, setWithholdingRates] = useState([])
   const [dataLoading, setDataLoading] = useState(false)
-  
+  const [availableQuotes, setAvailableQuotes] = useState([]) // For relatedQuoteId (P3.3)
+
   // Dropdown states
   const [workOrderDropdownOpen, setWorkOrderDropdownOpen] = useState(false)
   const [quoteDropdownOpen, setQuoteDropdownOpen] = useState(false)
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false)
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
-  
+  const [relatedQuoteDropdownOpen, setRelatedQuoteDropdownOpen] = useState(false) // P3.3
+
   // Inline new customer mode
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
   const [newCustomerData, setNewCustomerData] = useState({
@@ -94,80 +117,105 @@ export default function AddShipmentModal({
     phone: '',
     email: ''
   })
-  
+
   const modalRef = useRef(null)
 
   // Load data when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setDataLoading(true)
-      Promise.all([
-        shipmentsService.getAvailableMaterials().catch(() => []),
-        shipmentsService.getApprovedQuotes().catch(() => []),
-        shipmentsService.getCompletedWorkOrders().catch(() => []),
-        customersService.getCustomers().catch(() => []),
-        fetch('/api/materials/vat-exemptions').then(r => r.json()).catch(() => []),
-        fetch('/api/materials/withholding-rates').then(r => r.json()).catch(() => [])
-      ]).then(([materialsData, quotesData, workOrdersData, customersData, vatData, withholdingData]) => {
-        setMaterials(materialsData)
-        setQuotes(quotesData)
-        setWorkOrders(workOrdersData)
-        setCustomers(Array.isArray(customersData) ? customersData : (customersData?.customers || []))
-        setVatExemptions(Array.isArray(vatData) ? vatData : [])
-        setWithholdingRates(Array.isArray(withholdingData) ? withholdingData : [])
-      }).finally(() => {
-        setDataLoading(false)
-      })
-      
-      // Reset form
-      setCurrentStep(1)
-      setOpenAccordions({
-        currency: false,
-        discount: false,
-        tax: false,
-        extra: false,
-        export: false
-      })
-      setHeaderData({
-        workOrderCode: '',
-        quoteId: '',
-        customerId: null,
-        customerSnapshot: null,
-        useAlternateDelivery: false,
-        alternateDeliveryAddress: null,
-        documentType: 'waybill',
-        includePrice: false,
-        currency: 'TRY',
-        exchangeRate: 1.0,
-        enableRowDiscount: false,
-        enableGeneralDiscount: false,
-        discountType: 'percent',
-        discountValue: 0,
-        defaultTaxRate: 20,
-        defaultWithholdingId: null,
-        defaultVatExemptionId: null,
-        exportTarget: 'logo_tiger',
-        exportFormats: ['csv'],
-        specialCode: '',
-        costCenter: '',
-        notes: ''
-      })
-      setItems([])
-      setError(null)
-      setShowNewCustomerForm(false)
-      setNewCustomerData({
-        name: '',
-        company: '',
-        taxOffice: '',
-        taxNumber: '',
-        address: '',
-        city: '',
-        district: '',
-        phone: '',
-        email: ''
-      })
-      setCustomerSearchTerm('')
-    }
+    if (!isOpen) return
+
+    setDataLoading(true)
+
+    Promise.all([
+      shipmentsService.getAvailableMaterials().catch(() => []),
+      shipmentsService.getApprovedQuotes().catch(() => []),
+      shipmentsService.getCompletedWorkOrders().catch(() => []),
+      customersService.getCustomers().catch(() => []),
+      // REMOVED (P3.1): VAT exemptions and withholding rates moved to Invoice Export panel
+      // fetch('/api/materials/vat-exemptions').then(r => r.json()).catch(() => []),
+      // fetch('/api/materials/withholding-rates').then(r => r.json()).catch(() => [])
+    ]).then(([materialsData, quotesData, workOrdersData, customersData]) => {
+      setMaterials(materialsData)
+      setQuotes(quotesData)
+      setWorkOrders(workOrdersData)
+      setCustomers(Array.isArray(customersData) ? customersData : (customersData?.customers || []))
+      // REMOVED (P3.1): setVatExemptions and setWithholdingRates
+      // setVatExemptions(vatData)
+      // setWithholdingRates(whData)
+      setDataLoading(false)
+    }).catch(err => {
+      console.error('Failed to load data:', err)
+      setDataLoading(false)
+    })
+
+    // Reset form
+    setCurrentStep(1)
+    setOpenAccordions({
+      currency: false,
+      discount: false,
+      tax: false,
+      extra: false,
+      export: false
+    })
+    setHeaderData({
+      workOrderCode: '',
+      quoteId: '',
+      relatedQuoteId: '', // P3.3
+      customerId: null,
+      customerSnapshot: null,
+      useAlternateDelivery: false,
+      alternateDeliveryAddress: null,
+      documentType: 'waybill',
+      includePrice: false,
+      currency: 'TRY',
+      exchangeRate: 1.0,
+      enableRowDiscount: false,
+      enableGeneralDiscount: false,
+      discountType: 'percent',
+      discountValue: 0,
+      defaultTaxRate: 20,
+      defaultWithholdingId: null,
+      defaultVatExemptionId: null,
+      exportTarget: 'logo_tiger',
+      exportFormats: ['csv'],
+      specialCode: '',
+      costCenter: '',
+      notes: '',
+      // Transport fields (P3.3)
+      transport: {
+        driverName: '',
+        driverTc: '',
+        plateNumber: '',
+        deliveryPerson: '',
+        receiverPerson: '',
+        deliveryNote: ''
+      },
+      // Waybill date (P3.3)
+      waybillDate: new Date().toISOString().split('T')[0]
+    })
+    setItems([])
+    setError(null)
+    setShowNewCustomerForm(false)
+    setNewCustomerData({
+      name: '',
+      company: '',
+      taxOffice: '',
+      taxNumber: '',
+      address: '',
+      city: '',
+      district: '',
+      phone: '',
+      email: ''
+    })
+
+    // Reset Export/Import states
+    setCreatedShipmentId(null)
+    setExportStatus({ loading: false, success: false, fileName: null, error: null })
+    setImportStatus({ loading: false, success: false, error: null })
+    setExternalDocNumber('')
+    setSelectedFile(null)
+
+    setCustomerSearchTerm('')
   }, [isOpen])
 
   // ESC to close
@@ -181,6 +229,32 @@ export default function AddShipmentModal({
     }
   }, [isOpen, onClose])
 
+  // Fetch customer quotes when customer is selected (P3.3)
+  useEffect(() => {
+    const fetchCustomerQuotes = async () => {
+      if (!headerData.customerId) {
+        setAvailableQuotes([])
+        return
+      }
+
+      try {
+        const url = `/api/quotes?customerId=${headerData.customerId}&status=approved`
+
+        const response = await fetch(url)
+        const data = await response.json()
+
+        const quotes = Array.isArray(data) ? data : (data.quotes || [])
+
+        setAvailableQuotes(quotes)
+      } catch (error) {
+        console.error('Failed to fetch customer quotes:', error)
+        setAvailableQuotes([])
+      }
+    }
+
+    fetchCustomerQuotes()
+  }, [headerData.customerId])
+
   if (!isOpen) return null
 
   // Close all dropdowns
@@ -189,6 +263,7 @@ export default function AddShipmentModal({
     setWorkOrderDropdownOpen(false)
     setQuoteDropdownOpen(false)
     setCustomerDropdownOpen(false)
+    setRelatedQuoteDropdownOpen(false) // P3.3
   }
 
   // Select customer from CRM
@@ -221,7 +296,7 @@ export default function AddShipmentModal({
       setError('Müşteri adı veya firma adı gerekli')
       return
     }
-    
+
     try {
       // Create in CRM
       const created = await customersService.createCustomer({
@@ -235,7 +310,7 @@ export default function AddShipmentModal({
         phone: newCustomerData.phone,
         email: newCustomerData.email
       })
-      
+
       // Select the new customer
       selectCustomer(created)
       setShowNewCustomerForm(false)
@@ -250,7 +325,7 @@ export default function AddShipmentModal({
         phone: '',
         email: ''
       })
-      
+
       // Add to local list
       setCustomers(prev => [...prev, created])
     } catch (err) {
@@ -301,7 +376,7 @@ export default function AddShipmentModal({
   const updateItem = (itemId, field, value) => {
     setItems(prev => prev.map(item => {
       if (item.id !== itemId) return item
-      
+
       if (field === 'materialCode') {
         const selectedMaterial = materials.find(m => m.code === value)
         if (selectedMaterial) {
@@ -316,14 +391,14 @@ export default function AddShipmentModal({
           }
         }
       }
-      
+
       if (field === 'quantity') {
         let cleanValue = value.replace(/,/g, '.')
         if (!/^[0-9.]*$/.test(cleanValue)) return item
         if ((cleanValue.match(/\./g) || []).length > 1) return item
         return { ...item, [field]: cleanValue }
       }
-      
+
       return { ...item, [field]: value }
     }))
   }
@@ -338,7 +413,7 @@ export default function AddShipmentModal({
     setError(null)
     return true
   }
-  
+
   const canProceedToStep3 = () => {
     if (items.length === 0) {
       setError('En az bir kalem eklemelisiniz')
@@ -390,7 +465,7 @@ export default function AddShipmentModal({
   const handleSubmit = async () => {
     setError(null)
     setLoading(true)
-    
+
     try {
       const shipmentData = {
         // Customer
@@ -417,6 +492,17 @@ export default function AddShipmentModal({
         // Legacy fields
         workOrderCode: headerData.workOrderCode,
         quoteId: headerData.quoteId,
+        // Transport fields (P3.3)
+        driverName: headerData.transport.driverName,
+        driverTc: headerData.transport.driverTc,
+        plateNumber: headerData.transport.plateNumber,
+        deliveryPerson: headerData.transport.deliveryPerson,
+        receiverPerson: headerData.transport.receiverPerson,
+        deliveryNote: headerData.transport.deliveryNote,
+        // Waybill date (P3.3)
+        waybillDate: headerData.waybillDate,
+        // Related quote for 7-day rule (P3.3)
+        relatedQuoteId: headerData.relatedQuoteId || null,
         // Items
         items: items.map(item => ({
           materialCode: item.materialCode,
@@ -434,21 +520,25 @@ export default function AddShipmentModal({
           itemNotes: item.notes || ''
         }))
       }
-      
+
       // Remove empty/null fields
       Object.keys(shipmentData).forEach(key => {
         if (shipmentData[key] === '' || shipmentData[key] === null || shipmentData[key] === undefined) {
           delete shipmentData[key]
         }
       })
-      
+
       const result = await shipmentsService.createShipment(shipmentData)
-      
-      if (onSuccess) onSuccess(result)
-      onClose()
+
+      // Save shipment ID for Steps 4 & 5
+      setCreatedShipmentId(result.id || result.shipmentId)
+      setLoading(false)
+
+      // Don't close modal - show Step 3 with export/close options
+      // User can choose to export (Step 4) or close
     } catch (err) {
-      setError(err.message || 'Sevkiyat oluşturulamadı')
-    } finally {
+      console.error('Shipment creation error:', err)
+      setError(err.message || 'Sevkiyat oluşturulurken hata oluştu')
       setLoading(false)
     }
   }
@@ -472,11 +562,11 @@ export default function AddShipmentModal({
   ]
 
   return (
-    <div 
+    <div
       className="modal-overlay-fixed"
       onClick={() => { closeAllDropdowns(); onClose(); }}
     >
-      <div 
+      <div
         ref={modalRef}
         onClick={(e) => { e.stopPropagation(); closeAllDropdowns(); }}
         className="shipment-modal-container"
@@ -554,7 +644,7 @@ export default function AddShipmentModal({
                         {showNewCustomerForm ? 'Listeden Seç' : 'Yeni Müşteri'}
                       </button>
                     </div>
-                    
+
                     {!showNewCustomerForm ? (
                       <>
                         {/* Customer Dropdown */}
@@ -565,8 +655,8 @@ export default function AddShipmentModal({
                             onClick={(e) => { e.stopPropagation(); setCustomerDropdownOpen(!customerDropdownOpen); setWorkOrderDropdownOpen(false); setQuoteDropdownOpen(false); }}
                           >
                             <span className={`text-conditional ${!headerData.customerSnapshot ? 'placeholder' : ''}`}>
-                              {headerData.customerSnapshot 
-                                ? `${headerData.customerSnapshot.company || headerData.customerSnapshot.name}` 
+                              {headerData.customerSnapshot
+                                ? `${headerData.customerSnapshot.company || headerData.customerSnapshot.name}`
                                 : 'Müşteri seçin...'}
                             </span>
                             <ChevronDown size={14} />
@@ -588,7 +678,7 @@ export default function AddShipmentModal({
                                 </div>
                               </div>
                               {/* Clear */}
-                              <div 
+                              <div
                                 className="dropdown-item-muted"
                                 onClick={() => { setHeaderData(prev => ({ ...prev, customerId: null, customerSnapshot: null })); setCustomerDropdownOpen(false); }}
                               >
@@ -613,7 +703,7 @@ export default function AddShipmentModal({
                             </div>
                           )}
                         </div>
-                        
+
                         {/* Selected Customer Info */}
                         {headerData.customerSnapshot && (
                           <div className="customer-info-box">
@@ -724,118 +814,14 @@ export default function AddShipmentModal({
                       </div>
                     )}
                   </div>
-                  
-                  {/* BELGE TİPİ */}
-                  <div className="mb-16">
-                    <label className="shipment-form-label">Belge Tipi</label>
-                    <div className="shipment-radio-group">
-                      <label className="shipment-radio-label">
-                        <input
-                          type="radio"
-                          name="documentType"
-                          value="waybill"
-                          checked={headerData.documentType === 'waybill'}
-                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'waybill', includePrice: false }))}
-                          className="form-radio"
-                        />
-                        <span>İrsaliye (Fiyatsız)</span>
-                      </label>
-                      <label className="shipment-radio-label">
-                        <input
-                          type="radio"
-                          name="documentType"
-                          value="invoice"
-                          checked={headerData.documentType === 'invoice'}
-                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'invoice', includePrice: true }))}
-                          className="form-radio"
-                        />
-                        <span>Fatura (Fiyatlı)</span>
-                      </label>
-                      <label className="shipment-radio-label">
-                        <input
-                          type="radio"
-                          name="documentType"
-                          value="both"
-                          checked={headerData.documentType === 'both'}
-                          onChange={() => setHeaderData(prev => ({ ...prev, documentType: 'both', includePrice: true }))}
-                          className="form-radio"
-                        />
-                        <span>İkisi Birden</span>
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* İŞ EMRİ & TEKLİF */}
-                  <div className="grid-2-gap-12 mb-16">
-                    {/* Work Order */}
-                    <div className="pos-z20">
-                      <label className="supplier-label-block">İş Emri (Opsiyonel)</label>
-                      <button
-                        type="button"
-                        className="mes-filter-select full-justify-between"
-                        onClick={(e) => { e.stopPropagation(); setWorkOrderDropdownOpen(!workOrderDropdownOpen); setQuoteDropdownOpen(false); setCustomerDropdownOpen(false); }}
-                      >
-                        <span className={`text-conditional ${!headerData.workOrderCode ? 'placeholder' : ''}`}>
-                          {headerData.workOrderCode || 'Seçin...'}
-                        </span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {workOrderDropdownOpen && (
-                        <div className="dropdown-menu">
-                          <div 
-                            className="dropdown-item-muted"
-                            onClick={() => { setHeaderData(prev => ({ ...prev, workOrderCode: '' })); setWorkOrderDropdownOpen(false); }}
-                          >
-                            Seçimi temizle
-                          </div>
-                          {workOrders.map(wo => (
-                            <div
-                              key={wo.code}
-                              className="dropdown-item-action"
-                              onClick={() => { setHeaderData(prev => ({ ...prev, workOrderCode: wo.code })); setWorkOrderDropdownOpen(false); }}
-                            >
-                              {wo.label || wo.code}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Quote */}
-                    <div className="pos-z20">
-                      <label className="supplier-label-block">Teklif (Opsiyonel)</label>
-                      <button
-                        type="button"
-                        className="mes-filter-select full-justify-between"
-                        onClick={(e) => { e.stopPropagation(); setQuoteDropdownOpen(!quoteDropdownOpen); setWorkOrderDropdownOpen(false); setCustomerDropdownOpen(false); }}
-                      >
-                        <span className={`text-conditional ${!headerData.quoteId ? 'placeholder' : ''}`}>
-                          {headerData.quoteId || 'Seçin...'}
-                        </span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {quoteDropdownOpen && (
-                        <div className="dropdown-menu">
-                          <div 
-                            className="dropdown-item-muted"
-                            onClick={() => { setHeaderData(prev => ({ ...prev, quoteId: '' })); setQuoteDropdownOpen(false); }}
-                          >
-                            Seçimi temizle
-                          </div>
-                          {quotes.map(q => (
-                            <div
-                              key={q.id}
-                              className="dropdown-item-action"
-                              onClick={() => { setHeaderData(prev => ({ ...prev, quoteId: q.id })); setQuoteDropdownOpen(false); }}
-                            >
-                              {q.label || `#${q.id}`}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
+                  {/* BELGE TİPİ - REMOVED (P3.1) - Now always 'waybill' */}
+                  {/* documentType is now hardcoded to 'waybill' in initial state */}
+                  {/* Invoice/pricing moved to separate Invoice Export panel */}
+
+                  {/* İŞ EMRİ & TEKLİF - REMOVED (P3.3) */}
+                  {/* Legacy work order and quote fields removed - now using relatedQuoteId for 7-day rule */}
+
                   {/* NOTLAR */}
                   <div className="mb-16">
                     <label className="supplier-label-block">Sevkiyat Notu (Opsiyonel)</label>
@@ -847,195 +833,121 @@ export default function AddShipmentModal({
                       placeholder="Sevkiyat ile ilgili notlar..."
                     />
                   </div>
-                  
-                  {/* ===== AKORDEONLAR ===== */}
-                  <div className="accordion-row">
-                    
-                    {/* PARA BİRİMİ & KUR AKORDEON */}
-                    <div className="shipment-accordion">
-                      <button
-                        type="button"
-                        className="shipment-accordion-header"
-                        onClick={() => setOpenAccordions(prev => ({ ...prev, currency: !prev.currency }))}
-                      >
-                        <div className="shipment-accordion-header-left">
-                          <DollarSign size={14} />
-                          <span className="shipment-accordion-title">Para Birimi & Kur</span>
-                        </div>
-                        {openAccordions.currency ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      {openAccordions.currency && (
-                        <div className="shipment-accordion-content">
-                          <div className="accordion-grid-2">
-                            <div>
-                              <label className="shipment-form-label">Para Birimi</label>
-                              <select
-                                className="mes-filter-select w-full"
-                                value={headerData.currency}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, currency: e.target.value }))}
-                              >
-                                <option value="TRY">TRY - Türk Lirası</option>
-                                <option value="USD">USD - Amerikan Doları</option>
-                                <option value="EUR">EUR - Euro</option>
-                                <option value="GBP">GBP - İngiliz Sterlini</option>
-                              </select>
+
+                  {/* FİYAT DAHİL ET CHECKBOX */}
+                  <div className="mb-16">
+                    <label className="shipment-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={headerData.includePrice}
+                        onChange={(e) => setHeaderData(prev => ({ ...prev, includePrice: e.target.checked }))}
+                        className="form-checkbox"
+                      />
+                      <span>Fiyat bilgisi dahil et</span>
+                      <span className="shipment-checkbox-hint">(İrsaliyede fiyat gösterilsin)</span>
+                    </label>
+                  </div>
+
+                  {/* BAĞLI TEKLİF (P3.3) - 7 Day Rule Linking */}
+                  {headerData.customerId && (
+                    <div className="mb-16">
+                      <label className="supplier-label-block">
+                        Bağlı Teklif (Opsiyonel)
+                        <span className="text-xs text-gray-500 ml-8">- 7 gün kuralı için</span>
+                      </label>
+                      <div className="pos-z15">
+                        <button
+                          type="button"
+                          className="mes-filter-select full-justify-between"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRelatedQuoteDropdownOpen(!relatedQuoteDropdownOpen);
+                            setWorkOrderDropdownOpen(false);
+                            setQuoteDropdownOpen(false);
+                            setCustomerDropdownOpen(false);
+                          }}
+                        >
+                          <span className={`text-conditional ${!headerData.relatedQuoteId ? 'placeholder' : ''}`}>
+                            {headerData.relatedQuoteId ?
+                              availableQuotes.find(q => q.id === headerData.relatedQuoteId)?.id || headerData.relatedQuoteId
+                              : 'Teklif seçin...'}
+                          </span>
+                          <ChevronDown size={14} />
+                        </button>
+                        {relatedQuoteDropdownOpen && (
+                          <div className="dropdown-menu">
+                            <div
+                              className="dropdown-item-muted"
+                              onClick={() => {
+                                setHeaderData(prev => ({ ...prev, relatedQuoteId: '' }));
+                                setRelatedQuoteDropdownOpen(false);
+                              }}
+                            >
+                              Seçimi temizle
                             </div>
-                            <div>
-                              <label className="shipment-form-label">
-                                Döviz Kuru {headerData.currency !== 'TRY' && <span className="text-error">*</span>}
-                              </label>
-                              <input
-                                type="number"
-                                step="0.0001"
-                                className="mes-filter-input is-compact w-full"
-                                value={headerData.exchangeRate}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) || 1 }))}
-                                disabled={headerData.currency === 'TRY'}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* İSKONTO AYARLARI AKORDEON */}
-                    <div className="shipment-accordion">
-                      <button
-                        type="button"
-                        className="shipment-accordion-header"
-                        onClick={() => setOpenAccordions(prev => ({ ...prev, discount: !prev.discount }))}
-                      >
-                        <div className="shipment-accordion-header-left">
-                          <Percent size={14} />
-                          <span className="shipment-accordion-title">İskonto Ayarları</span>
-                        </div>
-                        {openAccordions.discount ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      {openAccordions.discount && (
-                        <div className="shipment-accordion-content">
-                          <div className="accordion-row">
-                            <label className="shipment-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={headerData.enableRowDiscount}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, enableRowDiscount: e.target.checked }))}
-                                className="form-checkbox"
-                              />
-                              <span>Satır İskontosu Uygula</span>
-                              <span className="shipment-checkbox-hint">(Her kalemde % alanı açılır)</span>
-                            </label>
-                            
-                            <label className="shipment-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={headerData.enableGeneralDiscount}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, enableGeneralDiscount: e.target.checked }))}
-                                className="form-checkbox"
-                              />
-                              <span>Genel İskonto Uygula</span>
-                            </label>
-                            
-                            {headerData.enableGeneralDiscount && (
-                              <div className="accordion-inline-row">
-                                <div className="discount-inline-flex">
-                                  <label className="shipment-radio-label">
-                                    <input
-                                      type="radio"
-                                      name="discountType"
-                                      checked={headerData.discountType === 'percent'}
-                                      onChange={() => setHeaderData(prev => ({ ...prev, discountType: 'percent' }))}
-                                      className="form-radio"
-                                    />
-                                    <span>Yüzde (%)</span>
-                                  </label>
-                                  <label className="shipment-radio-label">
-                                    <input
-                                      type="radio"
-                                      name="discountType"
-                                      checked={headerData.discountType === 'amount'}
-                                      onChange={() => setHeaderData(prev => ({ ...prev, discountType: 'amount' }))}
-                                      className="form-radio"
-                                    />
-                                    <span>Tutar (TL)</span>
-                                  </label>
-                                </div>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  className="mes-filter-input is-compact discount-input"
-                                  value={headerData.discountValue}
-                                  onChange={(e) => setHeaderData(prev => ({ ...prev, discountValue: parseFloat(e.target.value) || 0 }))}
-                                  placeholder="0"
-                                />
+                            {availableQuotes.length === 0 && (
+                              <div className="dropdown-empty-state">
+                                Bu müşteriye ait onaylanmış teklif bulunamadı
                               </div>
                             )}
+                            {availableQuotes.map(q => (
+                              <div
+                                key={q.id}
+                                className="dropdown-item-action"
+                                onClick={() => {
+                                  setHeaderData(prev => ({ ...prev, relatedQuoteId: q.id }));
+                                  setRelatedQuoteDropdownOpen(false);
+                                }}
+                              >
+                                <div className="font-medium">{q.id}</div>
+                                <div className="text-xs-muted">
+                                  {q.customerName} - {q.finalPrice ? `₺${q.finalPrice.toLocaleString('tr-TR')}` : ''}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-4">
+                        İrsaliyeyi bir teklife bağlayarak 7 gün kuralı takibi yapılır
+                      </p>
                     </div>
-                    
-                    {/* VERGİ DETAYLARI AKORDEON */}
-                    <div className="shipment-accordion">
-                      <button
-                        type="button"
-                        className="shipment-accordion-header"
-                        onClick={() => setOpenAccordions(prev => ({ ...prev, tax: !prev.tax }))}
-                      >
-                        <div className="shipment-accordion-header-left">
-                          <FileText size={14} />
-                          <span className="shipment-accordion-title">Vergi Detayları</span>
-                        </div>
-                        {openAccordions.tax ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      {openAccordions.tax && (
-                        <div className="shipment-accordion-content">
-                          <div className="accordion-grid-3">
-                            <div>
-                              <label className="shipment-form-label">Varsayılan KDV</label>
-                              <select
-                                className="mes-filter-select w-full"
-                                value={headerData.defaultTaxRate}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultTaxRate: parseInt(e.target.value) }))}
-                              >
-                                <option value={0}>%0</option>
-                                <option value={1}>%1</option>
-                                <option value={8}>%8</option>
-                                <option value={10}>%10</option>
-                                <option value={18}>%18</option>
-                                <option value={20}>%20</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="shipment-form-label">Tevkifat</label>
-                              <select
-                                className="mes-filter-select w-full"
-                                value={headerData.defaultWithholdingId || ''}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultWithholdingId: e.target.value ? parseInt(e.target.value) : null }))}
-                              >
-                                <option value="">Yok</option>
-                                {withholdingRates.map(w => (
-                                  <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="shipment-form-label">KDV Muafiyet</label>
-                              <select
-                                className="mes-filter-select w-full"
-                                value={headerData.defaultVatExemptionId || ''}
-                                onChange={(e) => setHeaderData(prev => ({ ...prev, defaultVatExemptionId: e.target.value ? parseInt(e.target.value) : null }))}
-                              >
-                                <option value="">Yok</option>
-                                {vatExemptions.map(v => (
-                                  <option key={v.id} value={v.id}>{v.code} - {v.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
+                  )}
+
+                  {/* ===== AKORDEONLAR ===== */}
+                  <div className="accordion-row">
+
+                    {/* PARA BİRİMİ & KUR AKORDEON - REMOVED (P3.1) */}
+                    {/* Currency/exchange rate moved to Invoice Export panel */}
+
+                    {/* İSKONTO AYARLARI AKORDEON - REMOVED (P3.1) */}
+                    {/* Discount settings moved to Invoice Export panel */}
+
+                    {/* VERGİ DETAYLARI AKORDEON - REMOVED (P3.1) */}
+                    {/* Tax/VAT/Withholding settings moved to Invoice Export panel */}
+
+                    {/* TAŞIMA BİLGİLERİ AKORDEON (P3.3) */}
+                    <TransportAccordion
+                      driverName={headerData.transport.driverName}
+                      driverTc={headerData.transport.driverTc}
+                      plateNumber={headerData.transport.plateNumber}
+                      deliveryPerson={headerData.transport.deliveryPerson}
+                      receiverPerson={headerData.transport.receiverPerson}
+                      deliveryNote={headerData.transport.deliveryNote}
+                      waybillDate={headerData.waybillDate}
+                      onChange={(field, value) => {
+                        if (field === 'waybillDate') {
+                          setHeaderData(prev => ({ ...prev, waybillDate: value }))
+                        } else {
+                          setHeaderData(prev => ({
+                            ...prev,
+                            transport: { ...prev.transport, [field]: value }
+                          }))
+                        }
+                      }}
+                      defaultOpen={false}
+                    />
+
                     {/* EK BİLGİLER AKORDEON */}
                     <div className="shipment-accordion">
                       <button
@@ -1076,62 +988,12 @@ export default function AddShipmentModal({
                         </div>
                       )}
                     </div>
-                    
-                    {/* EXPORT AYARLARI AKORDEON */}
-                    <div className="shipment-accordion">
-                      <button
-                        type="button"
-                        className="shipment-accordion-header"
-                        onClick={() => setOpenAccordions(prev => ({ ...prev, export: !prev.export }))}
-                      >
-                        <div className="shipment-accordion-header-left">
-                          <FileText size={14} />
-                          <span className="shipment-accordion-title">Export Ayarları</span>
-                        </div>
-                        {openAccordions.export ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                      {openAccordions.export && (
-                        <div className="shipment-accordion-content">
-                          <div className="accordion-section">
-                            <label className="shipment-form-label">Hedef Program</label>
-                            <select
-                              className="mes-filter-select w-full"
-                              value={headerData.exportTarget}
-                              onChange={(e) => setHeaderData(prev => ({ ...prev, exportTarget: e.target.value }))}
-                            >
-                              <option value="logo_tiger">Logo Tiger</option>
-                              <option value="logo_go">Logo GO</option>
-                              <option value="zirve">Zirve</option>
-                              <option value="excel">Excel</option>
-                            </select>
-                          </div>
-                          <div className="accordion-section">
-                            <label className="shipment-form-label">Export Formatları</label>
-                            <div className="export-checkbox-group">
-                              {['csv', 'xml', 'pdf', 'json'].map(format => (
-                                <label key={format} className="shipment-checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    checked={headerData.exportFormats.includes(format)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setHeaderData(prev => ({ ...prev, exportFormats: [...prev.exportFormats, format] }))
-                                      } else {
-                                        setHeaderData(prev => ({ ...prev, exportFormats: prev.exportFormats.filter(f => f !== format) }))
-                                      }
-                                    }}
-                                    className="form-checkbox"
-                                  />
-                                  <span className="export-format-label">{format.toUpperCase()}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
+
+                    {/* EXPORT AYARLARI AKORDEON - REMOVED */}
+                    {/* Export settings moved to Step 4 (when user actually wants to export) */}
                   </div>
+
+                  {/* NOTLAR AKORDEON */}
                 </div>
               )}
 
@@ -1160,8 +1022,8 @@ export default function AddShipmentModal({
                   ) : (
                     <div className="flex-col-gap-8">
                       {items.map((item, index) => (
-                        <div 
-                          key={item.id} 
+                        <div
+                          key={item.id}
                           className="shipment-item-card"
                         >
                           {/* Material Select */}
@@ -1169,7 +1031,7 @@ export default function AddShipmentModal({
                             <button
                               type="button"
                               className="mes-filter-select full-justify-between"
-                              onClick={(e) => { 
+                              onClick={(e) => {
                                 e.stopPropagation()
                                 setItems(prev => prev.map((it, idx) => ({
                                   ...it,
@@ -1200,8 +1062,8 @@ export default function AddShipmentModal({
                                 </div>
                                 {/* Options */}
                                 {materials
-                                  .filter(m => 
-                                    !item.searchTerm || 
+                                  .filter(m =>
+                                    !item.searchTerm ||
                                     m.code.toLowerCase().includes(item.searchTerm.toLowerCase()) ||
                                     m.name.toLowerCase().includes(item.searchTerm.toLowerCase())
                                   )
@@ -1219,15 +1081,15 @@ export default function AddShipmentModal({
                                     </div>
                                   ))
                                 }
-                                {materials.filter(m => 
-                                  !item.searchTerm || 
+                                {materials.filter(m =>
+                                  !item.searchTerm ||
                                   m.code.toLowerCase().includes(item.searchTerm.toLowerCase()) ||
                                   m.name.toLowerCase().includes(item.searchTerm.toLowerCase())
                                 ).length === 0 && (
-                                  <div className="dropdown-empty-state">
-                                    Malzeme bulunamadı
-                                  </div>
-                                )}
+                                    <div className="dropdown-empty-state">
+                                      Malzeme bulunamadı
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </div>
@@ -1248,7 +1110,7 @@ export default function AddShipmentModal({
                                 {item.unit}
                               </span>
                             </div>
-                            
+
                             {/* Birim Fiyat - Fatura seçiliyse göster */}
                             {headerData.includePrice && (
                               <div className="qty-row-flex">
@@ -1264,7 +1126,7 @@ export default function AddShipmentModal({
                                 <span className="text-muted-xs">TL</span>
                               </div>
                             )}
-                            
+
                             {/* İskonto % - Satır iskontosu açıksa göster */}
                             {headerData.enableRowDiscount && headerData.includePrice && (
                               <div className="qty-row-flex">
@@ -1281,13 +1143,13 @@ export default function AddShipmentModal({
                                 <span className="text-muted-xs">%</span>
                               </div>
                             )}
-                            
+
                             {item.materialCode && (
                               <span className="mes-badge success">
                                 Mevcut: {formatQty(item.availableStock)}
                               </span>
                             )}
-                            
+
                             {/* Detay aç/kapa butonu */}
                             <button
                               type="button"
@@ -1297,7 +1159,7 @@ export default function AddShipmentModal({
                             >
                               {item.showDetails ? 'Gizle' : 'Detay'}
                             </button>
-                            
+
                             <button
                               type="button"
                               onClick={() => removeItem(item.id)}
@@ -1306,7 +1168,7 @@ export default function AddShipmentModal({
                               <Trash2 size={16} />
                             </button>
                           </div>
-                          
+
                           {/* Detay Alanları - Lot/Seri/KDV/Tevkifat */}
                           {item.showDetails && (
                             <div className="item-detail-panel">
@@ -1395,8 +1257,8 @@ export default function AddShipmentModal({
                       {/* Belge Tipi */}
                       <div>
                         <span className="text-muted">Belge Tipi:</span>{' '}
-                        {headerData.documentType === 'waybill' ? 'İrsaliye' : 
-                         headerData.documentType === 'invoice' ? 'Fatura' : 'İrsaliye + Fatura'}
+                        {headerData.documentType === 'waybill' ? 'İrsaliye' :
+                          headerData.documentType === 'invoice' ? 'Fatura' : 'İrsaliye + Fatura'}
                       </div>
                       {headerData.workOrderCode && (
                         <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>
@@ -1405,7 +1267,7 @@ export default function AddShipmentModal({
                         <div><span className="text-muted">Teklif:</span> #{headerData.quoteId}</div>
                       )}
                     </div>
-                    
+
                     {/* Customer Snapshot Info */}
                     {headerData.customerSnapshot && (
                       <div className="summary-customer-section">
@@ -1425,7 +1287,7 @@ export default function AddShipmentModal({
                         )}
                       </div>
                     )}
-                    
+
                     {headerData.notes && (
                       <div className="mt-6 text-muted-italic">
                         Not: {headerData.notes}
@@ -1439,7 +1301,7 @@ export default function AddShipmentModal({
                       Kalemler ({totalItems})
                     </div>
                     {items.map((item, index) => (
-                      <div 
+                      <div
                         key={item.id}
                         className="summary-item-row"
                       >
@@ -1449,6 +1311,11 @@ export default function AddShipmentModal({
                         </div>
                         <div className="summary-item-qty">
                           {formatQty(item.quantity)} {item.unit}
+                          {headerData.includePrice && item.unitPrice && (
+                            <span className="text-muted-sm ml-8">
+                              @ ₺{parseFloat(item.unitPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1456,6 +1323,257 @@ export default function AddShipmentModal({
                       <span>Toplam</span>
                       <span>{formatQty(totalQuantity)}</span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== STEP 4: Export ===== */}
+              {currentStep === 4 && (
+                <div>
+                  <p className="text-xs-light-mb">
+                    İrsaliye belgesini dışa aktarın
+                  </p>
+
+                  <div className="summary-info-box">
+                    <h3 className="section-header">Export Ayarları</h3>
+
+                    {/* Hedef Program Seçimi */}
+                    <div className="mb-16">
+                      <label className="shipment-form-label">Hedef Program</label>
+                      <select
+                        className="mes-filter-select w-full"
+                        value={headerData.exportTarget}
+                        onChange={(e) => setHeaderData(prev => ({ ...prev, exportTarget: e.target.value }))}
+                      >
+                        <option value="logo_tiger">Logo Tiger</option>
+                        <option value="logo_go">Logo GO</option>
+                        <option value="zirve">Zirve</option>
+                        <option value="excel">Excel</option>
+                      </select>
+                    </div>
+
+                    {/* Export Format Seçimi */}
+                    <div className="mb-16">
+                      <label className="shipment-form-label">Export Formatları</label>
+                      <div className="export-checkbox-group">
+                        {['csv', 'xml', 'pdf', 'json'].map(format => (
+                          <label key={format} className="shipment-checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={headerData.exportFormats.includes(format)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setHeaderData(prev => ({ ...prev, exportFormats: [...prev.exportFormats, format] }))
+                                } else {
+                                  setHeaderData(prev => ({ ...prev, exportFormats: prev.exportFormats.filter(f => f !== format) }))
+                                }
+                              }}
+                              className="form-checkbox"
+                            />
+                            <span>{format.toUpperCase()}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Export Butonu */}
+                    <div className="mt-16">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (headerData.exportFormats.length === 0) {
+                            setExportStatus({ loading: false, success: false, fileName: null, error: 'En az bir format seçmelisiniz' })
+                            return
+                          }
+
+                          setExportStatus({ loading: true, success: false, fileName: null, error: null })
+                          try {
+                            const response = await fetch(`/api/materials/shipments/${createdShipmentId}/export`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                target: headerData.exportTarget,
+                                formats: headerData.exportFormats
+                              })
+                            })
+
+                            if (!response.ok) throw new Error('Export başarısız')
+
+                            const blob = await response.blob()
+                            const fileName = `irsaliye_${createdShipmentId}_${new Date().toISOString().split('T')[0]}.${headerData.exportFormats[0]}`
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = fileName
+                            document.body.appendChild(a)
+                            a.click()
+                            window.URL.revokeObjectURL(url)
+                            document.body.removeChild(a)
+
+                            setExportStatus({ loading: false, success: true, fileName, error: null })
+                          } catch (err) {
+                            setExportStatus({ loading: false, success: false, fileName: null, error: err.message })
+                          }
+                        }}
+                        disabled={exportStatus.loading || headerData.exportFormats.length === 0}
+                        className={`btn-submit ${(exportStatus.loading || headerData.exportFormats.length === 0) ? 'disabled' : 'enabled'} w-full`}
+                      >
+                        {exportStatus.loading ? (
+                          <>
+                            <Loader2 size={14} className="spin-animation" />
+                            İndiriliyor...
+                          </>
+                        ) : exportStatus.success ? (
+                          <>
+                            <Check size={14} />
+                            İndirildi
+                          </>
+                        ) : (
+                          <>
+                            <Package size={14} />
+                            Belge İndir
+                          </>
+                        )}
+                      </button>
+
+                      {exportStatus.success && (
+                        <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                          ✓ Dosya indirildi: {exportStatus.fileName}
+                        </div>
+                      )}
+
+                      {exportStatus.error && (
+                        <div className="mt-8 p-8 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                          ✗ Hata: {exportStatus.error}
+                        </div>
+                      )}
+                    </div>
+
+                    {exportStatus.success && (
+                      <div className="mt-16 pt-16 border-t border-gray-200">
+                        <p className="text-sm text-gray-600 mb-12">
+                          Export tamamlandı. Şimdi harici belge numarasını girerek sevkiyatı tamamlayabilirsiniz.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(5)}
+                          className="btn-secondary w-full"
+                        >
+                          <ArrowRight size={14} />
+                          ETTN / Belge No Girişi
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ===== STEP 5: ETTN Import ===== */}
+              {currentStep === 5 && (
+                <div>
+                  <p className="text-xs-light-mb">
+                    Logo'dan aldığınız ETTN XML dosyasını veya harici belge numarasını girin
+                  </p>
+
+                  <div className="summary-info-box">
+                    <h3 className="section-header">ETTN Import</h3>
+
+                    {/* External Doc Number */}
+                    <div className="mb-16">
+                      <label className="shipment-form-label">Harici Belge No (Logo/Zirve) <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        className="mes-filter-input w-full"
+                        value={externalDocNumber}
+                        onChange={(e) => setExternalDocNumber(e.target.value)}
+                        placeholder="Örn: GIB2023000000001"
+                        disabled={importStatus.loading || importStatus.success}
+                      />
+                    </div>
+
+                    <div className="mt-16">
+                      <label className="shipment-form-label mb-8 block">XML Dosyası (İsteğe Bağlı)</label>
+                      <div className="flex-gap-10">
+                        <input
+                          type="file"
+                          accept=".xml"
+                          onChange={(e) => setSelectedFile(e.target.files[0])}
+                          className="mes-filter-input flex-1"
+                          disabled={importStatus.loading || importStatus.success}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!externalDocNumber) {
+                            setImportStatus({ loading: false, success: false, error: 'Harici belge numarası zorunludur' })
+                            return
+                          }
+
+                          setImportStatus({ loading: true, success: false, error: null })
+
+                          const formData = new FormData()
+                          formData.append('externalDocNumber', externalDocNumber)
+                          if (selectedFile) {
+                            formData.append('file', selectedFile)
+                          }
+
+                          try {
+                            const response = await fetch(`/api/materials/shipments/${createdShipmentId}/import`, {
+                              method: 'POST',
+                              body: formData
+                            })
+
+                            const result = await response.json()
+
+                            if (!response.ok) throw new Error(result.error || result.message || 'Import başarısız')
+
+                            setImportStatus({ loading: false, success: true, error: null })
+                          } catch (err) {
+                            setImportStatus({ loading: false, success: false, error: err.message })
+                          }
+                        }}
+                        className={`btn-submit w-full mt-16 ${(!externalDocNumber || importStatus.loading || importStatus.success) ? 'disabled' : 'enabled'}`}
+                        disabled={!externalDocNumber || importStatus.loading || importStatus.success}
+                      >
+                        {importStatus.loading ? (
+                          <>
+                            <Loader2 size={14} className="spin-animation" />
+                            Yükleniyor...
+                          </>
+                        ) : importStatus.success ? (
+                          <>
+                            <Check size={14} />
+                            Tamamlandı
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight size={14} />
+                            İçe Aktar (Tamamla)
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {importStatus.loading && (
+                      <div className="mt-8 p-8 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                        <Loader2 size={14} className="spin-animation inline mr-4" />
+                        Yükleniyor...
+                      </div>
+                    )}
+
+                    {importStatus.success && (
+                      <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                        ✓ ETTN başarıyla yüklendi
+                      </div>
+                    )}
+
+                    {importStatus.error && (
+                      <div className="mt-8 p-8 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                        ✗ Hata: {importStatus.error}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1467,28 +1585,67 @@ export default function AddShipmentModal({
         <div className="modal-footer-flex">
           {/* Left side - Back button or empty */}
           <div>
-            {currentStep > 1 && (
+            {currentStep > 1 && currentStep <= 3 && (
               <button
                 type="button"
                 onClick={handleBack}
                 className="btn-back"
               >
-                <ArrowLeft size={14} />
+                <ChevronLeft size={14} />
                 Geri
               </button>
             )}
+            {currentStep === 4 && (
+              <button
+                type="button"
+                onClick={() => setCurrentStep(3)}
+                className="btn-back"
+              >
+                <ChevronLeft size={14} />
+                Özete Dön
+              </button>
+            )}
+            {currentStep === 5 && (
+              <button
+                type="button"
+                onClick={() => setCurrentStep(4)}
+                className="btn-back"
+              >
+                <ChevronLeft size={14} />
+                Export'a Dön
+              </button>
+            )}
           </div>
-          
+
           {/* Right side - Next/Submit button */}
           <div className="flex-gap-10">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-cancel"
-            >
-              İptal
-            </button>
-            
+            {/* Only show İptal for Steps 1-3 */}
+            {currentStep <= 3 && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-cancel"
+              >
+                İptal
+              </button>
+            )}
+
+            {/* Step 4: No buttons (they're in the step content) */}
+            {/* Step 5: Show Tamam button */}
+            {currentStep === 5 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSuccess) onSuccess({ id: createdShipmentId })
+                  onClose()
+                }}
+                className="btn-submit enabled"
+              >
+                <Check size={14} />
+                Tamam
+              </button>
+            )}
+
             {currentStep < 3 ? (
               <button
                 type="button"
@@ -1499,7 +1656,31 @@ export default function AddShipmentModal({
                 İleri
                 <ArrowRight size={14} />
               </button>
-            ) : (
+            ) : currentStep === 3 && createdShipmentId ? (
+              // After creation - show export/close options
+              <div className="flex-center-gap-8">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSuccess) onSuccess({ id: createdShipmentId })
+                    onClose()
+                  }}
+                  className="btn-secondary"
+                >
+                  <Check size={14} />
+                  Tamam
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(4)}
+                  className="btn-submit enabled"
+                >
+                  <ArrowRight size={14} />
+                  Belge Çıkart
+                </button>
+              </div>
+            ) : currentStep === 3 ? (
+              // Before creation - show create button
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -1518,10 +1699,10 @@ export default function AddShipmentModal({
                   </>
                 )}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
-    </div>
+    </div >
   )
 }

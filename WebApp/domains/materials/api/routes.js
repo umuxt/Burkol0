@@ -80,6 +80,7 @@ router.put('/materials/shipments/:id/status', requireAuth, shipmentController.up
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
 router.post('/materials/shipments/:id/import', requireAuth, importUpload.single('file'), shipmentController.importShipmentConfirmation);
 router.get('/materials/shipments/:id/export/:format', requireAuth, shipmentController.exportShipment);
+router.post('/materials/shipments/:id/export', requireAuth, shipmentController.exportShipmentPackage);
 router.get('/materials/shipments/:id/imported-file', requireAuth, shipmentController.downloadImportedFile);
 router.delete('/materials/shipments/:id', requireAuth, shipmentController.deleteShipment);
 

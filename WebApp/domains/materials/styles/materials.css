@@ -5328,3 +5328,8 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
   overflow-y: auto;
 }
 
+.pos-z15 {
+  position: relative;
+  z-index: 15;
+}
+

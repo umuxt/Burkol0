@@ -60,7 +60,7 @@ async function getCompanySettings() {
   const settings = await db('materials.shipment_settings')
     .whereIn('key', ['company_name', 'company_address', 'company_tax_office', 'company_tax_number'])
     .select('key', 'value');
-  
+
   const result = {};
   settings.forEach(s => {
     result[s.key] = s.value;
@@ -81,32 +81,38 @@ export async function generateCSV(shipment) {
   // Get delimiter from settings
   let delimiter = await getSetting('csv_delimiter', ';');
   if (delimiter === 'tab') delimiter = '\t';
-  
+
   const d = delimiter;
-  
+
   // UTF-8 BOM for Excel compatibility
   const BOM = '\uFEFF';
-  
+
   // Header row
   const headers = [
-    'Belge No', 'Tarih', 'Cari Kodu', 'Cari Ünvan', 'VKN', 'Vergi Dairesi',
+    'Belge No', 'Tarih', 'İrsaliye Tarihi', 'Cari Kodu', 'Cari Ünvan', 'VKN', 'Vergi Dairesi',
     'Adres', 'Şehir', 'İlçe', 'Telefon', 'Email',
+    'Şoför Adı', 'Şoför TC', 'Plaka', 'Teslim Eden', 'Teslim Alan',
     'Stok Kodu', 'Stok Adı', 'Miktar', 'Birim', 'Birim Fiyat',
     'İskonto %', 'İskonto Tutar', 'KDV %', 'KDV Tutar',
     'Tevkifat Oranı', 'Tevkifat Tutar', 'Satır Toplam',
     'Lot No', 'Seri No', 'Para Birimi', 'Döviz Kuru',
-    'Genel İskonto', 'Ara Toplam', 'Toplam KDV', 'Toplam Tevkifat', 'Genel Toplam'
+    'Genel İskonto', 'Ara Toplam', 'Toplam KDV', 'Toplam Tevkifat', 'Genel Toplam',
+    'Bağlı Teklif ID'
   ].join(d);
-  
+
   // Customer info from snapshot
   const customer = shipment.customerSnapshot || {};
   const erpCode = customer.erpAccountCode || '';
-  
+
+  // Transport info
+  const transport = shipment.transport || {};
+
   // Data rows (one per item)
   const rows = (shipment.items || []).map(item => {
     return [
       shipment.shipmentCode || '',
       formatDate(shipment.createdAt),
+      formatDate(shipment.waybillDate || shipment.createdAt),
       erpCode,
       customer.company || customer.name || '',
       customer.taxNumber || '',
@@ -116,6 +122,11 @@ export async function generateCSV(shipment) {
       customer.district || '',
       customer.phone || '',
       customer.email || '',
+      transport.driverName || '',
+      transport.driverTc || '',
+      transport.plateNumber || '',
+      transport.deliveryPerson || '',
+      transport.receiverPerson || '',
       item.materialCode || '',
       item.materialName || '',
       item.quantity || 0,
@@ -136,12 +147,13 @@ export async function generateCSV(shipment) {
       shipment.subtotal || 0,
       shipment.taxTotal || 0,
       shipment.withholdingTotal || 0,
-      shipment.grandTotal || 0
+      shipment.grandTotal || 0,
+      shipment.relatedQuoteId || ''
     ].map(v => escapeCSV(v, d)).join(d);
   });
-  
+
   const content = BOM + headers + '\n' + rows.join('\n');
-  
+
   return {
     content,
     filename: `${shipment.shipmentCode || 'export'}.csv`,
@@ -173,16 +185,18 @@ function escapeCSV(value, delimiter) {
 export async function generateXML(shipment, target = 'logo_tiger') {
   const customer = shipment.customerSnapshot || {};
   const items = shipment.items || [];
-  
+  const transport = shipment.transport || {};
+
   // Determine document type for XML
-  const docType = shipment.documentType === 'invoice' ? 'FATURA' : 
-                  shipment.documentType === 'both' ? 'FATURA' : 'SEVK_IRSALIYESI';
-  
+  const docType = shipment.documentType === 'invoice' ? 'FATURA' :
+    shipment.documentType === 'both' ? 'FATURA' : 'SEVK_IRSALIYESI';
+
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <BELGE>
   <TIP>${docType}</TIP>
   <NUMARA>${escapeXML(shipment.shipmentCode || '')}</NUMARA>
   <TARIH>${formatDate(shipment.createdAt)}</TARIH>
+  <FIILI_SEVK_TARIHI>${formatDate(shipment.waybillDate || shipment.createdAt)}</FIILI_SEVK_TARIHI>
   <PARA_BIRIMI>${shipment.currency || 'TRY'}</PARA_BIRIMI>
   <DOVIZ_KURU>${Number(shipment.exchangeRate || 1).toFixed(6)}</DOVIZ_KURU>
   
@@ -199,7 +213,7 @@ export async function generateXML(shipment, target = 'logo_tiger') {
   </CARI>
   
   <TESLIM_ADRESI>`;
-  
+
   // Alternate delivery address if used
   if (shipment.useAlternateDelivery && shipment.alternateDeliveryAddress) {
     const addr = shipment.alternateDeliveryAddress;
@@ -209,12 +223,21 @@ export async function generateXML(shipment, target = 'logo_tiger') {
     <ILCE>${escapeXML(addr.district || '')}</ILCE>
     <POSTA_KODU>${escapeXML(addr.postalCode || '')}</POSTA_KODU>`;
   }
-  
+
   xml += `
   </TESLIM_ADRESI>
   
-  <SATIRLAR>`;
+  <NAKLIYE>
+    <SOFOR_ADI>${escapeXML(transport.driverName || '')}</SOFOR_ADI>
+    <SOFOR_TC>${escapeXML(transport.driverTc || '')}</SOFOR_TC>
+    <PLAKA>${escapeXML(transport.plateNumber || '')}</PLAKA>
+    <TESLIM_EDEN>${escapeXML(transport.deliveryPerson || '')}</TESLIM_EDEN>
+    <TESLIM_ALAN>${escapeXML(transport.receiverPerson || '')}</TESLIM_ALAN>
+    <ACIKLAMA>${escapeXML(transport.deliveryNote || '')}</ACIKLAMA>
+  </NAKLIYE>
   
+  <SATIRLAR>`;
+
   // Add each item
   items.forEach((item, index) => {
     xml += `
@@ -239,7 +262,7 @@ export async function generateXML(shipment, target = 'logo_tiger') {
       <NOT>${escapeXML(item.itemNotes || '')}</NOT>
     </SATIR>`;
   });
-  
+
   xml += `
   </SATIRLAR>
   
@@ -257,6 +280,7 @@ export async function generateXML(shipment, target = 'logo_tiger') {
     <OZEL_KOD>${escapeXML(shipment.specialCode || '')}</OZEL_KOD>
     <MALIYET_MERKEZI>${escapeXML(shipment.costCenter || '')}</MALIYET_MERKEZI>
     <BELGE_NOTU>${escapeXML(shipment.documentNotes || '')}</BELGE_NOTU>
+    <BAGLI_TEKLIF>${escapeXML(shipment.relatedQuoteId || '')}</BAGLI_TEKLIF>
   </EK_BILGILER>
 </BELGE>`;
 
@@ -292,19 +316,20 @@ export async function generatePDF(shipment) {
   const company = await getCompanySettings();
   const customer = shipment.customerSnapshot || {};
   const items = shipment.items || [];
-  
+  const transport = shipment.transport || {};
+
   // Determine document title (already ASCII-safe for PDF)
-  const docTitle = shipment.documentType === 'invoice' ? 'FATURA' : 
-                   shipment.documentType === 'both' ? 'FATURA / IRSALIYE' : 'SEVK IRSALIYESI';
-  
+  const docTitle = shipment.documentType === 'invoice' ? 'FATURA' :
+    shipment.documentType === 'both' ? 'FATURA / IRSALIYE' : 'SEVK IRSALIYESI';
+
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ 
-        size: 'A4', 
+      const doc = new PDFDocument({
+        size: 'A4',
         margin: 50,
         bufferPages: true
       });
-      
+
       const chunks = [];
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
@@ -316,131 +341,143 @@ export async function generatePDF(shipment) {
         });
       });
       doc.on('error', reject);
-      
+
       // ===== HEADER =====
-      // Note: Using Helvetica which has limited Turkish support
-      // For full Turkish support, register a custom font like 'DejaVu Sans'
       // Company info (left)
       doc.fontSize(14).font('Helvetica-Bold')
-         .text(normalizeTurkish(company.company_name || 'Firma Adi'), 50, 50);
+        .text(normalizeTurkish(company.company_name || 'Firma Adi'), 50, 50);
       doc.fontSize(9).font('Helvetica')
-         .text(normalizeTurkish(company.company_address || ''), 50, 68)
-         .text(`VD: ${normalizeTurkish(company.company_tax_office || '')} / VKN: ${company.company_tax_number || ''}`, 50, 80);
-      
+        .text(normalizeTurkish(company.company_address || ''), 50, 68)
+        .text(`VD: ${normalizeTurkish(company.company_tax_office || '')} / VKN: ${company.company_tax_number || ''}`, 50, 80);
+
       // Document title and info (right)
       doc.fontSize(16).font('Helvetica-Bold')
-         .text(normalizeTurkish(docTitle), 350, 50, { width: 200, align: 'right' });
+        .text(normalizeTurkish(docTitle), 350, 50, { width: 200, align: 'right' });
       doc.fontSize(10).font('Helvetica')
-         .text(`Belge No: ${shipment.shipmentCode || ''}`, 350, 75, { width: 200, align: 'right' })
-         .text(`Tarih: ${formatDate(shipment.createdAt)}`, 350, 90, { width: 200, align: 'right' });
-      
+        .text(`Belge No: ${shipment.shipmentCode || ''}`, 350, 75, { width: 200, align: 'right' })
+        .text(`Tarih: ${formatDate(shipment.createdAt)}`, 350, 90, { width: 200, align: 'right' });
+
+      if (shipment.waybillDate) {
+        doc.text(`Sevk Tarihi: ${formatDate(shipment.waybillDate)}`, 350, 105, { width: 200, align: 'right' });
+      }
+
       // ===== CUSTOMER INFO =====
-      doc.moveTo(50, 115).lineTo(545, 115).stroke();
-      
+      doc.moveTo(50, 120).lineTo(545, 120).stroke();
+
       doc.fontSize(10).font('Helvetica-Bold')
-         .text('MUSTERI BILGILERI', 50, 125);
+        .text('MUSTERI BILGILERI', 50, 130);
       doc.fontSize(9).font('Helvetica')
-         .text(`Firma: ${normalizeTurkish(customer.company || customer.name || '')}`, 50, 140)
-         .text(`VKN: ${customer.taxNumber || ''} / VD: ${normalizeTurkish(customer.taxOffice || '')}`, 50, 152)
-         .text(`Adres: ${normalizeTurkish(customer.address || '')}`, 50, 164)
-         .text(`${normalizeTurkish(customer.city || '')} ${normalizeTurkish(customer.district || '')}`, 50, 176)
-         .text(`Tel: ${customer.phone || ''} / Email: ${customer.email || ''}`, 50, 188);
-      
+        .text(`Firma: ${normalizeTurkish(customer.company || customer.name || '')}`, 50, 145)
+        .text(`VKN: ${customer.taxNumber || ''} / VD: ${normalizeTurkish(customer.taxOffice || '')}`, 50, 157)
+        .text(`Adres: ${normalizeTurkish(customer.address || '')}`, 50, 169)
+        .text(`${normalizeTurkish(customer.city || '')} ${normalizeTurkish(customer.district || '')}`, 50, 181)
+        .text(`Tel: ${customer.phone || ''} / Email: ${customer.email || ''}`, 50, 193);
+
+      // ===== TRANSPORT INFO =====
+      doc.fontSize(10).font('Helvetica-Bold')
+        .text('NAKLIYE / TESLIMAT', 320, 130);
+      doc.fontSize(9).font('Helvetica')
+        .text(`Sofor: ${normalizeTurkish(transport.driverName || '-')} (${transport.driverTc || '-'})`, 320, 145)
+        .text(`Plaka: ${normalizeTurkish(transport.plateNumber || '-')}`, 320, 157)
+        .text(`Teslim Eden: ${normalizeTurkish(transport.deliveryPerson || '-')}`, 320, 169)
+        .text(`Teslim Alan: ${normalizeTurkish(transport.receiverPerson || '-')}`, 320, 181)
+        .text(`Not: ${normalizeTurkish(transport.deliveryNote || '-')}`, 320, 193);
+
       // ===== ITEMS TABLE =====
-      doc.moveTo(50, 210).lineTo(545, 210).stroke();
-      
-      const tableTop = 220;
-      const colWidths = shipment.includePrice 
+      doc.moveTo(50, 215).lineTo(545, 215).stroke();
+
+      const tableTop = 225;
+      const colWidths = shipment.includePrice
         ? [30, 80, 150, 50, 40, 60, 45, 60] // with price columns
         : [30, 100, 200, 80, 80];           // without price
-      
+
       // Table header
       doc.fontSize(8).font('Helvetica-Bold');
       if (shipment.includePrice) {
         doc.text('#', 50, tableTop)
-           .text('Kod', 80, tableTop)
-           .text('Urun Adi', 160, tableTop)
-           .text('Miktar', 310, tableTop)
-           .text('Birim', 360, tableTop)
-           .text('B.Fiyat', 400, tableTop)
-           .text('KDV%', 460, tableTop)
-           .text('Toplam', 505, tableTop);
+          .text('Kod', 80, tableTop)
+          .text('Urun Adi', 160, tableTop)
+          .text('Miktar', 310, tableTop)
+          .text('Birim', 360, tableTop)
+          .text('B.Fiyat', 400, tableTop)
+          .text('KDV%', 460, tableTop)
+          .text('Toplam', 505, tableTop);
       } else {
         doc.text('#', 50, tableTop)
-           .text('Kod', 80, tableTop)
-           .text('Urun Adi', 180, tableTop)
-           .text('Miktar', 380, tableTop)
-           .text('Birim', 460, tableTop);
+          .text('Kod', 80, tableTop)
+          .text('Urun Adi', 180, tableTop)
+          .text('Miktar', 380, tableTop)
+          .text('Birim', 460, tableTop);
       }
-      
+
       doc.moveTo(50, tableTop + 12).lineTo(545, tableTop + 12).stroke();
-      
+
       // Table rows
       let y = tableTop + 20;
       doc.fontSize(8).font('Helvetica');
-      
+
       items.forEach((item, index) => {
         if (y > 700) {
           doc.addPage();
           y = 50;
         }
-        
+
         if (shipment.includePrice) {
           doc.text(String(index + 1), 50, y)
-             .text(item.materialCode || '', 80, y, { width: 75 })
-             .text(normalizeTurkish(item.materialName || ''), 160, y, { width: 145 })
-             .text(formatNumber(item.quantity), 310, y)
-             .text(normalizeTurkish(item.unit || 'adet'), 360, y)
-             .text(formatNumber(item.unitPrice), 400, y)
-             .text(String(item.taxRate || 20), 460, y)
-             .text(formatNumber(item.totalAmount), 505, y);
+            .text(item.materialCode || '', 80, y, { width: 75 })
+            .text(normalizeTurkish(item.materialName || ''), 160, y, { width: 145 })
+            .text(formatNumber(item.quantity), 310, y)
+            .text(normalizeTurkish(item.unit || 'adet'), 360, y)
+            .text(formatNumber(item.unitPrice), 400, y)
+            .text(String(item.taxRate || 20), 460, y)
+            .text(formatNumber(item.totalAmount), 505, y);
         } else {
           doc.text(String(index + 1), 50, y)
-             .text(item.materialCode || '', 80, y, { width: 95 })
-             .text(normalizeTurkish(item.materialName || ''), 180, y, { width: 195 })
-             .text(formatNumber(item.quantity), 380, y)
-             .text(normalizeTurkish(item.unit || 'adet'), 460, y);
+            .text(item.materialCode || '', 80, y, { width: 95 })
+            .text(normalizeTurkish(item.materialName || ''), 180, y, { width: 195 })
+            .text(formatNumber(item.quantity), 380, y)
+            .text(normalizeTurkish(item.unit || 'adet'), 460, y);
         }
-        
+
         y += 15;
       });
-      
+
       // ===== TOTALS (if price included) =====
       if (shipment.includePrice) {
         y += 10;
         doc.moveTo(350, y).lineTo(545, y).stroke();
         y += 10;
-        
+
         doc.fontSize(9).font('Helvetica')
-           .text('Ara Toplam:', 350, y)
-           .text(formatCurrency(shipment.subtotal, shipment.currency), 480, y, { width: 65, align: 'right' });
+          .text('Ara Toplam:', 350, y)
+          .text(formatCurrency(shipment.subtotal, shipment.currency), 480, y, { width: 65, align: 'right' });
         y += 15;
-        
+
         if (shipment.discountTotal > 0) {
           doc.text('Iskonto:', 350, y)
-             .text('-' + formatCurrency(shipment.discountTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
+            .text('-' + formatCurrency(shipment.discountTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
           y += 15;
         }
-        
+
         doc.text('KDV Toplam:', 350, y)
-           .text(formatCurrency(shipment.taxTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
+          .text(formatCurrency(shipment.taxTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
         y += 15;
-        
+
         if (shipment.withholdingTotal > 0) {
           doc.text('Tevkifat:', 350, y)
-             .text('-' + formatCurrency(shipment.withholdingTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
+            .text('-' + formatCurrency(shipment.withholdingTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
           y += 15;
         }
-        
+
         doc.font('Helvetica-Bold')
-           .text('GENEL TOPLAM:', 350, y)
-           .text(formatCurrency(shipment.grandTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
+          .text('GENEL TOPLAM:', 350, y)
+          .text(formatCurrency(shipment.grandTotal, shipment.currency), 480, y, { width: 65, align: 'right' });
       }
-      
+
       // ===== FOOTER =====
       doc.fontSize(8).font('Helvetica')
-         .text('BeePlan tarafindan olusturuldu', 50, 780, { align: 'center', width: 495 });
-      
+        .text('BeePlan tarafindan olusturuldu', 50, 780, { align: 'center', width: 495 });
+
       doc.end();
     } catch (error) {
       reject(error);
@@ -462,18 +499,21 @@ export async function generateJSON(shipment) {
   const exportData = {
     shipmentCode: shipment.shipmentCode,
     createdAt: shipment.createdAt,
+    waybillDate: shipment.waybillDate,
     status: shipment.status,
     documentType: shipment.documentType,
-    
+
     customer: shipment.customerSnapshot || {
       name: shipment.customerName,
       company: shipment.customerCompany,
       address: shipment.deliveryAddress
     },
-    
+
+    transport: shipment.transport || {},
+
     currency: shipment.currency || 'TRY',
     exchangeRate: shipment.exchangeRate || 1,
-    
+
     items: (shipment.items || []).map(item => ({
       materialCode: item.materialCode,
       materialName: item.materialName,
@@ -490,7 +530,7 @@ export async function generateJSON(shipment) {
       lotNumber: item.lotNumber,
       serialNumber: item.serialNumber
     })),
-    
+
     totals: {
       subtotal: shipment.subtotal || 0,
       discountTotal: shipment.discountTotal || 0,
@@ -498,18 +538,19 @@ export async function generateJSON(shipment) {
       withholdingTotal: shipment.withholdingTotal || 0,
       grandTotal: shipment.grandTotal || 0
     },
-    
+
     metadata: {
       exportedAt: new Date().toISOString(),
       exportTarget: shipment.exportTarget,
       specialCode: shipment.specialCode,
       costCenter: shipment.costCenter,
+      relatedQuoteId: shipment.relatedQuoteId,
       notes: shipment.documentNotes
     }
   };
-  
+
   const content = JSON.stringify(exportData, null, 2);
-  
+
   return {
     content,
     filename: `${shipment.shipmentCode || 'export'}.json`,

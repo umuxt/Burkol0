@@ -29,7 +29,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
  * Setup quotes routes
  */
 export function setupQuotesRoutes(app) {
-  
+
   // ==================== GET STATISTICS ====================
   // IMPORTANT: This route must come before /:id to avoid matching "stats" as an ID
   app.get('/api/quotes/stats', requireAuth, async (req, res) => {
@@ -55,17 +55,18 @@ export function setupQuotesRoutes(app) {
   app.get('/api/quotes', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/quotes - Fetching all quotes');
-      
+
       const filters = {
         status: req.query.status,
         customerEmail: req.query.customerEmail,
         customerCompany: req.query.customerCompany,
+        customerId: req.query.customerId,
         fromDate: req.query.fromDate,
         toDate: req.query.toDate
       };
 
       const quotes = await quoteService.getQuotes(filters);
-      
+
       logger.success(`Found ${quotes.length} quotes`);
       res.json(quotes);
     } catch (error) {
@@ -79,9 +80,9 @@ export function setupQuotesRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`GET /api/quotes/${id} - Fetching quote details`);
-      
+
       const quote = await quoteService.getQuoteById(id);
-      
+
       if (!quote) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
@@ -100,15 +101,15 @@ export function setupQuotesRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`GET /api/quotes/${id}/edit-status - Checking edit status`);
-      
+
       const editStatus = await Quotes.getEditStatus(id);
-      
+
       if (!editStatus) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      logger.success(`Edit status fetched: ${id}`, { 
+      logger.success(`Edit status fetched: ${id}`, {
         canEdit: editStatus.canEdit,
         hasWorkOrder: editStatus.hasWorkOrder
       });
@@ -124,19 +125,19 @@ export function setupQuotesRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`GET /api/quotes/${id}/price-comparison - Getting price comparison`);
-      
+
       const quote = await Quotes.getById(id);
-      
+
       if (!quote) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
 
       // Get current setting for comparison (B0: priceSettingId replaces priceFormulaId)
-      const currentSetting = quote.priceSettingId 
+      const currentSetting = quote.priceSettingId
         ? await PriceSettings.getById(quote.priceSettingId)
         : null;
-      
+
       // Get active price settings to compare
       const activeSetting = await PriceSettings.getActive();
 
@@ -179,7 +180,7 @@ export function setupQuotesRoutes(app) {
       }
 
       logger.success(`Price comparison fetched: ${id}`, { needsUpdate, versionMismatch });
-      
+
       res.json({
         quote: {
           id: quote.id,
@@ -284,9 +285,9 @@ export function setupQuotesRoutes(app) {
       } else {
         // Legacy flow - validate required fields
         if (!customerName || !customerEmail) {
-          return res.status(400).json({ 
-            error: 'Missing required fields', 
-            details: ['customerName and customerEmail are required'] 
+          return res.status(400).json({
+            error: 'Missing required fields',
+            details: ['customerName and customerEmail are required']
           });
         }
       }
@@ -296,7 +297,7 @@ export function setupQuotesRoutes(app) {
       if (!templateId) {
         const activeTemplate = await quoteService.getActiveFormTemplate();
         if (!activeTemplate) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'No active form template found',
             details: ['Please create and activate a form template first']
           });
@@ -347,7 +348,7 @@ export function setupQuotesRoutes(app) {
 
       // DOSYALARI KAYDET - Quote oluşturulduktan sonra
       const uploadedBy = req.user?.email || 'system';
-      
+
       // Teknik dosyalar
       if (files && Array.isArray(files) && files.length > 0) {
         for (const file of files) {
@@ -368,7 +369,7 @@ export function setupQuotesRoutes(app) {
         }
         logger.info(`Saved ${files.length} technical files for quote ${quote.id}`);
       }
-      
+
       // Ürün görselleri
       if (productImages && Array.isArray(productImages) && productImages.length > 0) {
         for (const img of productImages) {
@@ -418,7 +419,7 @@ export function setupQuotesRoutes(app) {
       const canEdit = await Quotes.canEdit(id);
       if (!canEdit) {
         logger.warning(`Quote ${id} is locked - production has started`);
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Quote is locked',
           details: ['This quote cannot be edited because production has already started']
         });
@@ -477,9 +478,9 @@ export function setupQuotesRoutes(app) {
       // Validate status
       const validStatuses = ['new', 'pending', 'approved', 'rejected'];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ 
-          error: 'Invalid status', 
-          details: [`Status must be one of: ${validStatuses.join(', ')}`] 
+        return res.status(400).json({
+          error: 'Invalid status',
+          details: [`Status must be one of: ${validStatuses.join(', ')}`]
         });
       }
 
@@ -536,7 +537,7 @@ export function setupQuotesRoutes(app) {
       const editStatus = await quoteService.getQuoteEditStatus(id);
       if (!editStatus.canEdit) {
         logger.warning(`Quote not editable: ${id}`, { reason: editStatus.reason });
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Quote cannot be edited',
           reason: editStatus.reason
         });
@@ -545,10 +546,10 @@ export function setupQuotesRoutes(app) {
       // Update quote with new form data
       // Note: If manualPrice exists (price locked), don't update finalPrice from calculation
       const newCalculatedPrice = calculatedPrice !== undefined ? calculatedPrice : existingQuote.calculatedPrice;
-      const newFinalPrice = existingQuote.manualPrice 
+      const newFinalPrice = existingQuote.manualPrice
         ? existingQuote.finalPrice  // Keep locked price
         : (newCalculatedPrice || existingQuote.finalPrice);  // Use new calculated price
-      
+
       const updateData = {
         formTemplateId: formTemplateId || existingQuote.formTemplateId,
         formTemplateCode: formTemplateCode || existingQuote.formTemplateCode,
@@ -592,15 +593,15 @@ export function setupQuotesRoutes(app) {
       logger.info(`POST /api/quotes/${id}/manual-price - Setting manual price: ${manualPrice}`);
 
       if (!manualPrice || manualPrice <= 0) {
-        return res.status(400).json({ 
-          error: 'Invalid price', 
-          details: ['Manual price must be greater than 0'] 
+        return res.status(400).json({
+          error: 'Invalid price',
+          details: ['Manual price must be greater than 0']
         });
       }
 
       const quote = await quoteService.setManualPrice(
-        id, 
-        parseFloat(manualPrice), 
+        id,
+        parseFloat(manualPrice),
         reason || 'Manuel fiyat belirlendi',
         req.user?.email || 'system'
       );
@@ -617,8 +618,8 @@ export function setupQuotesRoutes(app) {
       });
 
       // Return manualOverride object for frontend compatibility
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         quote,
         manualOverride: {
           active: true,
@@ -642,7 +643,7 @@ export function setupQuotesRoutes(app) {
       logger.info(`DELETE /api/quotes/${id}/manual-price - Clearing manual price`);
 
       const quote = await quoteService.clearManualPrice(
-        id, 
+        id,
         reason || 'Manuel fiyat kaldırıldı',
         req.user?.email || 'system'
       );
@@ -654,8 +655,8 @@ export function setupQuotesRoutes(app) {
 
       logger.success('Manual price cleared', { quoteId: id });
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         quote,
         manualOverride: null
       });
@@ -675,26 +676,26 @@ export function setupQuotesRoutes(app) {
 
       // Data URL'den dosyayı disk'e kaydet
       let savedFilePath = dataUrl;
-      
+
       if (dataUrl && dataUrl.startsWith('data:')) {
         // Base64 data URL'i çöz
         const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
         if (matches) {
           const base64Data = matches[2];
           const buffer = Buffer.from(base64Data, 'base64');
-          
+
           // Benzersiz dosya adı oluştur
           const uniqueId = crypto.randomBytes(8).toString('hex');
           const ext = path.extname(fileName) || '';
           const safeFileName = `${id}_${uniqueId}${ext}`;
           const fullPath = path.join(UPLOADS_DIR, safeFileName);
-          
+
           // Dosyayı kaydet
           fs.writeFileSync(fullPath, buffer);
-          
+
           // DB'ye kaydedilecek relative path
           savedFilePath = `/uploads/quotes/${safeFileName}`;
-          
+
           logger.info(`File saved to disk: ${savedFilePath}`);
         }
       }

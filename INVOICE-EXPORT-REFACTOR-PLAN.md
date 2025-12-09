@@ -2587,10 +2587,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 7.1
 - `/WebApp/domains/materials/components/shared/modals/AddShipmentModal.jsx`
 
 **Test:**
-- [ ] Modal açılıyor (hata yok)
-- [ ] Kaldırılan accordion'lar görünmüyor
-- [ ] Mevcut işlevsellik bozulmadı
-- [ ] Konsol hatası yok
+- [x] Modal açılıyor (hata yok)
+- [x] Kaldırılan accordion'lar görünmüyor  
+- [x] Mevcut işlevsellik bozulmadı
+- [x] Konsol hatası yok
 
 ---
 
@@ -2645,10 +2645,10 @@ Referans benzer component:
 - `/WebApp/domains/materials/components/shared/accordions/TransportAccordion.jsx`
 
 **Test:**
-- [ ] Component hatasız render oluyor
-- [ ] TC alanına 10 veya 12 hane yazılınca hata gösteriyor
-- [ ] Geçersiz plaka formatında uyarı veriyor
-- [ ] State güncelleniyor (console.log ile kontrol)
+- [x] Component hatasız render oluyor
+- [x] TC alanına 10 veya 12 hane yazılınca hata gösteriyor
+- [x] Geçersiz plaka formatında uyarı veriyor
+- [x] State güncelleniyor (console.log ile kontrol)
 
 ---
 
@@ -2786,13 +2786,13 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 7.3
 - `/WebApp/domains/materials/components/shared/modals/AddShipmentModal.jsx`
 
 **Test:**
-- [ ] TransportAccordion modal'da görünüyor
-- [ ] Alanlar dolduğunda state güncelleniyor
-- [ ] Boş submit'te validasyon hataları görünüyor
-- [ ] Doğru verilerle submit çalışıyor
-- [ ] Müşteri seçilince "Bağlı Teklif" dropdown görünüyor
-- [ ] Teklifler API'den yükleniyor
-- [ ] relatedQuoteId submit payload'ında gönderiliyor
+- [x] TransportAccordion modal'da görünüyor
+- [x] Alanlar dolduğunda state güncelleniyor
+- [x] Boş submit'te validasyon hataları görünüyor
+- [x] Doğru verilerle submit çalışıyor
+- [x] Müşteri seçilince "Bağlı Teklif" dropdown görünüyor
+- [x] Teklifler API'den yükleniyor
+- [x] relatedQuoteId submit payload'ında gönderiliyor
 
 ---
 
