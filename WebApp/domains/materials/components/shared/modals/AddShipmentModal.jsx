@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { shipmentsService } from '../../../services/shipments-service.js'
 import { customersService } from '../../../../crm/services/customers-service.js'
-import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, ChevronLeft, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, Settings } from 'lucide-react'
+import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, ChevronLeft, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, Settings, FileText, Upload } from 'lucide-react'
 import TransportAccordion from '../accordions/TransportAccordion.jsx'
 
 /**
@@ -275,8 +275,11 @@ export default function AddShipmentModal({
       taxOffice: customer.taxOffice || '',
       taxNumber: customer.taxNumber || customer.vkn || '',
       address: customer.address || '',
+      country: customer.country || 'Türkiye',
       city: customer.city || '',
       district: customer.district || '',
+      neighborhood: customer.neighborhood || '',
+      postalCode: customer.postalCode || '',
       phone: customer.phone || '',
       email: customer.email || '',
       erpAccountCode: customer.erpAccountCode || ''

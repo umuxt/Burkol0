@@ -322,10 +322,13 @@ export async function generatePDF(shipment) {
   if (typeof transport === 'string') {
     try {
       transport = JSON.parse(transport);
+      console.log('✅ PDF Export - Transport parsed from string:', transport);
     } catch (e) {
-      console.warn('Failed to parse transport JSON:', e);
+      console.warn('❌ PDF Export - Failed to parse transport JSON:', e);
       transport = {};
     }
+  } else {
+    console.log('✅ PDF Export - Transport is already object:', transport);
   }
 
   // Determine document title (already ASCII-safe for PDF)
@@ -380,8 +383,8 @@ export async function generatePDF(shipment) {
         .text(`Firma: ${normalizeTurkish(customer.company || customer.name || '')}`, 50, 145)
         .text(`VKN: ${customer.taxNumber || ''} / VD: ${normalizeTurkish(customer.taxOffice || '')}`, 50, 157)
         .text(`Adres: ${normalizeTurkish(customer.address || '')}`, 50, 169)
-        .text(`${normalizeTurkish(customer.city || '')} ${normalizeTurkish(customer.district || '')}`, 50, 181)
-        .text(`Tel: ${customer.phone || ''} / Email: ${customer.email || ''}`, 50, 193);
+        .text(`${normalizeTurkish(customer.neighborhood || '')} ${normalizeTurkish(customer.district || '')} / ${normalizeTurkish(customer.city || '')}`, 50, 181)
+        .text(`Posta Kodu: ${customer.postalCode || '-'} / Tel: ${customer.phone || '-'}`, 50, 193);
 
       // ===== TRANSPORT INFO =====
       doc.fontSize(10).font('Helvetica-Bold')
