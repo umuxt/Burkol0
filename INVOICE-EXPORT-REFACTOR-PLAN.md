@@ -2987,10 +2987,13 @@ CREATE OR REPLACE FUNCTION quotes.generate_proforma_number() RETURNS VARCHAR;
 ```
 
 **Test:**
-- [ ] Migration başarıyla çalıştı
-- [ ] Tablo oluşturuldu
-- [ ] Mevcut veriler taşındı
-- [ ] İndeksler aktif
+- [x] Migration başarıyla çalıştı
+- [x] Tablo oluşturuldu (15 kolon)
+- [x] Mevcut veriler taşındı (0 kayıt - henüz proforma/import yok)
+- [x] İndeksler aktif (6 adet)
+- [x] FK constraint (quoteId) çalışıyor
+- [x] CHECK constraint (documentType) çalışıyor
+- [x] generate_proforma_number() fonksiyonu çalışıyor
 
 ---
 
