@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool, Calculator, Sliders } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool, Calculator, Sliders, Receipt } from '../../../../shared/components/Icons.jsx'
 import { PriceStatusBadge } from '../pricing/PriceStatusBadge.js'
 import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
@@ -12,9 +12,9 @@ import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
 import FormUpdateModal from './FormUpdateModal.jsx'
 import PriceConfirmModal from './PriceConfirmModal.jsx'
 
-export default function QuoteDetailsPanel({ 
+export default function QuoteDetailsPanel({
   quote,
-  onClose, 
+  onClose,
   onSave,
   onDelete,
   onStatusChange,
@@ -30,12 +30,12 @@ export default function QuoteDetailsPanel({
   const [currStatus, setCurrStatus] = useState(quote?.status || 'new')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
-  
+
   // D1: Separate form fields editing state
   const [formEditing, setFormEditing] = useState(false)
   const [formFieldsData, setFormFieldsData] = useState({})
   const [originalFormFieldsData, setOriginalFormFieldsData] = useState({})
-  
+
   // PROMPT-16: Dosyalar backend'den technicalFiles/productImages olarak ayrılmış geliyor
   const [techFiles, setTechFiles] = useState(quote?.technicalFiles || quote?.files || [])
   const [prodImgs, setProdImgs] = useState(quote?.productImages || [])
@@ -44,36 +44,41 @@ export default function QuoteDetailsPanel({
   const [manualNote, setManualNote] = useState(quote?.manualOverride?.note || '')
   const [manualLoading, setManualLoading] = useState(false)
   const [originalData, setOriginalData] = useState(null)
-  
+
   // Edit lock state
   const [editStatus, setEditStatus] = useState(null)
   const [editStatusLoading, setEditStatusLoading] = useState(false)
-  
+
   // Quote's own form template (not active template)
   const [quoteFormTemplate, setQuoteFormTemplate] = useState(null)
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
-  
+
   // Version change detection state
   const [formChangeDetected, setFormChangeDetected] = useState(false)
   const [priceChangeDetected, setPriceChangeDetected] = useState(false)
   const [activeFormTemplate, setActiveFormTemplate] = useState(null)
   const [activePriceSetting, setActivePriceSetting] = useState(null)
-  
+
   // Form update modal state
   const [showFormUpdateModal, setShowFormUpdateModal] = useState(false)
   const [oldFormFields, setOldFormFields] = useState([])
   const [newFormFields, setNewFormFields] = useState([])
-  
+
   // Price recalculation modal state
   const [showPriceRecalcModal, setShowPriceRecalcModal] = useState(false)
   const [newCalculatedPrice, setNewCalculatedPrice] = useState(null)
   const [priceRecalcLoading, setPriceRecalcLoading] = useState(false)
   const [priceChanges, setPriceChanges] = useState(null)
-  
+
   // Price confirm modal state for edit mode
   const [showPriceConfirmModal, setShowPriceConfirmModal] = useState(false)
   const [pendingChanges, setPendingChanges] = useState(null)
-  
+
+  // P4.4: Invoice/Proforma state
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [invoiceLoading, setInvoiceLoading] = useState(false)
+  const [sevenDayWarning, setSevenDayWarning] = useState(null)
+
   // Fetch edit status when quote changes
   // Optimized - only fetch form/price changes if canEdit=true
   useEffect(() => {
@@ -84,11 +89,11 @@ export default function QuoteDetailsPanel({
       setPriceChangeDetected(false)
       setActiveFormTemplate(null)
       setActivePriceSetting(null)
-      
+
       quotesService.getEditStatus(quote.id)
         .then(async (status) => {
           setEditStatus(status)
-          
+
           // C1: Only check for form/price changes if quote is editable
           if (status.canEdit) {
             try {
@@ -97,10 +102,10 @@ export default function QuoteDetailsPanel({
                 formsApi.getActiveTemplate().catch(() => null),
                 priceApi.getActiveSetting().catch(() => null)
               ])
-              
+
               setActiveFormTemplate(activeTemplate)
               setActivePriceSetting(activeSetting)
-              
+
               // Check for form template change
               if (activeTemplate && quote.formTemplateCode) {
                 const formChanged = quote.formTemplateCode !== activeTemplate.code
@@ -109,7 +114,7 @@ export default function QuoteDetailsPanel({
                   console.log('📋 Form template changed:', quote.formTemplateCode, '→', activeTemplate.code)
                 }
               }
-              
+
               // Check for price setting change
               if (activeSetting && quote.priceSettingCode) {
                 const priceChanged = quote.priceSettingCode !== activeSetting.code
@@ -156,14 +161,14 @@ export default function QuoteDetailsPanel({
   useEffect(() => {
     if (quote) {
       setCurrStatus(quote.status || 'new')
-      
+
       // D1: Use quote's own form template fields, fallback to formConfig
       const initialForm = {}
-      
+
       // Prefer quoteFormTemplate (quote's saved template), fallback to formConfig
       const fields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
-                     formConfig?.formStructure?.fields || formConfig?.fields || []
-      
+        formConfig?.formStructure?.fields || formConfig?.fields || []
+
       // Debug log to see what data we have
       console.log('📋 QuoteDetailsPanel: Initializing form', {
         quoteId: quote.id,
@@ -172,7 +177,7 @@ export default function QuoteDetailsPanel({
         templateId: quoteFormTemplate?.id || formConfig?.id,
         fields: fields.map(f => ({ id: f.id, fieldCode: f.fieldCode, label: f.label || f.fieldName }))
       })
-      
+
       if (fields && fields.length > 0) {
         fields.forEach(field => {
           // Check multiple sources for the value:
@@ -181,23 +186,23 @@ export default function QuoteDetailsPanel({
           // 3. quote.customFields[field.id] - legacy support
           // 4. quote[field.id] - direct property
           const fieldCode = field.fieldCode || field.id
-          let value = quote.formData?.[fieldCode] || 
-                      quote.formData?.[field.id] || 
-                      quote.customFields?.[field.id] || 
-                      quote[field.id] || 
-                      ''
-          
+          let value = quote.formData?.[fieldCode] ||
+            quote.formData?.[field.id] ||
+            quote.customFields?.[field.id] ||
+            quote[field.id] ||
+            ''
+
           // Handle special field types
           if (field.type === 'multiselect' && Array.isArray(value)) {
             value = value.join(', ')
           } else if (field.type === 'radio' && !value) {
             value = field.options?.[0] || ''
           }
-          
+
           initialForm[field.id] = value
         })
       }
-      
+
       // Add customer fields to initialForm
       initialForm.customerName = quote.customerName || ''
       initialForm.customerEmail = quote.customerEmail || ''
@@ -207,12 +212,12 @@ export default function QuoteDetailsPanel({
       initialForm.projectName = quote.projectName || ''  // YENİ - QT-3
       initialForm.deliveryDate = quote.deliveryDate ? quote.deliveryDate.split('T')[0] : ''
       initialForm.notes = quote.notes || ''
-      
+
       console.log('📋 QuoteDetailsPanel: Form initialized', { initialForm })
-      
+
       setForm(initialForm)
       setOriginalData(initialForm)
-      
+
       // D1: Initialize formFieldsData separately for dynamic form fields
       const dynamicFormData = {}
       fields.forEach(field => {
@@ -258,50 +263,50 @@ export default function QuoteDetailsPanel({
 
   const handleInputChange = (e) => {
     if (!editing) return
-    
+
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
   }
-  
+
   // D1: Handle form field input change (separate from main edit)
   const handleFormFieldChange = (e) => {
     if (!formEditing) return
-    
+
     const { name, value } = e.target
     setFormFieldsData(prev => ({ ...prev, [name]: value }))
   }
-  
+
   // D1: Cancel form field editing
   const handleFormEditCancel = () => {
     setFormEditing(false)
     setFormFieldsData(originalFormFieldsData)
   }
-  
+
   // D1: Save form fields with price check
   const handleFormFieldsSave = async () => {
     if (!formEditing) return
-    
+
     try {
       // D1: Use quote's own form template fields
       const fields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
-                     formConfig?.formStructure?.fields || formConfig?.fields || []
+        formConfig?.formStructure?.fields || formConfig?.fields || []
       const fieldIdToCode = {}
       fields.forEach(field => {
         fieldIdToCode[field.id] = field.fieldCode || field.id
       })
-      
+
       // Build formData with fieldCodes for backend
       const formData = {}
       Object.entries(formFieldsData).forEach(([key, value]) => {
         const fieldCode = fieldIdToCode[key] || key
         formData[fieldCode] = value
       })
-      
+
       console.log('💾 D1: Saving form fields', { formData })
-      
+
       // Check if price is locked
       const isLocked = manualOverride?.active === true
-      
+
       // D1 FIX: Use quote's saved priceSettingId, NOT activePriceSetting
       // Form editing should use the quote's current pricing, not the latest admin setting
       if (!isLocked && quote.priceSettingId) {
@@ -310,14 +315,14 @@ export default function QuoteDetailsPanel({
           const newPrice = priceResult?.totalPrice || 0
           const oldPrice = parseFloat(quote.finalPrice || quote.calculatedPrice || 0)
           const priceDiff = newPrice - oldPrice
-          
-          console.log('💰 D1: Price calculation (using quote.priceSettingId)', { 
-            priceSettingId: quote.priceSettingId, 
-            oldPrice, 
-            newPrice, 
-            priceDiff 
+
+          console.log('💰 D1: Price calculation (using quote.priceSettingId)', {
+            priceSettingId: quote.priceSettingId,
+            oldPrice,
+            newPrice,
+            priceDiff
           })
-          
+
           // If price changed, show confirmation modal
           if (Math.abs(priceDiff) > 0.01) {
             // Find which fields changed
@@ -326,7 +331,7 @@ export default function QuoteDetailsPanel({
               if (originalFormFieldsData[key] !== value) {
                 // F1-FIX: Match by fieldCode (from API) or id (from formStructure)
                 const field = fields.find(f => f.fieldCode === key || f.id === key)
-                
+
                 // PROMPT-D2: For select/radio fields, show optionLabel instead of optionCode
                 const getDisplayValue = (val, fld) => {
                   if (!val || val === '-') return val ?? '-'
@@ -338,7 +343,7 @@ export default function QuoteDetailsPanel({
                   }
                   return val
                 }
-                
+
                 changedFields.push({
                   fieldName: field?.fieldName || field?.label || key,
                   oldValue: getDisplayValue(originalFormFieldsData[key], field),
@@ -346,18 +351,18 @@ export default function QuoteDetailsPanel({
                 })
               }
             })
-            
+
             // Prepare quoteData
             const quoteData = {
               formData: formData,
               calculatedPrice: newPrice
             }
-            
+
             setPendingChanges({ formData, quoteData, newPrice, priceDiff, changedFields })
             setShowPriceConfirmModal(true)
             return
           }
-          
+
           // Price same - save directly with new price
           await saveFormFields(formData, newPrice)
         } catch (priceErr) {
@@ -374,30 +379,30 @@ export default function QuoteDetailsPanel({
       showToast('Form alanları kaydedilirken hata oluştu', 'error')
     }
   }
-  
+
   // D1: Helper to save form fields
   const saveFormFields = async (formData, newPrice) => {
     const updatePayload = { formData }
     if (newPrice !== null) {
       updatePayload.calculatedPrice = newPrice
     }
-    
+
     await onSave(quote.id, updatePayload)
-    
+
     setFormEditing(false)
-    
+
     // D2 FIX: Update formFieldsData using current formFieldsData values (which use field.id as key)
     // The formFieldsData state already has the correct values since handleFormFieldChange updated it
     // We just need to sync originalFormFieldsData with current formFieldsData
     const currentFormFieldsData = { ...formFieldsData }
-    
+
     // Update all related states with saved values
     setOriginalFormFieldsData(currentFormFieldsData)
     setForm(prev => ({ ...prev, ...currentFormFieldsData }))
     setOriginalData(prev => ({ ...prev, ...currentFormFieldsData }))
-    
+
     showToast(newPrice !== null ? 'Form alanları ve fiyat güncellendi!' : 'Form alanları güncellendi!', 'success')
-    
+
     if (onRefreshQuote) {
       await onRefreshQuote()
     }
@@ -411,7 +416,7 @@ export default function QuoteDetailsPanel({
     }
     setEditing(true)
   }
-  
+
   // Computed: is editing disabled due to WO lock?
   const isEditLocked = editStatus && !editStatus.canEdit
 
@@ -422,13 +427,13 @@ export default function QuoteDetailsPanel({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!editing) return
 
     try {
       // D1: Main edit only handles customer fields, status, notes
       // Dynamic form fields are handled separately by formEditing
-      
+
       // Prepare quote data for update (customer fields + status only)
       const quoteData = {
         // Customer fields
@@ -448,12 +453,12 @@ export default function QuoteDetailsPanel({
 
       // Save the quote
       await onSave(quote.id, quoteData)
-      
+
       setEditing(false)
       setOriginalData(form)
-      
+
       showToast('Teklif güncellendi!', 'success')
-      
+
       if (onRefreshQuote) {
         onRefreshQuote()
       }
@@ -466,12 +471,12 @@ export default function QuoteDetailsPanel({
   // D1: Handle price confirm - save with new price (for form fields edit)
   const handlePriceConfirm = async () => {
     if (!pendingChanges) return
-    
+
     try {
       const { formData, newPrice } = pendingChanges
-      
+
       await saveFormFields(formData, newPrice)
-      
+
       setShowPriceConfirmModal(false)
       setPendingChanges(null)
     } catch (error) {
@@ -514,26 +519,26 @@ export default function QuoteDetailsPanel({
 
   const handleManualPriceToggle = async () => {
     if (!quote) return
-    
+
     const isCurrentlyLocked = manualOverride?.active === true
-    
+
     if (isCurrentlyLocked) {
       // Unlock - remove manual override
       if (!confirm('Manuel fiyatı kaldırıp otomatik fiyatlandırmaya dönmek istiyor musunuz?')) {
         return
       }
-      
+
       try {
         setManualLoading(true)
         const response = await API.clearManualPrice(quote.id)
-        
+
         if (response.success) {
           setManualOverride(null)
           const quotePrice = quote.finalPrice || quote.calculatedPrice || quote.price
           setManualPriceInput(formatManualPriceInput(quotePrice))
           setManualNote('')
           showToast('Manuel fiyat kaldırıldı', 'success')
-          
+
           if (onRefreshQuote) {
             onRefreshQuote()
           }
@@ -547,23 +552,23 @@ export default function QuoteDetailsPanel({
     } else {
       // Lock - set manual override
       const parsedPrice = parseFloat(manualPriceInput.replace(/\./g, '').replace(',', '.'))
-      
+
       if (isNaN(parsedPrice) || parsedPrice < 0) {
         showToast('Geçerli bir fiyat girin', 'error')
         return
       }
-      
+
       try {
         setManualLoading(true)
         const response = await API.setManualPrice(quote.id, {
           price: parsedPrice,
           note: manualNote || 'Manuel fiyat belirlendi'
         })
-        
+
         if (response.success) {
           setManualOverride(response.manualOverride)
           showToast('Manuel fiyat ayarlandı', 'success')
-          
+
           if (onRefreshQuote) {
             onRefreshQuote()
           }
@@ -579,13 +584,13 @@ export default function QuoteDetailsPanel({
 
   const handleFileUpload = async (e, type = 'tech') => {
     const files = Array.from(e.target.files)
-    
+
     if (files.length === 0) return
-    
+
     try {
       for (const file of files) {
         const dataUrl = await readFileAsDataUrl(file)
-        
+
         // Backend API'ye kaydet
         const fileData = {
           fileType: type === 'tech' ? 'technical' : 'product',
@@ -595,18 +600,18 @@ export default function QuoteDetailsPanel({
           fileSize: file.size,
           description: null
         }
-        
+
         console.log('📁 Uploading file to backend:', { quoteId: quote.id, fileName: file.name, type })
-        
+
         const response = await API.addQuoteFile(quote.id, fileData)
-        
+
         console.log('📁 API Response:', response)
-        
+
         if (response.success && response.file) {
           // Backend'den dönen dosyayı state'e ekle
           const newFile = response.file
           console.log('📁 Adding file to state:', newFile, 'type:', type)
-          
+
           if (type === 'tech') {
             setTechFiles(prev => {
               console.log('📁 techFiles before:', prev.length, 'after:', prev.length + 1)
@@ -623,7 +628,7 @@ export default function QuoteDetailsPanel({
           throw new Error('File save failed')
         }
       }
-      
+
       showToast(`${files.length} dosya yüklendi`, 'success')
     } catch (error) {
       console.error('File upload error:', error)
@@ -634,10 +639,10 @@ export default function QuoteDetailsPanel({
   const handleFileDelete = async (fileId, type = 'tech') => {
     try {
       console.log('🗑️ Deleting file from backend:', { quoteId: quote.id, fileId, type })
-      
+
       // Backend API'den sil
       const response = await API.deleteQuoteFile(quote.id, fileId)
-      
+
       if (response.success) {
         // State'den kaldır
         if (type === 'tech') {
@@ -660,9 +665,9 @@ export default function QuoteDetailsPanel({
 
   // D1: Use quote's own form template fields, not active template
   // quoteFormTemplate = quote's saved template, formConfig = active template (for banner comparison)
-  const formFields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields || 
-                     formConfig?.formStructure?.fields || formConfig?.fields || []
-  
+  const formFields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
+    formConfig?.formStructure?.fields || formConfig?.fields || []
+
   const formatPriceDisplay = (price) => {
     if (price === null || price === undefined || price === '') return '—'
     const numPrice = parseFloat(price)
@@ -671,10 +676,10 @@ export default function QuoteDetailsPanel({
   }
 
   const isLocked = manualOverride?.active === true
-  
+
   // PROMPT-13: Check if deliveryDate is missing for approve validation warning
   const missingDeliveryDate = !quote?.deliveryDate
-  
+
   // PROMPT-14: Get price warning info for banner display
   const getPriceWarningInfo = () => {
     if (!quote || !quote.priceStatus) {
@@ -684,7 +689,7 @@ export default function QuoteDetailsPanel({
     const status = quote.priceStatus.status
     const diffSummary = quote.priceStatus.differenceSummary
     const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
-    
+
     // Eğer uyarı gizlenmişse warning yok
     if (quote.versionWarningHidden === true) {
       return { type: 'none', color: null, priority: 0 }
@@ -692,81 +697,81 @@ export default function QuoteDetailsPanel({
 
     // Kırmızı uyarı: Fiyat farkı var
     if (priceDiff > 0 || status === 'price-drift') {
-      return { 
-        type: 'price', 
+      return {
+        type: 'price',
         color: '#dc3545',
         bgColor: 'rgba(220, 53, 69, 0.1)',
         borderColor: '#fecaca',
         icon: Wallet,
         message: `Fiyat güncel değil! Fark: ₺${priceDiff.toFixed(2)}`,
-        priority: 2 
+        priority: 2
       }
     }
 
     // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
     if (status === 'content-drift' || status === 'outdated') {
-      const hasParameterChanges = diffSummary?.parameterChanges && 
+      const hasParameterChanges = diffSummary?.parameterChanges &&
         (diffSummary.parameterChanges.added?.length > 0 ||
-         diffSummary.parameterChanges.removed?.length > 0 ||
-         diffSummary.parameterChanges.modified?.length > 0)
+          diffSummary.parameterChanges.removed?.length > 0 ||
+          diffSummary.parameterChanges.modified?.length > 0)
       const hasFormulaChange = diffSummary?.formulaChanged === true
-      
+
       if (hasParameterChanges || hasFormulaChange) {
-        return { 
-          type: 'version', 
+        return {
+          type: 'version',
           color: '#ffc107',
           bgColor: 'rgba(255, 193, 7, 0.1)',
           borderColor: '#fde68a',
           icon: RefreshCw,
           message: 'Formül veya parametreler güncellendi. Fiyat kontrolü önerilir.',
-          priority: 1 
+          priority: 1
         }
       }
     }
 
     return { type: 'none', color: null, priority: 0 }
   }
-  
+
   const priceWarningInfo = getPriceWarningInfo()
-  
+
   // C2: Handle form update when template changed
   const handleFormUpdateClick = () => {
     // Use already cached data - no need to fetch again
     // activeFormTemplate is fetched when quote details open (line ~98)
     // quoteFormTemplate is fetched when quote details open (line ~136)
-    
+
     if (!activeFormTemplate || !quote) {
       showToast('Form şablonu bilgisi bulunamadı', 'error')
       return
     }
-    
+
     // Get old form template fields from cached quoteFormTemplate
     const oldFields = quoteFormTemplate?.fields || quoteFormTemplate?.formStructure?.fields ||
-                      formConfig?.formStructure?.fields || formConfig?.fields || []
-    
+      formConfig?.formStructure?.fields || formConfig?.fields || []
+
     // Get new form template fields from cached activeFormTemplate
     const newFields = activeFormTemplate?.fields || activeFormTemplate?.formStructure?.fields || []
-    
+
     setOldFormFields(oldFields)
     setNewFormFields(newFields)
     setShowFormUpdateModal(true)
   }
-  
+
   // C2/C4: Handle form update save (also handles combined form+price update)
   const handleFormUpdateSave = async (quoteId, updatePayload) => {
     try {
       const result = await quotesService.updateQuoteForm(quoteId, updatePayload)
-      
+
       // Update local state - reset both flags since FormUpdateModal handles combined updates
       setFormChangeDetected(false)
       setPriceChangeDetected(false) // C4: Reset price flag too when combined update
-      
+
       // FIX: Update quoteFormTemplate with activeFormTemplate (already cached)
       // Quote is now synced to the active template, so use the cached version
       if (activeFormTemplate) {
         setQuoteFormTemplate(activeFormTemplate)
       }
-      
+
       // D2 FIX: Update local form state with new data from modal
       // Map fieldCode to field.id for state updates
       if (updatePayload.formData) {
@@ -777,53 +782,53 @@ export default function QuoteDetailsPanel({
           const fieldCode = field.fieldCode || field.id
           codeToId[fieldCode] = field.id
         })
-        
+
         // Update form state with new values
         const newFormValues = {}
         Object.entries(updatePayload.formData).forEach(([fieldCode, value]) => {
           const fieldId = codeToId[fieldCode] || fieldCode
           newFormValues[fieldId] = value
         })
-        
+
         // Update all states with new values (use functional updates to ensure sync)
         setForm(prev => ({ ...prev, ...newFormValues }))
         setOriginalData(prev => ({ ...prev, ...newFormValues }))
         setFormFieldsData(prev => ({ ...prev, ...newFormValues }))
         setOriginalFormFieldsData(prev => ({ ...prev, ...newFormValues }))
       }
-      
+
       // Force template refresh key increment
       setTemplateRefreshKey(prev => prev + 1)
-      
+
       // Refresh quote data from backend
       if (onRefreshQuote) {
         await onRefreshQuote()
       }
-      
+
       return result
     } catch (err) {
       console.error('Form update error:', err)
       throw err
     }
   }
-  
+
   // C3: Handle price recalculation when setting changed
   const handlePriceRecalcClick = async () => {
     if (!activePriceSetting?.id || !quote) return
-    
+
     try {
       setPriceRecalcLoading(true)
-      
+
       // Get current form data
       const currentFormData = quote.formData || {}
-      
+
       // Calculate new price with active price setting
       const result = await priceApi.calculatePrice(activePriceSetting.id, currentFormData)
       const newPrice = result.totalPrice || result.price || 0
-      
+
       // Get current quote price
       const currentPrice = parseFloat(quote.finalPrice || quote.calculatedPrice || 0)
-      
+
       // C3 Optimization: If price is the same, auto-update without modal
       if (Math.abs(newPrice - currentPrice) < 0.01) {
         // Price is the same - just update priceSettingCode silently
@@ -833,19 +838,19 @@ export default function QuoteDetailsPanel({
           calculatedPrice: newPrice,
           formData: quote.formData
         })
-        
+
         // Reset state
         setPriceChangeDetected(false)
-        
+
         showToast('Yapılan değişiklikler bu teklifi etkilemiyor. Ayarlar güncellendi.', 'info')
-        
+
         // Refresh quote data
         if (onRefreshQuote) {
           await onRefreshQuote()
         }
         return
       }
-      
+
       // Price is different - show modal with changes
       // C3: Get price changes (what caused the difference)
       if (quote.priceSettingId && activePriceSetting.id) {
@@ -857,7 +862,7 @@ export default function QuoteDetailsPanel({
           setPriceChanges(null)
         }
       }
-      
+
       setNewCalculatedPrice(newPrice)
       setShowPriceRecalcModal(true)
     } catch (err) {
@@ -867,14 +872,14 @@ export default function QuoteDetailsPanel({
       setPriceRecalcLoading(false)
     }
   }
-  
+
   // C3: Handle price recalculation confirm
   const handlePriceRecalcConfirm = async () => {
     if (!quote?.id || newCalculatedPrice === null) return
-    
+
     try {
       setPriceRecalcLoading(true)
-      
+
       // Update quote with new price and price setting
       await quotesService.updateQuoteForm(quote.id, {
         priceSettingId: activePriceSetting.id,
@@ -882,15 +887,15 @@ export default function QuoteDetailsPanel({
         calculatedPrice: newCalculatedPrice,
         formData: quote.formData // Keep existing form data
       })
-      
+
       // Reset state
       setPriceChangeDetected(false)
       setShowPriceRecalcModal(false)
       setNewCalculatedPrice(null)
       setPriceChanges(null)
-      
+
       showToast('Fiyat başarıyla güncellendi', 'success')
-      
+
       // Refresh quote data
       if (onRefreshQuote) {
         await onRefreshQuote()
@@ -902,7 +907,7 @@ export default function QuoteDetailsPanel({
       setPriceRecalcLoading(false)
     }
   }
-  
+
   // Handle navigation to work order
   const handleViewWorkOrder = (woCode) => {
     // Navigate to production page with work order filter
@@ -910,7 +915,7 @@ export default function QuoteDetailsPanel({
       window.location.href = `/pages/production.html?tab=approved&wo=${woCode}`
     }
   }
-  
+
   // Handle navigation to customer details
   const handleViewCustomer = () => {
     if (quote?.customerId) {
@@ -937,7 +942,7 @@ export default function QuoteDetailsPanel({
           </span>
         </div>
       )}
-      
+
       {/* PROMPT-14: Price Warning Banner */}
       {priceWarningInfo.priority > 0 && (
         <div style={{
@@ -954,7 +959,7 @@ export default function QuoteDetailsPanel({
           </span>
         </div>
       )}
-      
+
       {/* C1: Form/Price Version Change Banners - Only show if editable AND price not locked */}
       {editStatus?.canEdit && !isLocked && (formChangeDetected || priceChangeDetected) && (
         <div style={{
@@ -969,10 +974,10 @@ export default function QuoteDetailsPanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <RefreshCw size={16} style={{ color: formChangeDetected && priceChangeDetected ? '#d97706' : (formChangeDetected ? '#2563eb' : '#16a34a') }} />
             <span style={{ fontSize: '13px', color: formChangeDetected && priceChangeDetected ? '#92400e' : (formChangeDetected ? '#1e40af' : '#166534'), fontWeight: '500' }}>
-              {formChangeDetected && priceChangeDetected 
-                ? 'Form ve fiyatlandırma ayarları güncellendi!' 
-                : formChangeDetected 
-                  ? 'Form şablonu güncellendi!' 
+              {formChangeDetected && priceChangeDetected
+                ? 'Form ve fiyatlandırma ayarları güncellendi!'
+                : formChangeDetected
+                  ? 'Form şablonu güncellendi!'
                   : 'Fiyatlandırma ayarları güncellendi!'}
             </span>
           </div>
@@ -1032,112 +1037,75 @@ export default function QuoteDetailsPanel({
           </div>
         </div>
       )}
-      
+
       {/* Edit Lock Banner - Show when WO exists */}
-      <QuoteEditLockBanner 
-        editStatus={editStatus} 
+      <QuoteEditLockBanner
+        editStatus={editStatus}
         onViewWorkOrder={handleViewWorkOrder}
       />
-      
+
       {/* Header */}
-      <div style={{ 
-          padding: '16px 20px', 
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{
+        padding: '16px 20px',
+        borderBottom: '1px solid #e5e7eb',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={handleClose}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              background: 'white',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+            title="Detayları Kapat"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+            Teklif Detayları {isLocked && <span style={{ color: '#f59e0b', fontSize: '14px' }}>(Kilitli)</span>}
+            {isEditLocked && <span style={{ color: '#dc2626', fontSize: '14px', marginLeft: '8px' }}>(Düzenleme Kilitli)</span>}
+          </h3>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!editing ? (
             <button
-              onClick={handleClose}
+              onClick={handleUnlock}
+              disabled={isEditLocked}
               style={{
                 padding: '6px 12px',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
-                background: 'white',
-                color: '#374151',
-                cursor: 'pointer',
-                fontSize: '12px'
+                background: isEditLocked ? '#f3f4f6' : 'white',
+                color: isEditLocked ? '#9ca3af' : '#374151',
+                cursor: isEditLocked ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: isEditLocked ? 0.6 : 1
               }}
-              title="Detayları Kapat"
+              title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Düzenle'}
             >
-              <ArrowLeft size={14} />
+              <Edit size={14} /> Düzenle
             </button>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-              Teklif Detayları {isLocked && <span style={{ color: '#f59e0b', fontSize: '14px' }}>(Kilitli)</span>}
-              {isEditLocked && <span style={{ color: '#dc2626', fontSize: '14px', marginLeft: '8px' }}>(Düzenleme Kilitli)</span>}
-            </h3>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {!editing ? (
+          ) : (
+            <>
               <button
-                onClick={handleUnlock}
-                disabled={isEditLocked}
+                type="submit"
+                form="quote-detail-form"
                 style={{
                   padding: '6px 12px',
-                  border: '1px solid #d1d5db',
+                  border: 'none',
                   borderRadius: '4px',
-                  background: isEditLocked ? '#f3f4f6' : 'white',
-                  color: isEditLocked ? '#9ca3af' : '#374151',
-                  cursor: isEditLocked ? 'not-allowed' : 'pointer',
-                  fontSize: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  opacity: isEditLocked ? 0.6 : 1
-                }}
-                title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Düzenle'}
-              >
-                <Edit size={14} /> Düzenle
-              </button>
-            ) : (
-              <>
-                <button
-                  type="submit"
-                  form="quote-detail-form"
-                  style={{
-                    padding: '6px 12px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: '#3b82f6',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <Download size={14} /> Kaydet
-                </button>
-                <button
-                  onClick={handleCancel}
-                  style={{
-                    padding: '6px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <ArrowLeft size={14} /> İptal
-                </button>
-              </>
-            )}
-            {onDelete && (
-              <button
-                onClick={handleDelete}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid #dc2626',
-                  borderRadius: '4px',
-                  background: 'white',
-                  color: '#dc2626',
+                  background: '#3b82f6',
+                  color: 'white',
                   cursor: 'pointer',
                   fontSize: '12px',
                   display: 'flex',
@@ -1145,906 +1113,962 @@ export default function QuoteDetailsPanel({
                   gap: '4px'
                 }}
               >
-                <Trash2 size={14} /> Sil
+                <Download size={14} /> Kaydet
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Content - Scrollable */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-          <form id="quote-detail-form" onSubmit={handleSubmit}>
-            {/* Temel Bilgiler */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ 
-                margin: '0 0 12px 0', 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                color: '#111827', 
-                borderBottom: '1px solid #e5e7eb', 
-                paddingBottom: '6px' 
-              }}>
-                Temel Bilgiler
-              </h3>
-              
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  Teklif ID:
-                </span>
-                <span style={{ fontSize: '12px', color: '#111827' }}>
-                  {quote.id}
-                </span>
-              </div>
-
-              {/* Proje Adı - QT-3 */}
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  <FolderOpen size={12} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
-                  Proje Adı:
-                </span>
-                {editing ? (
-                  <input
-                    type="text"
-                    name="projectName"
-                    value={form.projectName || ''}
-                    onChange={handleInputChange}
-                    style={{
-                      padding: '6px 10px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white',
-                      flex: 1
-                    }}
-                    placeholder="Proje adı"
-                  />
-                ) : (
-                  <span style={{ fontSize: '12px', color: '#111827', fontWeight: '500' }}>
-                    {quote.projectName || '—'}
-                  </span>
-                )}
-              </div>
-
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  Teklif Tarihi:
-                </span>
-                <span style={{ fontSize: '12px', color: '#111827' }}>
-                  {quote.createdAt ? new Date(quote.createdAt).toLocaleString('tr-TR', { 
-                    year: 'numeric', 
-                    month: '2-digit', 
-                    day: '2-digit', 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  }) : ''}
-                </span>
-              </div>
-
-              {/* Teslim Tarihi - QT-3 */}
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  Teslim Tarihi:
-                </span>
-                {editing ? (
-                  <input
-                    type="date"
-                    name="deliveryDate"
-                    value={form.deliveryDate || ''}
-                    onChange={handleInputChange}
-                    min={new Date().toISOString().split('T')[0]}
-                    style={{
-                      padding: '6px 10px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: 'white'
-                    }}
-                  />
-                ) : (
-                  <span style={{ 
-                    fontSize: '12px', 
-                    color: form.deliveryDate || quote.deliveryDate ? '#111827' : '#9ca3af'
-                  }}>
-                    {form.deliveryDate || (quote.deliveryDate ? quote.deliveryDate.split('T')[0] : 'Belirtilmedi')}
-                  </span>
-                )}
-              </div>
-
-              {/* Durum */}
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  Durum:
-                </span>
-                {editing ? (
-                  <select
-                    value={currStatus}
-                    onChange={(e) => setCurrStatus(e.target.value)}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <option value="new">Yeni</option>
-                    <option value="pending">Beklemede</option>
-                    <option value="approved">Onaylandı</option>
-                    <option value="rejected">Reddedildi</option>
-                  </select>
-                ) : (
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {statusLabel[currStatus] || currStatus}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* D1: Form Bilgileri - Separate container with own edit state */}
-            {formFields.length > 0 && (
-              <div style={{ 
-                marginBottom: '16px', 
-                padding: '12px', 
-                background: 'white', 
-                borderRadius: '6px',
-                border: formEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb'
-              }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+              <button
+                onClick={handleCancel}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  display: 'flex',
                   alignItems: 'center',
-                  margin: '0 0 12px 0', 
-                  borderBottom: '1px solid #e5e7eb', 
-                  paddingBottom: '6px' 
-                }}>
-                  <h3 style={{ 
-                    margin: 0, 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    color: '#111827'
-                  }}>
-                    Form Bilgileri
-                  </h3>
-                  {!formEditing ? (
-                    <button
-                      type="button"
-                      onClick={() => !isEditLocked && setFormEditing(true)}
-                      disabled={isEditLocked}
-                      style={{
-                        padding: '4px 10px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        background: isEditLocked ? '#f3f4f6' : 'white',
-                        color: isEditLocked ? '#9ca3af' : '#374151',
-                        cursor: isEditLocked ? 'not-allowed' : 'pointer',
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        opacity: isEditLocked ? 0.6 : 1
-                      }}
-                      title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Form alanlarını düzenle'}
-                    >
-                      <Edit size={12} /> Düzenle
-                    </button>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={handleFormEditCancel}
-                        style={{
-                          padding: '4px 10px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          background: 'white',
-                          color: '#374151',
-                          cursor: 'pointer',
-                          fontSize: '11px'
-                        }}
-                      >
-                        İptal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleFormFieldsSave}
-                        style={{
-                          padding: '4px 10px',
-                          border: 'none',
-                          borderRadius: '4px',
-                          background: '#3b82f6',
-                          color: 'white',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          fontWeight: '500'
-                        }}
-                      >
-                        Kaydet
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
-                {formFields.map(field => {
-                  // D1 FIX: Always use formFieldsData for display (it's the source of truth for form fields)
-                  const value = formFieldsData[field.id] || form[field.id] || ''
-                  const label = field.label || field.fieldName || field.id
-
-                  return (
-                    <div key={field.id} className="detail-item" style={{ 
-                      display: 'flex', 
-                      alignItems: field.type === 'textarea' ? 'flex-start' : 'center', 
-                      marginBottom: '8px' 
-                    }}>
-                      <span className="detail-label" style={{ 
-                        fontWeight: '600', 
-                        fontSize: '12px', 
-                        color: '#374151', 
-                        minWidth: '120px', 
-                        marginRight: '8px' 
-                      }}>
-                        {label}:
-                      </span>
-                      {formEditing ? (
-                        // PROMPT-D2: Field type based rendering with optionCode/optionLabel support
-                        (() => {
-                          const fieldType = field.type || field.fieldType || 'text';
-                          const inputStyle = {
-                            padding: '8px 12px',
-                            border: '1px solid #3b82f6',
-                            borderRadius: '4px',
-                            background: 'white',
-                            width: '100%',
-                            fontSize: '14px'
-                          };
-                          
-                          switch (fieldType) {
-                            case 'textarea':
-                              return (
-                                <textarea
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  placeholder={field.placeholder}
-                                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
-                                />
-                              );
-                            
-                            case 'select':
-                            case 'dropdown':
-                              return (
-                                <select
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  style={inputStyle}
-                                >
-                                  <option value="">Seçiniz</option>
-                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
-                                    <option key={opt.optionCode || opt.id} value={opt.optionCode}>
-                                      {opt.optionLabel}
-                                    </option>
-                                  ))}
-                                </select>
-                              );
-                            
-                            case 'radio':
-                              return (
-                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
-                                    <label key={opt.optionCode || opt.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                                      <input
-                                        type="radio"
-                                        name={field.id}
-                                        value={opt.optionCode}
-                                        checked={value === opt.optionCode}
-                                        onChange={handleFormFieldChange}
-                                      />
-                                      <span style={{ fontSize: '12px' }}>{opt.optionLabel}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              );
-                            
-                            case 'checkbox':
-                              return (
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                                  <input
-                                    type="checkbox"
-                                    name={field.id}
-                                    checked={value === true || value === 'true' || value === 1}
-                                    onChange={(e) => handleFormFieldChange({ 
-                                      target: { name: field.id, value: e.target.checked } 
-                                    })}
-                                  />
-                                  <span style={{ fontSize: '12px' }}>{field.placeholder || 'Evet'}</span>
-                                </label>
-                              );
-                            
-                            case 'number':
-                              return (
-                                <input
-                                  type="number"
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  placeholder={field.placeholder}
-                                  step={field.step || 'any'}
-                                  min={field.min}
-                                  max={field.max}
-                                  style={inputStyle}
-                                />
-                              );
-                            
-                            case 'email':
-                              return (
-                                <input
-                                  type="email"
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  placeholder={field.placeholder || 'ornek@email.com'}
-                                  style={inputStyle}
-                                />
-                              );
-                            
-                            case 'phone':
-                            case 'tel':
-                              return (
-                                <input
-                                  type="tel"
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  placeholder={field.placeholder || '05XX XXX XX XX'}
-                                  style={inputStyle}
-                                />
-                              );
-                            
-                            case 'date':
-                              return (
-                                <input
-                                  type="date"
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  style={inputStyle}
-                                />
-                              );
-                            
-                            case 'text':
-                            default:
-                              return (
-                                <input
-                                  type="text"
-                                  name={field.id}
-                                  value={value}
-                                  onChange={handleFormFieldChange}
-                                  placeholder={field.placeholder}
-                                  style={inputStyle}
-                                />
-                              );
-                          }
-                        })()
-                      ) : (
-                        // PROMPT-D2: Display mode - show optionLabel for select/radio fields
-                        <span style={{ fontSize: '12px', color: '#111827' }}>
-                          {(() => {
-                            const fieldType = field.type || field.fieldType || 'text';
-                            if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options && value) {
-                              const validOptions = (field.options || []).filter(opt => opt != null);
-                              const selectedOption = validOptions.find(opt => opt.optionCode === value);
-                              return selectedOption?.optionLabel || value || '—';
-                            }
-                            if (fieldType === 'checkbox') {
-                              // Only show Evet/Hayır if value is explicitly set, otherwise show '—'
-                              if (value === '' || value === undefined || value === null) return '—';
-                              return value === true || value === 'true' || value === 1 || value === '1' ? 'Evet' : 'Hayır';
-                            }
-                            return value || '—';
-                          })()}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Müşteri Bilgileri */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                margin: '0 0 12px 0', 
-                borderBottom: '1px solid #e5e7eb', 
-                paddingBottom: '6px' 
-              }}>
-                <h3 style={{ 
-                  margin: 0, 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  color: '#111827'
-                }}>
-                  Müşteri Bilgileri
-                  {quote.customerId && (
-                    <span style={{ 
-                      fontSize: '11px', 
-                      fontWeight: 'normal', 
-                      color: '#6b7280', 
-                      marginLeft: '8px' 
-                    }}>
-                      (Kayıtlı Müşteri)
-                    </span>
-                  )}
-                </h3>
-                {quote.customerId && (
-                  <button
-                    type="button"
-                    onClick={handleViewCustomer}
-                    style={{
-                      padding: '4px 8px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    Müşteri Detayı →
-                  </button>
-                )}
-              </div>
-
-              {/* Temel Müşteri Bilgileri */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    Ad Soyad:
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {quote.customerName || '—'}
-                  </span>
-                </div>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    Şirket:
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {quote.customerCompany || '—'}
-                  </span>
-                </div>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    E-posta:
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {quote.customerEmail || '—'}
-                  </span>
-                </div>
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    Telefon:
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {quote.customerPhone || '—'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Adres */}
-              {quote.customerAddress && (
-                <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginTop: '8px' }}>
-                  <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
-                    Adres:
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#111827' }}>
-                    {quote.customerAddress}
-                  </span>
-                </div>
-              )}
-
-              {/* Ek Müşteri Bilgileri (Kayıtlı müşteri varsa) */}
-              {quote.customer && (
-                <>
-                  {/* İletişim Bilgileri */}
-                  {(quote.customer.contactPerson || quote.customer.contactTitle || quote.customer.website || quote.customer.fax) && (
-                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>İletişim</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        {quote.customer.contactPerson && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Yetkili: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.contactPerson}</span>
-                            {quote.customer.contactTitle && <span style={{ color: '#9ca3af' }}> ({quote.customer.contactTitle})</span>}
-                          </div>
-                        )}
-                        {quote.customer.website && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Web: </span>
-                            <a href={quote.customer.website} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>
-                              {quote.customer.website}
-                            </a>
-                          </div>
-                        )}
-                        {quote.customer.fax && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Fax: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.fax}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Finans Bilgileri */}
-                  {(quote.customer.iban || quote.customer.bankName || quote.customer.taxOffice || quote.customer.taxNumber) && (
-                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>Finans</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        {quote.customer.taxOffice && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Vergi Dairesi: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.taxOffice}</span>
-                          </div>
-                        )}
-                        {quote.customer.taxNumber && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Vergi No: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.taxNumber}</span>
-                          </div>
-                        )}
-                        {quote.customer.bankName && (
-                          <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#6b7280' }}>Banka: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.bankName}</span>
-                          </div>
-                        )}
-                        {quote.customer.iban && (
-                          <div style={{ fontSize: '12px', gridColumn: 'span 2' }}>
-                            <span style={{ color: '#6b7280' }}>IBAN: </span>
-                            <span style={{ color: '#111827', fontFamily: 'monospace' }}>{quote.customer.iban}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Adres Bilgileri */}
-                  {(quote.customer.city || quote.customer.country || quote.customer.postalCode || quote.customer.district || quote.customer.neighbourhood || quote.customer.address) && (
-                    <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> Adres Bilgileri</div>
-                      
-                      {/* Açık Adres */}
-                      {quote.customer.address && (
-                        <div style={{ fontSize: '12px', marginBottom: '8px', color: '#111827' }}>
-                          {quote.customer.address}
-                        </div>
-                      )}
-                      
-                      {/* Konum Bilgileri - Compact */}
-                      <div style={{ display: 'flex', gap: '12px', fontSize: '12px', flexWrap: 'wrap' }}>
-                        {quote.customer.neighbourhood && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Mahalle: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.neighbourhood}</span>
-                          </div>
-                        )}
-                        {quote.customer.district && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>İlçe: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.district}</span>
-                          </div>
-                        )}
-                        {quote.customer.city && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>İl: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.city}</span>
-                          </div>
-                        )}
-                        {quote.customer.country && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Ülke: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.country}</span>
-                          </div>
-                        )}
-                        {quote.customer.postalCode && (
-                          <div>
-                            <span style={{ color: '#6b7280' }}>Posta Kodu: </span>
-                            <span style={{ color: '#111827' }}>{quote.customer.postalCode}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Fiyat Bilgileri */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ 
-                margin: '0 0 12px 0', 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                color: '#111827', 
-                borderBottom: '1px solid #e5e7eb', 
-                paddingBottom: '6px' 
-              }}>
-                Fiyat Bilgileri
-              </h3>
-
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <span className="detail-label" style={{ 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
-                  color: '#374151', 
-                  minWidth: '120px', 
-                  marginRight: '8px' 
-                }}>
-                  Fiyat:
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                  <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
-                    {formatPriceDisplay(quote.finalPrice || quote.calculatedPrice || quote.price)}
-                  </span>
-                  {quote.priceStatus && (
-                    <PriceStatusBadge priceStatus={quote.priceStatus} />
-                  )}
-                </div>
-              </div>
-
-              {/* Manuel Fiyat Kontrolü */}
-              <div style={{ 
-                marginTop: '12px', 
-                padding: '12px', 
-                background: isLocked ? '#fef3c7' : '#f3f4f6', 
+                  gap: '4px'
+                }}
+              >
+                <ArrowLeft size={14} /> İptal
+              </button>
+            </>
+          )}
+          {onDelete && (
+            <button
+              onClick={handleDelete}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid #dc2626',
                 borderRadius: '4px',
-                border: `1px solid ${isLocked ? '#fbbf24' : '#d1d5db'}`
+                background: 'white',
+                color: '#dc2626',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Trash2 size={14} /> Sil
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Content - Scrollable */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+        <form id="quote-detail-form" onSubmit={handleSubmit}>
+          {/* Temel Bilgiler */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#111827',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              Temel Bilgiler
+            </h3>
+
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {isLocked ? <Lock size={12} style={{ color: '#f59e0b' }} /> : <Unlock size={12} style={{ color: '#6b7280' }} />}
-                    {isLocked ? 'Manuel Fiyat Aktif' : 'Otomatik Fiyatlandırma'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleManualPriceToggle}
-                    disabled={manualLoading}
-                    style={{
-                      padding: '4px 8px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      background: isLocked ? '#dc2626' : '#3b82f6',
-                      color: 'white',
-                      cursor: manualLoading ? 'not-allowed' : 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    {isLocked ? <Unlock size={12} /> : <Lock size={12} />}
-                    {manualLoading ? 'İşleniyor...' : (isLocked ? 'Kilidi Kaldır' : 'Manuel Fiyat Belirle')}
-                  </button>
-                </div>
-
-                {!isLocked && (
-                  <>
-                    <input
-                      type="text"
-                      value={manualPriceInput}
-                      onChange={(e) => setManualPriceInput(e.target.value)}
-                      placeholder="Manuel fiyat girin"
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        marginBottom: '8px'
-                      }}
-                    />
-                    <textarea
-                      value={manualNote}
-                      onChange={(e) => setManualNote(e.target.value)}
-                      placeholder="Not (opsiyonel)"
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        minHeight: '60px',
-                        resize: 'vertical'
-                      }}
-                    />
-                  </>
-                )}
-
-                {isLocked && manualOverride && (
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                    <div>Not: {manualOverride.note || 'Yok'}</div>
-                    <div>Tarih: {new Date(manualOverride.timestamp).toLocaleString('tr-TR')}</div>
-                  </div>
-                )}
-              </div>
+                Teklif ID:
+              </span>
+              <span style={{ fontSize: '12px', color: '#111827' }}>
+                {quote.id}
+              </span>
             </div>
 
-            {/* Dosyalar - PROMPT-16: Geliştirilmiş dosya görüntüleme */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
+            {/* Proje Adı - QT-3 */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
+              }}>
+                <FolderOpen size={12} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+                Proje Adı:
+              </span>
+              {editing ? (
+                <input
+                  type="text"
+                  name="projectName"
+                  value={form.projectName || ''}
+                  onChange={handleInputChange}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid #3b82f6',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    background: 'white',
+                    flex: 1
+                  }}
+                  placeholder="Proje adı"
+                />
+              ) : (
+                <span style={{ fontSize: '12px', color: '#111827', fontWeight: '500' }}>
+                  {quote.projectName || '—'}
+                </span>
+              )}
+            </div>
+
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
+              }}>
+                Teklif Tarihi:
+              </span>
+              <span style={{ fontSize: '12px', color: '#111827' }}>
+                {quote.createdAt ? new Date(quote.createdAt).toLocaleString('tr-TR', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : ''}
+              </span>
+            </div>
+
+            {/* Teslim Tarihi - QT-3 */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
+              }}>
+                Teslim Tarihi:
+              </span>
+              {editing ? (
+                <input
+                  type="date"
+                  name="deliveryDate"
+                  value={form.deliveryDate || ''}
+                  onChange={handleInputChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid #3b82f6',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    background: 'white'
+                  }}
+                />
+              ) : (
+                <span style={{
+                  fontSize: '12px',
+                  color: form.deliveryDate || quote.deliveryDate ? '#111827' : '#9ca3af'
+                }}>
+                  {form.deliveryDate || (quote.deliveryDate ? quote.deliveryDate.split('T')[0] : 'Belirtilmedi')}
+                </span>
+              )}
+            </div>
+
+            {/* Durum */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
+              }}>
+                Durum:
+              </span>
+              {editing ? (
+                <select
+                  value={currStatus}
+                  onChange={(e) => setCurrStatus(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #3b82f6',
+                    borderRadius: '4px',
+                    background: 'white',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="new">Yeni</option>
+                  <option value="pending">Beklemede</option>
+                  <option value="approved">Onaylandı</option>
+                  <option value="rejected">Reddedildi</option>
+                </select>
+              ) : (
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {statusLabel[currStatus] || currStatus}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* D1: Form Bilgileri - Separate container with own edit state */}
+          {formFields.length > 0 && (
+            <div style={{
+              marginBottom: '16px',
+              padding: '12px',
+              background: 'white',
               borderRadius: '6px',
-              border: '1px solid #e5e7eb'
+              border: formEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb'
             }}>
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                margin: '0 0 12px 0', 
-                borderBottom: '1px solid #e5e7eb', 
-                paddingBottom: '6px' 
+                margin: '0 0 12px 0',
+                borderBottom: '1px solid #e5e7eb',
+                paddingBottom: '6px'
               }}>
-                <h3 style={{ 
-                  margin: 0, 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  fontWeight: '600',
                   color: '#111827'
                 }}>
-                  Teknik Dosyalar
-                  {techFiles.length > 0 && (
-                    <span style={{ 
-                      marginLeft: '8px', 
-                      fontSize: '11px', 
-                      fontWeight: 'normal', 
-                      color: '#6b7280',
-                      background: '#f3f4f6',
-                      padding: '2px 6px',
-                      borderRadius: '10px'
-                    }}>
-                      {techFiles.length}
-                    </span>
-                  )}
+                  Form Bilgileri
                 </h3>
+                {!formEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => !isEditLocked && setFormEditing(true)}
+                    disabled={isEditLocked}
+                    style={{
+                      padding: '4px 10px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      background: isEditLocked ? '#f3f4f6' : 'white',
+                      color: isEditLocked ? '#9ca3af' : '#374151',
+                      cursor: isEditLocked ? 'not-allowed' : 'pointer',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      opacity: isEditLocked ? 0.6 : 1
+                    }}
+                    title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Form alanlarını düzenle'}
+                  >
+                    <Edit size={12} /> Düzenle
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={handleFormEditCancel}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        background: 'white',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        fontSize: '11px'
+                      }}
+                    >
+                      İptal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleFormFieldsSave}
+                      style={{
+                        padding: '4px 10px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      Kaydet
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {editing && (
-                <div style={{ marginBottom: '12px' }}>
+              {formFields.map(field => {
+                // D1 FIX: Always use formFieldsData for display (it's the source of truth for form fields)
+                const value = formFieldsData[field.id] || form[field.id] || ''
+                const label = field.label || field.fieldName || field.id
+
+                return (
+                  <div key={field.id} className="detail-item" style={{
+                    display: 'flex',
+                    alignItems: field.type === 'textarea' ? 'flex-start' : 'center',
+                    marginBottom: '8px'
+                  }}>
+                    <span className="detail-label" style={{
+                      fontWeight: '600',
+                      fontSize: '12px',
+                      color: '#374151',
+                      minWidth: '120px',
+                      marginRight: '8px'
+                    }}>
+                      {label}:
+                    </span>
+                    {formEditing ? (
+                      // PROMPT-D2: Field type based rendering with optionCode/optionLabel support
+                      (() => {
+                        const fieldType = field.type || field.fieldType || 'text';
+                        const inputStyle = {
+                          padding: '8px 12px',
+                          border: '1px solid #3b82f6',
+                          borderRadius: '4px',
+                          background: 'white',
+                          width: '100%',
+                          fontSize: '14px'
+                        };
+
+                        switch (fieldType) {
+                          case 'textarea':
+                            return (
+                              <textarea
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                placeholder={field.placeholder}
+                                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+                              />
+                            );
+
+                          case 'select':
+                          case 'dropdown':
+                            return (
+                              <select
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                style={inputStyle}
+                              >
+                                <option value="">Seçiniz</option>
+                                {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                  <option key={opt.optionCode || opt.id} value={opt.optionCode}>
+                                    {opt.optionLabel}
+                                  </option>
+                                ))}
+                              </select>
+                            );
+
+                          case 'radio':
+                            return (
+                              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                  <label key={opt.optionCode || opt.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                    <input
+                                      type="radio"
+                                      name={field.id}
+                                      value={opt.optionCode}
+                                      checked={value === opt.optionCode}
+                                      onChange={handleFormFieldChange}
+                                    />
+                                    <span style={{ fontSize: '12px' }}>{opt.optionLabel}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            );
+
+                          case 'checkbox':
+                            return (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  name={field.id}
+                                  checked={value === true || value === 'true' || value === 1}
+                                  onChange={(e) => handleFormFieldChange({
+                                    target: { name: field.id, value: e.target.checked }
+                                  })}
+                                />
+                                <span style={{ fontSize: '12px' }}>{field.placeholder || 'Evet'}</span>
+                              </label>
+                            );
+
+                          case 'number':
+                            return (
+                              <input
+                                type="number"
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                placeholder={field.placeholder}
+                                step={field.step || 'any'}
+                                min={field.min}
+                                max={field.max}
+                                style={inputStyle}
+                              />
+                            );
+
+                          case 'email':
+                            return (
+                              <input
+                                type="email"
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                placeholder={field.placeholder || 'ornek@email.com'}
+                                style={inputStyle}
+                              />
+                            );
+
+                          case 'phone':
+                          case 'tel':
+                            return (
+                              <input
+                                type="tel"
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                placeholder={field.placeholder || '05XX XXX XX XX'}
+                                style={inputStyle}
+                              />
+                            );
+
+                          case 'date':
+                            return (
+                              <input
+                                type="date"
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                style={inputStyle}
+                              />
+                            );
+
+                          case 'text':
+                          default:
+                            return (
+                              <input
+                                type="text"
+                                name={field.id}
+                                value={value}
+                                onChange={handleFormFieldChange}
+                                placeholder={field.placeholder}
+                                style={inputStyle}
+                              />
+                            );
+                        }
+                      })()
+                    ) : (
+                      // PROMPT-D2: Display mode - show optionLabel for select/radio fields
+                      <span style={{ fontSize: '12px', color: '#111827' }}>
+                        {(() => {
+                          const fieldType = field.type || field.fieldType || 'text';
+                          if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options && value) {
+                            const validOptions = (field.options || []).filter(opt => opt != null);
+                            const selectedOption = validOptions.find(opt => opt.optionCode === value);
+                            return selectedOption?.optionLabel || value || '—';
+                          }
+                          if (fieldType === 'checkbox') {
+                            // Only show Evet/Hayır if value is explicitly set, otherwise show '—'
+                            if (value === '' || value === undefined || value === null) return '—';
+                            return value === true || value === 'true' || value === 1 || value === '1' ? 'Evet' : 'Hayır';
+                          }
+                          return value || '—';
+                        })()}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Müşteri Bilgileri */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              margin: '0 0 12px 0',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Müşteri Bilgileri
+                {quote.customerId && (
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 'normal',
+                    color: '#6b7280',
+                    marginLeft: '8px'
+                  }}>
+                    (Kayıtlı Müşteri)
+                  </span>
+                )}
+              </h3>
+              {quote.customerId && (
+                <button
+                  type="button"
+                  onClick={handleViewCustomer}
+                  style={{
+                    padding: '4px 8px',
+                    border: '1px solid #3b82f6',
+                    borderRadius: '4px',
+                    background: 'white',
+                    color: '#3b82f6',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  Müşteri Detayı →
+                </button>
+              )}
+            </div>
+
+            {/* Temel Müşteri Bilgileri */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                  Ad Soyad:
+                </span>
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {quote.customerName || '—'}
+                </span>
+              </div>
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                  Şirket:
+                </span>
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {quote.customerCompany || '—'}
+                </span>
+              </div>
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                  E-posta:
+                </span>
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {quote.customerEmail || '—'}
+                </span>
+              </div>
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                  Telefon:
+                </span>
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {quote.customerPhone || '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Adres */}
+            {quote.customerAddress && (
+              <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginTop: '8px' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                  Adres:
+                </span>
+                <span style={{ fontSize: '12px', color: '#111827' }}>
+                  {quote.customerAddress}
+                </span>
+              </div>
+            )}
+
+            {/* Ek Müşteri Bilgileri (Kayıtlı müşteri varsa) */}
+            {quote.customer && (
+              <>
+                {/* İletişim Bilgileri */}
+                {(quote.customer.contactPerson || quote.customer.contactTitle || quote.customer.website || quote.customer.fax) && (
+                  <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>İletişim</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      {quote.customer.contactPerson && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Yetkili: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.contactPerson}</span>
+                          {quote.customer.contactTitle && <span style={{ color: '#9ca3af' }}> ({quote.customer.contactTitle})</span>}
+                        </div>
+                      )}
+                      {quote.customer.website && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Web: </span>
+                          <a href={quote.customer.website} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>
+                            {quote.customer.website}
+                          </a>
+                        </div>
+                      )}
+                      {quote.customer.fax && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Fax: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.fax}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Finans Bilgileri */}
+                {(quote.customer.iban || quote.customer.bankName || quote.customer.taxOffice || quote.customer.taxNumber) && (
+                  <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>Finans</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      {quote.customer.taxOffice && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Vergi Dairesi: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.taxOffice}</span>
+                        </div>
+                      )}
+                      {quote.customer.taxNumber && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Vergi No: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.taxNumber}</span>
+                        </div>
+                      )}
+                      {quote.customer.bankName && (
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Banka: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.bankName}</span>
+                        </div>
+                      )}
+                      {quote.customer.iban && (
+                        <div style={{ fontSize: '12px', gridColumn: 'span 2' }}>
+                          <span style={{ color: '#6b7280' }}>IBAN: </span>
+                          <span style={{ color: '#111827', fontFamily: 'monospace' }}>{quote.customer.iban}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Adres Bilgileri */}
+                {(quote.customer.city || quote.customer.country || quote.customer.postalCode || quote.customer.district || quote.customer.neighbourhood || quote.customer.address) && (
+                  <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> Adres Bilgileri</div>
+
+                    {/* Açık Adres */}
+                    {quote.customer.address && (
+                      <div style={{ fontSize: '12px', marginBottom: '8px', color: '#111827' }}>
+                        {quote.customer.address}
+                      </div>
+                    )}
+
+                    {/* Konum Bilgileri - Compact */}
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', flexWrap: 'wrap' }}>
+                      {quote.customer.neighbourhood && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Mahalle: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.neighbourhood}</span>
+                        </div>
+                      )}
+                      {quote.customer.district && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>İlçe: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.district}</span>
+                        </div>
+                      )}
+                      {quote.customer.city && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>İl: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.city}</span>
+                        </div>
+                      )}
+                      {quote.customer.country && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Ülke: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.country}</span>
+                        </div>
+                      )}
+                      {quote.customer.postalCode && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Posta Kodu: </span>
+                          <span style={{ color: '#111827' }}>{quote.customer.postalCode}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Fiyat Bilgileri */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#111827',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              Fiyat Bilgileri
+            </h3>
+
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="detail-label" style={{
+                fontWeight: '600',
+                fontSize: '12px',
+                color: '#374151',
+                minWidth: '120px',
+                marginRight: '8px'
+              }}>
+                Fiyat:
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                  {formatPriceDisplay(quote.finalPrice || quote.calculatedPrice || quote.price)}
+                </span>
+                {quote.priceStatus && (
+                  <PriceStatusBadge priceStatus={quote.priceStatus} />
+                )}
+              </div>
+            </div>
+
+            {/* Manuel Fiyat Kontrolü */}
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: isLocked ? '#fef3c7' : '#f3f4f6',
+              borderRadius: '4px',
+              border: `1px solid ${isLocked ? '#fbbf24' : '#d1d5db'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {isLocked ? <Lock size={12} style={{ color: '#f59e0b' }} /> : <Unlock size={12} style={{ color: '#6b7280' }} />}
+                  {isLocked ? 'Manuel Fiyat Aktif' : 'Otomatik Fiyatlandırma'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleManualPriceToggle}
+                  disabled={manualLoading}
+                  style={{
+                    padding: '4px 8px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: isLocked ? '#dc2626' : '#3b82f6',
+                    color: 'white',
+                    cursor: manualLoading ? 'not-allowed' : 'pointer',
+                    fontSize: '11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {isLocked ? <Unlock size={12} /> : <Lock size={12} />}
+                  {manualLoading ? 'İşleniyor...' : (isLocked ? 'Kilidi Kaldır' : 'Manuel Fiyat Belirle')}
+                </button>
+              </div>
+
+              {!isLocked && (
+                <>
                   <input
-                    type="file"
-                    multiple
-                    accept={ACCEPT_EXT}
-                    onChange={(e) => handleFileUpload(e, 'tech')}
-                    style={{ fontSize: '12px' }}
+                    type="text"
+                    value={manualPriceInput}
+                    onChange={(e) => setManualPriceInput(e.target.value)}
+                    placeholder="Manuel fiyat girin"
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      marginBottom: '8px'
+                    }}
                   />
-                </div>
+                  <textarea
+                    value={manualNote}
+                    onChange={(e) => setManualNote(e.target.value)}
+                    placeholder="Not (opsiyonel)"
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      minHeight: '60px',
+                      resize: 'vertical'
+                    }}
+                  />
+                </>
               )}
 
-              {techFiles.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {console.log('🔍 Rendering techFiles:', techFiles.length, techFiles)}
-                  {techFiles.map(file => {
-                    const fileName = file.fileName || file.name || 'Dosya'
-                    const fileUrl = file.filePath || file.url
-                    const fileSize = file.fileSize || file.size
-                    const uploadDate = file.createdAt || file.uploadedAt
-                    const isImage = file.mimeType?.startsWith('image/') || isImageExt(fileName)
-                    
-                    // Format file size
-                    const formatSize = (bytes) => {
-                      if (!bytes) return ''
-                      if (bytes < 1024) return bytes + ' B'
-                      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-                      return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-                    }
-                    
-                    // Get file icon based on extension
-                    const getFileIcon = (name) => {
-                      const ext = name?.split('.').pop()?.toLowerCase()
-                      if (['pdf'].includes(ext)) return <FileText size={18} />
-                      if (['dxf', 'dwg', 'step', 'stp', 'iges', 'igs'].includes(ext)) return <PenTool size={18} />
-                      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <Image size={18} />
-                      return <Paperclip size={18} />
-                    }
-                    
-                    return (
-                      <div key={file.id} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between',
-                        padding: '10px 12px',
-                        background: '#f9fafb',
-                        borderRadius: '6px',
-                        border: '1px solid #e5e7eb'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>{getFileIcon(fileName)}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ 
-                              fontSize: '12px', 
-                              fontWeight: '500', 
-                              color: '#111827',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {fileName}
-                            </div>
-                            <div style={{ fontSize: '10px', color: '#6b7280', display: 'flex', gap: '8px', marginTop: '2px' }}>
-                              {fileSize && <span>{formatSize(fileSize)}</span>}
-                              {uploadDate && <span>{new Date(uploadDate).toLocaleDateString('tr-TR')}</span>}
-                            </div>
+              {isLocked && manualOverride && (
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  <div>Not: {manualOverride.note || 'Yok'}</div>
+                  <div>Tarih: {new Date(manualOverride.timestamp).toLocaleString('tr-TR')}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Dosyalar - PROMPT-16: Geliştirilmiş dosya görüntüleme */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              margin: '0 0 12px 0',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Teknik Dosyalar
+                {techFiles.length > 0 && (
+                  <span style={{
+                    marginLeft: '8px',
+                    fontSize: '11px',
+                    fontWeight: 'normal',
+                    color: '#6b7280',
+                    background: '#f3f4f6',
+                    padding: '2px 6px',
+                    borderRadius: '10px'
+                  }}>
+                    {techFiles.length}
+                  </span>
+                )}
+              </h3>
+            </div>
+
+            {editing && (
+              <div style={{ marginBottom: '12px' }}>
+                <input
+                  type="file"
+                  multiple
+                  accept={ACCEPT_EXT}
+                  onChange={(e) => handleFileUpload(e, 'tech')}
+                  style={{ fontSize: '12px' }}
+                />
+              </div>
+            )}
+
+            {techFiles.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {console.log('🔍 Rendering techFiles:', techFiles.length, techFiles)}
+                {techFiles.map(file => {
+                  const fileName = file.fileName || file.name || 'Dosya'
+                  const fileUrl = file.filePath || file.url
+                  const fileSize = file.fileSize || file.size
+                  const uploadDate = file.createdAt || file.uploadedAt
+                  const isImage = file.mimeType?.startsWith('image/') || isImageExt(fileName)
+
+                  // Format file size
+                  const formatSize = (bytes) => {
+                    if (!bytes) return ''
+                    if (bytes < 1024) return bytes + ' B'
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+                    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+                  }
+
+                  // Get file icon based on extension
+                  const getFileIcon = (name) => {
+                    const ext = name?.split('.').pop()?.toLowerCase()
+                    if (['pdf'].includes(ext)) return <FileText size={18} />
+                    if (['dxf', 'dwg', 'step', 'stp', 'iges', 'igs'].includes(ext)) return <PenTool size={18} />
+                    if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <Image size={18} />
+                    return <Paperclip size={18} />
+                  }
+
+                  return (
+                    <div key={file.id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      background: '#f9fafb',
+                      borderRadius: '6px',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>{getFileIcon(fileName)}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#111827',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {fileName}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#6b7280', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                            {fileSize && <span>{formatSize(fileSize)}</span>}
+                            {uploadDate && <span>{new Date(uploadDate).toLocaleDateString('tr-TR')}</span>}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fileUrl?.startsWith('data:')) {
+                              downloadDataUrl(fileUrl, fileName)
+                            } else if (fileUrl) {
+                              window.open(`${API_BASE}${fileUrl}`, '_blank')
+                            }
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            background: '#3b82f6',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Download size={12} /> İndir
+                        </button>
+                        {editing && (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (fileUrl?.startsWith('data:')) {
-                                downloadDataUrl(fileUrl, fileName)
-                              } else if (fileUrl) {
-                                window.open(`${API_BASE}${fileUrl}`, '_blank')
-                              }
-                            }}
+                            onClick={() => handleFileDelete(file.id, 'tech')}
                             style={{
                               padding: '5px 10px',
                               border: 'none',
                               borderRadius: '4px',
-                              background: '#3b82f6',
+                              background: '#dc2626',
                               color: 'white',
                               cursor: 'pointer',
                               fontSize: '11px',
@@ -2053,190 +2077,366 @@ export default function QuoteDetailsPanel({
                               gap: '4px'
                             }}
                           >
-                            <Download size={12} /> İndir
-                          </button>
-                          {editing && (
-                            <button
-                              type="button"
-                              onClick={() => handleFileDelete(file.id, 'tech')}
-                              style={{
-                                padding: '5px 10px',
-                                border: 'none',
-                                borderRadius: '4px',
-                                background: '#dc2626',
-                                color: 'white',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Trash2 size={12} /> Sil
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div style={{ 
-                  padding: '20px', 
-                  textAlign: 'center', 
-                  background: '#f9fafb', 
-                  borderRadius: '6px',
-                  border: '1px dashed #d1d5db'
-                }}>
-                  <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><FolderOpen size={24} /></span>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Teknik dosya yüklenmemiş</p>
-                  {editing && (
-                    <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
-                      PDF, DXF, DWG, STEP dosyaları yükleyebilirsiniz
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Ürün Görselleri - PROMPT-16: Geliştirilmiş görsel görüntüleme */}
-            <div style={{ 
-              marginBottom: '16px', 
-              padding: '12px', 
-              background: 'white', 
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                margin: '0 0 12px 0', 
-                borderBottom: '1px solid #e5e7eb', 
-                paddingBottom: '6px' 
-              }}>
-                <h3 style={{ 
-                  margin: 0, 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  color: '#111827'
-                }}>
-                  Ürün Görselleri
-                  {prodImgs.length > 0 && (
-                    <span style={{ 
-                      marginLeft: '8px', 
-                      fontSize: '11px', 
-                      fontWeight: 'normal', 
-                      color: '#6b7280',
-                      background: '#f3f4f6',
-                      padding: '2px 6px',
-                      borderRadius: '10px'
-                    }}>
-                      {prodImgs.length}
-                    </span>
-                  )}
-                </h3>
-              </div>
-
-              {editing && (
-                <div style={{ marginBottom: '12px' }}>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 'product')}
-                    style={{ fontSize: '12px' }}
-                  />
-                </div>
-              )}
-
-              {prodImgs.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px' }}>
-                  {prodImgs.map(img => {
-                    const imgName = img.fileName || img.name || 'Görsel'
-                    const imgUrl = img.filePath || img.url
-                    const imgSrc = imgUrl?.startsWith('data:') ? imgUrl : `${API_BASE}${imgUrl}`
-                    
-                    return (
-                      <div key={img.id} style={{ 
-                        position: 'relative',
-                        borderRadius: '6px',
-                        overflow: 'hidden',
-                        border: '1px solid #e5e7eb',
-                        background: '#f9fafb'
-                      }}>
-                        <img 
-                          src={imgSrc} 
-                          alt={imgName}
-                          style={{ 
-                            width: '100%', 
-                            height: '100px', 
-                            objectFit: 'cover',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => window.open(imgSrc, '_blank')}
-                          title="Tam boyut görmek için tıklayın"
-                        />
-                        <div style={{
-                          padding: '6px 8px',
-                          background: 'white',
-                          borderTop: '1px solid #e5e7eb',
-                          fontSize: '10px',
-                          color: '#6b7280',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis'
-                        }}>
-                          {imgName}
-                        </div>
-                        {editing && (
-                          <button
-                            type="button"
-                            onClick={() => handleFileDelete(img.id, 'product')}
-                            style={{
-                              position: 'absolute',
-                              top: '6px',
-                              right: '6px',
-                              padding: '4px 6px',
-                              border: 'none',
-                              borderRadius: '4px',
-                              background: 'rgba(220, 38, 38, 0.9)',
-                              color: 'white',
-                              cursor: 'pointer',
-                              fontSize: '10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '2px'
-                            }}
-                          >
-                            <Trash2 size={10} />
+                            <Trash2 size={12} /> Sil
                           </button>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div style={{ 
-                  padding: '20px', 
-                  textAlign: 'center', 
-                  background: '#f9fafb', 
-                  borderRadius: '6px',
-                  border: '1px dashed #d1d5db'
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                background: '#f9fafb',
+                borderRadius: '6px',
+                border: '1px dashed #d1d5db'
+              }}>
+                <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><FolderOpen size={24} /></span>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Teknik dosya yüklenmemiş</p>
+                {editing && (
+                  <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
+                    PDF, DXF, DWG, STEP dosyaları yükleyebilirsiniz
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Ürün Görselleri - PROMPT-16: Geliştirilmiş görsel görüntüleme */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              margin: '0 0 12px 0',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Ürün Görselleri
+                {prodImgs.length > 0 && (
+                  <span style={{
+                    marginLeft: '8px',
+                    fontSize: '11px',
+                    fontWeight: 'normal',
+                    color: '#6b7280',
+                    background: '#f3f4f6',
+                    padding: '2px 6px',
+                    borderRadius: '10px'
+                  }}>
+                    {prodImgs.length}
+                  </span>
+                )}
+              </h3>
+            </div>
+
+            {editing && (
+              <div style={{ marginBottom: '12px' }}>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => handleFileUpload(e, 'product')}
+                  style={{ fontSize: '12px' }}
+                />
+              </div>
+            )}
+
+            {prodImgs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px' }}>
+                {prodImgs.map(img => {
+                  const imgName = img.fileName || img.name || 'Görsel'
+                  const imgUrl = img.filePath || img.url
+                  const imgSrc = imgUrl?.startsWith('data:') ? imgUrl : `${API_BASE}${imgUrl}`
+
+                  return (
+                    <div key={img.id} style={{
+                      position: 'relative',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      border: '1px solid #e5e7eb',
+                      background: '#f9fafb'
+                    }}>
+                      <img
+                        src={imgSrc}
+                        alt={imgName}
+                        style={{
+                          width: '100%',
+                          height: '100px',
+                          objectFit: 'cover',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(imgSrc, '_blank')}
+                        title="Tam boyut görmek için tıklayın"
+                      />
+                      <div style={{
+                        padding: '6px 8px',
+                        background: 'white',
+                        borderTop: '1px solid #e5e7eb',
+                        fontSize: '10px',
+                        color: '#6b7280',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {imgName}
+                      </div>
+                      {editing && (
+                        <button
+                          type="button"
+                          onClick={() => handleFileDelete(img.id, 'product')}
+                          style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            padding: '4px 6px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            background: 'rgba(220, 38, 38, 0.9)',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                background: '#f9fafb',
+                borderRadius: '6px',
+                border: '1px dashed #d1d5db'
+              }}>
+                <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Image size={24} /></span>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Ürün görseli yüklenmemiş</p>
+                {editing && (
+                  <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
+                    PNG, JPG formatında görseller yükleyebilirsiniz
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ===== FATURA İŞLEMLERİ SECTION (P4.4) ===== */}
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'white',
+            borderRadius: '6px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              margin: '0 0 12px 0',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '6px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#111827',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <Receipt size={14} />
+                Fatura İşlemleri
+              </h3>
+            </div>
+
+            {/* Proforma Status */}
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                Proforma:
+              </span>
+              <span style={{ fontSize: '12px' }}>
+                {quote.proformaNumber ? (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: '#dcfce7',
+                    color: '#166534',
+                    fontSize: '11px',
+                    fontWeight: '500'
+                  }}>
+                    {quote.proformaNumber}
+                  </span>
+                ) : (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    fontSize: '11px',
+                    fontWeight: '500'
+                  }}>
+                    Oluşturulmadı
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* Invoice Status */}
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
+                e-Fatura:
+              </span>
+              <span style={{ fontSize: '12px' }}>
+                {quote.invoiceNumber ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: '#dcfce7',
+                      color: '#166534',
+                      fontSize: '11px',
+                      fontWeight: '500'
+                    }}>
+                      {quote.invoiceNumber}
+                    </span>
+                    {quote.invoiceEttn && (
+                      <code style={{
+                        padding: '2px 6px',
+                        borderRadius: '3px',
+                        background: '#f3f4f6',
+                        color: '#6b7280',
+                        fontSize: '10px',
+                        fontFamily: 'monospace'
+                      }}>
+                        ETTN: {quote.invoiceEttn.substring(0, 8)}...
+                      </code>
+                    )}
+                  </div>
+                ) : quote.invoiceExportedAt ? (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: '#dbeafe',
+                    color: '#1e40af',
+                    fontSize: '11px',
+                    fontWeight: '500'
+                  }}>
+                    Export edildi
+                  </span>
+                ) : (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: '#f3f4f6',
+                    color: '#6b7280',
+                    fontSize: '11px',
+                    fontWeight: '500'
+                  }}>
+                    Kesilmedi
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* 7 Gün Uyarısı */}
+            {sevenDayWarning && sevenDayWarning.hasWarning && (
+              <div style={{
+                padding: '8px 12px',
+                background: sevenDayWarning.isOverdue ? '#fef2f2' : '#fef3c7',
+                border: `1px solid ${sevenDayWarning.isOverdue ? '#fecaca' : '#fbbf24'}`,
+                borderRadius: '6px',
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <AlertTriangle size={14} style={{ color: sevenDayWarning.isOverdue ? '#dc2626' : '#d97706' }} />
+                <span style={{
+                  fontSize: '12px',
+                  color: sevenDayWarning.isOverdue ? '#dc2626' : '#92400e',
+                  fontWeight: '500'
                 }}>
-                  <span style={{ fontSize: '24px', display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Image size={24} /></span>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Ürün görseli yüklenmemiş</p>
-                  {editing && (
-                    <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0 0' }}>
-                      PNG, JPG formatında görseller yükleyebilirsiniz
-                    </p>
-                  )}
-                </div>
+                  {sevenDayWarning.isOverdue
+                    ? '7 Gün Kuralı Aşıldı! Fatura kesilmesi gerekiyor.'
+                    : `7 Gün Kuralı: ${sevenDayWarning.daysRemaining} gün kaldı!`
+                  }
+                </span>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setShowInvoiceModal(true)}
+                disabled={invoiceLoading}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #3b82f6',
+                  borderRadius: '4px',
+                  background: 'white',
+                  color: '#3b82f6',
+                  cursor: invoiceLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: invoiceLoading ? 0.6 : 1
+                }}
+              >
+                <Receipt size={12} />
+                {quote.proformaNumber ? 'Fatura İşlemleri' : 'Proforma Oluştur'}
+              </button>
+
+              {quote.invoiceImportedFileName && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // TODO: Implement invoice download
+                    showToast('Fatura indirme özelliği yakında eklenecek', 'info')
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    border: '1px solid #6b7280',
+                    borderRadius: '4px',
+                    background: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Download size={12} /> Faturayı İndir
+                </button>
               )}
             </div>
-          </form>
-        </div>
-        
+          </div>
+        </form>
+      </div>
+
       {/* C2: Form Update Modal */}
       <FormUpdateModal
         isOpen={showFormUpdateModal}
@@ -2249,7 +2449,7 @@ export default function QuoteDetailsPanel({
         activePriceSetting={activePriceSetting}
         onSave={handleFormUpdateSave}
       />
-      
+
       {/* C3: Price Recalculation Confirmation Modal */}
       {showPriceRecalcModal && (
         <div style={{
@@ -2295,7 +2495,7 @@ export default function QuoteDetailsPanel({
                 </p>
               </div>
             </div>
-            
+
             {/* C3: Show what changed */}
             {priceChanges && (priceChanges.formulaChanged || priceChanges.parameterChanges?.length > 0) && (
               <div style={{
@@ -2309,7 +2509,7 @@ export default function QuoteDetailsPanel({
                   <AlertTriangle size={16} />
                   Değişiklikler
                 </h4>
-                
+
                 {/* Formula change */}
                 {priceChanges.formulaChanged && (
                   <div style={{ marginBottom: priceChanges.parameterChanges?.length > 0 ? '12px' : 0 }}>
@@ -2317,9 +2517,9 @@ export default function QuoteDetailsPanel({
                       <Calculator size={14} />
                       Formül Değişti:
                     </div>
-                    <div style={{ 
-                      background: 'white', 
-                      borderRadius: '6px', 
+                    <div style={{
+                      background: 'white',
+                      borderRadius: '6px',
                       padding: '8px 12px',
                       fontSize: '13px',
                       fontFamily: 'monospace'
@@ -2333,7 +2533,7 @@ export default function QuoteDetailsPanel({
                     </div>
                   </div>
                 )}
-                
+
                 {/* Parameter changes */}
                 {priceChanges.parameterChanges?.length > 0 && (
                   <div>
@@ -2341,17 +2541,17 @@ export default function QuoteDetailsPanel({
                       <Sliders size={14} />
                       Parametre Değişiklikleri:
                     </div>
-                    <div style={{ 
-                      background: 'white', 
-                      borderRadius: '6px', 
+                    <div style={{
+                      background: 'white',
+                      borderRadius: '6px',
                       padding: '8px 12px',
                       fontSize: '13px'
                     }}>
                       {priceChanges.parameterChanges.map((change, idx) => (
-                        <div 
-                          key={idx} 
-                          style={{ 
-                            display: 'flex', 
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '4px 0',
@@ -2388,7 +2588,7 @@ export default function QuoteDetailsPanel({
                 )}
               </div>
             )}
-            
+
             <div style={{
               background: '#f9fafb',
               borderRadius: '8px',
@@ -2425,13 +2625,13 @@ export default function QuoteDetailsPanel({
                     {newCalculatedPrice > parseFloat(quote.finalPrice) ? '+' : ''}
                     {(newCalculatedPrice - parseFloat(quote.finalPrice)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                     {' '}
-                    ({newCalculatedPrice > parseFloat(quote.finalPrice) ? '↑' : '↓'} 
+                    ({newCalculatedPrice > parseFloat(quote.finalPrice) ? '↑' : '↓'}
                     {Math.abs(((newCalculatedPrice - parseFloat(quote.finalPrice)) / parseFloat(quote.finalPrice)) * 100).toFixed(1)}%)
                   </span>
                 </div>
               )}
             </div>
-            
+
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
@@ -2473,7 +2673,7 @@ export default function QuoteDetailsPanel({
           </div>
         </div>
       )}
-      
+
       {/* D1/E2: Price Confirm Modal for Edit Mode - Refactored to separate component */}
       <PriceConfirmModal
         isOpen={showPriceConfirmModal && pendingChanges !== null}

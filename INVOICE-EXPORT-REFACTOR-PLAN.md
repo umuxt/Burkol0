@@ -3216,11 +3216,10 @@ Referans: Mevcut AddShipmentModal yapısı
 - `/WebApp/domains/crm/components/quotes/QuoteDetailsPanel.jsx`
 
 **Test:**
-- [ ] Fatura İşlemleri section'ı görünüyor
-- [ ] Proforma ve Invoice status badge'leri doğru
-```
-   - [x] "Proforma Oluştur" / "Fatura İşlemleri" butonu çalışıyor
-   - [x] Konsol hatası yok
+- [x] Fatura İşlemleri section'ı görünüyor
+- [x] Proforma ve Invoice status badge'leri doğru
+- [x] "Proforma Oluştur" / "Fatura İşlemleri" butonu çalışıyor
+- [x] Konsol hatası yok
 
 ---
 
