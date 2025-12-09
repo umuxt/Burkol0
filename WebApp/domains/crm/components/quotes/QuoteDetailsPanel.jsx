@@ -11,6 +11,7 @@ import { priceApi } from '../../services/pricing-service.js'
 import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
 import FormUpdateModal from './FormUpdateModal.jsx'
 import PriceConfirmModal from './PriceConfirmModal.jsx'
+import AddInvoiceModal from './AddInvoiceModal.jsx'
 
 export default function QuoteDetailsPanel({
   quote,
@@ -2683,6 +2684,20 @@ export default function QuoteDetailsPanel({
         changedFields={pendingChanges?.changedFields || []}
         onConfirm={handlePriceConfirm}
         onCancel={handlePriceConfirmCancel}
+      />
+
+      {/* P4.5: Invoice Modal */}
+      <AddInvoiceModal
+        isOpen={showInvoiceModal}
+        quote={quote}
+        onClose={() => setShowInvoiceModal(false)}
+        onSuccess={() => {
+          setShowInvoiceModal(false)
+          if (onRefreshQuote) {
+            onRefreshQuote()
+          }
+          showToast('Fatura işlemi tamamlandı!', 'success')
+        }}
       />
     </div>
   )

@@ -3266,9 +3266,9 @@ NOT: Veri akışı için logic'i kur. Step 1 DB'ye yazar, Step 2 sadece state'te
 ```
 
 **Test:**
-- [ ] Modal açılıyor
-- [ ] Step 1: Proforma oluşturuluyor ve PDF indirilebiliyor
-- [ ] Step 2: Form çalışıyor ve state'e kaydediyor
+- [x] Modal açılıyor
+- [x] Step 1: Proforma oluşturuluyor ve PDF indirilebiliyor (PDF placeholder)
+- [x] Step 2: Form çalışıyor ve state'e kaydediyor
 
 ---
 

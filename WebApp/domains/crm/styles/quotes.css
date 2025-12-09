@@ -6,33 +6,86 @@
    ============================================ */
 
 /* === FONT SIZES === */
-.text-xs { font-size: 11px; }
-.text-sm { font-size: 12px; }
-.text-base { font-size: 13px; }
-.text-md { font-size: 14px; }
+.text-xs {
+  font-size: 11px;
+}
+
+.text-sm {
+  font-size: 12px;
+}
+
+.text-base {
+  font-size: 13px;
+}
+
+.text-md {
+  font-size: 14px;
+}
 
 /* === FONT WEIGHTS === */
-.font-medium { font-weight: 500; }
-.font-semibold { font-weight: 600; }
-.font-bold { font-weight: 700; }
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
+}
 
 /* === TEXT COLORS === */
-.text-dark { color: #111827; }
-.text-gray { color: #374151; }
-.text-muted { color: #6b7280; }
-.text-light { color: #9ca3af; }
-.text-primary { color: #3b82f6; }
-.text-success { color: #16a34a; }
-.text-error { color: #dc2626; }
-.text-primary-var { color: var(--primary, #3b82f6); }
+.text-dark {
+  color: #111827;
+}
+
+.text-gray {
+  color: #374151;
+}
+
+.text-muted {
+  color: #6b7280;
+}
+
+.text-light {
+  color: #9ca3af;
+}
+
+.text-primary {
+  color: #3b82f6;
+}
+
+.text-success {
+  color: #16a34a;
+}
+
+.text-error {
+  color: #dc2626;
+}
+
+.text-primary-var {
+  color: var(--primary, #3b82f6);
+}
 
 /* === TEXT ALIGNMENT === */
-.text-center { text-align: center; }
-.text-right { text-align: right; }
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
 
 /* === TEXT MODIFIERS === */
-.text-italic { font-style: italic; }
-.text-nowrap { white-space: nowrap; }
+.text-italic {
+  font-style: italic;
+}
+
+.text-nowrap {
+  white-space: nowrap;
+}
+
 .text-truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -82,19 +135,65 @@
 }
 
 /* === COMMON COMBINATIONS === */
-.text-xs-muted { font-size: 11px; color: #6b7280; }
-.text-sm-muted { font-size: 12px; color: #6b7280; }
-.text-xs-light { font-size: 11px; color: #9ca3af; }
-.text-sm-light { font-size: 12px; color: #9ca3af; }
-.text-xs-light-mb { font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
-.text-muted-italic { color: #6b7280; font-style: italic; }
+.text-xs-muted {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.text-sm-muted {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.text-xs-light {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.text-sm-light {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.text-xs-light-mb {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 12px;
+}
+
+.text-muted-italic {
+  color: #6b7280;
+  font-style: italic;
+}
 
 /* === SPECIALIZED TEXT === */
-.text-subtitle { font-size: 14px; color: #6b7280; margin: 0; }
-.text-hint { display: block; font-size: 11px; color: #9ca3af; font-style: italic; margin-top: 4px; }
-.text-required { color: #dc2626; }
-.text-link { color: #3b82f6; cursor: pointer; text-decoration: none; }
-.text-link:hover { text-decoration: underline; }
+.text-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.text-hint {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.text-required {
+  color: #dc2626;
+}
+
+.text-link {
+  color: #3b82f6;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
 
 /* === DETAIL ROWS === */
 .detail-label {
@@ -178,14 +277,37 @@
 }
 
 /* Spacing Utilities */
-.mt-6 { margin-top: 6px; }
-.mt-8 { margin-top: 8px; }
-.mt-12 { margin-top: 12px; }
-.mt-16 { margin-top: 16px; }
-.mb-8 { margin-bottom: 8px; }
-.mb-12 { margin-bottom: 12px; }
-.mb-16 { margin-bottom: 16px; }
-.w-full { width: 100%; }
+.mt-6 {
+  margin-top: 6px;
+}
+
+.mt-8 {
+  margin-top: 8px;
+}
+
+.mt-12 {
+  margin-top: 12px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mb-8 {
+  margin-bottom: 8px;
+}
+
+.mb-12 {
+  margin-bottom: 12px;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.w-full {
+  width: 100%;
+}
 
 /* Panel Content */
 .panel-content {
@@ -249,8 +371,13 @@
 }
 
 /* Text conditional for dropdowns */
-.text-conditional { color: #1f2937; }
-.text-conditional.placeholder { color: #9ca3af; }
+.text-conditional {
+  color: #1f2937;
+}
+
+.text-conditional.placeholder {
+  color: #9ca3af;
+}
 
 /* ============================================
    QUOTE MODAL - Shipment Modal Inspired Design
@@ -980,18 +1107,31 @@ input.mes-search-input:focus,
 
 .quotes-table th.freeze-left {
   background: #f9fafb;
-  z-index: 12; /* Header + freeze - en üstte */
+  z-index: 12;
+  /* Header + freeze - en üstte */
 }
 
 /* Sol freeze offset'leri (checkbox + 3 kolon) */
 .quotes-table th.freeze-left-0,
-.quotes-table td.freeze-left-0 { left: 40px; } /* After checkbox */
+.quotes-table td.freeze-left-0 {
+  left: 40px;
+}
+
+/* After checkbox */
 
 .quotes-table th.freeze-left-1,
-.quotes-table td.freeze-left-1 { left: 180px; } /* date: 40 + 140 */
+.quotes-table td.freeze-left-1 {
+  left: 180px;
+}
+
+/* date: 40 + 140 */
 
 .quotes-table th.freeze-left-2,
-.quotes-table td.freeze-left-2 { left: 330px; } /* company: 180 + 150 */
+.quotes-table td.freeze-left-2 {
+  left: 330px;
+}
+
+/* company: 180 + 150 */
 
 /* Sağ Freeze Kolonlar */
 .quotes-table th.freeze-right,
@@ -1006,21 +1146,32 @@ input.mes-search-input:focus,
 
 .quotes-table th.freeze-right {
   background: #f9fafb;
-  z-index: 12; /* Header + freeze - en üstte */
+  z-index: 12;
+  /* Header + freeze - en üstte */
 }
 
 /* Sağ freeze offset'leri (3 kolon: price, delivery_date, status) */
 /* price (index 0) - en solda, en uzak right offset */
 .quotes-table th.freeze-right-0,
-.quotes-table td.freeze-right-0 { right: 210px; } /* delivery(110) + status(100) */
+.quotes-table td.freeze-right-0 {
+  right: 210px;
+}
+
+/* delivery(110) + status(100) */
 
 /* delivery_date (index 1) - ortada */
 .quotes-table th.freeze-right-1,
-.quotes-table td.freeze-right-1 { right: 100px; } /* status(100) */
+.quotes-table td.freeze-right-1 {
+  right: 100px;
+}
+
+/* status(100) */
 
 /* status (index 2) - en sağda, right: 0 */
 .quotes-table th.freeze-right-2,
-.quotes-table td.freeze-right-2 { right: 0; }
+.quotes-table td.freeze-right-2 {
+  right: 0;
+}
 
 /* Freeze kolonları için gölge efekti */
 .quotes-table td.freeze-left:last-of-type {
@@ -1235,7 +1386,9 @@ select.status-badge option {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .quotes-loading .loading-text {
@@ -1245,8 +1398,15 @@ select.status-badge option {
 
 /* Pulse Animation for Warnings */
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Responsive Design */
@@ -1254,12 +1414,12 @@ select.status-badge option {
   .quotes-filter-bar {
     flex-wrap: wrap;
   }
-  
+
   .quotes-filter-bar-left,
   .quotes-filter-bar-right {
     width: 100%;
   }
-  
+
   .quotes-search-input {
     max-width: 100%;
   }
@@ -1269,15 +1429,15 @@ select.status-badge option {
   .quotes-page {
     padding: 0.5rem;
   }
-  
+
   .quotes-page-title {
     font-size: 24px;
   }
-  
+
   .quotes-dashboard {
     flex-wrap: wrap;
   }
-  
+
   .quotes-table th,
   .quotes-table td {
     padding: 8px 12px;
@@ -1364,8 +1524,15 @@ label.mes-btn {
 }
 
 @keyframes pulse-btn {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
 }
 
 /* Danger Button - Red */
@@ -1666,7 +1833,7 @@ label.mes-btn {
 
 /* Pricing Manager Responsive Design */
 @media (max-width: 1200px) {
-  .pricing-content > div:first-child {
+  .pricing-content>div:first-child {
     grid-template-columns: 1fr !important;
   }
 }
@@ -1708,6 +1875,7 @@ label.mes-btn {
     opacity: 0;
     transform: translateY(-20px) scale(0.97);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -2589,7 +2757,7 @@ label.mes-btn {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
   padding: 4px 6px;
   display: flex;
   align-items: center;
@@ -2939,5 +3107,64 @@ label.mes-btn {
 
   .quote-step-connector {
     width: 24px;
+  }
+}
+
+/* ============================================
+   INVOICE MODAL - P4.5 Minimal Additions
+   ============================================ */
+
+/* Invoice Modal - Wider variant (600px instead of 520px) */
+.invoice-modal-wide {
+  width: 600px;
+}
+
+/* Invoice Success/Warning/Error Boxes - Uses existing banner pattern */
+.invoice-success-box {
+  padding: 16px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+}
+
+.invoice-warning-box {
+  padding: 16px;
+  background: #fefce8;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+}
+
+.invoice-error-box {
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc2626;
+}
+
+/* Invoice Placeholder (Step 3/4 placeholder content) */
+.invoice-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Spinner Animation (for loading states) */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
