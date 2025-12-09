@@ -1,19 +1,22 @@
 /**
  * QuoteInvoice Service
  * Manages proforma and invoice operations for quotes
+ * Updated: 2025-12-09 - Integrated with quote_documents table (P4.3)
  */
 
 import db from '../../../../db/connection.js';
 import QuoteItems from '../../../../db/models/quoteItems.js';
+import QuoteDocuments from '../../../../db/models/quoteDocuments.js';
 
 const QuoteInvoiceService = {
 
     /**
      * Generate proforma number for a quote
      * @param {string} quoteId - Quote ID
-     * @returns {Object} Updated quote with proforma number
+     * @param {Object} options - { createdBy }
+     * @returns {Object} { quote, document, isNew, message }
      */
-    async generateProforma(quoteId) {
+    async generateProforma(quoteId, options = {}) {
         const trx = await db.transaction();
 
         try {
@@ -28,18 +31,22 @@ const QuoteInvoiceService = {
                 throw error;
             }
 
-            // Check if proforma already exists
-            if (quote.proformaNumber) {
-                const error = new Error('Proforma already generated for this quote');
-                error.code = 'ALREADY_EXISTS';
-                throw error;
+            // Check if proforma already exists in quote_documents
+            const existingProforma = await QuoteDocuments.getLatestDocument(quoteId, 'proforma');
+            if (existingProforma) {
+                return {
+                    quote,
+                    document: existingProforma,
+                    isNew: false,
+                    message: 'Proforma already exists'
+                };
             }
 
             // Generate proforma number using database function
             const result = await trx.raw('SELECT quotes.generate_proforma_number() as proforma_number');
             const proformaNumber = result.rows[0].proforma_number;
 
-            // Update quote with proforma details
+            // Update quote with proforma details (backward compatibility)
             const [updatedQuote] = await trx('quotes.quotes')
                 .where('id', quoteId)
                 .update({
@@ -52,7 +59,19 @@ const QuoteInvoiceService = {
 
             await trx.commit();
 
-            return updatedQuote;
+            // Create document record in quote_documents table
+            const document = await QuoteDocuments.createDocument(quoteId, 'proforma', {
+                documentNumber: proformaNumber,
+                createdBy: options.createdBy || 'system',
+                notes: `Proforma oluşturuldu: ${proformaNumber}`
+            });
+
+            return {
+                quote: updatedQuote,
+                document,
+                isNew: true,
+                message: 'Proforma başarıyla oluşturuldu'
+            };
 
         } catch (error) {
             await trx.rollback();
@@ -154,11 +173,22 @@ const QuoteInvoiceService = {
 
             await trx.commit();
 
+            // Create document record in quote_documents table
+            const document = await QuoteDocuments.createDocument(quoteId, 'export', {
+                invoiceScenario,
+                invoiceType,
+                exportFormat: format,
+                exportTarget: options.exportTarget || 'LOGO',
+                createdBy: options.createdBy || 'system',
+                notes: `Export: ${format.toUpperCase()} for ${options.exportTarget || 'LOGO'}`
+            });
+
             return {
                 success: true,
                 fileName,
                 fileContent: Buffer.from(fileContent, 'utf-8'),
-                mimeType
+                mimeType,
+                document
             };
 
         } catch (error) {
@@ -229,7 +259,29 @@ const QuoteInvoiceService = {
 
             await trx.commit();
 
-            return updatedQuote;
+            // Create document record in quote_documents table (with file)
+            const documentData = {
+                documentNumber: invoiceNumber,
+                ettn: invoiceEttn,
+                invoiceScenario: quote.invoiceScenario,
+                invoiceType: quote.invoiceType,
+                createdBy: data.createdBy || 'system',
+                notes: `Import: Fatura No: ${invoiceNumber}, ETTN: ${invoiceEttn}`
+            };
+
+            if (file && fileName) {
+                documentData.fileData = file;
+                documentData.fileName = fileName;
+                documentData.mimeType = 'application/xml';
+            }
+
+            const document = await QuoteDocuments.createDocument(quoteId, 'import', documentData);
+
+            return {
+                quote: updatedQuote,
+                document,
+                message: 'ETTN başarıyla kaydedildi'
+            };
 
         } catch (error) {
             await trx.rollback();
@@ -291,6 +343,62 @@ const QuoteInvoiceService = {
 
         } catch (error) {
             console.error('Error checking 7-day rule:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get document history for a quote
+     * @param {string} quoteId - Quote ID
+     * @param {string} documentType - Optional: 'proforma' | 'export' | 'import'
+     * @returns {Object} { documents, stats }
+     */
+    async getDocumentHistory(quoteId, documentType = null) {
+        try {
+            const documents = await QuoteDocuments.getDocumentsByQuoteId(quoteId, documentType);
+            const stats = await QuoteDocuments.getDocumentStats(quoteId);
+
+            return {
+                documents,
+                stats
+            };
+        } catch (error) {
+            console.error('Error getting document history:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get single document by ID
+     * @param {number} docId - Document ID
+     * @param {boolean} includeFileData - Include binary file data
+     * @returns {Object} Document
+     */
+    async getDocumentById(docId, includeFileData = false) {
+        try {
+            const document = await QuoteDocuments.getDocumentById(docId, includeFileData);
+            if (!document) {
+                const error = new Error('Document not found');
+                error.code = 'NOT_FOUND';
+                throw error;
+            }
+            return document;
+        } catch (error) {
+            console.error('Error getting document:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get file data for download
+     * @param {number} docId - Document ID
+     * @returns {Object} { data, fileName, mimeType }
+     */
+    async getDocumentFile(docId) {
+        try {
+            return await QuoteDocuments.getFileData(docId);
+        } catch (error) {
+            console.error('Error getting document file:', error);
             throw error;
         }
     },

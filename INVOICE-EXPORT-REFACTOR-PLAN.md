@@ -3081,10 +3081,12 @@ NOT: Mevcut endpoint'leri bozmadan, yeni document yapısını kullanacak şekild
 ```
 
 **Test:**
-- [ ] Proforma oluşturma API çalışıyor (yeni tabloya kayıt)
-- [ ] Export API çalışıyor
-- [ ] Import API çalışıyor (dosya kaydı başarılı)
-- [ ] Belge listesi dönüyor
+- [x] Proforma oluşturma API çalışıyor (yeni tabloya kayıt + varsa mevcut döndürüyor)
+- [x] Export API çalışıyor (document kaydı oluşturuluyor)
+- [x] Import API çalışıyor (dosya kaydı başarılı)
+- [x] Belge listesi dönüyor (documents + stats)
+- [x] Belge detayı dönüyor (documents/:docId)
+- [x] Dosya indirme çalışıyor (veya NO_FILE hatası)
 
 ---
 

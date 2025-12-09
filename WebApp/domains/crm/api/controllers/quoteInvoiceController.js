@@ -1,6 +1,7 @@
 /**
  * QuoteInvoice Controller
- * HTTP request handlers for proforma, invoice, and quote items operations
+ * HTTP request handlers for proforma, invoice, quote items, and document operations
+ * Updated: 2025-12-09 - Added document endpoints for quote_documents table (P4.3)
  */
 
 import express from 'express';
@@ -26,12 +27,20 @@ const upload = multer({
  * Setup quote invoice routes
  */
 export function setupQuoteInvoiceRoutes(app) {
-    // Proforma operations
+    // Proforma operations (legacy + new)
     app.post('/api/quotes/:id/proforma', requireAuth, generateProforma);
+    app.post('/api/quotes/:id/documents/proforma', requireAuth, generateProforma);
 
-    // Invoice operations
+    // Invoice operations (legacy)
     app.post('/api/quotes/:id/invoice/export', requireAuth, exportInvoice);
     app.post('/api/quotes/:id/invoice/import', requireAuth, upload.single('file'), importEttn);
+
+    // NEW: Document-based endpoints (P4.3)
+    app.get('/api/quotes/:id/documents', requireAuth, getDocumentHistory);
+    app.get('/api/quotes/:id/documents/:docId', requireAuth, getDocumentDetail);
+    app.post('/api/quotes/:id/documents/export', requireAuth, exportInvoice);
+    app.post('/api/quotes/:id/documents/import', requireAuth, upload.single('file'), importEttn);
+    app.get('/api/quotes/:id/documents/:docId/download', requireAuth, downloadDocumentFile);
 
     // 7-day rule check
     app.get('/api/quotes/:id/seven-day-check', requireAuth, checkSevenDayRule);
@@ -43,21 +52,25 @@ export function setupQuoteInvoiceRoutes(app) {
     app.put('/api/quotes/items/:itemId', requireAuth, updateQuoteItem);
     app.delete('/api/quotes/items/:itemId', requireAuth, deleteQuoteItem);
 
-    console.log('✓ Quote invoice routes configured');
+    console.log('✓ Quote invoice routes configured (with document endpoints)');
 }
 
 /**
  * Generate proforma number for a quote
  * POST /api/quotes/:id/proforma
+ * POST /api/quotes/:id/documents/proforma
  */
 export async function generateProforma(req, res) {
     try {
         const { id } = req.params;
-        const result = await quoteInvoiceService.generateProforma(id);
+        const options = {
+            createdBy: req.user?.email || 'system'
+        };
+        const result = await quoteInvoiceService.default.generateProforma(id, options);
         res.json({
             success: true,
             data: result,
-            message: 'Proforma başarıyla oluşturuldu'
+            message: result.message || 'Proforma başarıyla oluşturuldu'
         });
     } catch (error) {
         console.error('Error generating proforma:', error);
@@ -74,14 +87,18 @@ export async function generateProforma(req, res) {
 /**
  * Export invoice in specified format
  * POST /api/quotes/:id/invoice/export
- * Body: { format: 'xml'|'csv'|'pdf', invoiceScenario, invoiceType }
+ * POST /api/quotes/:id/documents/export
+ * Body: { format: 'xml'|'csv'|'pdf', invoiceScenario, invoiceType, exportTarget }
  */
 export async function exportInvoice(req, res) {
     try {
         const { id } = req.params;
-        const options = req.body; // { format, invoiceScenario, invoiceType }
+        const options = {
+            ...req.body,
+            createdBy: req.user?.email || 'system'
+        };
 
-        const result = await quoteInvoiceService.exportInvoice(id, options);
+        const result = await quoteInvoiceService.default.exportInvoice(id, options);
 
         // Set headers for file download
         res.setHeader('Content-Type', result.mimeType);
@@ -105,8 +122,9 @@ export async function exportInvoice(req, res) {
 /**
  * Import ETTN from external system
  * POST /api/quotes/:id/invoice/import
+ * POST /api/quotes/:id/documents/import
  * Body: { invoiceNumber, invoiceEttn }
- * File: invoiceImportedFile (optional, via multer)
+ * File: file (optional, via multer)
  */
 export async function importEttn(req, res) {
     try {
@@ -119,15 +137,16 @@ export async function importEttn(req, res) {
             fileName: req.file.originalname
         } : {};
 
-        const result = await quoteInvoiceService.importEttn(id, {
+        const result = await quoteInvoiceService.default.importEttn(id, {
             ...data,
-            ...fileData
+            ...fileData,
+            createdBy: req.user?.email || 'system'
         });
 
         res.json({
             success: true,
             data: result,
-            message: 'ETTN başarıyla kaydedildi'
+            message: result.message || 'ETTN başarıyla kaydedildi'
         });
     } catch (error) {
         console.error('Error importing ETTN:', error);
@@ -149,7 +168,7 @@ export async function importEttn(req, res) {
 export async function checkSevenDayRule(req, res) {
     try {
         const { id } = req.params;
-        const result = await quoteInvoiceService.checkSevenDayRule(id);
+        const result = await quoteInvoiceService.default.checkSevenDayRule(id);
         res.json({
             success: true,
             data: result
@@ -283,6 +302,78 @@ export async function deleteQuoteItem(req, res) {
         res.status(400).json({
             success: false,
             error: error.message
+        });
+    }
+}
+
+// ==================== DOCUMENT ENDPOINTS (P4.3) ====================
+
+/**
+ * Get document history for a quote
+ * GET /api/quotes/:id/documents
+ * Query: ?type=proforma|export|import (optional)
+ */
+export async function getDocumentHistory(req, res) {
+    try {
+        const { id } = req.params;
+        const { type } = req.query;
+        const result = await quoteInvoiceService.default.getDocumentHistory(id, type || null);
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error('Error getting document history:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message
+        });
+    }
+}
+
+/**
+ * Get single document detail
+ * GET /api/quotes/:id/documents/:docId
+ */
+export async function getDocumentDetail(req, res) {
+    try {
+        const { docId } = req.params;
+        const result = await quoteInvoiceService.default.getDocumentById(parseInt(docId, 10));
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error('Error getting document detail:', error);
+        const statusCode = error.code === 'NOT_FOUND' ? 404 : 400;
+        res.status(statusCode).json({
+            success: false,
+            error: error.message,
+            code: error.code
+        });
+    }
+}
+
+/**
+ * Download document file
+ * GET /api/quotes/:id/documents/:docId/download
+ */
+export async function downloadDocumentFile(req, res) {
+    try {
+        const { docId } = req.params;
+        const fileData = await quoteInvoiceService.default.getDocumentFile(parseInt(docId, 10));
+
+        res.setHeader('Content-Type', fileData.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
+        res.send(fileData.data);
+    } catch (error) {
+        console.error('Error downloading document file:', error);
+        const statusCode = error.code === 'NOT_FOUND' ? 404 :
+            error.code === 'NO_FILE' ? 404 : 400;
+        res.status(statusCode).json({
+            success: false,
+            error: error.message,
+            code: error.code
         });
     }
 }
