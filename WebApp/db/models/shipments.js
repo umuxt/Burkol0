@@ -42,6 +42,9 @@ const Shipments = {
   async createShipment(shipmentData, items = [], user = {}) {
     const trx = await db.transaction();
 
+    console.log('🔍 Backend createShipment - Received transport:', shipmentData.transport);
+    console.log('🔍 Backend createShipment - Transport type:', typeof shipmentData.transport);
+
     try {
       const {
         workOrderCode,

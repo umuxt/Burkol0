@@ -164,28 +164,32 @@ export async function createShipment(data, user) {
     }
   }
 
-  // 2.5. Transport validations (NEW)
-  if (shipmentData.driverName && !shipmentData.driverName.trim()) {
-    const error = new Error('Şoför adı boş olamaz');
-    error.code = 'VALIDATION_ERROR';
-    throw error;
-  }
+  // 2.5. Transport validations (NEW - object-based)
+  if (shipmentData.transport) {
+    const transport = shipmentData.transport;
 
-  if (shipmentData.driverTc && !/^\d{11}$/.test(shipmentData.driverTc)) {
-    const error = new Error('Geçerli şoför TCKN giriniz (11 hane)');
-    error.code = 'VALIDATION_ERROR';
-    throw error;
-  }
+    if (transport.driverName && !transport.driverName.trim()) {
+      const error = new Error('Şoför adı boş olamaz');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
 
-  if (shipmentData.plateNumber && !shipmentData.plateNumber.trim()) {
-    const error = new Error('Araç plakası boş olamaz');
-    error.code = 'VALIDATION_ERROR';
-    throw error;
-  }
+    if (transport.driverTc && !/^\d{11}$/.test(transport.driverTc)) {
+      const error = new Error('Geçerli şoför TCKN giriniz (11 hane)');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
 
-  // Plaka formatını temizle (boşlukları kaldır ve büyük harfe çevir)
-  if (shipmentData.plateNumber) {
-    shipmentData.plateNumber = shipmentData.plateNumber.replace(/\s/g, '').toUpperCase();
+    if (transport.plateNumber && !transport.plateNumber.trim()) {
+      const error = new Error('Araç plakası boş olamaz');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
+    // Plaka formatını temizle (boşlukları kaldır ve büyük harfe çevir)
+    if (transport.plateNumber) {
+      shipmentData.transport.plateNumber = transport.plateNumber.replace(/\s/g, '').toUpperCase();
+    }
   }
 
   // 3. Invoice/Export validation (if documentType is set)

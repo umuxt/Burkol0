@@ -532,6 +532,9 @@ export default function AddShipmentModal({
         }))
       }
 
+      console.log('🚀 Frontend - Submitting shipment with transport:', shipmentData.transport)
+      console.log('🚀 Frontend - HeaderData.transport before submit:', headerData.transport)
+
       // Remove empty/null fields
       Object.keys(shipmentData).forEach(key => {
         if (shipmentData[key] === '' || shipmentData[key] === null || shipmentData[key] === undefined) {
