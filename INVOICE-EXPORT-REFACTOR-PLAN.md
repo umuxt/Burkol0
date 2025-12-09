@@ -2869,698 +2869,516 @@ Shipment Panel'deki tüm değişiklikleri test et:
 ---
 
 
-## FAZ 4: QUOTES PANELİ GÜNCELLEMESİ (6 PROMPT)
+## FAZ 4: QUOTES FATURA ENTEGRASYONu (8 PROMPT)
 
-### P4.1: QuoteDetailPanel'a Fatura Sekmesi Ekle
+> **GÜNCELLEME (2025-12-09):** 
+> - Tab yaklaşımı yerine **Section + Modal** yaklaşımı benimsenmiştir.
+> - **YENİ TABLO:** `quotes.quote_documents` - Tüm proforma, export ve import belgelerini saklar.
+> - Belgeler yeniden oluşturulabilir (proforma/export), sadece import edilen GİB belgesi dosya olarak saklanır.
+
+### 🗄️ Yeni Veritabanı Yapısı
+
+```sql
+-- YENİ TABLO: quotes.quote_documents
+CREATE TABLE quotes.quote_documents (
+    id                  SERIAL PRIMARY KEY,
+    "quoteId"           VARCHAR(50) NOT NULL REFERENCES quotes.quotes(id) ON DELETE CASCADE,
+    "documentType"      VARCHAR(20) NOT NULL,  -- 'proforma' | 'export' | 'import'
+    "documentNumber"    VARCHAR(50),           -- PF-2025-0001 veya fatura no
+    "ettn"              VARCHAR(50),           -- GİB ETTN (sadece import)
+    "invoiceScenario"   VARCHAR(20),           -- TEMELFATURA | TICARIFATURA | IHRACAT
+    "invoiceType"       VARCHAR(20),           -- SATIS | IADE
+    "exportFormat"      VARCHAR(20),           -- xml | csv | pdf
+    "exportTarget"      VARCHAR(50),           -- LOGO | ZIRVE | OTHER
+    "fileData"          BYTEA,                 -- Sadece import için (GİB resmi belgesi)
+    "fileName"          VARCHAR(255),
+    "mimeType"          VARCHAR(100),
+    "createdAt"         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "createdBy"         VARCHAR(100),
+    "notes"             TEXT,
+    CONSTRAINT valid_document_type CHECK ("documentType" IN ('proforma', 'export', 'import'))
+);
+```
+
+### 📊 Belge Akışı
+
+```
+Quote: Q-2025-0123
+│
+├── [PROFORMA] documentType: 'proforma'
+│   └── documentNumber: 'PF-2025-0045'
+│       (PDF her seferinde fonksiyonla oluşturulur)
+│
+├── [EXPORT] documentType: 'export'  
+│   └── invoiceScenario, invoiceType, exportFormat
+│       (Dosya her seferinde fonksiyonla oluşturulur - Logo/Zirve için)
+│
+└── [IMPORT] documentType: 'import'
+    └── documentNumber: 'A-2025-001234', ettn: 'xxx-xxx'
+        fileData: <GİB onaylı XML> (SAKLANIR - resmi belge)
+```
+
+### ✅ Mevcut Altyapı (Faz 1-2-3'te Oluşturuldu - GÜNCELLENMELİ)
+
+**API Endpoint'leri (Yeni tabloya göre güncellenecek):**
+| Endpoint | Açıklama | Status |
+|----------|----------|--------|
+| `POST /api/quotes/:id/proforma` | Proforma oluştur | 🔄 Güncellenmeli |
+| `POST /api/quotes/:id/invoice/export` | e-Fatura export | 🔄 Güncellenmeli |
+| `POST /api/quotes/:id/invoice/import` | ETTN import | 🔄 Güncellenmeli |
+| `GET /api/quotes/:id/documents` | Belge listesi | 🆕 Yeni eklenecek |
+| `GET /api/quotes/:id/documents/:docId/download` | Belge indir | 🆕 Yeni eklenecek |
+| `GET /api/quotes/:id/seven-day-check` | 7 gün kuralı kontrolü | ✅ Mevcut |
+| `GET/POST/PUT/DELETE /api/quotes/:id/items` | Quote items CRUD | ✅ Mevcut |
+
+**Dosya Lokasyonları:**
+- Controller: `/WebApp/domains/crm/api/controllers/quoteInvoiceController.js`
+- Service: `/WebApp/domains/crm/api/services/quoteInvoiceService.js`
+- Model: `/WebApp/db/models/quoteDocuments.js` (YENİ)
+- QuoteDetailsPanel: `/WebApp/domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+
+---
+
+### P4.1: Database Migration - quote_documents Tablosu
 
 **Bağımlılık:** FAZ 3 tamamlanmış olmalı
 
-**Amaç:** Quote detay paneline yeni "Fatura" sekmesi ekle.
+**Amaç:** Yeni `quotes.quote_documents` tablosunu oluştur ve mevcut verileri taşı.
+
+**Migration Dosyası:** `db/migrations/037_quote_documents.js`
 
 **Prompt:**
 ```
-QuoteDetailPanel.jsx dosyasına yeni Fatura sekmesi ekle:
-/WebApp/domains/crm/components/QuoteDetailPanel.jsx
+Yeni migration dosyası oluştur: db/migrations/037_quote_documents.js
 
-1. Tab listesine yeni sekme ekle:
-const tabs = [
-  { id: "details", label: "Detaylar" },
-  { id: "items", label: "Ürünler" },
-  { id: "shipments", label: "Sevkiyatlar" },
-  { id: "invoice", label: "Fatura" },  // YENİ
-  { id: "history", label: "Geçmiş" }
-];
+1. Tablo oluştur:
+CREATE TABLE quotes.quote_documents (
+    id                  SERIAL PRIMARY KEY,
+    "quoteId"           VARCHAR(50) NOT NULL REFERENCES quotes.quotes(id) ON DELETE CASCADE,
+    "documentType"      VARCHAR(20) NOT NULL,
+    "documentNumber"    VARCHAR(50),
+    "ettn"              VARCHAR(50),
+    "invoiceScenario"   VARCHAR(20),
+    "invoiceType"       VARCHAR(20),
+    "exportFormat"      VARCHAR(20),
+    "exportTarget"      VARCHAR(50),
+    "fileData"          BYTEA,
+    "fileName"          VARCHAR(255),
+    "mimeType"          VARCHAR(100),
+    "createdAt"         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "createdBy"         VARCHAR(100),
+    "notes"             TEXT,
+    CONSTRAINT valid_document_type CHECK ("documentType" IN ('proforma', 'export', 'import'))
+);
 
-2. Tab content'e yeni case ekle:
-{activeTab === "invoice" && (
-  <InvoiceTabContent 
-    quote={quote}
-    onProformaGenerate={handleProformaGenerate}
-    onInvoiceExport={handleInvoiceExport}
-    onInvoiceImport={handleInvoiceImport}
-  />
-)}
+2. İndeksler:
+CREATE INDEX idx_quote_documents_quote_id ON quotes.quote_documents("quoteId");
+CREATE INDEX idx_quote_documents_type ON quotes.quote_documents("documentType");
+CREATE UNIQUE INDEX idx_quote_documents_proforma ON quotes.quote_documents("documentNumber") 
+    WHERE "documentType" = 'proforma';
 
-3. Handler fonksiyonlarını tanımla (şimdilik placeholder):
-const handleProformaGenerate = async () => {
-  console.log("Proforma generate - to be implemented");
-};
+3. Mevcut verileri taşı:
+- quotes.quotes'dan proformaNumber olanları quote_documents'a ekle
+- quotes.quotes'dan invoiceNumber olanları quote_documents'a ekle
 
-const handleInvoiceExport = async () => {
-  console.log("Invoice export - to be implemented");
-};
-
-const handleInvoiceImport = async (file) => {
-  console.log("Invoice import - to be implemented", file);
-};
-
-4. InvoiceTabContent component'ını import et (sonraki prompt'ta oluşturulacak):
-// import InvoiceTabContent from "./tabs/InvoiceTabContent";
-// Şimdilik comment out, P4.2'de aktif edilecek
-
-Geçici placeholder kullan:
-{activeTab === "invoice" && (
-  <div className="p-4 text-gray-500">
-    Fatura bölümü yükleniyor... (P4.2'de implement edilecek)
-  </div>
-)}
-
-Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.1
+4. Proforma numara sequence (eğer yoksa):
+CREATE SEQUENCE IF NOT EXISTS quotes.proforma_number_seq;
+CREATE OR REPLACE FUNCTION quotes.generate_proforma_number() RETURNS VARCHAR;
 ```
 
-**Düzenlenecek Dosya:**
-- `/WebApp/domains/crm/components/QuoteDetailPanel.jsx`
-
 **Test:**
-- [ ] Tab listesinde "Fatura" sekmesi görünüyor
-- [ ] Sekmeye tıklandığında placeholder görünüyor
-- [ ] Diğer sekmeler hala çalışıyor
-- [ ] Konsol hatası yok
+- [ ] Migration başarıyla çalıştı
+- [ ] Tablo oluşturuldu
+- [ ] Mevcut veriler taşındı
+- [ ] İndeksler aktif
 
 ---
 
-### P4.2: InvoiceTabContent Component Oluştur
+### P4.2: Backend Model - quoteDocuments.js
 
 **Bağımlılık:** P4.1 tamamlanmış olmalı
 
-**Amaç:** Fatura sekmesi içeriğini oluştur.
+**Amaç:** Yeni tablo için model dosyası oluştur.
+
+**Dosya:** `db/models/quoteDocuments.js`
 
 **Prompt:**
 ```
-Yeni InvoiceTabContent.jsx component'ı oluştur:
-/WebApp/domains/crm/components/tabs/InvoiceTabContent.jsx
+Yeni model dosyası oluştur: db/models/quoteDocuments.js
 
-Component Yapısı:
-```jsx
-import React, { useState } from "react";
-import ProformaSection from "./invoice/ProformaSection";
-import InvoiceExportSection from "./invoice/InvoiceExportSection";
-import InvoiceImportSection from "./invoice/InvoiceImportSection";
-import QuoteItemsTable from "./invoice/QuoteItemsTable";
-import SevenDayWarning from "./invoice/SevenDayWarning";
+Fonksiyonlar:
 
-const InvoiceTabContent = ({ quote, onProformaGenerate, onInvoiceExport, onInvoiceImport }) => {
-  return (
-    <div className="space-y-6">
-      {/* 7 Gün Uyarısı */}
-      <SevenDayWarning quoteId={quote.id} />
-      
-      {/* Proforma Bölümü */}
-      <ProformaSection 
-        quote={quote}
-        onGenerate={onProformaGenerate}
-      />
-      
-      {/* Fatura Kalemleri */}
-      <QuoteItemsTable quoteId={quote.id} />
-      
-      {/* Fatura İhracat */}
-      <InvoiceExportSection 
-        quote={quote}
-        onExport={onInvoiceExport}
-        disabled={!quote.proformaNumber}  // Proforma yoksa disable
-      />
-      
-      {/* Fatura İthalat */}
-      <InvoiceImportSection 
-        quote={quote}
-        onImport={onInvoiceImport}
-        disabled={quote.invoiceStatus !== "invoiceExported"}
-      />
-    </div>
-  );
-};
+1. createDocument(quoteId, documentType, data)
+   - Yeni belge kaydı oluştur
+   - Return: created document
 
-export default InvoiceTabContent;
+2. getDocumentsByQuoteId(quoteId, documentType = null)
+   - Quote'a ait tüm belgeleri getir
+   - documentType filtresi opsiyonel
+   - ORDER BY createdAt DESC
+
+3. getDocumentById(id)
+   - Tek belge detayı
+
+4. getLatestDocument(quoteId, documentType)
+   - En son belgeyi getir (proforma, export veya import)
+
+5. updateDocument(id, data)
+   - Belge güncelle
+
+6. deleteDocument(id)
+   - Belge sil
+
+7. generateProformaNumber()
+   - Sequence'tan yeni proforma no al
+   - Format: PF-YYYY-XXXX
+
+Referans: db/models/shipments.js yapısı
 ```
-
-Alt component'lar sonraki prompt'larda oluşturulacak.
-Şimdilik placeholder div'lar kullan:
-
-```jsx
-const ProformaSection = () => <div>Proforma Section - P4.3</div>;
-const InvoiceExportSection = () => <div>Export Section - P4.4</div>;
-const InvoiceImportSection = () => <div>Import Section - P4.5</div>;
-const QuoteItemsTable = () => <div>Items Table - P4.3</div>;
-const SevenDayWarning = () => <div>7 Day Warning - P4.3</div>;
-```
-
-Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.2
-```
-
-**Oluşturulacak Dosya:**
-- `/WebApp/domains/crm/components/tabs/InvoiceTabContent.jsx`
 
 **Test:**
-- [ ] Component hatasız import ediliyor
-- [ ] Placeholder'lar görünüyor
-- [ ] Props düzgün geçiyor (console.log ile kontrol)
+- [ ] CRUD operasyonları çalışıyor
+- [ ] Proforma numarası doğru formatda
 
 ---
 
-### P4.3: ProformaSection ve QuoteItemsTable Oluştur
+### P4.3: Backend Controller ve API Endpoints
 
 **Bağımlılık:** P4.2 tamamlanmış olmalı
 
-**Amaç:** Proforma oluşturma ve fatura kalemleri tablolarını implement et.
+**Amaç:** Backend controller ve service katmanlarını yeni tablo yapısına göre güncelle.
+
+**Dosyalar:**
+- `domains/crm/api/controllers/quoteInvoiceController.js`
+- `domains/crm/api/services/quoteInvoiceService.js` (veya `quoteDocumentService.js`)
 
 **Prompt:**
 ```
-2 yeni component oluştur:
+Backend API'lerini yeni document yapısına göre güncelle:
 
-## 1. ProformaSection.jsx
-/WebApp/domains/crm/components/tabs/invoice/ProformaSection.jsx
+1. Service (quoteInvoiceService.js):
+   - generateProforma(quoteId): Yeni document yarat ('proforma')
+   - exportInvoice(quoteId, options): Yeni document yarat ('export')
+   - importInvoice(quoteId, data, file): Yeni document yarat ('import') + Dosya kaydet
+   - getDocumentHistory(quoteId): Tüm belgeleri getir
 
-```jsx
-import React, { useState } from "react";
-import { FaFileInvoice, FaDownload, FaCheck } from "react-icons/fa";
+2. Controller (quoteInvoiceController.js):
+   - POST /api/quotes/:id/documents/proforma
+   - GET /api/quotes/:id/documents  (History)
+   - GET /api/quotes/:id/documents/:docId  (Detail)
+   - POST /api/quotes/:id/documents/export
+   - GET /api/quotes/:id/documents/:docId/download
+   - POST /api/quotes/:id/documents/import
 
-const ProformaSection = ({ quote, onGenerate }) => {
-  const [loading, setLoading] = useState(false);
-  
-  const hasProforma = !!quote.proformaNumber;
-  
-  const handleGenerate = async () => {
-    setLoading(true);
-    try {
-      await onGenerate();
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return (
-    <div className="border rounded-lg p-4">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <FaFileInvoice /> Proforma Fatura
-      </h3>
-      
-      {hasProforma ? (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-green-600">
-            <FaCheck />
-            <span>Proforma No: {quote.proformaNumber}</span>
-          </div>
-          <button 
-            className="btn btn-secondary"
-            onClick={() => window.open(\`/api/crm/quotes/\${quote.id}/proforma/pdf\`)}
-          >
-            <FaDownload /> PDF İndir
-          </button>
-        </div>
-      ) : (
-        <button 
-          className="btn btn-primary"
-          onClick={handleGenerate}
-          disabled={loading}
-        >
-          {loading ? "Oluşturuluyor..." : "Proforma Oluştur"}
-        </button>
-      )}
-    </div>
-  );
-};
-
-export default ProformaSection;
+NOT: Mevcut endpoint'leri bozmadan, yeni document yapısını kullanacak şekilde refactor et.
 ```
-
-## 2. QuoteItemsTable.jsx
-/WebApp/domains/crm/components/tabs/invoice/QuoteItemsTable.jsx
-
-```jsx
-import React, { useState, useEffect } from "react";
-import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
-
-const QuoteItemsTable = ({ quoteId }) => {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    fetchItems();
-  }, [quoteId]);
-  
-  const fetchItems = async () => {
-    try {
-      const response = await fetch(\`/api/crm/quotes/\${quoteId}/items\`);
-      const data = await response.json();
-      setItems(data);
-    } catch (error) {
-      console.error("Items fetch error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return (
-    <div className="border rounded-lg p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Fatura Kalemleri</h3>
-        <button className="btn btn-sm btn-primary">
-          <FaPlus /> Kalem Ekle
-        </button>
-      </div>
-      
-      {loading ? (
-        <div>Yükleniyor...</div>
-      ) : items.length === 0 ? (
-        <div className="text-gray-500 text-center py-4">
-          Henüz fatura kalemi eklenmemiş
-        </div>
-      ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-2">Açıklama</th>
-              <th className="text-right py-2">Miktar</th>
-              <th className="text-left py-2">Birim</th>
-              <th className="text-right py-2">Birim Fiyat</th>
-              <th className="text-right py-2">Vergi %</th>
-              <th className="text-right py-2">Toplam</th>
-              <th className="text-center py-2">İşlem</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(item => (
-              <tr key={item.id} className="border-b">
-                <td className="py-2">{item.description}</td>
-                <td className="text-right">{item.quantity}</td>
-                <td>{item.unit}</td>
-                <td className="text-right">{item.unitPrice}</td>
-                <td className="text-right">{item.taxRate}%</td>
-                <td className="text-right">{item.totalAmount}</td>
-                <td className="text-center">
-                  <button className="btn btn-xs btn-ghost"><FaEdit /></button>
-                  <button className="btn btn-xs btn-ghost text-red-500"><FaTrash /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-};
-
-export default QuoteItemsTable;
-```
-
-Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.3
-```
-
-**Oluşturulacak Dosyalar:**
-- `/WebApp/domains/crm/components/tabs/invoice/ProformaSection.jsx`
-- `/WebApp/domains/crm/components/tabs/invoice/QuoteItemsTable.jsx`
 
 **Test:**
-- [ ] ProformaSection render oluyor
-- [ ] Proforma yoksa "Oluştur" butonu görünüyor
-- [ ] Proforma varsa numara ve indirme butonu görünüyor
-- [ ] QuoteItemsTable API'den data çekiyor
-- [ ] Tablo veya boş mesaj görünüyor
+- [ ] Proforma oluşturma API çalışıyor (yeni tabloya kayıt)
+- [ ] Export API çalışıyor
+- [ ] Import API çalışıyor (dosya kaydı başarılı)
+- [ ] Belge listesi dönüyor
 
 ---
 
-### P4.4: InvoiceExportSection Oluştur
+### P4.4: QuoteDetailsPanel Fatura Section
 
 **Bağımlılık:** P4.3 tamamlanmış olmalı
 
-**Amaç:** e-Fatura dışa aktarım bölümünü implement et.
+**Amaç:** Quote detay paneline "Fatura İşlemleri" section'ı ekle.
+
+**Dosya:** `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
 
 **Prompt:**
+
 ```
-Yeni InvoiceExportSection.jsx component'ı oluştur:
-/WebApp/domains/crm/components/tabs/invoice/InvoiceExportSection.jsx
+QuoteDetailsPanel.jsx dosyasına yeni Fatura Section ekle:
+/WebApp/domains/crm/components/quotes/QuoteDetailsPanel.jsx
 
-```jsx
-import React, { useState } from "react";
-import { FaFileExport, FaCheck, FaClock } from "react-icons/fa";
+NOT: Tab sistemi YOK - mevcut section yapısına uygun şekilde ekle.
 
-const InvoiceExportSection = ({ quote, onExport, disabled }) => {
-  const [loading, setLoading] = useState(false);
-  const [invoiceParams, setInvoiceParams] = useState({
-    scenario: "TEMELFATURA",  // TEMELFATURA | TICARIFATURA | IHRACAT
-    type: "SATIS"             // SATIS | IADE
-  });
+1. Yeni state'ler ekle:
+const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+const [invoiceLoading, setInvoiceLoading] = useState(false)
+
+2. Mevcut section'ların altına yeni Fatura Section ekle:
+{/* ===== FATURA İŞLEMLERİ SECTION ===== */}
+<div className="section-card-mb">
+  <h3 className="section-title">
+    <FileText size={14} /> Fatura İşlemleri
+  </h3>
   
-  const isExported = quote.invoiceStatus === "invoiceExported" || 
-                     quote.invoiceStatus === "invoiceImported";
-  
-  const handleExport = async () => {
-    setLoading(true);
-    try {
-      await onExport(invoiceParams);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const scenarios = [
-    { value: "TEMELFATURA", label: "Temel Fatura" },
-    { value: "TICARIFATURA", label: "Ticari Fatura" },
-    { value: "IHRACAT", label: "İhracat Faturası" }
-  ];
-  
-  const types = [
-    { value: "SATIS", label: "Satış" },
-    { value: "IADE", label: "İade" }
-  ];
-  
-  return (
-    <div className="border rounded-lg p-4">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <FaFileExport /> e-Fatura Dışa Aktar
-      </h3>
-      
-      {isExported ? (
-        <div className="flex items-center gap-2 text-green-600">
-          <FaCheck />
-          <span>e-Fatura aktarıldı</span>
-          {quote.invoiceExportedAt && (
-            <span className="text-sm text-gray-500">
-              ({new Date(quote.invoiceExportedAt).toLocaleDateString("tr-TR")})
-            </span>
-          )}
-        </div>
+  {/* Proforma Status */}
+  <div className="detail-row">
+    <span className="detail-label">Proforma:</span>
+    <span className="detail-value">
+      {quote.proformaNumber ? (
+        <span className="status-badge status-success">
+          {quote.proformaNumber}
+        </span>
       ) : (
-        <div className="space-y-4">
-          {/* Fatura Senaryosu */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Fatura Senaryosu</label>
-            <select 
-              className="select select-bordered w-full max-w-xs"
-              value={invoiceParams.scenario}
-              onChange={(e) => setInvoiceParams({...invoiceParams, scenario: e.target.value})}
-              disabled={disabled}
-            >
-              {scenarios.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Fatura Tipi */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Fatura Tipi</label>
-            <select 
-              className="select select-bordered w-full max-w-xs"
-              value={invoiceParams.type}
-              onChange={(e) => setInvoiceParams({...invoiceParams, type: e.target.value})}
-              disabled={disabled}
-            >
-              {types.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-          
-          <button 
-            className="btn btn-primary"
-            onClick={handleExport}
-            disabled={disabled || loading}
-          >
-            {loading ? (
-              <>
-                <FaClock className="animate-spin" /> Aktarılıyor...
-              </>
-            ) : (
-              <>
-                <FaFileExport /> e-Fatura Aktar
-              </>
-            )}
-          </button>
-          
-          {disabled && (
-            <p className="text-sm text-orange-500">
-              ⚠️ Önce proforma oluşturmanız gerekiyor
-            </p>
+        <span className="status-badge status-pending">Oluşturulmadı</span>
+      )}
+    </span>
+  </div>
+  
+  {/* Invoice Status */}
+  <div className="detail-row">
+    <span className="detail-label">e-Fatura:</span>
+    <span className="detail-value">
+      {quote.invoiceNumber ? (
+        <div>
+          <span className="status-badge status-success">
+            {quote.invoiceNumber}
+          </span>
+          {quote.invoiceEttn && (
+            <code className="ettn-code">{quote.invoiceEttn}</code>
           )}
         </div>
+      ) : quote.invoiceExportedAt ? (
+        <span className="status-badge status-warning">Export edildi</span>
+      ) : (
+        <span className="status-badge status-pending">Kesilmedi</span>
       )}
+    </span>
+  </div>
+  
+  {/* 7 Gün Uyarısı (varsa) */}
+  {sevenDayWarning && sevenDayWarning.hasWarning && (
+    <div className="warning-banner warning-seven-day">
+      <AlertTriangle size={14} />
+      <span>7 Gün Kuralı: {sevenDayWarning.daysRemaining} gün kaldı!</span>
     </div>
-  );
-};
+  )}
+  
+  {/* Action Buttons */}
+  <div className="section-actions">
+    <button 
+      className="btn-action btn-primary-outline"
+      onClick={() => setShowInvoiceModal(true)}
+      disabled={invoiceLoading}
+    >
+      <FileText size={14} />
+      {quote.proformaNumber ? 'Fatura İşlemleri' : 'Proforma Oluştur'}
+    </button>
+    
+    {quote.invoiceImportedFile && (
+      <button 
+        className="btn-action btn-secondary-outline"
+        onClick={handleDownloadInvoice}
+      >
+        <Download size={14} /> Faturayı İndir
+      </button>
+    )}
+  </div>
+</div>
 
-export default InvoiceExportSection;
+3. AddInvoiceModal import'u ekle (P4.2'de oluşturulacak):
+// import AddInvoiceModal from './modals/AddInvoiceModal'
+
+4. Modal render'ı ekle (return içine):
+{showInvoiceModal && (
+  <AddInvoiceModal
+    quote={quote}
+    onClose={() => setShowInvoiceModal(false)}
+    onSuccess={handleInvoiceSuccess}
+  />
+)}
+
+5. Handler fonksiyonları ekle:
+const handleInvoiceSuccess = async () => {
+  setShowInvoiceModal(false)
+  if (onRefreshQuote) {
+    await onRefreshQuote()
+  }
+  showToast('Fatura işlemi tamamlandı!', 'success')
+}
+
+const handleDownloadInvoice = () => {
+  if (quote.invoiceImportedFile) {
+    // Download logic
+  }
+}
+
+Referans: Mevcut AddShipmentModal yapısı
 ```
 
-Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.4
-```
-
-**Oluşturulacak Dosya:**
-- `/WebApp/domains/crm/components/tabs/invoice/InvoiceExportSection.jsx`
+**Düzenlenecek Dosya:**
+- `/WebApp/domains/crm/components/quotes/QuoteDetailsPanel.jsx`
 
 **Test:**
-- [ ] Proforma yokken buton disabled ve uyarı mesajı görünüyor
-- [ ] Senaryo ve tip seçilebiliyor
-- [ ] Export butonu çalışıyor
-- [ ] Export sonrası yeşil onay mesajı görünüyor
+- [ ] Fatura İşlemleri section'ı görünüyor
+- [ ] Proforma ve Invoice status badge'leri doğru
+```
+   - [x] "Proforma Oluştur" / "Fatura İşlemleri" butonu çalışıyor
+   - [x] Konsol hatası yok
 
 ---
 
-### P4.5: InvoiceImportSection ve SevenDayWarning Oluştur
+
+
+---
+
+---
+
+### P4.5: AddInvoiceModal (Step 1-2: Proforma + Ayarlar)
 
 **Bağımlılık:** P4.4 tamamlanmış olmalı
 
-**Amaç:** e-Fatura ithalat ve 7 gün uyarı component'larını implement et.
+**Amaç:** AddInvoiceModal component'ını oluştur ve ilk 2 adımı implement et.
+
+**Dosya:** `domains/crm/components/quotes/modals/AddInvoiceModal.jsx` (YENİ)
 
 **Prompt:**
 ```
-2 yeni component oluştur:
+Yeni modal oluştur: AddInvoiceModal.jsx
 
-## 1. InvoiceImportSection.jsx
-/WebApp/domains/crm/components/tabs/invoice/InvoiceImportSection.jsx
+Yapı:
+- Wizard steps (1: Proforma, 2: Ayarlar, 3: Export, 4: Import)
+- Mevcut yapı: AddShipmentModal benzeri
 
-```jsx
-import React, { useState, useRef } from "react";
-import { FaFileImport, FaCheck, FaUpload } from "react-icons/fa";
+Step 1: Proforma
+- Eğer proforma yoksa: 
+  - Proforma No input (Default: generateProformaNumber())
+  - "Proforma Oluştur" butonu -> POST /api/quotes/:id/documents/proforma
+- Eğer proforma varsa:
+  - Proforma detaylarını göster (No, Tarih)
+  - "PDF İndir" butonu
+  - "Sonraki Adım" butonu aktif
 
-const InvoiceImportSection = ({ quote, onImport, disabled }) => {
-  const [loading, setLoading] = useState(false);
-  const fileInputRef = useRef(null);
-  
-  const isImported = quote.invoiceStatus === "invoiceImported";
-  
-  const handleFileSelect = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.name.endsWith(".xml")) {
-      alert("Lütfen XML dosyası seçin");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      await onImport(file);
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-  
-  return (
-    <div className="border rounded-lg p-4">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <FaFileImport /> e-Fatura İçe Aktar
-      </h3>
-      
-      {isImported ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-green-600">
-            <FaCheck />
-            <span>e-Fatura içe aktarıldı</span>
-          </div>
-          {quote.invoiceNumber && (
-            <p className="text-sm">Fatura No: <strong>{quote.invoiceNumber}</strong></p>
-          )}
-          {quote.invoiceEttn && (
-            <p className="text-sm">ETTN: <code className="bg-gray-100 px-1">{quote.invoiceEttn}</code></p>
-          )}
-          {quote.invoiceImportedAt && (
-            <p className="text-sm text-gray-500">
-              İçe aktarılma: {new Date(quote.invoiceImportedAt).toLocaleString("tr-TR")}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <input
-            type="file"
-            accept=".xml"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            disabled={disabled || loading}
-            className="file-input file-input-bordered w-full max-w-xs"
-          />
-          
-          {loading && (
-            <div className="flex items-center gap-2 text-blue-600">
-              <FaUpload className="animate-bounce" />
-              <span>XML işleniyor...</span>
-            </div>
-          )}
-          
-          {disabled && (
-            <p className="text-sm text-orange-500">
-              ⚠️ Önce e-Fatura dışa aktarmanız gerekiyor
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+Step 2: Fatura Ayarları
+- Form elemanları:
+  - Fatura Senaryosu (TEMEL/TICARI/IHRACAT)
+  - Fatura Tipi (SATIS/IADE)
+  - Para Birimi (Readonly - quote'dan)
+  - Kur (Readonly - quote'dan)
+- "Sonraki Adım" butonu -> State'e kaydet ve Step 3'e geç
 
-export default InvoiceImportSection;
+NOT: Veri akışı için logic'i kur. Step 1 DB'ye yazar, Step 2 sadece state'te tutar.
 ```
-
-## 2. SevenDayWarning.jsx
-/WebApp/domains/crm/components/tabs/invoice/SevenDayWarning.jsx
-
-```jsx
-import React, { useState, useEffect } from "react";
-import { FaExclamationTriangle, FaCheck, FaClock } from "react-icons/fa";
-
-const SevenDayWarning = ({ quoteId }) => {
-  const [warning, setWarning] = useState(null);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    checkSevenDayRule();
-  }, [quoteId]);
-  
-  const checkSevenDayRule = async () => {
-    try {
-      const response = await fetch(\`/api/crm/quotes/\${quoteId}/seven-day-check\`);
-      const data = await response.json();
-      setWarning(data);
-    } catch (error) {
-      console.error("7 day check error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  if (loading) return null;
-  if (!warning || warning.status === "ok") return null;
-  
-  const isUrgent = warning.daysRemaining <= 2;
-  const colorClass = isUrgent ? "bg-red-50 border-red-300 text-red-800" : "bg-yellow-50 border-yellow-300 text-yellow-800";
-  const Icon = isUrgent ? FaExclamationTriangle : FaClock;
-  
-  return (
-    <div className={\`border rounded-lg p-4 \${colorClass}\`}>
-      <div className="flex items-center gap-2">
-        <Icon className={isUrgent ? "text-red-600" : "text-yellow-600"} />
-        <span className="font-semibold">7 Gün Kuralı Uyarısı</span>
-      </div>
-      <p className="mt-2">
-        {warning.shipmentDate && (
-          <>Sevkiyat Tarihi: {new Date(warning.shipmentDate).toLocaleDateString("tr-TR")}</>
-        )}
-        {" - "}
-        <strong>{warning.daysRemaining} gün</strong> kaldı!
-      </p>
-      <p className="text-sm mt-1">
-        e-Fatura, sevkiyat tarihinden itibaren 7 gün içinde kesilmelidir.
-      </p>
-    </div>
-  );
-};
-
-export default SevenDayWarning;
-```
-
-Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.5, 5.4
-```
-
-**Oluşturulacak Dosyalar:**
-- `/WebApp/domains/crm/components/tabs/invoice/InvoiceImportSection.jsx`
-- `/WebApp/domains/crm/components/tabs/invoice/SevenDayWarning.jsx`
 
 **Test:**
-- [ ] Import section fatura kesilmeden önce disabled
-- [ ] XML dosyası yükleme çalışıyor
-- [ ] Import sonrası fatura bilgileri görünüyor
-- [ ] 7 gün uyarısı uygun durumlarda görünüyor
-- [ ] 2 gün veya az kaldığında kırmızı uyarı
+- [ ] Modal açılıyor
+- [ ] Step 1: Proforma oluşturuluyor ve PDF indirilebiliyor
+- [ ] Step 2: Form çalışıyor ve state'e kaydediyor
 
 ---
 
-### P4.6: Quotes Panel Entegrasyon Testi
+### P4.6: AddInvoiceModal (Step 3-4: Export + Import)
 
 **Bağımlılık:** P4.5 tamamlanmış olmalı
 
-**Amaç:** Tüm Quotes Panel değişikliklerini test et.
+**Amaç:** Modal'ın export ve import adımlarını implement et.
+
+**Dosya:** `domains/crm/components/quotes/modals/AddInvoiceModal.jsx`
 
 **Prompt:**
 ```
-Quotes Panel'deki tüm değişiklikleri entegre edip test et:
+AddInvoiceModal.jsx dosyasına Step 3 ve 4'ü ekle:
 
-1. InvoiceTabContent'ı Tamamla:
-   - Placeholder'ları gerçek component import'larıyla değiştir
-   - Tüm alt component'ların import edildiğinden emin ol
+Step 3: Export (Logo/Zirve)
+- Form elemanları:
+  - Hedef Program: [Logo Tiger | Zirve | Diğer]
+  - Format: [Checkbox] XML, CSV, PDF
+- "Export Et" butonu -> POST /api/quotes/:id/documents/export
+  - Body: { invoiceScenario, invoiceType, format, target }
+  - Response: Dosya (blob) -> İndir
+- Başarılı export sonrası "Sonraki Adım" aktif
 
-2. QuoteDetailPanel'ı Güncelle:
-   - InvoiceTabContent import'unu aktif et
-   - Handler fonksiyonlarını gerçek API çağrılarıyla değiştir
+Step 4: Import (GİB Faturası)
+- Form elemanları:
+  - Fatura No (Input)
+  - ETTN (Input, 36 char UUID)
+  - Dosya Yükle (.xml, .zip)
+- "Import Et" butonu -> POST /api/quotes/:id/documents/import
+  - FormData: { invoiceNumber, ettn, file }
+- Başarılı import sonrası modal kapanır ve onSuccess çağrılır
 
-3. Manuel Test Akışı:
+Validasyonlar:
+- ETTN formatı kontrolü
+- Dosya tipi kontrolü
+```
 
-   A) Quote Detay Sayfasını Aç:
-   - [ ] Quote listesinden bir quote'a tıkla
-   - [ ] Detay paneli açılıyor
-   - [ ] "Fatura" sekmesi görünüyor
-   
-   B) Fatura Sekmesini Test Et:
-   - [ ] Sekmeye tıkla, içerik yükleniyor
-   - [ ] SevenDayWarning (varsa) görünüyor
-   - [ ] ProformaSection görünüyor
-   - [ ] QuoteItemsTable görünüyor
-   - [ ] InvoiceExportSection görünüyor (disabled)
-   - [ ] InvoiceImportSection görünüyor (disabled)
-   
-   C) Proforma Akışını Test Et:
-   - [ ] "Proforma Oluştur" butonuna tıkla
-   - [ ] Loading state görünüyor
-   - [ ] Proforma numarası oluşuyor
-   - [ ] "PDF İndir" butonu aktif oluyor
-   - [ ] InvoiceExportSection artık aktif
-   
-   D) Fatura Export Akışını Test Et:
-   - [ ] Senaryo ve tip seç
-   - [ ] "e-Fatura Aktar" butonuna tıkla
-   - [ ] Başarı mesajı görünüyor
-   - [ ] InvoiceImportSection artık aktif
-   
-   E) Fatura Import Akışını Test Et:
-   - [ ] XML dosyası seç
-   - [ ] "İşleniyor" mesajı görünüyor
-   - [ ] Başarı sonrası fatura bilgileri görünüyor
-   - [ ] ETTN ve fatura numarası doğru gösteriliyor
+**Test:**
+- [ ] Step 3: Export çalışıyor, dosya iniyor
+- [ ] Step 4: Import çalışıyor, DB'ye kaydediliyor
+- [ ] Full wizard akışı sorunsuz
 
-4. Edge Case Testleri:
-   - [ ] Müşteri e-Fatura mükellefi değilse uyarı
-   - [ ] Network hatası durumunda hata mesajı
-   - [ ] 7 gün geçmiş quote için kırmızı uyarı
+---
 
-5. Konsol Kontrolü:
-   - [ ] React uyarısı yok
-   - [ ] API hataları düzgün loglanıyor
-   - [ ] Memory leak yok (useEffect cleanup)
+### P4.7: 7 Gün Kuralı ve CSS
+
+**Bağımlılık:** P4.6 tamamlanmış olmalı
+
+**Amaç:** 7 gün kuralı uyarısı ve görsel düzenlemeler.
+
+**Dosyalar:**
+- `domains/crm/components/quotes/SevenDayWarning.jsx` (YENİ)
+- `assets/css/crm.css`
+
+**Prompt:**
+```
+1. SevenDayWarning component'ı oluştur:
+   - Props: quoteId
+   - Logic: GET /api/quotes/:id/seven-day-check
+   - Warning Levels:
+     - Kalan > 5 gün: Yeşil (Info)
+     - Kalan 3-5 gün: Sarı (Warning)
+     - Kalan < 3 gün: Kırmızı (Danger)
+     - Süre geçmiş: Koyu Kırmızı (Critical)
+
+2. CSS Düzenlemeleri (crm.css):
+   - Modal step wizard stilleri
+   - Status badge stilleri (.status-proforma, .status-invoice)
+   - Warning banner stilleri
+
+3. Warning'i Modal ve DetailsPanel'e ekle.
+```
+
+**Test:**
+- [ ] 7 gün kuralı API'den doğru çekiliyor
+- [ ] Uyarı renkleri güne göre değişiyor
+- [ ] Modal stilleri düzgün
+
+---
+
+### P4.8: Entegrasyon Testi
+
+**Bağımlılık:** P4.7 tamamlanmış olmalı
+
+**Amaç:** Tüm fatura entegrasyonunu uçtan uca test et.
+
+**Prompt:**
+```
+Manuel Entegrasyon Testi Planı:
+
+1. Veritabanı Kontrolü:
+   - quote_documents tablosu var mı?
+   - İlişkiler doğru mu?
+
+2. Senaryo Testi:
+   A. Quote Detay'a git
+   B. "Fatura İşlemleri"ne tıkla
+   C. Proforma oluştur (PF-2025-XXXX gelmeli)
+   D. Ayarları seç (Ticari Fatura)
+   E. Export yap (XML indi mi?)
+   F. Import yap (Dummy XML yükle)
+   G. Modal kapandı, panel güncellendi mi?
+
+3. Edge Cases:
+   - Proforma varken modal açınca Step 1 doğru geliyor mu?
+   - 7 gün süresi geçmiş shipment için uyarı çıkıyor mu?
+   - Import edilmiş faturaya tekrar işlem yapılamamalı (veya uyarı vermeli).
+
+Test sonuçlarını raporla ve varsa bugfix yap.
 ```
 
 **Test Edilecek Sayfa:**
-- `/WebApp/pages/quote-dashboard.html` veya CRM paneli
+- `/WebApp/pages/quote-dashboard.html` -> Quote Detail
 
 **Başarı Kriteri:**
-- [ ] Tüm 5 test grubu geçti
-- [ ] Full akış (proforma → export → import) çalışıyor
-- [ ] UI responsive ve kullanılabilir
-
----
+- [ ] Full akış hatasız tamamlandı
+- [ ] DB'de kayıtlar doğru (documentType: proforma, export, import)
 
 
 ## FAZ 5: CRM ENTEGRASYONLARı (3 PROMPT)
