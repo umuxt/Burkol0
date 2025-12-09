@@ -232,6 +232,34 @@ const Shipments = {
         }
       }
 
+      // Calculate shipment totals from items (if includePrice)
+      if (shipmentData.includePrice && shipmentItems.length > 0) {
+        const calculatedSubtotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+        const calculatedTaxTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0);
+        const calculatedWithholdingTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.withholdingAmount || 0), 0);
+        const calculatedDiscountTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.discountAmount || 0), 0);
+        const calculatedGrandTotal = calculatedSubtotal + calculatedTaxTotal - calculatedWithholdingTotal;
+
+        // Update shipment with calculated totals
+        await trx('materials.shipments')
+          .where({ id: shipment.id })
+          .update({
+            subtotal: calculatedSubtotal,
+            taxTotal: calculatedTaxTotal,
+            withholdingTotal: calculatedWithholdingTotal,
+            discountTotal: calculatedDiscountTotal,
+            grandTotal: calculatedGrandTotal,
+            updatedAt: new Date()
+          });
+
+        // Update local shipment object for return
+        shipment.subtotal = calculatedSubtotal;
+        shipment.taxTotal = calculatedTaxTotal;
+        shipment.withholdingTotal = calculatedWithholdingTotal;
+        shipment.discountTotal = calculatedDiscountTotal;
+        shipment.grandTotal = calculatedGrandTotal;
+      }
+
       await trx.commit();
 
       return {

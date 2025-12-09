@@ -316,7 +316,17 @@ export async function generatePDF(shipment) {
   const company = await getCompanySettings();
   const customer = shipment.customerSnapshot || {};
   const items = shipment.items || [];
-  const transport = shipment.transport || {};
+
+  // Parse transport if it's a JSON string
+  let transport = shipment.transport || {};
+  if (typeof transport === 'string') {
+    try {
+      transport = JSON.parse(transport);
+    } catch (e) {
+      console.warn('Failed to parse transport JSON:', e);
+      transport = {};
+    }
+  }
 
   // Determine document title (already ASCII-safe for PDF)
   const docTitle = shipment.documentType === 'invoice' ? 'FATURA' :

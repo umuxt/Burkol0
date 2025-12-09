@@ -1474,113 +1474,211 @@ export default function AddShipmentModal({
                 </div>
               )}
 
-              {/* ===== STEP 5: ETTN Import ===== */}
+              {/* ===== STEP 5: Document Import ===== */}
               {currentStep === 5 && (
                 <div>
-                  <p className="text-xs-light-mb">
-                    Logo'dan aldığınız ETTN XML dosyasını veya harici belge numarasını girin
-                  </p>
-
-                  <div className="summary-info-box">
-                    <h3 className="section-header">ETTN Import</h3>
-
-                    {/* External Doc Number */}
-                    <div className="mb-16">
-                      <label className="shipment-form-label">Harici Belge No (Logo/Zirve) <span className="text-red-500">*</span></label>
-                      <input
-                        type="text"
-                        className="mes-filter-input w-full"
-                        value={externalDocNumber}
-                        onChange={(e) => setExternalDocNumber(e.target.value)}
-                        placeholder="Örn: GIB2023000000001"
-                        disabled={importStatus.loading || importStatus.success}
-                      />
+                  {/* Shipment Summary Card */}
+                  <div style={{
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <FileText size={16} style={{ color: '#6b7280' }} />
+                      <span style={{ fontWeight: 600, color: '#374151' }}>
+                        {headerData.shipmentCode || `SHP-${createdShipmentId}`}
+                      </span>
                     </div>
-
-                    <div className="mt-16">
-                      <label className="shipment-form-label mb-8 block">XML Dosyası (İsteğe Bağlı)</label>
-                      <div className="flex-gap-10">
-                        <input
-                          type="file"
-                          accept=".xml"
-                          onChange={(e) => setSelectedFile(e.target.files[0])}
-                          className="mes-filter-input flex-1"
-                          disabled={importStatus.loading || importStatus.success}
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!externalDocNumber) {
-                            setImportStatus({ loading: false, success: false, error: 'Harici belge numarası zorunludur' })
-                            return
-                          }
-
-                          setImportStatus({ loading: true, success: false, error: null })
-
-                          const formData = new FormData()
-                          formData.append('externalDocNumber', externalDocNumber)
-                          if (selectedFile) {
-                            formData.append('file', selectedFile)
-                          }
-
-                          try {
-                            const response = await fetch(`/api/materials/shipments/${createdShipmentId}/import`, {
-                              method: 'POST',
-                              body: formData
-                            })
-
-                            const result = await response.json()
-
-                            if (!response.ok) throw new Error(result.error || result.message || 'Import başarısız')
-
-                            setImportStatus({ loading: false, success: true, error: null })
-                          } catch (err) {
-                            setImportStatus({ loading: false, success: false, error: err.message })
-                          }
-                        }}
-                        className={`btn-submit w-full mt-16 ${(importStatus.loading || importStatus.success) ? 'disabled' : 'enabled'}`}
-                        disabled={importStatus.loading || importStatus.success}
-                      >
-                        {importStatus.loading ? (
-                          <>
-                            <Loader2 size={14} className="spin-animation" />
-                            Yükleniyor...
-                          </>
-                        ) : importStatus.success ? (
-                          <>
-                            <Check size={14} />
-                            Tamamlandı
-                          </>
-                        ) : (
-                          <>
-                            <ArrowRight size={14} />
-                            İçe Aktar (Tamamla)
-                          </>
-                        )}
-                      </button>
+                    <div style={{ fontSize: '13px', color: '#6b7280', marginLeft: '24px' }}>
+                      {headerData.customerSnapshot?.company || headerData.customerSnapshot?.name || 'Müşteri'}
                     </div>
-
-                    {importStatus.loading && (
-                      <div className="mt-8 p-8 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                        <Loader2 size={14} className="spin-animation inline mr-4" />
-                        Yükleniyor...
-                      </div>
-                    )}
-
-                    {importStatus.success && (
-                      <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                        ✓ ETTN başarıyla yüklendi
-                      </div>
-                    )}
-
-                    {importStatus.error && (
-                      <div className="mt-8 p-8 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                        ✗ Hata: {importStatus.error}
+                    {exportStatus.success && exportStatus.exportDate && (
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#059669',
+                        marginLeft: '24px',
+                        marginTop: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Check size={12} />
+                        Export edildi
+                        <span>({new Date(exportStatus.exportDate).toLocaleDateString('tr-TR')})</span>
                       </div>
                     )}
                   </div>
+
+                  {/* Import Section */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <p style={{ fontSize: '14px', color: '#374151', marginBottom: '16px' }}>
+                      Logo/Zirve'den aldığınız onay dosyasını yükleyin:
+                    </p>
+
+                    {/* Drag & Drop File Upload */}
+                    <div
+                      onClick={() => document.getElementById('import-file-input').click()}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#3b82f6'; }}
+                      onDragLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        const file = e.dataTransfer.files[0];
+                        if (file) setSelectedFile(file);
+                      }}
+                      style={{
+                        border: '2px dashed #d1d5db',
+                        borderRadius: '8px',
+                        padding: '24px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        background: '#f9fafb',
+                        transition: 'all 0.2s',
+                        marginBottom: '16px'
+                      }}
+                    >
+                      <input
+                        id="import-file-input"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.xml,.csv,.xls,.xlsx"
+                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                        style={{ display: 'none' }}
+                        disabled={importStatus.loading || importStatus.success}
+                      />
+                      <div>
+                        <Upload size={32} style={{ color: '#9ca3af', marginBottom: '8px' }} />
+                        <p style={{ margin: '0 0 4px 0', fontWeight: 500, color: '#374151' }}>
+                          {selectedFile ? selectedFile.name : 'Dosya Seç veya Sürükle'}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>
+                          PDF, JPG, PNG, XML, CSV, XLS (Max 10MB)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* External Document Number */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: '#374151',
+                      marginBottom: '6px'
+                    }}>
+                      Resmi Belge No <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Örn: A-2025-001234"
+                      className="mes-filter-input"
+                      value={externalDocNumber}
+                      onChange={(e) => setExternalDocNumber(e.target.value)}
+                      disabled={importStatus.loading || importStatus.success}
+                      style={{ width: '100%' }}
+                    />
+                    <p style={{
+                      margin: '4px 0 0 0',
+                      fontSize: '12px',
+                      color: '#6b7280'
+                    }}>
+                      Logo/Zirve'den aldığınız fatura veya irsaliye numarası
+                    </p>
+                  </div>
+
+                  {/* Warning */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    padding: '10px 12px',
+                    background: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#92400e',
+                    marginBottom: '16px'
+                  }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                    <span>
+                      Import tamamlandığında stok otomatik olarak düşürülecektir.
+                    </span>
+                  </div>
+
+                  {/* Import Button */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!externalDocNumber) {
+                        setImportStatus({ loading: false, success: false, error: 'Harici belge numarası zorunludur' })
+                        return
+                      }
+
+                      setImportStatus({ loading: true, success: false, error: null })
+
+                      const formData = new FormData()
+                      formData.append('externalDocNumber', externalDocNumber)
+                      if (selectedFile) {
+                        formData.append('file', selectedFile)
+                      }
+
+                      try {
+                        const response = await fetch(`/api/materials/shipments/${createdShipmentId}/import`, {
+                          method: 'POST',
+                          body: formData
+                        })
+
+                        const result = await response.json()
+
+                        if (!response.ok) throw new Error(result.error || result.message || 'Import başarısız')
+
+                        setImportStatus({ loading: false, success: true, error: null })
+                      } catch (err) {
+                        setImportStatus({ loading: false, success: false, error: err.message })
+                      }
+                    }}
+                    className={`btn-submit w-full mt-16 ${(importStatus.loading || importStatus.success) ? 'disabled' : 'enabled'}`}
+                    disabled={importStatus.loading || importStatus.success}
+                  >
+                    {importStatus.loading ? (
+                      <>
+                        <Loader2 size={14} className="spin-animation" />
+                        Yükleniyor...
+                      </>
+                    ) : importStatus.success ? (
+                      <>
+                        <Check size={14} />
+                        Tamamlandı
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        İçe Aktar
+                      </>
+                    )}
+                  </button>
+
+                  {/* Status Messages */}
+                  {importStatus.loading && (
+                    <div className="mt-8 p-8 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                      <Loader2 size={14} className="spin-animation inline mr-4" />
+                      Yükleniyor...
+                    </div>
+                  )}
+
+                  {importStatus.success && (
+                    <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                      ✓ Belge başarıyla içe aktarıldı
+                    </div>
+                  )}
+
+                  {importStatus.error && (
+                    <div className="mt-8 p-8 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                      ✗ Hata: {importStatus.error}
+                    </div>
+                  )}
                 </div>
               )}
             </>
