@@ -3040,8 +3040,12 @@ Referans: db/models/shipments.js yapısı
 ```
 
 **Test:**
-- [ ] CRUD operasyonları çalışıyor
-- [ ] Proforma numarası doğru formatda
+- [x] CRUD operasyonları çalışıyor (create, get, update, delete)
+- [x] Proforma numarası doğru formatda (PF-YYYY-XXXX)
+- [x] getDocumentsByQuoteId filtresi çalışıyor
+- [x] getLatestDocument çalışıyor
+- [x] getDocumentStats çalışıyor
+- [x] Invalid documentType validasyonu çalışıyor
 
 ---
 
