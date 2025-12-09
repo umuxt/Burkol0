@@ -501,13 +501,15 @@ export default function AddShipmentModal({
         // Legacy fields
         workOrderCode: headerData.workOrderCode,
         quoteId: headerData.quoteId,
-        // Transport fields (P3.3)
-        driverName: headerData.transport.driverName,
-        driverTc: headerData.transport.driverTc,
-        plateNumber: headerData.transport.plateNumber,
-        deliveryPerson: headerData.transport.deliveryPerson,
-        receiverPerson: headerData.transport.receiverPerson,
-        deliveryNote: headerData.transport.deliveryNote,
+        // Transport (P3.3) - Send as object for JSONB storage
+        transport: {
+          driverName: headerData.transport.driverName || '',
+          driverTc: headerData.transport.driverTc || '',
+          plateNumber: headerData.transport.plateNumber || '',
+          deliveryPerson: headerData.transport.deliveryPerson || '',
+          receiverPerson: headerData.transport.receiverPerson || '',
+          deliveryNote: headerData.transport.deliveryNote || ''
+        },
         // Waybill date (P3.3)
         waybillDate: headerData.waybillDate,
         // Related quote for 7-day rule (P3.3)
