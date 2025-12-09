@@ -410,6 +410,12 @@ export default function AddShipmentModal({
       setError('Müşteri seçimi zorunludur')
       return false
     }
+    // Validate driver TC if entered
+    const driverTc = headerData.transport?.driverTc || ''
+    if (driverTc && driverTc.length !== 11) {
+      setError('Şoför TC kimlik numarası 11 haneli olmalıdır')
+      return false
+    }
     setError(null)
     return true
   }
@@ -1534,8 +1540,8 @@ export default function AddShipmentModal({
                             setImportStatus({ loading: false, success: false, error: err.message })
                           }
                         }}
-                        className={`btn-submit w-full mt-16 ${(!externalDocNumber || importStatus.loading || importStatus.success) ? 'disabled' : 'enabled'}`}
-                        disabled={!externalDocNumber || importStatus.loading || importStatus.success}
+                        className={`btn-submit w-full mt-16 ${(importStatus.loading || importStatus.success) ? 'disabled' : 'enabled'}`}
+                        disabled={importStatus.loading || importStatus.success}
                       >
                         {importStatus.loading ? (
                           <>

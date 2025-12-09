@@ -17,7 +17,7 @@ export default function ShipmentDetailsPanel({
   const [statusNote, setStatusNote] = useState('');
   const [shipmentItems, setShipmentItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
-  
+
   // Add item state
   const [showAddItem, setShowAddItem] = useState(false);
   const [newItem, setNewItem] = useState({ materialCode: '', quantity: '', notes: '' });
@@ -25,7 +25,7 @@ export default function ShipmentDetailsPanel({
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [removingItemId, setRemovingItemId] = useState(null);
-  
+
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
@@ -41,15 +41,15 @@ export default function ShipmentDetailsPanel({
   useEffect(() => {
     setCurrentShipment(shipment);
     setEditData({
-        workOrderCode: shipment.workOrderCode || '',
-        quoteId: shipment.quoteId || '',
-        planId: shipment.planId || '',
-        customerName: shipment.customerName || '',
-        customerCompany: shipment.customerCompany || '',
-        deliveryAddress: shipment.deliveryAddress || '',
-        description: shipment.description || shipment.notes || ''
+      workOrderCode: shipment.workOrderCode || '',
+      quoteId: shipment.quoteId || '',
+      planId: shipment.planId || '',
+      customerName: shipment.customerName || '',
+      customerCompany: shipment.customerCompany || '',
+      deliveryAddress: shipment.deliveryAddress || '',
+      description: shipment.description || shipment.notes || ''
     });
-    
+
     // Load items
     loadShipmentItems(shipment.id);
   }, [shipment]);
@@ -109,7 +109,7 @@ export default function ShipmentDetailsPanel({
       showToast('Malzeme ve miktar zorunludur', 'warning');
       return;
     }
-    
+
     setAddingItem(true);
     try {
       await shipmentsService.addItemToShipment(currentShipment.id, {
@@ -117,12 +117,12 @@ export default function ShipmentDetailsPanel({
         quantity: parseFloat(newItem.quantity),
         notes: newItem.notes
       });
-      
+
       // Refresh items from API (force refresh)
       await loadShipmentItems(currentShipment.id, true);
       setShowAddItem(false);
       setNewItem({ materialCode: '', quantity: '', notes: '' });
-      
+
       // Refresh parent list if available
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -138,11 +138,11 @@ export default function ShipmentDetailsPanel({
     if (!confirm(`${materialCode} - ${quantity} adet kalemi silmek istediğinize emin misiniz?\nStok geri iade edilecektir.`)) {
       return;
     }
-    
+
     setRemovingItemId(itemId);
     try {
       const result = await shipmentsService.removeItemFromShipment(itemId);
-      
+
       // If shipment was deleted (last item removed), close panel and refresh
       if (result.shipmentDeleted) {
         showToast('Son kalem silindi, sevkiyat otomatik olarak kaldırıldı.', 'info');
@@ -150,10 +150,10 @@ export default function ShipmentDetailsPanel({
         if (onClose) onClose();
         return;
       }
-      
+
       // Refresh items from API
       await loadShipmentItems(currentShipment.id, true);
-      
+
       // Refresh parent list if available
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -232,7 +232,7 @@ export default function ShipmentDetailsPanel({
 
   const handleStatusChange = async (newStatus) => {
     if (!onUpdateStatus) return;
-    
+
     if (newStatus === 'cancelled' && !confirm('Bu sevkiyatı iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
       return;
     }
@@ -251,7 +251,7 @@ export default function ShipmentDetailsPanel({
 
   const handleCancelShipment = async () => {
     if (!onCancel) return;
-    
+
     if (!confirm('Bu sevkiyatı iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
       return;
     }
@@ -278,17 +278,17 @@ export default function ShipmentDetailsPanel({
     setIsExporting(true);
     try {
       const response = await fetch(`/api/materials/shipments/${currentShipment.id}/export/${format}`);
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Export başarısız');
       }
-      
+
       // Download file
       const blob = await response.blob();
-      const filename = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] 
+      const filename = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1]
         || `${currentShipment.shipmentCode}.${format}`;
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -297,16 +297,16 @@ export default function ShipmentDetailsPanel({
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
-      
+
       showToast(`✅ ${format.toUpperCase()} dosyası indirildi`, 'success');
-      
+
       // Update local state to show Import button immediately
       setCurrentShipment(prev => ({
         ...prev,
         status: prev.status === 'pending' ? 'exported' : prev.status,
         lastExportedAt: new Date().toISOString()
       }));
-      
+
       // Refresh parent list
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -327,17 +327,17 @@ export default function ShipmentDetailsPanel({
       importedAt: result.shipment?.importedAt,
       importedFileName: result.shipment?.importedFileName
     }));
-    
+
     // Also refresh from server to ensure all data is current
     await refreshShipmentData();
-    
+
     if (onRefresh) onRefresh();
   };
 
   // Status flow logic
   const renderStatusActions = () => {
     const { status } = currentShipment;
-    
+
     if (status === 'cancelled' || status === 'delivered' || status === 'completed') {
       return null; // No actions for terminal states
     }
@@ -347,7 +347,7 @@ export default function ShipmentDetailsPanel({
         <h3 className="section-header">
           Durum Güncelle
         </h3>
-        
+
         <div className="mb-12">
           <input
             type="text"
@@ -384,7 +384,7 @@ export default function ShipmentDetailsPanel({
               {isUpdating ? 'Güncelleniyor...' : 'Yola Çıkar'}
             </button>
           )}
-          
+
           {status === 'shipped' && (
             <button
               onClick={() => handleStatusChange('delivered')}
@@ -404,7 +404,7 @@ export default function ShipmentDetailsPanel({
               {isUpdating ? 'Güncelleniyor...' : 'Teslim Edildi'}
             </button>
           )}
-          
+
           <button
             onClick={handleCancelShipment}
             disabled={isUpdating}
@@ -431,7 +431,7 @@ export default function ShipmentDetailsPanel({
   // Export/Import Actions render
   const renderExportImportActions = () => {
     const { status } = currentShipment;
-    
+
     // Completed or cancelled - no actions
     if (status === 'completed' || status === 'cancelled') {
       return null;
@@ -442,7 +442,7 @@ export default function ShipmentDetailsPanel({
         <h3 className="section-header">
           Export / Import
         </h3>
-        
+
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {/* Export Buttons */}
           <button
@@ -466,7 +466,7 @@ export default function ShipmentDetailsPanel({
             <Download size={14} />
             CSV
           </button>
-          
+
           <button
             onClick={() => handleExport('xml')}
             disabled={isExporting}
@@ -488,7 +488,7 @@ export default function ShipmentDetailsPanel({
             <Download size={14} />
             XML
           </button>
-          
+
           <button
             onClick={() => handleExport('pdf')}
             disabled={isExporting}
@@ -535,12 +535,12 @@ export default function ShipmentDetailsPanel({
             </button>
           )}
         </div>
-        
+
         {/* Export info */}
         {currentShipment.lastExportedAt && (
-          <div style={{ 
-            marginTop: '10px', 
-            fontSize: '11px', 
+          <div style={{
+            marginTop: '10px',
+            fontSize: '11px',
             color: '#6b7280',
             display: 'flex',
             alignItems: 'center',
@@ -549,11 +549,11 @@ export default function ShipmentDetailsPanel({
             📤 Son export: {new Date(currentShipment.lastExportedAt).toLocaleString('tr-TR')}
           </div>
         )}
-        
+
         {currentShipment.externalDocNumber && (
-          <div style={{ 
-            marginTop: '4px', 
-            fontSize: '11px', 
+          <div style={{
+            marginTop: '4px',
+            fontSize: '11px',
             color: '#059669',
             display: 'flex',
             alignItems: 'center',
@@ -562,11 +562,11 @@ export default function ShipmentDetailsPanel({
             📥 Resmi Belge No: {currentShipment.externalDocNumber}
           </div>
         )}
-        
+
         {currentShipment.importedFileName && (
-          <div style={{ 
-            marginTop: '4px', 
-            fontSize: '11px', 
+          <div style={{
+            marginTop: '4px',
+            fontSize: '11px',
             color: '#6b7280',
             display: 'flex',
             alignItems: 'center',
@@ -575,11 +575,11 @@ export default function ShipmentDetailsPanel({
             📎 Yüklenen Dosya: {currentShipment.importedFileName}
           </div>
         )}
-        
+
         {currentShipment.importedAt && (
-          <div style={{ 
-            marginTop: '4px', 
-            fontSize: '11px', 
+          <div style={{
+            marginTop: '4px',
+            fontSize: '11px',
             color: '#6b7280',
             display: 'flex',
             alignItems: 'center',
@@ -594,9 +594,9 @@ export default function ShipmentDetailsPanel({
 
   return (
     <div className="material-detail-panel">
-      <div style={{ 
-        background: 'white', 
-        borderRadius: '6px', 
+      <div style={{
+        background: 'white',
+        borderRadius: '6px',
         border: '1px solid #e5e7eb',
         height: '100%',
         display: 'flex',
@@ -616,11 +616,11 @@ export default function ShipmentDetailsPanel({
               Sevkiyat Detayı
             </h2>
           </div>
-          
+
           {/* Header Actions */}
           <div className="header-actions">
             {!isEditing && currentShipment.status !== 'delivered' ? (
-              <button 
+              <button
                 onClick={handleEditToggle}
                 className="btn-icon-sm"
                 title="Düzenle"
@@ -629,7 +629,7 @@ export default function ShipmentDetailsPanel({
               </button>
             ) : isEditing ? (
               <>
-                <button 
+                <button
                   onClick={handleSave}
                   disabled={isUpdating}
                   className="btn-icon-sm"
@@ -638,7 +638,7 @@ export default function ShipmentDetailsPanel({
                 >
                   <Check size={18} />
                 </button>
-                <button 
+                <button
                   onClick={handleEditToggle}
                   className="btn-icon-sm"
                   style={{ color: '#ef4444' }}
@@ -653,80 +653,80 @@ export default function ShipmentDetailsPanel({
 
         {/* Content - Scrollable */}
         <div className="panel-content">
-          
+
           {/* Sevkiyat Bilgileri */}
           <div className="section-card-mb">
             <h3 className="section-header">
               Sevkiyat Bilgileri
             </h3>
-            
+
             {/* Shipment Code */}
             <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Sevkiyat Kodu:
-                </span>
-                <span className="text-sm text-dark font-semibold">
-                  {currentShipment.shipmentCode || `SHP-${currentShipment.id}`}
-                </span>
+              <span className="detail-label detail-label">
+                Sevkiyat Kodu:
+              </span>
+              <span className="text-sm text-dark font-semibold">
+                {currentShipment.shipmentCode || `SHP-${currentShipment.id}`}
+              </span>
             </div>
 
             {/* Customer Name */}
             {(currentShipment.customerName || currentShipment.customerCompany) && (
               <div className="detail-row">
-                  <span className="detail-label detail-label">
-                    Müşteri:
-                  </span>
-                  <span className="detail-value">
-                    {currentShipment.customerName}{currentShipment.customerCompany && currentShipment.customerName ? ` - ${currentShipment.customerCompany}` : currentShipment.customerCompany}
-                  </span>
+                <span className="detail-label detail-label">
+                  Müşteri:
+                </span>
+                <span className="detail-value">
+                  {currentShipment.customerName}{currentShipment.customerCompany && currentShipment.customerName ? ` - ${currentShipment.customerCompany}` : currentShipment.customerCompany}
+                </span>
               </div>
             )}
 
             {/* Delivery Address */}
             {currentShipment.deliveryAddress && (
               <div className="detail-row">
-                  <span className="detail-label detail-label">
-                    Teslimat Adresi:
-                  </span>
-                  <span className="detail-value">{currentShipment.deliveryAddress}</span>
+                <span className="detail-label detail-label">
+                  Teslimat Adresi:
+                </span>
+                <span className="detail-value">{currentShipment.deliveryAddress}</span>
               </div>
             )}
 
             <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Durum:
-                </span>
-                <span className="mes-tag" style={{ 
-                  backgroundColor: `${SHIPMENT_STATUS_COLORS[currentShipment.status]}20`,
-                  color: SHIPMENT_STATUS_COLORS[currentShipment.status],
-                  border: `1px solid ${SHIPMENT_STATUS_COLORS[currentShipment.status]}40`
-                }}>
-                  {SHIPMENT_STATUS_LABELS[currentShipment.status] || currentShipment.status}
-                </span>
+              <span className="detail-label detail-label">
+                Durum:
+              </span>
+              <span className="mes-tag" style={{
+                backgroundColor: `${SHIPMENT_STATUS_COLORS[currentShipment.status]}20`,
+                color: SHIPMENT_STATUS_COLORS[currentShipment.status],
+                border: `1px solid ${SHIPMENT_STATUS_COLORS[currentShipment.status]}40`
+              }}>
+                {SHIPMENT_STATUS_LABELS[currentShipment.status] || currentShipment.status}
+              </span>
             </div>
 
             <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Kalem Sayısı:
-                </span>
-                <span className="text-sm text-dark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Package size={12} />
-                  {currentShipment.itemCount || shipmentItems.length || 1}
-                </span>
+              <span className="detail-label detail-label">
+                Kalem Sayısı:
+              </span>
+              <span className="text-sm text-dark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Package size={12} />
+                {currentShipment.itemCount || shipmentItems.length || 1}
+              </span>
             </div>
 
             <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Oluşturma Tarihi:
-                </span>
-                <span className="detail-value">{formatDate(currentShipment.createdAt)}</span>
+              <span className="detail-label detail-label">
+                Oluşturma Tarihi:
+              </span>
+              <span className="detail-value">{formatDate(currentShipment.createdAt)}</span>
             </div>
 
             <div className="detail-row">
-                <span className="detail-label">
-                  Son Güncelleme:
-                </span>
-                <span className="detail-value">{formatDate(currentShipment.updatedAt)}</span>
+              <span className="detail-label">
+                Son Güncelleme:
+              </span>
+              <span className="detail-value">{formatDate(currentShipment.updatedAt)}</span>
             </div>
           </div>
 
@@ -747,13 +747,13 @@ export default function ShipmentDetailsPanel({
                 </button>
               )}
             </div>
-            
+
             {/* Add Item Form */}
             {showAddItem && (
-              <div style={{ 
-                marginBottom: '12px', 
-                padding: '12px', 
-                backgroundColor: '#f0f9ff', 
+              <div style={{
+                marginBottom: '12px',
+                padding: '12px',
+                backgroundColor: '#f0f9ff',
                 borderRadius: '6px',
                 border: '1px solid #bfdbfe'
               }}>
@@ -844,7 +844,7 @@ export default function ShipmentDetailsPanel({
                 </div>
               </div>
             )}
-            
+
             {itemsLoading ? (
               <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
                 <Loader2 size={20} className="animate-spin" style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }} />
@@ -871,11 +871,11 @@ export default function ShipmentDetailsPanel({
             ) : (
               <div className="flex-col-gap-8">
                 {shipmentItems.map((item, index) => (
-                  <div 
+                  <div
                     key={item.id || index}
-                    style={{ 
-                      padding: '10px 12px', 
-                      backgroundColor: '#f9fafb', 
+                    style={{
+                      padding: '10px 12px',
+                      backgroundColor: '#f9fafb',
                       borderRadius: '6px',
                       border: '1px solid #e5e7eb'
                     }}
@@ -934,11 +934,11 @@ export default function ShipmentDetailsPanel({
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Total */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '8px 12px',
                   backgroundColor: '#f0f9ff',
@@ -960,94 +960,16 @@ export default function ShipmentDetailsPanel({
           <div className="section-card-mb">
             <div className="section-header-with-action">
               <h3>Kaynak & Referans</h3>
-              {dataLoading && <Loader2 size={14} className="animate-spin" />}
-            </div>
-            
-            {/* Work Order */}
-            <div className="detail-row">
-                <span className="detail-label detail-label">
-                  İş Emri Kodu:
-                </span>
-                {isEditing ? (
-                  <select
-                    value={editData.workOrderCode}
-                    onChange={(e) => handleInputChange('workOrderCode', e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '6px',
-                      borderRadius: '4px',
-                      border: '1px solid #d1d5db',
-                      fontSize: '12px'
-                    }}
-                  >
-                    <option value="">Seçiniz...</option>
-                    {workOrders.map(wo => (
-                      <option key={wo.code} value={wo.code}>{wo.code} {wo.productName ? `- ${wo.productName}` : ''}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="detail-value">
-                    {currentShipment.workOrderCode || <span className="text-muted-italic">-</span>}
-                  </span>
-                )}
             </div>
 
-            {/* Quote */}
+            {/* Related Quote ID - 7 Day Rule */}
             <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Teklif ID:
-                </span>
-                {isEditing ? (
-                  <select
-                    value={editData.quoteId}
-                    onChange={(e) => handleInputChange('quoteId', e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '6px',
-                      borderRadius: '4px',
-                      border: '1px solid #d1d5db',
-                      fontSize: '12px'
-                    }}
-                  >
-                    <option value="">Seçiniz...</option>
-                    {quotes.map(q => (
-                      <option key={q.id} value={q.id}>#{q.id} - {q.customerName || 'Müşteri'}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="detail-value">
-                    {currentShipment.quoteId ? `#${currentShipment.quoteId}` : <span className="text-muted-italic">-</span>}
-                  </span>
-                )}
-            </div>
-
-            {/* Plan */}
-            <div className="detail-row">
-                <span className="detail-label detail-label">
-                  Plan ID:
-                </span>
-                {isEditing ? (
-                  <select
-                    value={editData.planId}
-                    onChange={(e) => handleInputChange('planId', e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '6px',
-                      borderRadius: '4px',
-                      border: '1px solid #d1d5db',
-                      fontSize: '12px'
-                    }}
-                  >
-                    <option value="">Seçiniz...</option>
-                    {plans.map(p => (
-                      <option key={p.id} value={p.id}>{p.id} - {p.planName || p.name || 'Plan'}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="detail-value">
-                    {currentShipment.planId || <span className="text-muted-italic">-</span>}
-                  </span>
-                )}
+              <span className="detail-label detail-label">
+                Bağlı Teklif:
+              </span>
+              <span className="detail-value">
+                {currentShipment.relatedQuoteId ? currentShipment.relatedQuoteId : <span className="text-muted-italic">-</span>}
+              </span>
             </div>
           </div>
 
@@ -1057,7 +979,7 @@ export default function ShipmentDetailsPanel({
               <h3 className="section-header">
                 Export / Import Bilgileri
               </h3>
-              
+
               {currentShipment.lastExportedAt && (
                 <div className="detail-row">
                   <span className="detail-label">📤 Son Export:</span>
@@ -1066,7 +988,7 @@ export default function ShipmentDetailsPanel({
                   </span>
                 </div>
               )}
-              
+
               {currentShipment.importedAt && (
                 <>
                   <div className="detail-row">
@@ -1075,7 +997,7 @@ export default function ShipmentDetailsPanel({
                       {new Date(currentShipment.importedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
                     </span>
                   </div>
-                  
+
                   {currentShipment.externalDocNumber && (
                     <div className="detail-row">
                       <span className="detail-label">📋 Resmi Belge No:</span>
@@ -1084,7 +1006,7 @@ export default function ShipmentDetailsPanel({
                       </span>
                     </div>
                   )}
-                  
+
                   {currentShipment.importedFileName && (
                     <div className="detail-row">
                       <span className="detail-label">📎 Yüklenen Dosya:</span>
