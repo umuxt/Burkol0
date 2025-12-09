@@ -2802,6 +2802,8 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 7.3
 
 **Amaç:** Tüm Shipment Panel değişikliklerini test et.
 
+**Status:** ✅ TAMAMLANDI
+
 **Prompt:**
 ```
 Shipment Panel'deki tüm değişiklikleri test et:
@@ -2812,41 +2814,49 @@ Shipment Panel'deki tüm değişiklikleri test et:
    c) AddShipmentModal'ın açıldığını doğrula
    
 2. Kaldırılan Accordion'ları Kontrol Et:
-   - [ ] documentType seçimi GÖRÜNMÜYOR
-   - [ ] CurrencyAccordion GÖRÜNMÜYOR
-   - [ ] DiscountAccordion GÖRÜNMÜYOR  
-   - [ ] TaxAccordion GÖRÜNMÜYOR
-   - [ ] ExportAccordion GÖRÜNMÜYOR (veya sadeleştirilmiş)
+   - [x] documentType seçimi GÖRÜNMÜYOR
+   - [x] CurrencyAccordion GÖRÜNMÜYOR
+   - [x] DiscountAccordion GÖRÜNMÜYOR  
+   - [x] TaxAccordion GÖRÜNMÜYOR
+   - [x] ExportAccordion GÖRÜNMÜYOR (veya sadeleştirilmiş)
    
 3. TransportAccordion'u Test Et:
-   - [ ] Accordion açılıyor
-   - [ ] Şoför Adı alanı var ve yazılabiliyor
-   - [ ] Şoför TC alanı var, sadece 11 rakam kabul ediyor
-   - [ ] Plaka alanı var
-   - [ ] Günlük Tarihi var, varsayılan bugün
+   - [x] Accordion açılıyor
+   - [x] Şoför Adı alanı var ve yazılabiliyor
+   - [x] Şoför TC alanı var, sadece 11 rakam kabul ediyor
+   - [x] Plaka alanı var
+   - [x] Günlük Tarihi var, varsayılan bugün
+   - [x] Transport JSONB olarak database'e kaydediliyor
    
 4. Validasyon Testi:
-   - [ ] Boş form submit'te hata mesajları görünüyor
-   - [ ] 10 haneli TC'de hata
-   - [ ] 12 haneli TC'de hata
-   - [ ] 11 haneli doğru TC'de hata yok
+   - [x] Boş form submit'te hata mesajları görünüyor
+   - [x] 10 haneli TC'de hata
+   - [x] 12 haneli TC'de hata
+   - [x] 11 haneli doğru TC'de hata yok
    
 5. Submit Flow Testi:
-   - [ ] Tüm zorunlu alanları doldur
-   - [ ] Submit'e tıkla
-   - [ ] Backend'e giden request'i kontrol et (Network tab)
-   - [ ] transport alanlarının payload'da olduğunu doğrula
+   - [x] Tüm zorunlu alanları doldur
+   - [x] Submit'e tıkla
+   - [x] Backend'e giden request'i kontrol et (Network tab)
+   - [x] transport alanlarının payload'da olduğunu doğrula
+   - [x] Database'de transport JSONB olarak saklanıyor
    
 6. Konsol Kontrolü:
-   - [ ] React uyarısı yok
-   - [ ] Console.error yok
-   - [ ] Deprecation warning yok
+   - [x] React uyarısı yok
+   - [x] Console.error yok
+   - [x] Deprecation warning yok
 
-Hata durumunda:
-- Ekran görüntüsü al
-- Konsol loglarını kaydet
-- Hangi adımda hata oluştuğunu not et
+7. Address Fields (Ek):
+   - [x] Step 1'de müşteri adres bilgisi neighbourhood ile görünüyor
+   - [x] PDF'te neighbourhood field doğru formatlanıyor
+   - [x] Field spelling düzeltildi: neighborhood → neighbourhood (British, CRM ile uyumlu)
+
+**Çözülen Sorunlar:**
+- ✅ Transport data flow: Frontend → Backend → Database JSONB
+- ✅ Field name mismatch: neighbourhood (British) vs neighborhood (American)
+- ✅ PDF address format: Neighbourhood varsa göster, yoksa skip
 ```
+
 
 **Test Edilecek Sayfa:**
 - `/WebApp/pages/materials.html` veya Shipments paneli

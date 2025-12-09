@@ -278,7 +278,7 @@ export default function AddShipmentModal({
       country: customer.country || 'Türkiye',
       city: customer.city || '',
       district: customer.district || '',
-      neighborhood: customer.neighborhood || '',
+      neighbourhood: customer.neighbourhood || '',
       postalCode: customer.postalCode || '',
       phone: customer.phone || '',
       email: customer.email || '',
@@ -738,7 +738,7 @@ export default function AddShipmentModal({
                                 <span className="customer-info-value">
                                   {[
                                     headerData.customerSnapshot.address,
-                                    headerData.customerSnapshot.neighborhood,
+                                    headerData.customerSnapshot.neighbourhood,
                                     headerData.customerSnapshot.district,
                                     headerData.customerSnapshot.city
                                   ].filter(Boolean).join(', ') || '-'}

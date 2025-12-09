@@ -383,7 +383,7 @@ export async function generatePDF(shipment) {
         .text(`Firma: ${normalizeTurkish(customer.company || customer.name || '')}`, 50, 145)
         .text(`VKN: ${customer.taxNumber || ''} / VD: ${normalizeTurkish(customer.taxOffice || '')}`, 50, 157)
         .text(`Adres: ${normalizeTurkish(customer.address || '')}`, 50, 169)
-        .text(`${customer.neighborhood ? normalizeTurkish(customer.neighborhood) + ', ' : ''}${normalizeTurkish(customer.district || '')} / ${normalizeTurkish(customer.city || '')}`, 50, 181)
+        .text(`${customer.neighbourhood ? normalizeTurkish(customer.neighbourhood) + ', ' : ''}${normalizeTurkish(customer.district || '')} / ${normalizeTurkish(customer.city || '')}`, 50, 181)
         .text(`Posta Kodu: ${customer.postalCode || '-'} / Tel: ${customer.phone || '-'}`, 50, 193);
 
       // ===== TRANSPORT INFO =====
