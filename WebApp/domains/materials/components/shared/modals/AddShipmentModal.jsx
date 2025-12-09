@@ -731,13 +731,14 @@ export default function AddShipmentModal({
                               <div><span className="customer-info-label">VD:</span> <span className="customer-info-value">{headerData.customerSnapshot.taxOffice || '-'}</span></div>
                               <div><span className="customer-info-label">Tel:</span> <span className="customer-info-value">{headerData.customerSnapshot.phone || '-'}</span></div>
                             </div>
-                            {/* Adres bilgisi - il/ilçe dahil */}
+                            {/* Adres bilgisi - mahalle, il/ilçe dahil */}
                             {(headerData.customerSnapshot.address || headerData.customerSnapshot.city) && (
                               <div className="customer-info-address">
                                 <span className="customer-info-label">Adres:</span>{' '}
                                 <span className="customer-info-value">
                                   {[
                                     headerData.customerSnapshot.address,
+                                    headerData.customerSnapshot.neighborhood,
                                     headerData.customerSnapshot.district,
                                     headerData.customerSnapshot.city
                                   ].filter(Boolean).join(', ') || '-'}
