@@ -143,6 +143,7 @@ function validateInvoiceExportData(data) {
 export async function createShipment(data, user) {
   const { items = [], ...shipmentData } = data;
 
+
   // 1. Basic validation - items required
   if (!items || items.length === 0) {
     const error = new Error('En az bir kalem gerekli');
@@ -257,13 +258,9 @@ export async function createShipment(data, user) {
     hidePrice: shipmentData.hidePrice !== undefined ? shipmentData.hidePrice : true,
     relatedQuoteId: shipmentData.relatedQuoteId || null,
 
-    // Transport fields (existing)
-    transportType: shipmentData.transportType,
-    driverName: shipmentData.driverName,
-    driverTc: shipmentData.driverTc,
-    plateNumber: shipmentData.plateNumber,
-    carrierCompany: shipmentData.carrierCompany,
-    carrierTcVkn: shipmentData.carrierTcVkn,
+    // Transport (P3.3 - JSONB object)
+    transport: shipmentData.transport || null,
+    waybillDate: shipmentData.waybillDate || null,
 
     // Weight/Package (existing)
     netWeight: shipmentData.netWeight,

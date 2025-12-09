@@ -532,13 +532,17 @@ export default function AddShipmentModal({
         }))
       }
 
-      console.log('🚀 Frontend - Submitting shipment with transport:', shipmentData.transport)
-      console.log('🚀 Frontend - HeaderData.transport before submit:', headerData.transport)
-
-      // Remove empty/null fields
+      // Remove empty/null fields (but preserve transport object if it has data)
       Object.keys(shipmentData).forEach(key => {
-        if (shipmentData[key] === '' || shipmentData[key] === null || shipmentData[key] === undefined) {
-          delete shipmentData[key]
+        // Special handling for transport object
+        if (key === 'transport' && typeof shipmentData[key] === 'object') {
+          const hasData = Object.values(shipmentData[key]).some(val => val && val.trim && val.trim() !== '');
+          if (!hasData) {
+            delete shipmentData[key]; // Delete if all fields are empty
+          }
+          // Keep the object if it has at least one non-empty field
+        } else if (shipmentData[key] === '' || shipmentData[key] === null || shipmentData[key] === undefined) {
+          delete shipmentData[key];
         }
       })
 
