@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
-    "api/index.js": {
+    "api/**/*.js": {
       "maxDuration": 10
     }
   },
@@ -15,6 +15,10 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "/api/health.js"
+    },
     { 
       "source": "/api/:path*", 
       "destination": "/api/index.js"
