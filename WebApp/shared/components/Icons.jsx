@@ -89,6 +89,7 @@ import {
 
   // Invoice/Receipt icons (P4.4)
   Receipt,
+  FileCode,
 
 } from 'lucide-react';
 
@@ -180,6 +181,7 @@ export const Icons = {
 
   // Invoice/Receipt icons (P4.4)
   Receipt,
+  FileCode,
 };
 
 // Helper component for consistent icon rendering
@@ -270,6 +272,7 @@ export {
   FileSpreadsheet,
   // Invoice/Receipt icons (P4.4)
   Receipt,
+  FileCode,
 };
 
 export default Icons;

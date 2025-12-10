@@ -19,10 +19,10 @@ import { User, UserPlus, FileText, FolderOpen } from '../../../../shared/compone
 export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
   // Customer type: 'existing', 'new', 'without'
   const customerType = data.customerType || 'existing'
-  
+
   // Selected customer (for 'existing' type)
   const selectedCustomer = data.selectedCustomer || null
-  
+
   // Customer form fields
   const customerData = data.customerData || {
     name: '',
@@ -45,10 +45,10 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
     postalCode: '',
     notes: ''
   }
-  
+
   // Project name (YENİ - QT-3)
   const projectName = data.projectName || ''
-  
+
   // Delivery date
   const deliveryDate = data.deliveryDate || ''
 
@@ -158,7 +158,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
     <div className="quote-customer-step">
       {/* Customer Type Selector */}
       <div className="customer-type-selector">
-        <label 
+        <label
           className={`customer-type-option ${customerType === 'existing' ? 'selected' : ''}`}
           onClick={() => handleTypeChange('existing')}
         >
@@ -176,7 +176,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           </div>
         </label>
 
-        <label 
+        <label
           className={`customer-type-option ${customerType === 'new' ? 'selected' : ''}`}
           onClick={() => handleTypeChange('new')}
         >
@@ -194,7 +194,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           </div>
         </label>
 
-        <label 
+        <label
           className={`customer-type-option ${customerType === 'without' ? 'selected' : ''}`}
           onClick={() => handleTypeChange('without')}
         >
@@ -239,7 +239,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
           <div className="customer-form-grid">
             <div className="form-group">
               <label className="form-label">
-                Müşteri Adı <span className="required">*</span>
+                Cari Hesap Unvanı / Adı Soyadı <span className="required">*</span>
               </label>
               <input
                 type="text"
@@ -247,20 +247,20 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
                 onChange={(e) => handleFieldChange('name', e.target.value)}
                 disabled={isReadonly}
                 className={`form-input ${isReadonly ? 'readonly' : ''} ${errors.name ? 'error' : ''}`}
-                placeholder="Müşteri adı"
+                placeholder="Ticari Unvan veya Ad Soyad"
               />
               {errors.name && <span className="field-error">{errors.name}</span>}
             </div>
 
             <div className="form-group">
-              <label className="form-label">Şirket</label>
+              <label className="form-label">Firma Kısa Adı / Marka (Opsiyonel)</label>
               <input
                 type="text"
                 value={customerData.company || ''}
                 onChange={(e) => handleFieldChange('company', e.target.value)}
                 disabled={isReadonly}
                 className={`form-input ${isReadonly ? 'readonly' : ''}`}
-                placeholder="Şirket adı"
+                placeholder="Örn: Trendyol, Hepsiburada vb."
               />
             </div>
 
@@ -455,7 +455,7 @@ export default function QuoteCustomerStep({ data, onChange, errors = {} }) {
             <span className="field-error">{errors.projectName}</span>
           )}
         </div>
-        
+
         <div className="form-group" style={{ maxWidth: '300px' }}>
           <label className="form-label">Tahmini Teslimat Tarihi</label>
           <input

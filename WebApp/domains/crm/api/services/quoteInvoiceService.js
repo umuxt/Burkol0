@@ -105,6 +105,10 @@ const QuoteInvoiceService = {
                     'c.taxOffice as customerTaxOffice',
                     'c.address as customerAddress',
                     'c.city as customerCity',
+                    'c.district as customerDistrict',
+                    'c.neighbourhood as customerNeighbourhood',
+                    'c.postalCode as customerPostalCode',
+                    'c.country as customerCountry',
                     'c.isEInvoiceTaxpayer',
                     'c.gibPkLabel',
                     'c.defaultInvoiceScenario'
@@ -478,7 +482,7 @@ const QuoteInvoiceService = {
   </FATURABILGI>
   <CARIKART>
     <CARIKODU>${this._escapeXml(quote.customerTaxNumber || quote.id || '')}</CARIKODU>
-    <CARIADI>${this._escapeXml(quote.customerCompany || quote.customerName || '')}</CARIADI>
+    <CARIADI>${this._escapeXml(quote.customerName || quote.customerCompany || '')}</CARIADI>
     <VERGINO>${this._escapeXml(quote.customerTaxNumber || '')}</VERGINO>
     <VERGIDAIRESI>${this._escapeXml(quote.customerTaxOffice || '')}</VERGIDAIRESI>
     <ADRES>${this._escapeXml(quote.customerAddress || '')}</ADRES>
@@ -527,7 +531,7 @@ ${lines}
         // Customer Info - Cari Kart bilgileri
         csv += '# CARI KART BILGILERI\n';
         csv += `CARI_KODU,${quote.customerTaxNumber || quote.id || ''}\n`;
-        csv += `CARI_ADI,"${this._escapeCsv(quote.customerCompany || quote.customerName || '')}"\n`;
+        csv += `CARI_ADI,"${this._escapeCsv(quote.customerName || quote.customerCompany || '')}"\n`;
         csv += `VERGI_NO,${quote.customerTaxNumber || ''}\n`;
         csv += `VERGI_DAIRESI,"${this._escapeCsv(quote.customerTaxOffice || '')}"\n`;
         csv += `ADRES,"${this._escapeCsv(quote.customerAddress || '')}"\n`;
@@ -626,10 +630,19 @@ ${lines}
                 // Customer Info - Using flat fields from JOIN
                 doc.fontSize(12).font('Helvetica-Bold').text('MUSTERI BILGILERI');
                 doc.fontSize(10).font('Helvetica');
-                doc.text(`Firma: ${tr(quote.customerCompany || quote.customerName)}`);
+                doc.text(`Firma: ${tr(quote.customerName || quote.customerCompany)}`);
                 doc.text(`Vergi No: ${quote.customerTaxNumber || '-'}`);
                 doc.text(`Vergi Dairesi: ${tr(quote.customerTaxOffice) || '-'}`);
-                doc.text(`Adres: ${tr(quote.customerAddress)} ${tr(quote.customerCity) || ''}`);
+                const fullAddress = [
+                    tr(quote.customerAddress),
+                    tr(quote.customerNeighbourhood),
+                    tr(quote.customerDistrict),
+                    tr(quote.customerCity),
+                    (quote.customerPostalCode ? `PK:${quote.customerPostalCode}` : ''),
+                    tr(quote.customerCountry)
+                ].filter(part => part && part.trim() !== '' && part !== '-').join(' - ');
+
+                doc.text(`Adres: ${fullAddress || '-'}`);
                 doc.moveDown(1);
 
                 // Line

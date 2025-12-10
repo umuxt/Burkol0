@@ -3,8 +3,8 @@ import React from 'react';
 
 export function getCustomersTableColumns() {
   return [
-    { id: 'name', label: 'Müşteri Adı', type: 'text' },
-    { id: 'company', label: 'Şirket', type: 'text' },
+    { id: 'name', label: 'Cari Hesap / Ad Soyad', type: 'text' },
+    { id: 'company', label: 'Firma / Marka', type: 'text' },
     { id: 'email', label: 'E-posta', type: 'email' },
     { id: 'phone', label: 'Telefon', type: 'phone' },
     { id: 'address', label: 'Adres', type: 'text' },
@@ -57,7 +57,7 @@ export function formatCustomerFieldValue(value, column, customer) {
       return value || '-';
 
     case 'email':
-      return value 
+      return value
         ? React.createElement('div', { className: 'customer-email' }, value)
         : React.createElement('span', { style: { color: '#9ca3af' } }, '-');
 

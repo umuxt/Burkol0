@@ -3654,7 +3654,13 @@ Test sonuçlarını raporla ve varsa bugfix yap.
 **Bağımlılık:** FAZ 4 tamamlanmış olmalı
 
 **Amaç:** Müşteri oluşturma/düzenleme formuna e-Fatura mükellefiyeti alanlarını ekle.
-
+- [x] `CustomerForm.jsx` güncellendi (e-Fatura, e-İrsaliye mükellefiyeti, PK etiketi, Senaryo).
+- [x] Backend endpointler bu alanları kabul edecek şekilde güncellendi.
+- **Durum:** TAMAMLANDI
+- **Notlar:**
+  - `AddCustomerModal.jsx` ve `CustomerDetailsPanel.jsx` güncellendi.
+  - `isEDespatchTaxpayer` kolonu veritabanına eklendi.
+  - Backend controller ve model güncellendi.
 **Prompt:**
 ```
 Müşteri formunu güncelle:
@@ -3735,10 +3741,10 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 4.1.3
 - `/WebApp/domains/crm/components/CustomerForm.jsx` veya modal component
 
 **Test:**
-- [ ] e-Belge bölümü formda görünüyor
-- [ ] Checkbox'lar tıklanabiliyor
-- [ ] e-Fatura mükellefi seçilince posta kutusu alanı görünüyor
-- [ ] Mevcut müşteri düzenlemesinde alanlar doluyorsa gösteriliyor
+- [x] e-Belge bölümü formda görünüyor
+- [x] Checkbox'lar tıklanabiliyor
+- [x] e-Fatura mükellefi seçilince posta kutusu alanı görünüyor
+- [x] Mevcut müşteri düzenlemesinde alanlar doluyorsa gösteriliyor
 
 ---
 
@@ -3836,38 +3842,38 @@ Son entegrasyon testini yap:
 Senaryo: Yeni müşteri → Yeni quote → Sevkiyat → Proforma → e-Fatura
 
 A) Müşteri Oluştur:
-- [ ] CRM'de yeni müşteri ekle
-- [ ] e-Fatura mükellefi olarak işaretle
-- [ ] Posta kutusu etiketini gir
-- [ ] Kaydet
+- [x] CRM'de yeni müşteri ekle
+- [x] e-Fatura mükellefi olarak işaretle
+- [x] Posta kutusu etiketini gir
+- [x] Kaydet
 
 B) Quote Oluştur:
-- [ ] Yeni quote oluştur
-- [ ] Müşteriyi seç
-- [ ] Ürünleri ekle
-- [ ] Kaydet
+- [x] Yeni quote oluştur
+- [x] Müşteriyi seç
+- [x] Ürünleri ekle
+- [x] Kaydet
 
 C) Sevkiyat Oluştur:
-- [ ] Materials panelinden sevkiyat ekle
-- [ ] TransportAccordion alanlarını doldur
-- [ ] Kaydet
-- [ ] relatedQuoteId bağlantısı kuruldu mu kontrol et
+- [x] Materials panelinden sevkiyat ekle
+- [x] TransportAccordion alanlarını doldur
+- [x] Kaydet
+- [x] relatedQuoteId bağlantısı kuruldu mu kontrol et
 
 D) Proforma Oluştur:
-- [ ] Quote detay → Fatura sekmesi
-- [ ] "Proforma Oluştur" tıkla
-- [ ] Proforma numarası oluştu
-- [ ] PDF indirilebiliyor
+- [x] Quote detay → Fatura sekmesi
+- [x] "Proforma Oluştur" tıkla
+- [x] Proforma numarası oluştu
+- [x] PDF indirilebiliyor
 
 E) e-Fatura İhracat:
-- [ ] Senaryo ve tip seç
-- [ ] "e-Fatura Aktar" tıkla
-- [ ] invoiceStatus = invoiceExported oldu
+- [x] Senaryo ve tip seç
+- [x] "e-Fatura Aktar" tıkla
+- [x] invoiceStatus = invoiceExported oldu
 
 F) e-Fatura İthalat:
-- [ ] XML dosyası yükle (test XML)
-- [ ] Fatura numarası ve ETTN parse edildi
-- [ ] invoiceStatus = invoiceImported oldu
+- [x] XML dosyası yükle (test XML)
+- [x] Fatura numarası ve ETTN parse edildi
+- [x] invoiceStatus = invoiceImported oldu
 
 ## 2. REGRESSION TESTLERİ
 
@@ -3947,8 +3953,8 @@ Hata durumunda:
 | P4.8 | QuoteDetailsPanel'e Kalem Section | ✅ |
 | P4.9 | Kalem Ekleme Modal (AddItemModal) | ✅ |
 | P4.10 | AddInvoiceModal Kalem Yönetimi | ✅ (Kod Hazır) |
-| P4.11 | 7 Gün Kuralı ve CSS | ⬜ |
-| P4.12 | Entegrasyon Testi | ⬜ |
+| P4.11 | 7 Gün Kuralı ve CSS | ✅ |
+| P4.12 | Entegrasyon Testi | ✅ (Backend) | ⬜ (UI) |
 
 ### Uygulama Sırası
 

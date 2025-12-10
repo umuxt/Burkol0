@@ -24,14 +24,14 @@ function CustomersManager({ t }) {
   // Load customers
   useEffect(() => {
     loadCustomers();
-    
+
     // Yeni müşteri oluşturulduğunda listeyi yenile (AddQuoteModal'dan tetiklenir)
     function handleCustomerCreated() {
       loadCustomers();
     }
-    
+
     window.addEventListener('customerCreated', handleCustomerCreated);
-    
+
     return () => {
       window.removeEventListener('customerCreated', handleCustomerCreated);
     };
@@ -65,7 +65,7 @@ function CustomersManager({ t }) {
   // Handlers
   async function handleDeleteCustomer(id) {
     if (!confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) return;
-    
+
     try {
       await customersService.deleteCustomer(id);
       showToast('Müşteri silindi', 'success');
@@ -97,14 +97,14 @@ function CustomersManager({ t }) {
   // Render
   return React.createElement('div', { className: 'customers-container' },
     // MES Filter Bar
-    React.createElement('div', { 
-      className: 'mes-filter-bar', 
-      style: { marginBottom: '24px' } 
+    React.createElement('div', {
+      className: 'mes-filter-bar',
+      style: { marginBottom: '24px' }
     },
       // Stats Dashboard
       React.createElement('div', { className: 'quotes-dashboard-container' },
-        React.createElement('section', { 
-          className: 'quotes-dashboard is-inline' 
+        React.createElement('section', {
+          className: 'quotes-dashboard is-inline'
         },
           React.createElement('div', { className: 'stat' },
             React.createElement('span', { className: 'stat-label' }, 'Toplam Müşteri'),
@@ -117,7 +117,7 @@ function CustomersManager({ t }) {
           )
         )
       ),
-      
+
       // Primary Action - Add Customer
       React.createElement('button', {
         className: 'mes-primary-action is-compact',
@@ -126,7 +126,7 @@ function CustomersManager({ t }) {
         React.createElement('span', null, '✚'),
         React.createElement('span', null, 'Yeni Müşteri')
       ),
-      
+
       // Export Button
       React.createElement('button', {
         className: 'mes-filter-button is-compact',
@@ -136,7 +136,7 @@ function CustomersManager({ t }) {
         React.createElement(FileSpreadsheet, { size: 14 }),
         React.createElement('span', null, 'CSV')
       ),
-      
+
       // Active Filter
       React.createElement('button', {
         className: 'mes-filter-button is-compact',
@@ -145,16 +145,16 @@ function CustomersManager({ t }) {
       },
         React.createElement(Check, { size: 14 })
       ),
-      
+
       // Search Input
       React.createElement('input', {
         type: 'text',
-        placeholder: 'Tüm veriler içinde arama...',
+        placeholder: 'Cari unvan, firma adı, e-posta veya telefon ile arama...',
         className: 'mes-search-input',
         value: searchTerm,
         onChange: (e) => setSearchTerm(e.target.value)
       }),
-      
+
       // Filter Controls
       React.createElement('div', { className: 'mes-filter-controls' },
         React.createElement('button', {
@@ -180,9 +180,9 @@ function CustomersManager({ t }) {
             React.createElement('div', { className: 'customers-empty' },
               React.createElement('div', { className: 'customers-empty-icon' }, React.createElement(Users, { size: 48 })),
               React.createElement('h3', null, searchTerm ? 'Müşteri bulunamadı' : 'Henüz müşteri yok'),
-              React.createElement('p', null, 
-                searchTerm 
-                  ? 'Arama kriterlerinize uygun müşteri bulunamadı.' 
+              React.createElement('p', null,
+                searchTerm
+                  ? 'Arama kriterlerinize uygun müşteri bulunamadı.'
                   : 'Yeni müşteri eklemek için yukarıdaki butonu kullanın.'
               ),
               !searchTerm && React.createElement('button', {
@@ -195,11 +195,11 @@ function CustomersManager({ t }) {
               React.createElement('thead', null,
                 React.createElement('tr', null,
                   // Checkbox column
-                  React.createElement('th', { 
-                    style: { width: '40px', textAlign: 'center' } 
+                  React.createElement('th', {
+                    style: { width: '40px', textAlign: 'center' }
                   },
-                    React.createElement('input', { 
-                      type: 'checkbox', 
+                    React.createElement('input', {
+                      type: 'checkbox',
                       title: 'Tümünü seç'
                     })
                   ),
@@ -207,7 +207,7 @@ function CustomersManager({ t }) {
                   ...tableColumns.map(col => {
                     const isActive = sortConfig?.columnId === col.id;
                     const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕';
-                    return React.createElement('th', { 
+                    return React.createElement('th', {
                       key: col.id,
                       style: { minWidth: '120px', whiteSpace: 'nowrap' }
                     },
@@ -224,7 +224,7 @@ function CustomersManager({ t }) {
                 )
               ),
               React.createElement('tbody', null,
-                filteredCustomers.map(customer => 
+                filteredCustomers.map(customer =>
                   React.createElement('tr', {
                     key: customer.id,
                     className: selectedCustomer?.id === customer.id ? 'selected' : '',
@@ -232,15 +232,15 @@ function CustomersManager({ t }) {
                     style: { cursor: 'pointer' }
                   },
                     // Checkbox
-                    React.createElement('td', { 
+                    React.createElement('td', {
                       onClick: (e) => e.stopPropagation()
                     },
-                      React.createElement('input', { 
+                      React.createElement('input', {
                         type: 'checkbox'
                       })
                     ),
                     // Dynamic columns
-                    ...tableColumns.map(col => 
+                    ...tableColumns.map(col =>
                       React.createElement('td', { key: col.id },
                         formatCustomerFieldValue(
                           getCustomerFieldValue(customer, col.id),
@@ -256,7 +256,7 @@ function CustomersManager({ t }) {
           )
         )
       ),
-      
+
       // Right side - Detail Panel
       selectedCustomer && React.createElement(CustomerDetailsPanel, {
         customer: selectedCustomer,
