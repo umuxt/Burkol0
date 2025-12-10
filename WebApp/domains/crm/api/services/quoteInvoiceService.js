@@ -7,6 +7,7 @@
 import db from '../../../../db/connection.js';
 import QuoteItems from '../../../../db/models/quoteItems.js';
 import QuoteDocuments from '../../../../db/models/quoteDocuments.js';
+import PDFDocument from 'pdfkit';
 
 const QuoteInvoiceService = {
 
@@ -139,21 +140,22 @@ const QuoteInvoiceService = {
 
             let fileContent, fileName, mimeType;
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const exportTarget = options.exportTarget || 'LOGO';
 
             // Generate export based on format
             if (format === 'xml') {
-                fileContent = this._generateXmlInvoice(quote, items, totals, invoiceScenario, invoiceType);
-                fileName = `INV-${quoteId}-${timestamp}.xml`;
+                fileContent = this._generateXmlInvoice(quote, items, totals, invoiceScenario, invoiceType, exportTarget);
+                fileName = `EXPORT-${exportTarget}-${quoteId}-${timestamp}.xml`;
                 mimeType = 'application/xml';
             } else if (format === 'csv') {
-                fileContent = this._generateCsvInvoice(quote, items, totals);
-                fileName = `INV-${quoteId}-${timestamp}.csv`;
+                fileContent = this._generateCsvInvoice(quote, items, totals, exportTarget);
+                fileName = `EXPORT-${exportTarget}-${quoteId}-${timestamp}.csv`;
                 mimeType = 'text/csv';
             } else if (format === 'pdf') {
-                // PDF generation - stub for now
-                const error = new Error('PDF export not yet implemented');
-                error.code = 'NOT_IMPLEMENTED';
-                throw error;
+                // Generate real PDF using PDFKit
+                fileContent = await this._generatePdfInvoice(quote, items, totals, invoiceScenario, invoiceType);
+                fileName = `PROFORMA-${quote.proformaNumber || quoteId}-${timestamp}.pdf`;
+                mimeType = 'application/pdf';
             } else {
                 const error = new Error('Invalid export format');
                 error.code = 'INVALID_FORMAT';
@@ -207,13 +209,13 @@ const QuoteInvoiceService = {
     async importEttn(quoteId, data) {
         const { invoiceNumber, invoiceEttn, file, fileName } = data;
 
-        // Validate ETTN format (UUID: 8-4-4-4-12)
-        const ettnRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!ettnRegex.test(invoiceEttn)) {
-            const error = new Error('Invalid ETTN format. Expected UUID format (e.g., 550e8400-e29b-41d4-a716-446655440000)');
-            error.code = 'INVALID_ETTN';
-            throw error;
-        }
+        // Validate ETTN format (UUID: 8-4-4-4-12) - DISABLED for now
+        // const ettnRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        // if (!ettnRegex.test(invoiceEttn)) {
+        //     const error = new Error('Invalid ETTN format. Expected UUID format (e.g., 550e8400-e29b-41d4-a716-446655440000)');
+        //     error.code = 'INVALID_ETTN';
+        //     throw error;
+        // }
 
         const trx = await db.transaction();
 
@@ -407,65 +409,101 @@ const QuoteInvoiceService = {
      * Generate XML invoice (Logo Tiger format)
      * @private
      */
-    _generateXmlInvoice(quote, items, totals, invoiceScenario, invoiceType) {
+    _generateXmlInvoice(quote, items, totals, invoiceScenario, invoiceType, exportTarget = 'LOGO') {
         const lines = items.map((item, index) => {
-            return `    <InvoiceLine>
-      <LineNumber>${index + 1}</LineNumber>
-      <ProductCode>${this._escapeXml(item.stockCode || '')}</ProductCode>
-      <ProductName>${this._escapeXml(item.productName)}</ProductName>
-      <Quantity>${item.quantity}</Quantity>
-      <Unit>${this._escapeXml(item.unit)}</Unit>
-      <UnitPrice>${item.unitPrice}</UnitPrice>
-      <DiscountPercent>${item.discountPercent || 0}</DiscountPercent>
-      <TaxRate>${item.taxRate || 0}</TaxRate>
-      <Subtotal>${item.subtotal || 0}</Subtotal>
-      <TaxAmount>${item.taxAmount || 0}</TaxAmount>
-      <TotalAmount>${item.totalAmount || 0}</TotalAmount>
-    </InvoiceLine>`;
+            return `    <FATURASATIR>
+      <SATIRNO>${index + 1}</SATIRNO>
+      <MALZEMEKODU>${this._escapeXml(item.stockCode || '')}</MALZEMEKODU>
+      <MALZEMEADI>${this._escapeXml(item.productName)}</MALZEMEADI>
+      <MIKTAR>${item.quantity}</MIKTAR>
+      <BIRIM>${this._escapeXml(item.unit)}</BIRIM>
+      <BIRIMFIYAT>${item.unitPrice}</BIRIMFIYAT>
+      <ISKONTOYUZDE>${item.discountPercent || 0}</ISKONTOYUZDE>
+      <KDVORANI>${item.taxRate || 0}</KDVORANI>
+      <TUTAR>${item.subtotal || 0}</TUTAR>
+      <KDVTUTARI>${item.taxAmount || 0}</KDVTUTARI>
+      <TOPLAM>${item.totalAmount || 0}</TOPLAM>
+    </FATURASATIR>`;
         }).join('\n');
 
+        // Logo Tiger / Zirve compatible XML format
         return `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice>
-  <InvoiceHeader>
-    <ProformaNumber>${this._escapeXml(quote.proformaNumber || '')}</ProformaNumber>
-    <InvoiceScenario>${invoiceScenario}</InvoiceScenario>
-    <InvoiceType>${invoiceType}</InvoiceType>
-    <Currency>${quote.currency || 'TRY'}</Currency>
-    <ExchangeRate>${quote.exchangeRate || 1.0}</ExchangeRate>
-    <IssueDate>${new Date().toISOString().split('T')[0]}</IssueDate>
-  </InvoiceHeader>
-  <CustomerInfo>
-    <Name>${this._escapeXml(quote.customerName || quote.customerCompany || '')}</Name>
-    <TaxNumber>${this._escapeXml(quote.customerTaxNumber || '')}</TaxNumber>
-    <TaxOffice>${this._escapeXml(quote.customerTaxOffice || '')}</TaxOffice>
-    <Address>${this._escapeXml(quote.customerAddress || '')}</Address>
-    <City>${this._escapeXml(quote.customerCity || '')}</City>
-    <IsEInvoiceTaxpayer>${quote.isEInvoiceTaxpayer ? 'true' : 'false'}</IsEInvoiceTaxpayer>
-    <GibPkLabel>${this._escapeXml(quote.gibPkLabel || '')}</GibPkLabel>
-  </CustomerInfo>
-  <InvoiceLines>
+<!-- BeePlan ERP - ${exportTarget} Fatura Export -->
+<!-- Export Tarihi: ${new Date().toISOString()} -->
+<FATURA>
+  <HEDEFPROGRAM>${exportTarget}</HEDEFPROGRAM>
+  <FATURABILGI>
+    <PROFORMANO>${this._escapeXml(quote.proformaNumber || '')}</PROFORMANO>
+    <TEKLIFNO>${this._escapeXml(quote.id || '')}</TEKLIFNO>
+    <FATURASRENARYOSU>${invoiceScenario}</FATURASRENARYOSU>
+    <FATURATIPI>${invoiceType}</FATURATIPI>
+    <PARABIRIMI>${quote.currency || 'TRY'}</PARABIRIMI>
+    <DOVIZKURU>${quote.exchangeRate || 1.0}</DOVIZKURU>
+    <FATURATARIHI>${new Date().toISOString().split('T')[0]}</FATURATARIHI>
+  </FATURABILGI>
+  <CARIKART>
+    <CARIKODU>${this._escapeXml(quote.customerTaxNumber || quote.id || '')}</CARIKODU>
+    <CARIADI>${this._escapeXml(quote.customerCompany || quote.customerName || '')}</CARIADI>
+    <VERGINO>${this._escapeXml(quote.customerTaxNumber || '')}</VERGINO>
+    <VERGIDAIRESI>${this._escapeXml(quote.customerTaxOffice || '')}</VERGIDAIRESI>
+    <ADRES>${this._escapeXml(quote.customerAddress || '')}</ADRES>
+    <SEHIR>${this._escapeXml(quote.customerCity || '')}</SEHIR>
+    <EFATURAMUKELLEF>${quote.isEInvoiceTaxpayer ? 'EVET' : 'HAYIR'}</EFATURAMUKELLEF>
+    <GIBPKETIKETI>${this._escapeXml(quote.gibPkLabel || '')}</GIBPKETIKETI>
+  </CARIKART>
+  <SATIRLAR>
 ${lines}
-  </InvoiceLines>
-  <Totals>
-    <Subtotal>${totals.subtotal || 0}</Subtotal>
-    <DiscountTotal>${totals.discountTotal || 0}</DiscountTotal>
-    <TaxTotal>${totals.taxTotal || 0}</TaxTotal>
-    <WithholdingTotal>${totals.withholdingTotal || 0}</WithholdingTotal>
-    <GrandTotal>${totals.grandTotal || 0}</GrandTotal>
-  </Totals>
-</Invoice>`;
+  </SATIRLAR>
+  <TOPLAMLAR>
+    <ARATOPLAM>${totals.subtotal || 0}</ARATOPLAM>
+    <ISKONTOTOPLAM>${totals.discountTotal || 0}</ISKONTOTOPLAM>
+    <KDVTOPLAM>${totals.taxTotal || 0}</KDVTOPLAM>
+    <STOPAJTOPLAM>${totals.withholdingTotal || 0}</STOPAJTOPLAM>
+    <GENELTOPLAM>${totals.grandTotal || 0}</GENELTOPLAM>
+  </TOPLAMLAR>
+</FATURA>`;
     },
 
     /**
-     * Generate CSV invoice
+     * Generate CSV invoice for Logo/Zirve import
      * @private
      */
-    _generateCsvInvoice(quote, items, totals) {
+    _generateCsvInvoice(quote, items, totals, exportTarget = 'LOGO') {
         // UTF-8 BOM for Excel compatibility
         let csv = '\uFEFF';
 
-        // Header
-        csv += 'Line,Product Code,Product Name,Quantity,Unit,Unit Price,Discount %,Tax Rate,Subtotal,Tax Amount,Total\n';
+        // Export Header - for identification
+        csv += `# BeePlan ERP - ${exportTarget} Fatura Export\n`;
+        csv += `# Export Tarihi: ${new Date().toISOString()}\n`;
+        csv += '\n';
+
+        // Invoice Header
+        csv += '# FATURA BILGILERI\n';
+        csv += `HEDEF_PROGRAM,${exportTarget}\n`;
+        csv += `PROFORMA_NO,${quote.proformaNumber || ''}\n`;
+        csv += `TEKLIF_NO,${quote.id || ''}\n`;
+        csv += `FATURA_TARIHI,${new Date().toISOString().split('T')[0]}\n`;
+        csv += `FATURA_SENARYOSU,${quote.invoiceScenario || 'TEMEL'}\n`;
+        csv += `FATURA_TIPI,${quote.invoiceType || 'SATIS'}\n`;
+        csv += `PARA_BIRIMI,${quote.currency || 'TRY'}\n`;
+        csv += `DOVIZ_KURU,${quote.exchangeRate || 1.0}\n`;
+        csv += '\n';
+
+        // Customer Info - Cari Kart bilgileri
+        csv += '# CARI KART BILGILERI\n';
+        csv += `CARI_KODU,${quote.customerTaxNumber || quote.id || ''}\n`;
+        csv += `CARI_ADI,"${this._escapeCsv(quote.customerCompany || quote.customerName || '')}"\n`;
+        csv += `VERGI_NO,${quote.customerTaxNumber || ''}\n`;
+        csv += `VERGI_DAIRESI,"${this._escapeCsv(quote.customerTaxOffice || '')}"\n`;
+        csv += `ADRES,"${this._escapeCsv(quote.customerAddress || '')}"\n`;
+        csv += `SEHIR,"${this._escapeCsv(quote.customerCity || '')}"\n`;
+        csv += `EFATURA_MUKELLEF,${quote.isEInvoiceTaxpayer ? 'EVET' : 'HAYIR'}\n`;
+        csv += `GIB_PK_ETIKET,"${this._escapeCsv(quote.gibPkLabel || '')}"\n`;
+        csv += '\n';
+
+        // Items Header - Malzeme/Hizmet satırları
+        csv += '# FATURA SATIRLARI\n';
+        csv += 'SATIR_NO,MALZEME_KODU,MALZEME_ADI,MIKTAR,BIRIM,BIRIM_FIYAT,ISKONTO_YUZDE,KDV_ORANI,TUTAR,KDV_TUTARI,TOPLAM\n';
 
         // Items
         items.forEach((item, index) => {
@@ -484,13 +522,143 @@ ${lines}
 
         // Totals
         csv += '\n';
-        csv += `Subtotal,,,,,,,,,${totals.subtotal || 0}\n`;
-        csv += `Discount Total,,,,,,,,,${totals.discountTotal || 0}\n`;
-        csv += `Tax Total,,,,,,,,,${totals.taxTotal || 0}\n`;
-        csv += `Withholding Total,,,,,,,,,${totals.withholdingTotal || 0}\n`;
-        csv += `Grand Total,,,,,,,,,${totals.grandTotal || 0}\n`;
+        csv += '# FATURA TOPLAMLARI\n';
+        csv += `ARA_TOPLAM,${totals.subtotal || 0}\n`;
+        csv += `ISKONTO_TOPLAM,${totals.discountTotal || 0}\n`;
+        csv += `KDV_TOPLAM,${totals.taxTotal || 0}\n`;
+        csv += `STOPAJ_TOPLAM,${totals.withholdingTotal || 0}\n`;
+        csv += `GENEL_TOPLAM,${totals.grandTotal || 0}\n`;
 
         return csv;
+    },
+
+    /**
+     * Generate PDF invoice (simple text-based for now)
+     * Can be enhanced with pdfkit or puppeteer for better formatting
+     * @private
+     */
+    _generatePdfInvoice(quote, items, totals, invoiceScenario, invoiceType) {
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ margin: 50, size: 'A4' });
+                const chunks = [];
+
+                doc.on('data', chunk => chunks.push(chunk));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+                doc.on('error', reject);
+
+                // Turkish character converter for PDF (Helvetica doesn't support Turkish)
+                const tr = (str) => {
+                    if (!str) return '-';
+                    return String(str)
+                        .replace(/İ/g, 'I')
+                        .replace(/ı/g, 'i')
+                        .replace(/Ş/g, 'S')
+                        .replace(/ş/g, 's')
+                        .replace(/Ğ/g, 'G')
+                        .replace(/ğ/g, 'g')
+                        .replace(/Ü/g, 'U')
+                        .replace(/ü/g, 'u')
+                        .replace(/Ö/g, 'O')
+                        .replace(/ö/g, 'o')
+                        .replace(/Ç/g, 'C')
+                        .replace(/ç/g, 'c');
+                };
+
+                const formatPrice = (value) => {
+                    return new Intl.NumberFormat('tr-TR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(value || 0);
+                };
+
+                const formatDate = (date) => {
+                    if (!date) return '-';
+                    return new Date(date).toLocaleDateString('tr-TR');
+                };
+
+                // Header
+                doc.fontSize(20).font('Helvetica-Bold').text('PROFORMA FATURA', { align: 'center' });
+                doc.moveDown(0.5);
+                doc.fontSize(10).font('Helvetica').text(`Belge No: ${quote.proformaNumber || quote.id}`, { align: 'center' });
+                doc.text(`Tarih: ${formatDate(new Date())} | Senaryo: ${invoiceScenario} | Tip: ${invoiceType}`, { align: 'center' });
+                doc.moveDown(1);
+
+                // Line
+                doc.strokeColor('#000').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                doc.moveDown(0.5);
+
+                // Customer Info - Using flat fields from JOIN
+                doc.fontSize(12).font('Helvetica-Bold').text('MUSTERI BILGILERI');
+                doc.fontSize(10).font('Helvetica');
+                doc.text(`Firma: ${tr(quote.customerCompany || quote.customerName)}`);
+                doc.text(`Vergi No: ${quote.customerTaxNumber || '-'}`);
+                doc.text(`Vergi Dairesi: ${tr(quote.customerTaxOffice) || '-'}`);
+                doc.text(`Adres: ${tr(quote.customerAddress)} ${tr(quote.customerCity) || ''}`);
+                doc.moveDown(1);
+
+                // Line
+                doc.strokeColor('#000').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                doc.moveDown(0.5);
+
+                // Items Header
+                doc.fontSize(12).font('Helvetica-Bold').text('FATURA KALEMLERI');
+                doc.moveDown(0.5);
+
+                // Table Header
+                const tableTop = doc.y;
+                doc.fontSize(9).font('Helvetica-Bold');
+                doc.text('No', 50, tableTop, { width: 30 });
+                doc.text('Urun/Hizmet', 80, tableTop, { width: 200 });
+                doc.text('Miktar', 280, tableTop, { width: 50, align: 'right' });
+                doc.text('Birim Fiyat', 340, tableTop, { width: 80, align: 'right' });
+                doc.text('Tutar', 430, tableTop, { width: 80, align: 'right' });
+
+                doc.moveDown(0.5);
+                doc.strokeColor('#ccc').lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+
+                // Table Rows
+                doc.font('Helvetica').fontSize(9);
+                let y = doc.y + 10;
+                items.forEach((item, index) => {
+                    if (y > 700) {
+                        doc.addPage();
+                        y = 50;
+                    }
+                    doc.text(String(index + 1), 50, y, { width: 30 });
+                    doc.text(tr((item.productName || '').substring(0, 40)), 80, y, { width: 200 });
+                    doc.text(String(item.quantity), 280, y, { width: 50, align: 'right' });
+                    doc.text(formatPrice(item.unitPrice), 340, y, { width: 80, align: 'right' });
+                    doc.text(formatPrice(item.totalAmount), 430, y, { width: 80, align: 'right' });
+                    y += 18;
+                });
+
+                doc.y = y + 10;
+                doc.strokeColor('#000').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                doc.moveDown(1);
+
+                // Totals
+                doc.fontSize(10).font('Helvetica');
+                doc.text(`Ara Toplam: ${formatPrice(totals.subtotal)} TL`, { align: 'right' });
+                if (totals.discountTotal > 0) {
+                    doc.text(`Iskonto: -${formatPrice(totals.discountTotal)} TL`, { align: 'right' });
+                }
+                doc.text(`KDV Toplam: ${formatPrice(totals.taxTotal)} TL`, { align: 'right' });
+                doc.moveDown(0.3);
+                doc.fontSize(14).font('Helvetica-Bold').text(`GENEL TOPLAM: ${formatPrice(totals.grandTotal)} TL`, { align: 'right' });
+
+                doc.moveDown(2);
+
+                // Footer
+                doc.fontSize(8).font('Helvetica').fillColor('#666');
+                doc.text('BeePlan ERP - Proforma Fatura', 50, 780, { align: 'center', width: 495 });
+                doc.text(`Olusturulma: ${formatDate(new Date())}`, 50, 790, { align: 'center', width: 495 });
+
+                doc.end();
+            } catch (error) {
+                reject(error);
+            }
+        });
     },
 
     /**

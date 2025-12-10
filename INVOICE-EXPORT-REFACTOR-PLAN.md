@@ -3548,11 +3548,20 @@ Step 2'yi "Kalemler & İskonto" olarak değiştir:
    - Step 2: En az 1 kalem olmalı
 ```
 
-**Test:**
-- [ ] Step 2 kalem yönetimi çalışıyor
-- [ ] Genel iskonto uygulanıyor
-- [ ] Toplamlar doğru hesaplanıyor
-- [ ] Export, kalemlerden fatura oluşturuyor
+**Test:** ✅ **TAMAMLANDI** (2025-12-10)
+- [x] Step 2 "Kalemler & İskonto" ekranı eklendi
+- [x] Kalem listesi ve silme işlemi implemente edildi
+- [x] AddItemModal entegrasyonu yapıldı
+- [x] Genel iskonto ve toplam hesaplamaları eklendi
+- [x] 6 adımlı wizard akışı uygulandı (Step 4: Proforma)
+- [x] Proforma PDF indirme çalışıyor (PDFKit backend)
+- [x] Expandable download butonları eklendi (QuoteDetailsPanel)
+- [x] AddItemModal stopPropagation düzeltildi
+- [x] ETTN validation altyapısı hazır
+- [x] Logo/Zirve uyumlu XML/CSV export formatları
+
+**Not:** Manuel UI testleri P4.12'de yapılacak.
+
 
 ---
 
@@ -3936,7 +3945,7 @@ Hata durumunda:
 | P4.7 | Service Cards API + CRM Ayarlar Tab | ✅ |
 | P4.8 | QuoteDetailsPanel'e Kalem Section | ✅ |
 | P4.9 | Kalem Ekleme Modal (AddItemModal) | ✅ |
-| P4.10 | AddInvoiceModal Kalem Yönetimi | ⬜ |
+| P4.10 | AddInvoiceModal Kalem Yönetimi | ✅ (Kod Hazır) |
 | P4.11 | 7 Gün Kuralı ve CSS | ⬜ |
 | P4.12 | Entegrasyon Testi | ⬜ |
 

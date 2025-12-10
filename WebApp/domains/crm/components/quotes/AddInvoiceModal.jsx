@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { X, FileText, ChevronRight, ChevronLeft, Check, Download, Upload, AlertTriangle, Loader2, File, Building2, CreditCard, Package, Lock, Unlock, Pencil } from 'lucide-react'
+import { X, FileText, ChevronRight, ChevronLeft, Check, Download, Upload, AlertTriangle, Loader2, File, Building2, CreditCard, Package, Lock, Unlock, Pencil, Plus, Trash2 } from 'lucide-react'
+import AddItemModal from './AddItemModal.jsx'
 import { API_BASE, withAuth, fetchWithTimeout } from '../../../../shared/lib/api.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 // CSS is imported globally via quotes.css
 
 /**
- * AddInvoiceModal - 4 Adımlı Wizard (Fatura İşlemleri)
- * Step 1: Proforma + Temel Ayarlar
- * Step 2: Ödeme Koşulları + Ek Bilgiler
- * Step 3: Export (Logo/Zirve)
- * Step 4: Import (GİB Faturası)
+ * AddInvoiceModal - 6 Adımlı Wizard (Fatura İşlemleri)
+ * Step 1: Müşteri + Temel Ayarlar
+ * Step 2: Kalemler & İskonto
+ * Step 3: Ödeme Koşulları
+ * Step 4: Proforma Oluştur
+ * Step 5: Export (Logo/Zirve)
+ * Step 6: Import (GİB Faturası)
  */
 export default function AddInvoiceModal({
     isOpen,
@@ -18,10 +21,21 @@ export default function AddInvoiceModal({
     onSuccess
 }) {
     const [currentStep, setCurrentStep] = useState(1)
-    const TOTAL_STEPS = 4
+    const TOTAL_STEPS = 6
 
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
+
+    // Items management (Step 2)
+    const [quoteItems, setQuoteItems] = useState([])
+    const [itemsLoading, setItemsLoading] = useState(false)
+    const [showAddItemModal, setShowAddItemModal] = useState(false)
+    const [itemsTotals, setItemsTotals] = useState({
+        subtotal: 0,
+        discountTotal: 0,
+        taxTotal: 0,
+        grandTotal: 0
+    })
 
     // Proforma state (Step 1)
     const [proformaData, setProformaData] = useState({
@@ -83,6 +97,7 @@ export default function AddInvoiceModal({
         success: false,
         error: null
     })
+    const [ettnError, setEttnError] = useState('')
 
     // Customer info edit state (for overriding or adding missing data)
     const [customerEditMode, setCustomerEditMode] = useState(false)
@@ -106,6 +121,66 @@ export default function AddInvoiceModal({
         const date = new Date()
         date.setDate(date.getDate() + parseInt(days || 0))
         return date.toISOString().split('T')[0]
+    }
+
+    // Load quote items
+    const loadQuoteItems = async () => {
+        if (!quote?.id) return
+        try {
+            setItemsLoading(true)
+            const response = await fetchWithTimeout(`${API_BASE}/api/quotes/${quote.id}/items`, {
+                headers: withAuth()
+            })
+            if (response.ok) {
+                const data = await response.json()
+                const items = data.data?.items || data.items || []
+                const totals = data.data?.totals || calculateLocalTotals(items)
+
+                setQuoteItems(Array.isArray(items) ? items : [])
+                if (totals) {
+                    setItemsTotals({
+                        subtotal: totals.subtotal || 0,
+                        discountTotal: totals.discountTotal || 0,
+                        taxTotal: totals.taxTotal || 0,
+                        grandTotal: totals.grandTotal || totals.totalAmount || 0
+                    })
+                }
+            }
+        } catch (err) {
+            console.error('Error loading quote items:', err)
+        } finally {
+            setItemsLoading(false)
+        }
+    }
+
+    // Calculate totals locally if API doesn't provide them (fallback)
+    const calculateLocalTotals = (items) => {
+        if (!Array.isArray(items)) return null
+        return items.reduce((acc, item) => {
+            acc.subtotal += Number(item.subtotal || 0)
+            acc.discountTotal += Number(item.discountAmount || 0)
+            acc.taxTotal += Number(item.taxAmount || 0)
+            acc.grandTotal += Number(item.totalAmount || 0)
+            return acc
+        }, { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0 })
+    }
+
+    // Delete quote item
+    const handleDeleteItem = async (itemId) => {
+        if (!confirm('Bu kalemi silmek istediğinize emin misiniz?')) return
+        try {
+            const response = await fetchWithTimeout(`${API_BASE}/api/quotes/items/${itemId}`, {
+                method: 'DELETE',
+                headers: withAuth()
+            })
+            if (response.ok) {
+                showToast('Kalem silindi', 'success')
+                loadQuoteItems() // Reload list
+            }
+        } catch (err) {
+            console.error('Error deleting item:', err)
+            showToast('Kalem silinemedi', 'error')
+        }
     }
 
     // Initialize when modal opens
@@ -169,6 +244,11 @@ export default function AddInvoiceModal({
             postalCode: quote?.customer?.postalCode || '',
             country: quote?.customer?.country || 'Türkiye'
         })
+
+        // Load items initially
+        if (quote?.id) {
+            loadQuoteItems()
+        }
     }, [isOpen, quote])
 
     // Close on escape key
@@ -236,7 +316,48 @@ export default function AddInvoiceModal({
     }
 
     const handleDownloadProformaPdf = async () => {
-        showToast('Proforma PDF indirme yakında eklenecek', 'info')
+        try {
+            setLoading(true)
+
+            // Use export endpoint with PDF format
+            const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quote.id}/documents/export`, {
+                method: 'POST',
+                headers: withAuth({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    format: 'pdf',
+                    invoiceScenario: invoiceSettings.invoiceScenario,
+                    invoiceType: invoiceSettings.invoiceType,
+                    exportTarget: 'DOWNLOAD',
+                    currency: invoiceSettings.currency,
+                    exchangeRate: invoiceSettings.exchangeRate,
+                    paymentMethod: invoiceSettings.paymentMethod,
+                    paymentDueDays: invoiceSettings.paymentDueDays
+                })
+            })
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}))
+                throw new Error(errData.error || 'PDF oluşturulamadı')
+            }
+
+            // Get file as blob
+            const blob = await res.blob()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `Proforma-${proformaData.documentNumber || quote.id}.pdf`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+
+            showToast('Proforma PDF indirildi', 'success')
+        } catch (err) {
+            console.error('PDF download error:', err)
+            showToast(err.message || 'PDF indirilemedi', 'error')
+        } finally {
+            setLoading(false)
+        }
     }
 
     // ==================== SETTINGS HANDLERS ====================
@@ -302,7 +423,7 @@ export default function AddInvoiceModal({
             }
 
             const contentType = res.headers.get('content-type')
-            if (contentType && (contentType.includes('xml') || contentType.includes('csv') || contentType.includes('octet-stream'))) {
+            if (contentType && (contentType.includes('xml') || contentType.includes('csv') || contentType.includes('pdf') || contentType.includes('octet-stream') || contentType.includes('text/plain'))) {
                 const blob = await res.blob()
                 const disposition = res.headers.get('content-disposition')
                 let fileName = `fatura_${quote.id}.${selectedFormats[0]}`
@@ -339,12 +460,28 @@ export default function AddInvoiceModal({
         }
     }
 
-    // ==================== STEP 4: IMPORT ====================
+    // ==================== STEP 6: IMPORT ====================
+    const validateEttn = (value) => {
+        // DISABLED for now - allow any format
+        return ''
+        // if (!value) return ''
+        // const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+        // if (!uuidRegex.test(value)) {
+        //     return 'ETTN UUID formatında olmalı: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+        // }
+        // return ''
+    }
+
     const handleImportDataChange = (field, value) => {
         setImportData(prev => ({
             ...prev,
             [field]: value
         }))
+
+        // Real-time ETTN validation
+        if (field === 'ettn') {
+            setEttnError(validateEttn(value))
+        }
     }
 
     const handleFileSelect = (e) => {
@@ -365,11 +502,6 @@ export default function AddInvoiceModal({
         }
     }
 
-    const validateEttn = (ettn) => {
-        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-        return uuidRegex.test(ettn)
-    }
-
     const handleImport = async () => {
         if (!importData.invoiceNumber.trim()) {
             setError('Fatura numarası gereklidir')
@@ -379,8 +511,9 @@ export default function AddInvoiceModal({
             setError('ETTN gereklidir')
             return
         }
-        if (!validateEttn(importData.ettn)) {
-            setError('ETTN formatı geçersiz. UUID formatında olmalıdır (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)')
+        const ettnValidationError = validateEttn(importData.ettn)
+        if (ettnValidationError) {
+            setError(ettnValidationError)
             return
         }
         if (!importData.file) {
@@ -431,12 +564,20 @@ export default function AddInvoiceModal({
     const canProceedToNext = () => {
         switch (currentStep) {
             case 1:
-                return !!proformaData.documentNumber
-            case 2:
-                return invoiceSettings.paymentMethod !== ''
-            case 3:
+                // Ayarlar - Müşteri bilgisi zaten quote'tan geliyor
                 return true
+            case 2:
+                // En az 1 kalem olmalı
+                return quoteItems.length > 0
+            case 3:
+                // Ödeme koşulları dolu olmalı
+                return invoiceSettings.paymentMethod !== ''
             case 4:
+                // Proforma oluşturulmuş olmalı
+                return !!proformaData.documentNumber
+            case 5:
+                return true
+            case 6:
                 return true
             default:
                 return false
@@ -459,10 +600,12 @@ export default function AddInvoiceModal({
 
     const getStepLabel = (step) => {
         switch (step) {
-            case 1: return 'Proforma'
-            case 2: return 'Ödeme'
-            case 3: return 'Export'
-            case 4: return 'Import'
+            case 1: return 'Ayarlar'
+            case 2: return 'Kalemler'
+            case 3: return 'Ödeme'
+            case 4: return 'Proforma'
+            case 5: return 'Export'
+            case 6: return 'Import'
             default: return ''
         }
     }
@@ -504,7 +647,7 @@ export default function AddInvoiceModal({
 
                 {/* Step Indicator */}
                 <div className="quote-step-indicator">
-                    {[1, 2, 3, 4].map((step, index) => (
+                    {[1, 2, 3, 4, 5, 6].map((step, index) => (
                         <React.Fragment key={step}>
                             <div className={getStepClass(step)}>
                                 <div className="quote-step-number">
@@ -512,7 +655,7 @@ export default function AddInvoiceModal({
                                 </div>
                                 <span className="quote-step-label">{getStepLabel(step)}</span>
                             </div>
-                            {index < 3 && (
+                            {index < 5 && (
                                 <div className={getConnectorClass(step)} />
                             )}
                         </React.Fragment>
@@ -536,8 +679,8 @@ export default function AddInvoiceModal({
                             <div className="invoice-customer-summary mb-16">
                                 <div className="invoice-customer-header">
                                     <div className="flex-center-gap-8">
-                                        <Building2 size={16} className="text-muted" />
-                                        <span className="text-sm font-semibold">Müşteri Bilgileri</span>
+                                        <Building2 size={16} className="text-gray" />
+                                        <span className="text-sm font-semibold text-dark">Müşteri Bilgileri</span>
                                     </div>
                                     <button
                                         type="button"
@@ -687,189 +830,234 @@ export default function AddInvoiceModal({
                                 )}
                             </div>
 
-                            {/* Proforma Section */}
-                            <h3 className="quote-modal-title mb-16">Proforma Fatura</h3>
-
-                            {proformaData.documentNumber ? (
-                                <div className="invoice-success-box mb-16">
-                                    <div className="flex-center-gap-8 mb-12">
-                                        <Check size={18} className="text-success" />
-                                        <span className="text-md font-semibold text-success">Proforma Oluşturuldu</span>
-                                    </div>
-
-                                    <div className="grid-2-gap-12 mb-16">
-                                        <div>
-                                            <span className="label-sm">Proforma No</span>
-                                            <span className="detail-value">{proformaData.documentNumber}</span>
-                                        </div>
-                                        <div>
-                                            <span className="label-sm">Oluşturma Tarihi</span>
-                                            <span className="detail-value">
-                                                {proformaData.createdAt
-                                                    ? new Date(proformaData.createdAt).toLocaleDateString('tr-TR')
-                                                    : '—'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-center-gap-8">
-                                        <button className="btn-secondary" onClick={handleDownloadProformaPdf}>
-                                            <Download size={14} /> PDF İndir
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Fatura Ayarları - Proforma oluşturulmadan önce */}
-                                    <div className="invoice-settings-grid mb-16">
-                                        <div className="form-group">
-                                            <label className="label">Fatura Senaryosu *</label>
-                                            <select
-                                                className="mes-filter-input"
-                                                value={invoiceSettings.invoiceScenario}
-                                                onChange={(e) => handleSettingsChange('invoiceScenario', e.target.value)}
-                                            >
-                                                <option value="TEMEL">TEMEL FATURA</option>
-                                                <option value="TICARI">TİCARİ FATURA</option>
-                                                <option value="IHRACAT">İHRACAT FATURASI</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label className="label">Fatura Tipi *</label>
-                                            <select
-                                                className="mes-filter-input"
-                                                value={invoiceSettings.invoiceType}
-                                                onChange={(e) => handleSettingsChange('invoiceType', e.target.value)}
-                                            >
-                                                <option value="SATIS">SATIŞ</option>
-                                                <option value="IADE">İADE</option>
-                                                <option value="ISTISNA">İSTİSNA</option>
-                                                <option value="OZELMATRAH">ÖZEL MATRAH</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label className="label">Para Birimi</label>
-                                            <select
-                                                className="mes-filter-input"
-                                                value={invoiceSettings.currency}
-                                                onChange={(e) => handleSettingsChange('currency', e.target.value)}
-                                            >
-                                                <option value="TRY">TRY - Türk Lirası</option>
-                                                <option value="USD">USD - Amerikan Doları</option>
-                                                <option value="EUR">EUR - Euro</option>
-                                                <option value="GBP">GBP - İngiliz Sterlini</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label className="label">Döviz Kuru</label>
-                                            <input
-                                                type="number"
-                                                step="0.0001"
-                                                className="mes-filter-input"
-                                                value={invoiceSettings.exchangeRate}
-                                                onChange={(e) => handleSettingsChange('exchangeRate', parseFloat(e.target.value) || 1)}
-                                                disabled={invoiceSettings.currency === 'TRY'}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Kalemler & Toplam Özeti */}
-                                    <div className="invoice-items-section mb-16">
-                                        {/* Items Summary Header */}
-                                        <div className="invoice-items-header">
-                                            <div className="flex-center-gap-8">
-                                                <Package size={16} className="text-muted" />
-                                                <span className="text-sm font-semibold">
-                                                    Fatura Kalemleri ({quote?.items?.length || 0} kalem)
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Items List (if any) */}
-                                        {quote?.items && quote.items.length > 0 ? (
-                                            <div className="invoice-items-list mt-8">
-                                                <table className="invoice-items-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Ürün/Hizmet</th>
-                                                            <th className="text-right">Miktar</th>
-                                                            <th className="text-right">Birim Fiyat</th>
-                                                            <th className="text-right">KDV</th>
-                                                            <th className="text-right">Toplam</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {quote.items.map((item, idx) => (
-                                                            <tr key={item.id || idx}>
-                                                                <td>
-                                                                    <span className="text-sm">{item.productName}</span>
-                                                                    {item.stockCode && (
-                                                                        <span className="text-xs text-muted ml-4">[{item.stockCode}]</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="text-right text-sm">{item.quantity} {item.unit}</td>
-                                                                <td className="text-right text-sm">{formatPrice(item.unitPrice)}</td>
-                                                                <td className="text-right text-sm">%{item.taxRate}</td>
-                                                                <td className="text-right text-sm font-semibold">{formatPrice(item.totalAmount)}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ) : (
-                                            <div className="invoice-no-items mt-8">
-                                                <span className="text-sm text-muted">Henüz kalem eklenmemiş. Quote detayından kalem ekleyebilirsiniz.</span>
-                                            </div>
-                                        )}
-
-                                        {/* Totals */}
-                                        <div className="invoice-totals mt-12">
-                                            <div className="invoice-total-row">
-                                                <span className="text-sm">Ara Toplam:</span>
-                                                <span className="text-sm">{formatPrice(quote?.itemsSubtotal || 0)} {invoiceSettings.currency}</span>
-                                            </div>
-                                            <div className="invoice-total-row">
-                                                <span className="text-sm">KDV Toplam:</span>
-                                                <span className="text-sm">{formatPrice(quote?.itemsTaxTotal || 0)} {invoiceSettings.currency}</span>
-                                            </div>
-                                            <div className="invoice-total-row total-final">
-                                                <span className="text-md font-semibold">Genel Toplam:</span>
-                                                <span className="text-md font-bold text-primary">
-                                                    {formatPrice(quote?.itemsTotal || quote?.finalPrice || quote?.calculatedPrice || 0)} {invoiceSettings.currency}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        className="btn-primary"
-                                        onClick={handleGenerateProforma}
-                                        disabled={loading}
+                            {/* Fatura Ayarları */}
+                            <h3 className="quote-modal-title mb-16">Fatura Ayarları</h3>
+                            <div className="invoice-settings-grid mb-16">
+                                <div className="form-group">
+                                    <label className="label">Fatura Senaryosu *</label>
+                                    <select
+                                        className="mes-filter-input"
+                                        value={invoiceSettings.invoiceScenario}
+                                        onChange={(e) => handleSettingsChange('invoiceScenario', e.target.value)}
                                     >
-                                        {loading ? (
-                                            <>
-                                                <Loader2 size={16} className="spinner" />
-                                                Oluşturuluyor...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <FileText size={16} /> Proforma Oluştur
-                                            </>
-                                        )}
-                                    </button>
-                                </>
-                            )}
+                                        <option value="TEMEL">TEMEL FATURA</option>
+                                        <option value="TICARI">TİCARİ FATURA</option>
+                                        <option value="IHRACAT">İHRACAT FATURASI</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="label">Fatura Tipi *</label>
+                                    <select
+                                        className="mes-filter-input"
+                                        value={invoiceSettings.invoiceType}
+                                        onChange={(e) => handleSettingsChange('invoiceType', e.target.value)}
+                                    >
+                                        <option value="SATIS">SATIŞ</option>
+                                        <option value="IADE">İADE</option>
+                                        <option value="ISTISNA">İSTİSNA</option>
+                                        <option value="OZELMATRAH">ÖZEL MATRAH</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="label">Para Birimi</label>
+                                    <select
+                                        className="mes-filter-input"
+                                        value={invoiceSettings.currency}
+                                        onChange={(e) => handleSettingsChange('currency', e.target.value)}
+                                    >
+                                        <option value="TRY">TRY - Türk Lirası</option>
+                                        <option value="USD">USD - Amerikan Doları</option>
+                                        <option value="EUR">EUR - Euro</option>
+                                        <option value="GBP">GBP - İngiliz Sterlini</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="label">Döviz Kuru</label>
+                                    <input
+                                        type="number"
+                                        step="0.0001"
+                                        className="mes-filter-input"
+                                        value={invoiceSettings.exchangeRate}
+                                        onChange={(e) => handleSettingsChange('exchangeRate', parseFloat(e.target.value) || 1)}
+                                        disabled={invoiceSettings.currency === 'TRY'}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
 
-                    {/* Step 2: Ödeme Koşulları + Ek Bilgiler */}
+                    {/* Step 2: Kalemler + İskonto */}
                     {currentStep === 2 && (
                         <div className="quote-customer-step">
+                            <div className="flex-between-center mb-12">
+                                <h3 className="quote-modal-title flex-center-gap-8">
+                                    <Package size={18} className="text-gray" /> Kalem Yönetimi
+                                </h3>
+                                <div className="quote-estimate-badge">
+                                    <AlertTriangle size={12} />
+                                    Teklif Tahmini: {formatPrice(quote?.calculatedPrice || 0)} {invoiceSettings.currency}
+                                </div>
+                            </div>
+
+                            {/* Kalem Listesi */}
+                            <div className="invoice-items-list-container mb-16 border rounded bg-white">
+                                {itemsLoading ? (
+                                    <div className="flex-center p-24">
+                                        <Loader2 size={24} className="spinner text-primary" />
+                                    </div>
+                                ) : quoteItems.length > 0 ? (
+                                    <table className="invoice-items-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Ürün/Hizmet</th>
+                                                <th className="text-right">Miktar</th>
+                                                <th className="text-right">Birim Fiyat</th>
+                                                <th className="text-right">Tutar</th>
+                                                <th className="w-40"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {quoteItems.map((item, idx) => (
+                                                <tr key={item.id || idx}>
+                                                    <td>
+                                                        <div className="font-medium text-sm">{item.productName}</div>
+                                                        {item.description && item.description !== item.productName && (
+                                                            <div className="text-xs text-muted truncate max-w-200">{item.description}</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="text-right text-sm">
+                                                        {item.quantity} <span className="text-muted text-xs">{item.unit}</span>
+                                                    </td>
+                                                    <td className="text-right text-sm">{formatPrice(item.unitPrice)}</td>
+                                                    <td className="text-right text-sm font-medium">{formatPrice(item.totalAmount)}</td>
+                                                    <td className="text-right">
+                                                        <button
+                                                            className="btn-icon danger"
+                                                            onClick={() => handleDeleteItem(item.id)}
+                                                            title="Bu kalemi sil"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        {/* Table Footer Summary */}
+                                        <tfoot className="bg-gray-50 font-medium">
+                                            <tr>
+                                                <td colSpan="3" className="text-right py-2 text-xs text-muted">Kalemler Toplamı:</td>
+                                                <td className="text-right py-2 text-xs">{formatPrice(itemsTotals.subtotal)}</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                ) : (
+                                    <div className="flex-col-center p-32 text-muted">
+                                        <Package size={24} className="mb-8 opacity-50" />
+                                        <span className="text-sm">Henüz kalem eklenmemiş</span>
+                                        <span className="text-xs mt-4">Faturaya kalem eklemek için aşağıdaki butonu kullanın</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Kalem Ekle Butonu */}
+                            <button
+                                className="btn-add-item"
+                                onClick={() => setShowAddItemModal(true)}
+                            >
+                                <Plus size={16} /> Yeni Kalem Ekle
+                            </button>
+
+                            {/* İskonto ve Toplamlar */}
+                            <div className="invoice-summary-section">
+                                <h4 className="invoice-summary-header">
+                                    <div className="invoice-summary-indicator"></div>
+                                    Genel İskonto ve Toplamlar
+                                </h4>
+
+                                <div className="grid-2-gap-24 mb-16">
+                                    {/* Sol: İskonto Girişi */}
+                                    <div>
+                                        <div className="form-group mb-12">
+                                            <label className="label text-xs">Genel İskonto Tipi</label>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    className={`flex-1 py-1 px-2 text-xs rounded border transition-colors ${invoiceSettings.discountType === 'PERCENT' ? 'bg-primary text-white border-primary' : 'bg-white hover:bg-gray-50'}`}
+                                                    onClick={() => handleSettingsChange('discountType', invoiceSettings.discountType === 'PERCENT' ? 'NONE' : 'PERCENT')}
+                                                >
+                                                    % Yüzde
+                                                </button>
+                                                <button
+                                                    className={`flex-1 py-1 px-2 text-xs rounded border transition-colors ${invoiceSettings.discountType === 'AMOUNT' ? 'bg-primary text-white border-primary' : 'bg-white hover:bg-gray-50'}`}
+                                                    onClick={() => handleSettingsChange('discountType', invoiceSettings.discountType === 'AMOUNT' ? 'NONE' : 'AMOUNT')}
+                                                >
+                                                    ₺ Tutar
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {invoiceSettings.discountType !== 'NONE' && (
+                                            <div className="form-group">
+                                                <label className="label text-xs">
+                                                    İskonto Değeri ({invoiceSettings.discountType === 'PERCENT' ? '%' : '₺'})
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="mes-filter-input"
+                                                    value={invoiceSettings.discountValue}
+                                                    onChange={(e) => handleSettingsChange('discountValue', parseFloat(e.target.value) || 0)}
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Sağ: Toplam Hesaplamaları */}
+                                    <div className="invoice-summary-totals">
+                                        <div className="invoice-summary-row">
+                                            <span className="text-muted">Ara Toplam:</span>
+                                            <span className="text-dark">{formatPrice(itemsTotals.subtotal)} {invoiceSettings.currency}</span>
+                                        </div>
+
+                                        {/* Genel İskonto Gösterimi */}
+                                        {invoiceSettings.discountType !== 'NONE' && invoiceSettings.discountValue > 0 && (
+                                            <div className="invoice-summary-row text-error">
+                                                <span>İskonto {invoiceSettings.discountType === 'PERCENT' ? `(%${invoiceSettings.discountValue})` : ''}:</span>
+                                                <span>- {formatPrice(invoiceSettings.discountType === 'PERCENT'
+                                                    ? (itemsTotals.subtotal * invoiceSettings.discountValue / 100)
+                                                    : invoiceSettings.discountValue)} {invoiceSettings.currency}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="invoice-summary-row">
+                                            <span className="text-muted">KDV Toplam:</span>
+                                            <span className="text-dark">{formatPrice(itemsTotals.taxTotal)} {invoiceSettings.currency}</span>
+                                        </div>
+
+                                        <div className="invoice-summary-divider"></div>
+
+                                        <div className="invoice-summary-row total-final">
+                                            <span className="text-dark font-bold">GENEL TOPLAM:</span>
+                                            <span className="text-primary font-bold">
+                                                {formatPrice(itemsTotals.grandTotal - (invoiceSettings.discountType === 'AMOUNT' ? invoiceSettings.discountValue : (itemsTotals.subtotal * (invoiceSettings.discountValue || 0) / 100)))} {invoiceSettings.currency}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Step 3: Ödeme Koşulları + Ek Bilgiler */}
+                    {currentStep === 3 && (
+                        <div className="quote-customer-step">
                             <h3 className="quote-modal-title mb-16">
-                                <CreditCard size={18} className="text-muted" /> Ödeme Koşulları
+                                <CreditCard size={18} className="text-gray" /> Ödeme Koşulları
                             </h3>
 
                             {/* Ödeme Yöntemi */}
@@ -942,32 +1130,7 @@ export default function AddInvoiceModal({
                                 </div>
                             )}
 
-                            {/* İskonto */}
-                            <div className="form-group mb-16">
-                                <label className="label">İskonto</label>
-                                <div className="grid-2-gap-12">
-                                    <select
-                                        className="mes-filter-input"
-                                        value={invoiceSettings.discountType}
-                                        onChange={(e) => handleSettingsChange('discountType', e.target.value)}
-                                    >
-                                        <option value="NONE">İskonto Yok</option>
-                                        <option value="PERCENT">Yüzde (%)</option>
-                                        <option value="AMOUNT">Tutar</option>
-                                    </select>
-                                    {invoiceSettings.discountType !== 'NONE' && (
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            className="mes-filter-input"
-                                            placeholder={invoiceSettings.discountType === 'PERCENT' ? 'Yüzde' : 'Tutar'}
-                                            value={invoiceSettings.discountValue}
-                                            onChange={(e) => handleSettingsChange('discountValue', parseFloat(e.target.value) || 0)}
-                                        />
-                                    )}
-                                </div>
-                            </div>
+                            {/* İskonto alanı Step 2'ye taşındı */}
 
                             {/* Fatura Notu */}
                             <div className="form-group mb-16">
@@ -1007,8 +1170,119 @@ export default function AddInvoiceModal({
                         </div>
                     )}
 
-                    {/* Step 3: Export */}
-                    {currentStep === 3 && (
+                    {/* Step 4: Proforma Oluştur */}
+                    {currentStep === 4 && (
+                        <div className="quote-customer-step">
+                            <h3 className="quote-modal-title mb-16">
+                                <FileText size={18} className="text-gray" /> Proforma Fatura
+                            </h3>
+
+                            {proformaData.documentNumber ? (
+                                <div className="invoice-success-box mb-16">
+                                    <div className="flex-center-gap-8 mb-12">
+                                        <Check size={18} className="text-success" />
+                                        <span className="text-md font-semibold text-success">Proforma Oluşturuldu</span>
+                                    </div>
+
+                                    <div className="grid-2-gap-12 mb-16">
+                                        <div>
+                                            <span className="label-sm">Proforma No</span>
+                                            <span className="detail-value">{proformaData.documentNumber}</span>
+                                        </div>
+                                        <div>
+                                            <span className="label-sm">Oluşturma Tarihi</span>
+                                            <span className="detail-value">
+                                                {proformaData.createdAt
+                                                    ? new Date(proformaData.createdAt).toLocaleDateString('tr-TR')
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Özet Bilgileri */}
+                                    <div className="invoice-export-summary mb-16">
+                                        <span className="label-sm mb-8">Fatura Özeti</span>
+                                        <div className="grid-2-gap-12">
+                                            <div>
+                                                <span className="text-xs text-muted">Kalem Sayısı</span>
+                                                <span className="text-sm">{quoteItems.length} kalem</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-muted">Ödeme</span>
+                                                <span className="text-sm">{invoiceSettings.paymentMethod} - {invoiceSettings.paymentDueDays} gün</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-muted">Toplam</span>
+                                                <span className="text-sm font-semibold">
+                                                    {formatPrice(itemsTotals.grandTotal - (invoiceSettings.discountType === 'AMOUNT' ? invoiceSettings.discountValue : (itemsTotals.subtotal * (invoiceSettings.discountValue || 0) / 100)))} {invoiceSettings.currency}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-center-gap-8">
+                                        <button className="btn-secondary" onClick={handleDownloadProformaPdf}>
+                                            <Download size={14} /> PDF İndir
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="invoice-items-summary-hint mb-16">
+                                        <div className="flex-center-gap-8 text-sm text-muted">
+                                            <Package size={16} />
+                                            <span>{quoteItems.length} kalem faturaya dahil edilecek.</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Özet Bilgileri */}
+                                    <div className="invoice-export-summary mb-16">
+                                        <span className="label-sm mb-8">Proforma Özeti</span>
+                                        <div className="grid-2-gap-12">
+                                            <div>
+                                                <span className="text-xs text-muted">Senaryo</span>
+                                                <span className="text-sm">{invoiceSettings.invoiceScenario}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-muted">Tip</span>
+                                                <span className="text-sm">{invoiceSettings.invoiceType}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-muted">Ödeme</span>
+                                                <span className="text-sm">{invoiceSettings.paymentMethod} - {invoiceSettings.paymentDueDays} gün</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-muted">Toplam</span>
+                                                <span className="text-sm font-semibold">
+                                                    {formatPrice(itemsTotals.grandTotal - (invoiceSettings.discountType === 'AMOUNT' ? invoiceSettings.discountValue : (itemsTotals.subtotal * (invoiceSettings.discountValue || 0) / 100)))} {invoiceSettings.currency}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        className="btn-primary"
+                                        onClick={handleGenerateProforma}
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 size={16} className="spinner" />
+                                                Oluşturuluyor...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FileText size={16} /> Proforma Oluştur
+                                            </>
+                                        )}
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Step 5: Export */}
+                    {currentStep === 5 && (
                         <div className="quote-customer-step">
                             <h3 className="quote-modal-title mb-16">Fatura Export</h3>
 
@@ -1113,8 +1387,8 @@ export default function AddInvoiceModal({
                         </div>
                     )}
 
-                    {/* Step 4: Import */}
-                    {currentStep === 4 && (
+                    {/* Step 6: Import */}
+                    {currentStep === 6 && (
                         <div className="quote-customer-step">
                             <h3 className="quote-modal-title mb-16">GİB Fatura Import</h3>
 
@@ -1133,13 +1407,16 @@ export default function AddInvoiceModal({
                                 <label className="label">ETTN * (UUID Format)</label>
                                 <input
                                     type="text"
-                                    className="mes-filter-input"
+                                    className={`mes-filter-input ${ettnError ? 'input-error' : ''}`}
                                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                     value={importData.ettn}
                                     onChange={(e) => handleImportDataChange('ettn', e.target.value)}
                                     maxLength={36}
                                 />
-                                <span className="text-xs text-muted mt-4">{importData.ettn.length}/36 karakter</span>
+                                <div className="flex-between-center mt-4">
+                                    <span className="text-xs text-muted">{importData.ettn.length}/36 karakter</span>
+                                    {ettnError && <span className="text-xs text-error">{ettnError}</span>}
+                                </div>
                             </div>
 
                             <div className="form-group mb-16">
@@ -1240,6 +1517,17 @@ export default function AddInvoiceModal({
                     </div>
                 </div>
             </div>
-        </div>
+            {/* Add Item Modal */}
+            <AddItemModal
+                isOpen={showAddItemModal}
+                onClose={() => setShowAddItemModal(false)}
+                quoteId={quote?.id}
+                onItemAdded={() => {
+                    setShowAddItemModal(false)
+                    loadQuoteItems()
+                    showToast('Kalem eklendi', 'success')
+                }}
+            />
+        </div >
     )
 }

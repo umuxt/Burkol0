@@ -87,6 +87,10 @@ export default function QuoteDetailsPanel({
   const [itemsExpanded, setItemsExpanded] = useState(true)
   const [showAddItemModal, setShowAddItemModal] = useState(false)
 
+  // P4.10: Expandable download buttons
+  const [proformaDownloadExpanded, setProformaDownloadExpanded] = useState(false)
+  const [exportDownloadExpanded, setExportDownloadExpanded] = useState(false)
+
   // Fetch edit status when quote changes
   // Optimized - only fetch form/price changes if canEdit=true
   useEffect(() => {
@@ -328,6 +332,106 @@ export default function QuoteDetailsPanel({
     }), { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0 })
   }, [quoteItems])
 
+  // P4.10: Download Proforma in specified format
+  const handleDownloadProforma = async (format) => {
+    if (!quote?.id) return
+
+    try {
+      setInvoiceLoading(true)
+      showToast(`${format.toUpperCase()} dosyası oluşturuluyor...`, 'info')
+
+      const response = await fetch(`${API_BASE}/api/quotes/${quote.id}/documents/export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}`
+        },
+        body: JSON.stringify({
+          format: format,
+          invoiceScenario: quote.invoiceScenario || 'TEMEL',
+          invoiceType: quote.invoiceType || 'SATIS',
+          exportTarget: 'DOWNLOAD'
+        })
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.error || `${format.toUpperCase()} oluşturulamadı`)
+      }
+
+      // Download as blob
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Proforma-${quote.proformaNumber || quote.id}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      showToast(`${format.toUpperCase()} indirildi`, 'success')
+      setProformaDownloadExpanded(false)
+    } catch (err) {
+      console.error('Download error:', err)
+      showToast(err.message || 'İndirme başarısız', 'error')
+    } finally {
+      setInvoiceLoading(false)
+    }
+  }
+
+  // P4.10: Download imported invoice file (XML from GİB)
+  const handleDownloadInvoiceFile = async () => {
+    if (!quote?.id || !quote?.invoiceNumber) return
+
+    try {
+      setInvoiceLoading(true)
+      showToast('Fatura dosyası indiriliyor...', 'info')
+
+      // First get document list to find import document
+      const docsResponse = await fetch(`${API_BASE}/api/quotes/${quote.id}/documents?type=import`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+      })
+
+      if (!docsResponse.ok) {
+        throw new Error('Doküman listesi alınamadı')
+      }
+
+      const docsData = await docsResponse.json()
+      const importDoc = docsData.data?.documents?.[0]
+
+      if (!importDoc) {
+        showToast('İndirilebilir fatura dosyası bulunamadı', 'warning')
+        return
+      }
+
+      // Download the file
+      const downloadResponse = await fetch(`${API_BASE}/api/quotes/${quote.id}/documents/${importDoc.id}/download`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+      })
+
+      if (!downloadResponse.ok) {
+        throw new Error('Dosya indirilemedi')
+      }
+
+      const blob = await downloadResponse.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${quote.invoiceNumber}.xml`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      showToast('Fatura dosyası indirildi', 'success')
+    } catch (err) {
+      console.error('Invoice download error:', err)
+      showToast(err.message || 'İndirme başarısız', 'error')
+    } finally {
+      setInvoiceLoading(false)
+    }
+  }
 
   const formatManualPriceInput = (price) => {
     if (price === null || price === undefined || price === '') return ''
@@ -2346,12 +2450,12 @@ export default function QuoteDetailsPanel({
             </div>
 
             {/* Proforma Status */}
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
               <span style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px' }}>
                 Proforma:
               </span>
-              <span style={{ fontSize: '12px' }}>
-                {quote.proformaNumber ? (
+              {quote.proformaNumber ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span style={{
                     padding: '2px 8px',
                     borderRadius: '4px',
@@ -2362,19 +2466,90 @@ export default function QuoteDetailsPanel({
                   }}>
                     {quote.proformaNumber}
                   </span>
-                ) : (
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: '#fef3c7',
-                    color: '#92400e',
-                    fontSize: '11px',
-                    fontWeight: '500'
-                  }}>
-                    Oluşturulmadı
-                  </span>
-                )}
-              </span>
+                  {/* Expandable Download Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button
+                      onClick={() => setProformaDownloadExpanded(!proformaDownloadExpanded)}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: proformaDownloadExpanded ? '#3b82f6' : '#f3f4f6',
+                        color: proformaDownloadExpanded ? 'white' : '#374151',
+                        fontSize: '11px',
+                        fontWeight: '500',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Download size={12} />
+                      İndir {proformaDownloadExpanded ? '▲' : '▼'}
+                    </button>
+                    {proformaDownloadExpanded && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => handleDownloadProforma('pdf')}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: '#ef4444',
+                            color: 'white',
+                            fontSize: '10px',
+                            fontWeight: '500',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          PDF
+                        </button>
+                        <button
+                          onClick={() => handleDownloadProforma('xml')}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: '#22c55e',
+                            color: 'white',
+                            fontSize: '10px',
+                            fontWeight: '500',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          XML
+                        </button>
+                        <button
+                          onClick={() => handleDownloadProforma('csv')}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: '#3b82f6',
+                            color: 'white',
+                            fontSize: '10px',
+                            fontWeight: '500',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          CSV
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  fontSize: '11px',
+                  fontWeight: '500'
+                }}>
+                  Oluşturulmadı
+                </span>
+              )}
             </div>
 
             {/* Invoice Status */}
@@ -2407,6 +2582,25 @@ export default function QuoteDetailsPanel({
                         ETTN: {quote.invoiceEttn.substring(0, 8)}...
                       </code>
                     )}
+                    {/* Download Button */}
+                    <button
+                      onClick={() => handleDownloadInvoiceFile()}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        fontSize: '10px',
+                        fontWeight: '500',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Download size={10} /> İndir
+                    </button>
                   </div>
                 ) : quote.invoiceExportedAt ? (
                   <span style={{
@@ -2435,64 +2629,34 @@ export default function QuoteDetailsPanel({
             </div>
 
             {/* P4.8: Fatura Kalemleri Section */}
-            <div style={{
-              marginTop: '16px',
-              border: '1px solid #e5e7eb',
-              borderRadius: '6px',
-              overflow: 'hidden'
-            }}>
+            <div className="invoice-items-panel">
               {/* Header - Accordion Toggle */}
               <div
                 onClick={() => setItemsExpanded(!itemsExpanded)}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 12px',
-                  background: '#f9fafb',
-                  cursor: 'pointer',
-                  userSelect: 'none'
-                }}
+                className="invoice-items-panel-header"
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ListTodo size={14} style={{ color: '#6b7280' }} />
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+                <div className="flex-center-gap-8">
+                  <ListTodo size={14} className="text-gray" />
+                  <span className="text-sm font-semibold text-dark">
                     Fatura Kalemleri
                   </span>
-                  <span style={{
-                    padding: '2px 6px',
-                    background: '#e5e7eb',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                    color: '#6b7280'
-                  }}>
+                  <span className="badge-count">
                     {Array.isArray(quoteItems) ? quoteItems.length : 0}
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="flex-center-gap-8">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
                       setShowAddItemModal(true)
                     }}
-                    style={{
-                      padding: '4px 10px',
-                      border: '1px solid #3b82f6',
-                      borderRadius: '4px',
-                      background: 'white',
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
+                    className="btn-secondary-sm"
                   >
                     <Plus size={12} />
                     Kalem Ekle
                   </button>
-                  <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                  <span className="text-sm text-light">
                     {itemsExpanded ? '▼' : '▶'}
                   </span>
                 </div>
@@ -2500,101 +2664,72 @@ export default function QuoteDetailsPanel({
 
               {/* Content */}
               {itemsExpanded && (
-                <div style={{ padding: '12px' }}>
+                <div className="invoice-items-panel-content">
                   {/* Reference Price */}
-                  <div style={{
-                    marginBottom: '12px',
-                    padding: '8px 12px',
-                    background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    color: '#0369a1'
-                  }}>
+                  <div className="quote-reference-info mb-12">
                     <strong>Teklif Referans Fiyatı:</strong> {new Intl.NumberFormat('tr-TR').format(quote?.price || 0)} ₺
-                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280' }}>(tahmini)</span>
+                    <span className="text-xs text-muted ml-8">(tahmini)</span>
                   </div>
 
                   {/* Items Table */}
                   {itemsLoading ? (
-                    <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                    <div className="text-center p-20 text-muted">
                       Yükleniyor...
                     </div>
                   ) : (!Array.isArray(quoteItems) || quoteItems.length === 0) ? (
-                    <div style={{
-                      textAlign: 'center',
-                      padding: '24px',
-                      color: '#9ca3af',
-                      fontSize: '13px'
-                    }}>
-                      <Package size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
-                      <div>Henüz kalem eklenmemiş</div>
-                      <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                    <div className="invoice-no-items">
+                      <Package size={24} className="mb-8 text-light" />
+                      <div className="text-base text-muted">Henüz kalem eklenmemiş</div>
+                      <div className="text-xs text-light mt-4">
                         Fatura işlemleri modalından kalem ekleyebilirsiniz
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{
-                          width: '100%',
-                          borderCollapse: 'collapse',
-                          fontSize: '12px'
-                        }}>
+                      <div className="overflow-x-auto">
+                        <table className="invoice-items-table">
                           <thead>
-                            <tr style={{ background: '#f9fafb' }}>
-                              <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Ürün/Hizmet</th>
-                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Miktar</th>
-                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Birim Fiyat</th>
-                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>İskonto</th>
-                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>KDV</th>
-                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Toplam</th>
-                              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '40px' }}></th>
+                            <tr>
+                              <th>Ürün/Hizmet</th>
+                              <th className="text-right">Miktar</th>
+                              <th className="text-right">Birim Fiyat</th>
+                              <th className="text-right">İskonto</th>
+                              <th className="text-right">KDV</th>
+                              <th className="text-right">Toplam</th>
+                              <th className="text-center w-40"></th>
                             </tr>
                           </thead>
                           <tbody>
                             {quoteItems.map((item, idx) => (
-                              <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                <td style={{ padding: '8px' }}>
-                                  <div style={{ fontWeight: '500' }}>{item.description || item.itemName}</div>
+                              <tr key={item.id}>
+                                <td>
+                                  <div className="font-medium text-dark">{item.description || item.itemName}</div>
                                   {item.itemCode && (
-                                    <code style={{
-                                      fontSize: '10px',
-                                      color: '#6b7280',
-                                      background: '#f3f4f6',
-                                      padding: '1px 4px',
-                                      borderRadius: '3px'
-                                    }}>
+                                    <code className="text-xs text-muted bg-gray-100 px-4 py-1 rounded">
                                       {item.itemCode}
                                     </code>
                                   )}
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                <td className="text-right">
                                   {item.quantity} {item.unit}
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                <td className="text-right">
                                   {new Intl.NumberFormat('tr-TR').format(item.unitPrice || 0)} ₺
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'right', color: item.discountAmount > 0 ? '#dc2626' : '#9ca3af' }}>
+                                <td className={`text-right ${item.discountAmount > 0 ? 'text-error' : 'text-light'}`}>
                                   {item.discountAmount > 0 ? `-${new Intl.NumberFormat('tr-TR').format(item.discountAmount)} ₺` : '—'}
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                <td className="text-right">
                                   %{item.taxRate || 0}
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>
+                                <td className="text-right font-semibold">
                                   {new Intl.NumberFormat('tr-TR').format(item.totalAmount || 0)} ₺
                                 </td>
-                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                <td className="text-center">
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteItem(item.id)}
-                                    style={{
-                                      padding: '4px',
-                                      border: 'none',
-                                      background: 'transparent',
-                                      cursor: 'pointer',
-                                      color: '#9ca3af'
-                                    }}
+                                    className="btn-icon danger"
                                     title="Sil"
                                   >
                                     <Trash2 size={14} />
@@ -2607,36 +2742,24 @@ export default function QuoteDetailsPanel({
                       </div>
 
                       {/* Totals Summary */}
-                      <div style={{
-                        marginTop: '12px',
-                        padding: '12px',
-                        background: '#f9fafb',
-                        borderRadius: '6px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
-                          <span style={{ color: '#6b7280' }}>Ara Toplam:</span>
-                          <span>{new Intl.NumberFormat('tr-TR').format(itemsTotals.subtotal)} ₺</span>
+                      <div className="invoice-totals mt-12">
+                        <div className="invoice-total-row text-sm">
+                          <span className="text-muted">Ara Toplam:</span>
+                          <span className="text-dark">{new Intl.NumberFormat('tr-TR').format(itemsTotals.subtotal)} ₺</span>
                         </div>
                         {itemsTotals.discountTotal > 0 && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px', color: '#dc2626' }}>
+                          <div className="invoice-total-row text-sm text-error">
                             <span>İskonto:</span>
                             <span>-{new Intl.NumberFormat('tr-TR').format(itemsTotals.discountTotal)} ₺</span>
                           </div>
                         )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
-                          <span style={{ color: '#6b7280' }}>KDV Toplam:</span>
-                          <span>{new Intl.NumberFormat('tr-TR').format(itemsTotals.taxTotal)} ₺</span>
+                        <div className="invoice-total-row text-sm">
+                          <span className="text-muted">KDV Toplam:</span>
+                          <span className="text-dark">{new Intl.NumberFormat('tr-TR').format(itemsTotals.taxTotal)} ₺</span>
                         </div>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          paddingTop: '8px',
-                          borderTop: '1px solid #e5e7eb',
-                          fontSize: '14px',
-                          fontWeight: '600'
-                        }}>
-                          <span>Genel Toplam:</span>
-                          <span style={{ color: '#059669' }}>{new Intl.NumberFormat('tr-TR').format(itemsTotals.grandTotal)} ₺</span>
+                        <div className="invoice-total-row total-final text-md font-semibold">
+                          <span className="text-dark">Genel Toplam:</span>
+                          <span className="text-success">{new Intl.NumberFormat('tr-TR').format(itemsTotals.grandTotal)} ₺</span>
                         </div>
                       </div>
                     </>

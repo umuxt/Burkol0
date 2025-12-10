@@ -219,8 +219,19 @@ export default function AddItemModal({ isOpen, onClose, quoteId, onItemAdded }) 
     }
 
     return (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="quote-modal-container invoice-modal-wide" style={{ maxWidth: '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div
+            className="modal-overlay"
+            onClick={(e) => {
+                e.stopPropagation() // Prevent parent modal from receiving click
+                if (e.target === e.currentTarget) onClose()
+            }}
+            style={{ zIndex: 1100 }} // Higher than parent modal (1000)
+        >
+            <div
+                className="quote-modal-container invoice-modal-wide"
+                style={{ maxWidth: '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+                onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from bubbling
+            >
                 <div className="quote-modal-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Plus size={18} className="text-primary" />

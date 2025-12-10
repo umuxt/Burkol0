@@ -45,7 +45,7 @@
 }
 
 .text-muted {
-  color: #6b7280;
+  color: #6b7280 !important;
 }
 
 .text-light {
@@ -209,6 +209,17 @@
   font-weight: 500;
 }
 
+/* Input Error State */
+.input-error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2;
+}
+
+.input-error:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
 /* ============================================
    UTILITY CLASSES - From MES Design System
    ============================================ */
@@ -307,6 +318,243 @@
 
 .w-full {
   width: 100%;
+}
+
+/* Additional Padding Utilities */
+.px-12 {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.py-10 {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Background Utilities */
+.bg-gray-50 {
+  background-color: #f9fafb;
+}
+
+/* Cursor Utilities */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Small Secondary Button */
+.btn-secondary-sm {
+  padding: 4px 10px;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  background: white;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary-sm:hover {
+  background: #eff6ff;
+}
+
+/* Additional Spacing Utilities */
+.p-12 {
+  padding: 12px;
+}
+
+.p-20 {
+  padding: 20px;
+}
+
+.ml-8 {
+  margin-left: 8px;
+}
+
+.px-4 {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.py-1 {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+/* Background Utilities */
+.bg-gray-100 {
+  background-color: #f3f4f6;
+}
+
+/* Overflow Utilities */
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+/* Quote Reference Info Box */
+.quote-reference-info {
+  padding: 8px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #0369a1;
+}
+
+.quote-reference-info strong {
+  color: #0369a1;
+}
+
+/* Quote Estimate Badge - Compact inline badge */
+.quote-estimate-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #dbeafe;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1d4ed8;
+}
+
+.quote-estimate-badge svg {
+  color: #1d4ed8;
+}
+
+/* Invoice Summary Section */
+.invoice-summary-section {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.invoice-summary-section h4 {
+  color: #111827;
+}
+
+.invoice-summary-section .text-muted {
+  color: #6b7280;
+}
+
+.invoice-summary-section span {
+  color: #374151;
+}
+
+.invoice-summary-section .font-bold {
+  color: #111827;
+}
+
+.invoice-summary-section .text-primary {
+  color: #3b82f6;
+}
+
+/* Invoice Summary Totals - Step 2 right column */
+.invoice-summary-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 24px;
+  border-left: 1px solid #e5e7eb;
+}
+
+.invoice-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.invoice-summary-row span {
+  color: #374151;
+}
+
+.invoice-summary-row .text-muted {
+  color: #6b7280 !important;
+}
+
+.invoice-summary-row .text-dark {
+  color: #111827 !important;
+}
+
+.invoice-summary-row .text-error {
+  color: #dc2626 !important;
+}
+
+.invoice-summary-row .text-primary {
+  color: #3b82f6 !important;
+}
+
+.invoice-summary-row .font-bold {
+  font-weight: 700 !important;
+}
+
+.invoice-summary-row.text-error span {
+  color: #dc2626 !important;
+}
+
+.invoice-summary-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 4px 0;
+}
+
+.invoice-summary-row.total-final {
+  font-size: 15px;
+  padding-top: 8px;
+}
+
+/* Add Item Button - dashed border style */
+.btn-add-item {
+  width: 100%;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  border: 2px dashed #3b82f6;
+  border-radius: 6px;
+  background: white;
+  color: #3b82f6;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.btn-add-item:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.btn-add-item svg {
+  color: #3b82f6;
+}
+
+/* Invoice Summary Header */
+.invoice-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+.invoice-summary-indicator {
+  width: 4px;
+  height: 16px;
+  background: #3b82f6;
+  border-radius: 2px;
 }
 
 /* Panel Content */
@@ -3127,11 +3375,28 @@ label.mes-btn {
   border-radius: 8px;
 }
 
+/* Ensure readable text in success box */
+.invoice-success-box .label-sm {
+  color: #6b7280;
+}
+
+.invoice-success-box .detail-value {
+  color: #111827;
+}
+
 .invoice-warning-box {
   padding: 16px;
   background: #fefce8;
   border: 1px solid #fde047;
   border-radius: 8px;
+}
+
+/* Ensure readable text in warning box */
+.invoice-warning-box .label-sm,
+.invoice-warning-box .text-xs,
+.invoice-warning-box .text-sm,
+.invoice-warning-box span {
+  color: #374151;
 }
 
 .invoice-error-box {
@@ -3307,6 +3572,22 @@ label.mes-btn {
   gap: 2px;
 }
 
+/* Force dark text colors inside invoice-export-summary for readability */
+.invoice-export-summary .text-xs,
+.invoice-export-summary .text-sm,
+.invoice-export-summary .label-sm,
+.invoice-export-summary span {
+  color: #374151 !important;
+}
+
+.invoice-export-summary .text-muted {
+  color: #6b7280 !important;
+}
+
+.invoice-export-summary .font-semibold {
+  color: #111827 !important;
+}
+
 /* Text Warning Color */
 .text-warning {
   color: #ca8a04;
@@ -3434,6 +3715,58 @@ label.mes-btn {
   border-radius: 8px;
 }
 
+/* Invoice Items Panel - for Details Panel */
+.invoice-items-panel {
+  margin-top: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.invoice-items-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f9fafb;
+  cursor: pointer;
+  user-select: none;
+}
+
+.invoice-items-panel-content {
+  padding: 8px;
+}
+
+/* Compact table for details panel */
+.invoice-items-panel .invoice-items-table {
+  font-size: 11px;
+}
+
+.invoice-items-panel .invoice-items-table th {
+  padding: 4px 6px;
+}
+
+.invoice-items-panel .invoice-items-table td {
+  padding: 6px;
+}
+
+/* Compact totals for details panel */
+.invoice-items-panel .invoice-totals {
+  margin-top: 8px;
+  padding: 8px;
+}
+
+.invoice-items-panel .invoice-total-row {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.invoice-items-panel .quote-reference-info {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
 .invoice-items-header {
   display: flex;
   justify-content: space-between;
@@ -3459,10 +3792,31 @@ label.mes-btn {
 .invoice-items-table td {
   padding: 8px;
   border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+  /* Explicit dark text color */
+}
+
+/* Ensure all text inside table cells is readable */
+.invoice-items-table td div,
+.invoice-items-table td span {
+  color: inherit;
+}
+
+.invoice-items-table .font-medium {
+  color: #111827;
+}
+
+.invoice-items-table .text-muted {
+  color: #6b7280 !important;
 }
 
 .invoice-items-table tbody tr:hover {
   background: #fff;
+}
+
+/* Table footer */
+.invoice-items-table tfoot td {
+  color: #374151;
 }
 
 /* No Items Message */
@@ -3477,7 +3831,7 @@ label.mes-btn {
 /* Totals Summary */
 .invoice-totals {
   padding: 12px;
-  background: #fff;
+  background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
 }
@@ -3486,12 +3840,34 @@ label.mes-btn {
   display: flex;
   justify-content: space-between;
   padding: 4px 0;
+  color: #374151;
+}
+
+.invoice-total-row span {
+  color: inherit;
+}
+
+.invoice-total-row .text-muted {
+  color: #6b7280 !important;
+}
+
+.invoice-total-row .text-dark {
+  color: #111827 !important;
+}
+
+.invoice-total-row .text-success {
+  color: #16a34a !important;
+}
+
+.invoice-total-row .text-error {
+  color: #dc2626 !important;
 }
 
 .invoice-total-row.total-final {
   margin-top: 8px;
   padding-top: 12px;
   border-top: 1px solid #e5e7eb;
+  color: #111827 !important;
 }
 
 /* ============================================
