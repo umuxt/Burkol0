@@ -177,11 +177,11 @@ router.get('/metrics', withAuth, analyticsController.getMetrics);
 router.post('/metrics/reset', withAuth, analyticsController.resetMetrics);
 
 // HOLIDAYS & TIMEZONE
-router.get('/holidays', withAuth, holidayController.getHolidays);
+router.get('/holidays', holidayController.getHolidays);
 router.post('/holidays', withAuth, holidayController.createHoliday);
 router.put('/holidays/:id', withAuth, holidayController.updateHoliday);
 router.delete('/holidays/:id', withAuth, holidayController.deleteHoliday);
-router.get('/timezone', withAuth, holidayController.getTimezone);
+router.get('/timezone', holidayController.getTimezone);
 router.put('/timezone', withAuth, holidayController.updateTimezone);
 
 // ENTITY RELATIONS
