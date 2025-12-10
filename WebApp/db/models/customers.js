@@ -32,7 +32,7 @@ const Customers = {
     // Apply filters
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
-      query = query.where(function() {
+      query = query.where(function () {
         this.where(`${TABLE}.name`, 'ilike', searchTerm)
           .orWhere(`${TABLE}.email`, 'ilike', searchTerm)
           .orWhere(`${TABLE}.phone`, 'ilike', searchTerm)
@@ -85,7 +85,12 @@ const Customers = {
       city,
       district,
       neighbourhood,
-      postalCode
+      postalCode,
+      isEInvoiceTaxpayer,
+      gibPkLabel,
+      gibDespatchPkLabel,
+      defaultInvoiceScenario,
+      isEDespatchTaxpayer
     } = customerData;
 
     const [customer] = await db(TABLE)
@@ -110,6 +115,11 @@ const Customers = {
         district: district || null,
         neighbourhood: neighbourhood || null,
         postalCode: postalCode || null,
+        isEInvoiceTaxpayer: isEInvoiceTaxpayer || false,
+        gibPkLabel: gibPkLabel || null,
+        gibDespatchPkLabel: gibDespatchPkLabel || null,
+        defaultInvoiceScenario: defaultInvoiceScenario || 'TICARI',
+        isEDespatchTaxpayer: isEDespatchTaxpayer || false,
         isActive: true,
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
@@ -144,7 +154,12 @@ const Customers = {
       'city',
       'district',
       'neighbourhood',
-      'postalCode'
+      'postalCode',
+      'isEInvoiceTaxpayer',
+      'gibPkLabel',
+      'gibDespatchPkLabel',
+      'defaultInvoiceScenario',
+      'isEDespatchTaxpayer'
     ];
 
     const updateData = {};
@@ -191,7 +206,7 @@ const Customers = {
    */
   async getWithQuoteCount(id) {
     const customer = await db(TABLE).where({ id }).first();
-    
+
     if (!customer) return null;
 
     const [{ count }] = await db('quotes.quotes')
@@ -209,10 +224,10 @@ const Customers = {
    */
   async search(searchTerm, limit = 10) {
     const term = `%${searchTerm}%`;
-    
+
     return db(TABLE)
       .where({ isActive: true })
-      .where(function() {
+      .where(function () {
         this.where('name', 'ilike', term)
           .orWhere('email', 'ilike', term)
           .orWhere('company', 'ilike', term)

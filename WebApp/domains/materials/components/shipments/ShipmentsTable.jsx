@@ -1,9 +1,12 @@
 import React from 'react';
-import { Package } from 'lucide-react';
+import { Package, Upload, Download, CheckCircle2 } from 'lucide-react';
 import { SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../../services/shipments-service.js';
 
 /**
  * ShipmentsTable - Sevkiyat tablosu componenti
+ * 
+ * 6.4 Tasarımına göre güncellendi:
+ * Kolonlar: Kod | Müşteri | Tarih | Sevkiyat Kalemleri | Tutar | Durum
  * 
  * @param {Array} shipments - Gösterilecek sevkiyat listesi
  * @param {boolean} loading - Yükleme durumu
@@ -24,10 +27,59 @@ export default function ShipmentsTable({
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
-      return new Date(dateString).toLocaleString('tr-TR');
+      return new Date(dateString).toLocaleDateString('tr-TR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        timeZone: 'Europe/Istanbul'
+      });
     } catch (e) {
       return dateString;
     }
+  };
+
+  const formatCurrency = (amount, currency = 'TRY') => {
+    if (!amount && amount !== 0) return '-';
+    const num = parseFloat(amount);
+    if (isNaN(num)) return '-';
+    
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(num);
+  };
+
+  // Status icon helper - shows export/import status
+  const getStatusIcon = (shipment) => {
+    const icons = [];
+    
+    if (shipment.lastExportedAt) {
+      icons.push(
+        <span key="exported" title={`Export: ${formatDate(shipment.lastExportedAt)}`} className="status-icon is-exported">
+          <Upload size={12} />
+        </span>
+      );
+    }
+    
+    if (shipment.importedAt) {
+      icons.push(
+        <span key="imported" title={`Import: ${formatDate(shipment.importedAt)}`} className="status-icon is-imported">
+          <Download size={12} />
+        </span>
+      );
+    }
+    
+    if (shipment.status === 'completed') {
+      icons.push(
+        <span key="completed" title="Tamamlandı" className="status-icon is-completed">
+          <CheckCircle2 size={12} />
+        </span>
+      );
+    }
+    
+    return icons.length > 0 ? icons : null;
   };
 
   return (
@@ -35,12 +87,12 @@ export default function ShipmentsTable({
       <table>
         <thead>
           <tr>
-            <th style={{ minWidth: '120px', textAlign: 'left' }}>Sevkiyat Kodu</th>
-            <th style={{ width: '70px', textAlign: 'center' }}>Kalem Adedi</th>
+            <th style={{ minWidth: '120px', textAlign: 'left' }}>Kod</th>
+            <th style={{ minWidth: '160px', textAlign: 'left' }}>Müşteri</th>
+            <th style={{ width: '90px', textAlign: 'left' }}>Tarih</th>
             <th style={{ minWidth: '280px', textAlign: 'left' }}>Sevkiyat Kalemleri</th>
-            <th className="col-min-140-left">Müşteri/İş Emri</th>
-            <th className="col-min-140-left">Tarih</th>
-            <th style={{ width: '120px', textAlign: 'left' }}>Durum</th>
+            <th style={{ width: '110px', textAlign: 'right' }}>Tutar</th>
+            <th style={{ width: '140px', textAlign: 'left' }}>Durum</th>
           </tr>
         </thead>
         <tbody>
@@ -82,28 +134,27 @@ export default function ShipmentsTable({
               onClick={() => onSelectShipment?.(shipment)}
               style={{ cursor: 'pointer' }}
             >
-              {/* Sevkiyat Kodu */}
+              {/* Kod */}
               <td>
                 <span className="mes-code-text">
                   {shipment.shipmentCode || `SHP-${shipment.id}`}
                 </span>
               </td>
 
-              {/* Kalem Adedi */}
-              <td className="text-center">
-                <span style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '4px',
-                  padding: '2px 8px',
-                  backgroundColor: 'var(--muted-bg, #f3f4f6)',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  fontWeight: '500'
-                }}>
-                  <Package size={12} />
-                  {shipment.itemCount || shipment.items?.length || 1}
-                </span>
+              {/* Müşteri */}
+              <td>
+                {shipment.customerCompany || shipment.customerName ? (
+                  <span className="font-medium">
+                    {shipment.customerCompany || shipment.customerName}
+                  </span>
+                ) : (
+                  <span style={{ color: '#9ca3af', fontSize: '12px' }}>-</span>
+                )}
+              </td>
+
+              {/* Tarih */}
+              <td style={{ fontSize: '13px', color: '#4b5563' }}>
+                {formatDate(shipment.createdAt)}
               </td>
 
               {/* Sevkiyat Kalemleri */}
@@ -145,51 +196,42 @@ export default function ShipmentsTable({
                     </span>
                   )}
                   {(!shipment.items || shipment.items.length === 0) && (
-                    <span style={{ color: '#9ca3af', fontSize: '11px' }}>-</span>
+                    <span style={{ color: '#9ca3af', fontSize: '11px' }}>
+                      <Package size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                      {shipment.itemCount || 1} kalem
+                    </span>
                   )}
                 </div>
               </td>
 
-              {/* Müşteri/İş Emri */}
-              <td>
-                {shipment.customerName || shipment.customerCompany ? (
-                  <div className="flex-col">
-                    <span className="font-medium">{shipment.customerName || shipment.customerCompany}</span>
-                    {shipment.workOrderCode && (
-                      <span className="text-muted-sm">
-                        İş Emri: {shipment.workOrderCode}
-                      </span>
-                    )}
-                  </div>
-                ) : shipment.workOrderCode ? (
-                  <div className="flex-col">
-                    <span className="text-muted-sm">İş Emri</span>
-                    <span>{shipment.workOrderCode}</span>
-                  </div>
-                ) : shipment.quoteId ? (
-                  <div className="flex-col">
-                    <span className="text-muted-sm">Teklif</span>
-                    <span>#{shipment.quoteId}</span>
-                  </div>
+              {/* Tutar */}
+              <td style={{ textAlign: 'right', fontWeight: '500' }}>
+                {shipment.grandTotal > 0 ? (
+                  <span style={{ color: '#059669' }}>
+                    {formatCurrency(shipment.grandTotal, shipment.currency || 'TRY')}
+                  </span>
+                ) : shipment.includePrice ? (
+                  <span style={{ color: '#9ca3af', fontSize: '12px' }}>₺0</span>
                 ) : (
-                  <span style={{ color: '#9ca3af' }}>-</span>
+                  <span style={{ color: '#9ca3af', fontSize: '11px' }}>-</span>
                 )}
-              </td>
-
-              {/* Tarih */}
-              <td style={{ fontSize: '13px', color: '#4b5563' }}>
-                {formatDate(shipment.createdAt)}
               </td>
 
               {/* Durum */}
               <td>
-                <span className="mes-tag" style={{ 
-                  backgroundColor: `${SHIPMENT_STATUS_COLORS[shipment.status]}20`,
-                  color: SHIPMENT_STATUS_COLORS[shipment.status],
-                  border: `1px solid ${SHIPMENT_STATUS_COLORS[shipment.status]}40`
-                }}>
-                  {SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="mes-tag" style={{ 
+                    backgroundColor: `${SHIPMENT_STATUS_COLORS[shipment.status]}20`,
+                    color: SHIPMENT_STATUS_COLORS[shipment.status],
+                    border: `1px solid ${SHIPMENT_STATUS_COLORS[shipment.status]}40`
+                  }}>
+                    {SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
+                  </span>
+                  {/* Export/Import status icons */}
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {getStatusIcon(shipment)}
+                  </div>
+                </div>
               </td>
             </tr>
           ))}

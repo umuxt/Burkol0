@@ -4,6 +4,7 @@
  */
 
 import * as shipmentService from '../services/shipmentService.js';
+import * as exportService from '../services/exportService.js';
 
 // ============================================
 // SHIPMENT CRUD (Header)
@@ -54,7 +55,7 @@ export async function createQuickShipment(req, res) {
 export async function getShipments(req, res) {
   try {
     const { status, workOrderCode, quoteId, startDate, endDate, limit, offset, includeItems } = req.query;
-    
+
     const filters = {
       status,
       workOrderCode,
@@ -351,5 +352,246 @@ export async function getMaterialsForShipment(req, res) {
   } catch (error) {
     console.error('Error getting materials for shipment:', error);
     res.status(500).json({ error: 'Failed to get materials' });
+  }
+}
+
+// ============================================
+// IMPORT (Complete shipment with external document)
+// ============================================
+
+/**
+ * Import confirmation from external system (Logo/Zirve)
+ * POST /api/materials/shipments/:id/import
+ * 
+ * Accepts multipart/form-data with:
+ * - file: optional confirmation file
+ * - externalDocNumber: required external document number
+ * 
+ * Actions:
+ * 1. Stores file in DB (if provided)
+ * 2. Sets status to 'completed'
+ * 3. Decreases stock for each item
+ * 4. Returns stock update summary
+ */
+export async function importShipmentConfirmation(req, res) {
+  try {
+    const { id } = req.params;
+    const { externalDocNumber } = req.body;
+
+    // File is optional - multer puts it in req.file
+    const file = req.file ? req.file.buffer : null;
+    const fileName = req.file ? req.file.originalname : null;
+
+    const importData = {
+      externalDocNumber,
+      file,
+      fileName
+    };
+
+    const result = await shipmentService.importShipmentConfirmation(
+      parseInt(id, 10),
+      importData,
+      req.user
+    );
+
+    res.json(result);
+  } catch (error) {
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'ALREADY_COMPLETED') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'INVALID_STATUS') {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Error importing shipment confirmation:', error);
+    res.status(500).json({ error: 'Import işlemi başarısız: ' + error.message });
+  }
+}
+
+// ============================================
+// EXPORT (Generate export files)
+// ============================================
+
+/**
+ * Export shipment in specified format
+ * GET /api/materials/shipments/:id/export/:format
+ * 
+ * Formats: csv, xml, pdf, json
+ * Query params: target (logo_tiger, logo_go, zirve) for XML
+ * 
+ * Returns file download
+ */
+export async function exportShipment(req, res) {
+  try {
+    const { id, format } = req.params;
+    const { target = 'logo_tiger' } = req.query;
+
+    // Validate format
+    const validFormats = ['csv', 'xml', 'pdf', 'json'];
+    if (!validFormats.includes(format.toLowerCase())) {
+      return res.status(400).json({ error: `Geçersiz format: ${format}. Desteklenen: ${validFormats.join(', ')}` });
+    }
+
+    // Get shipment with items
+    const shipment = await shipmentService.getShipmentById(id);
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
+    }
+
+    // Generate export
+    const result = await exportService.generateExport(shipment, format, target);
+
+    // Update export history in DB
+    await updateExportHistory(id, format);
+
+    // Set response headers for file download
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+
+    // Send content (buffer for PDF, string for others)
+    if (result.buffer) {
+      res.send(result.buffer);
+    } else {
+      res.send(result.content);
+    }
+
+  } catch (error) {
+    console.error('Error exporting shipment:', error);
+    res.status(500).json({ error: 'Export başarısız: ' + error.message });
+  }
+}
+
+/**
+ * Export shipment package (Multiple formats) via POST
+ * POST /api/materials/shipments/:id/export
+ * 
+ * Body: { target: 'logo_tiger', formats: ['xml', 'pdf'] }
+ * 
+ * NOTE: Currently returns the first format. For multi-file support, 'archiver' package is needed.
+ */
+export async function exportShipmentPackage(req, res) {
+  try {
+    const { id } = req.params;
+    const { target = 'logo_tiger', formats = [] } = req.body;
+
+    if (!formats || formats.length === 0) {
+      return res.status(400).json({ error: 'En az bir format seçmelisiniz' });
+    }
+
+    // Get shipment with items
+    const shipment = await shipmentService.getShipmentById(id);
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
+    }
+
+    // For now, take the first format
+    // TODO: Implement ZIP support for multiple formats using 'archiver'
+    const format = formats[0];
+
+    // Generate export
+    const result = await exportService.generateExport(shipment, format, target);
+
+    // Update export history
+    await updateExportHistory(id, format);
+
+    // Set response headers
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+
+    if (result.buffer) {
+      res.send(result.buffer);
+    } else {
+      res.send(result.content);
+    }
+
+  } catch (error) {
+    console.error('Error exporting shipment package:', error);
+    res.status(500).json({ error: 'Export başarısız: ' + error.message });
+  }
+}
+
+/**
+ * Update export history in shipment record
+ */
+async function updateExportHistory(shipmentId, format) {
+  try {
+    // Import db here to avoid circular dependency
+    const { default: db } = await import('#db/connection');
+
+    const shipment = await db('materials.shipments').where('id', shipmentId).first();
+    const history = shipment?.exportHistory || {};
+
+    history[format] = new Date().toISOString();
+
+    await db('materials.shipments')
+      .where('id', shipmentId)
+      .update({
+        exportHistory: JSON.stringify(history),
+        lastExportedAt: db.fn.now(),
+        status: shipment?.status === 'pending' ? 'exported' : shipment?.status,
+        updatedAt: db.fn.now()
+      });
+  } catch (error) {
+    console.error('Error updating export history:', error);
+    // Don't throw - export was successful, history update is secondary
+  }
+}
+
+// ============================================
+// DOWNLOAD IMPORTED FILE
+// ============================================
+
+/**
+ * Download imported file
+ * GET /api/materials/shipments/:id/imported-file
+ * 
+ * Returns the imported file as download
+ */
+export async function downloadImportedFile(req, res) {
+  try {
+    const { id } = req.params;
+
+    const { default: db } = await import('#db/connection');
+
+    const shipment = await db('materials.shipments')
+      .select('importedFile', 'importedFileName', 'shipmentCode')
+      .where('id', id)
+      .first();
+
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
+    }
+
+    if (!shipment.importedFile) {
+      return res.status(404).json({ error: 'Bu sevkiyat için yüklenmiş dosya bulunamadı' });
+    }
+
+    const fileName = shipment.importedFileName || `${shipment.shipmentCode}_import`;
+
+    // Determine content type from filename
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    const contentTypes = {
+      'pdf': 'application/pdf',
+      'xml': 'application/xml',
+      'csv': 'text/csv',
+      'json': 'application/json',
+      'txt': 'text/plain',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(shipment.importedFile);
+
+  } catch (error) {
+    console.error('Error downloading imported file:', error);
+    res.status(500).json({ error: 'Dosya indirilemedi: ' + error.message });
   }
 }

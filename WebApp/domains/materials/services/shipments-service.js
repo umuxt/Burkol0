@@ -18,12 +18,21 @@ function withAuth(headers = {}) {
   }
 }
 
-// Shipment status flow: pending -> shipped -> delivered (or cancelled at any point)
+// Shipment status flow for invoice export
 export const SHIPMENT_STATUSES = {
   PENDING: 'pending',
   SHIPPED: 'shipped', 
   DELIVERED: 'delivered',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
+  EXPORTED: 'exported',
+  COMPLETED: 'completed'
+}
+
+// Document types for invoice export
+export const DOCUMENT_TYPES = {
+  WAYBILL: 'waybill',    // İrsaliye (fiyatsız)
+  INVOICE: 'invoice',    // Fatura (fiyatlı)
+  BOTH: 'both'           // İkisi birden
 }
 
 // Status display labels (Turkish)
@@ -31,7 +40,9 @@ export const SHIPMENT_STATUS_LABELS = {
   pending: 'Beklemede',
   shipped: 'Yola Çıktı',
   delivered: 'Teslim Edildi',
-  cancelled: 'İptal Edildi'
+  cancelled: 'İptal Edildi',
+  exported: 'Export Edildi',
+  completed: 'Tamamlandı'
 }
 
 // Status colors for UI
@@ -39,7 +50,9 @@ export const SHIPMENT_STATUS_COLORS = {
   pending: '#f59e0b',    // amber
   shipped: '#3b82f6',    // blue
   delivered: '#22c55e',  // green
-  cancelled: '#ef4444'   // red
+  cancelled: '#ef4444',  // red
+  exported: '#8b5cf6',   // purple
+  completed: '#10b981'   // emerald
 }
 
 // Shipments CRUD Operations
@@ -687,5 +700,115 @@ export const shipmentsService = {
    */
   getShipmentsByStatus: async (status) => {
     return shipmentsService.getShipments({ status })
+  },
+
+  // ============================================
+  // INVOICE EXPORT LOOKUP APIs
+  // ============================================
+
+  /**
+   * KDV muafiyet kodlarını getir
+   * @returns {Promise<Array>} VAT exemption codes
+   */
+  getVatExemptions: async () => {
+    try {
+      const response = await fetchWithTimeout('/api/materials/vat-exemptions', {
+        headers: withAuth()
+      })
+      if (!response.ok) return []
+      const result = await response.json()
+      return result.data || []
+    } catch (error) {
+      console.warn('❌ VAT exemptions fetch error:', error?.message)
+      return []
+    }
+  },
+
+  /**
+   * Tevkifat oranlarını getir
+   * @returns {Promise<Array>} Withholding rates
+   */
+  getWithholdingRates: async () => {
+    try {
+      const response = await fetchWithTimeout('/api/materials/withholding-rates', {
+        headers: withAuth()
+      })
+      if (!response.ok) return []
+      const result = await response.json()
+      return result.data || []
+    } catch (error) {
+      console.warn('❌ Withholding rates fetch error:', error?.message)
+      return []
+    }
+  },
+
+  /**
+   * Shipment ayarlarını getir
+   * @returns {Promise<Object>} Settings key-value map
+   */
+  getSettings: async () => {
+    try {
+      const response = await fetchWithTimeout('/api/materials/settings', {
+        headers: withAuth()
+      })
+      if (!response.ok) return {}
+      const result = await response.json()
+      return result.data || {}
+    } catch (error) {
+      console.warn('❌ Settings fetch error:', error?.message)
+      return {}
+    }
+  },
+
+  /**
+   * Export shipment in specified format
+   * @param {number} shipmentId - Shipment ID
+   * @param {string} format - csv | xml | pdf | json
+   * @param {string} [target] - logo_tiger | logo_go | zirve
+   * @returns {Promise<Blob>} File blob for download
+   */
+  exportShipment: async (shipmentId, format, target = 'logo_tiger') => {
+    try {
+      const url = `/api/materials/shipments/${shipmentId}/export/${format}?target=${target}`
+      const response = await fetchWithTimeout(url, {
+        headers: withAuth()
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || 'Export failed')
+      }
+      return response.blob()
+    } catch (error) {
+      console.error('❌ Export error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Import shipment confirmation
+   * @param {number} shipmentId - Shipment ID
+   * @param {FormData} formData - Contains file and externalDocNumber
+   * @returns {Promise<Object>} Import result with stock updates
+   */
+  importShipmentConfirmation: async (shipmentId, formData) => {
+    try {
+      const token = localStorage.getItem('bp_admin_token') || 'dev-admin-token'
+      const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}/import`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+          // Note: Don't set Content-Type for FormData, browser will set it with boundary
+        },
+        body: formData
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || 'Import failed')
+      }
+      return response.json()
+    } catch (error) {
+      console.error('❌ Import error:', error)
+      throw error
+    }
   }
 }

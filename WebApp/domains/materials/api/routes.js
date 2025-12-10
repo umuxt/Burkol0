@@ -4,7 +4,16 @@
  */
 
 import express from 'express';
+import multer from 'multer';
 import { requireAuth } from '#server/auth';
+
+// Multer config for import file upload (store in memory as buffer)
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max
+  }
+});
 
 // Controllers
 import * as materialController from './controllers/materialController.js';
@@ -13,6 +22,7 @@ import * as shipmentController from './controllers/shipmentController.js';
 import * as orderController from './controllers/orderController.js';
 import * as supplierController from './controllers/supplierController.js';
 import * as categoryController from './controllers/categoryController.js';
+import * as lookupController from './controllers/lookupController.js';
 
 const router = express.Router();
 
@@ -68,6 +78,10 @@ router.get('/materials/shipments/:id', requireAuth, shipmentController.getShipme
 router.put('/materials/shipments/:id', requireAuth, shipmentController.updateShipment);
 router.put('/materials/shipments/:id/status', requireAuth, shipmentController.updateShipmentStatus);
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
+router.post('/materials/shipments/:id/import', requireAuth, importUpload.single('file'), shipmentController.importShipmentConfirmation);
+router.get('/materials/shipments/:id/export/:format', requireAuth, shipmentController.exportShipment);
+router.post('/materials/shipments/:id/export', requireAuth, shipmentController.exportShipmentPackage);
+router.get('/materials/shipments/:id/imported-file', requireAuth, shipmentController.downloadImportedFile);
 router.delete('/materials/shipments/:id', requireAuth, shipmentController.deleteShipment);
 
 // Shipment Items CRUD
@@ -117,5 +131,14 @@ router.post('/material-categories', requireAuth, categoryController.createMateri
 router.put('/material-categories/:id', requireAuth, categoryController.updateMaterialCategory);
 router.delete('/material-categories/:id', requireAuth, categoryController.deleteMaterialCategory);
 router.get('/material-categories/:id/usage', requireAuth, categoryController.getMaterialCategoryUsage);
+
+// ================================
+// LOOKUP DATA (Invoice/Export Integration)
+// ================================
+router.get('/vat-exemptions', requireAuth, lookupController.getVatExemptions);
+router.get('/withholding-rates', requireAuth, lookupController.getWithholdingRates);
+router.get('/settings', requireAuth, lookupController.getSettings);
+router.put('/settings/:key', requireAuth, lookupController.updateSetting);
+router.post('/settings', requireAuth, lookupController.createSetting);
 
 export default router;

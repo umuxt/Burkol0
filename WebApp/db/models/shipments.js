@@ -13,7 +13,7 @@ const Shipments = {
    */
   async generateShipmentCode(year = null) {
     const shipmentYear = year || new Date().getFullYear();
-    
+
     try {
       // Try PostgreSQL function first (if exists)
       const result = await db.raw(
@@ -26,7 +26,7 @@ const Shipments = {
       const [maxSeq] = await db('materials.shipments')
         .whereRaw('EXTRACT(YEAR FROM "createdAt") = ?', [shipmentYear])
         .max('shipmentSequence as maxSeq');
-      
+
       const nextSeq = (maxSeq?.maxSeq || 0) + 1;
       return `SHP-${shipmentYear}-${String(nextSeq).padStart(4, '0')}`;
     }
@@ -41,7 +41,7 @@ const Shipments = {
    */
   async createShipment(shipmentData, items = [], user = {}) {
     const trx = await db.transaction();
-    
+
     try {
       const {
         workOrderCode,
@@ -53,67 +53,94 @@ const Shipments = {
         notes,
         shipmentDate
       } = shipmentData;
-      
+
       // Generate shipment code
       const shipmentYear = new Date(shipmentDate || new Date()).getFullYear();
       const shipmentCode = await this.generateShipmentCode(shipmentYear);
-      
+
       // Extract sequence number from code (SHP-2025-0001 → 1)
       const shipmentSequence = parseInt(shipmentCode.split('-')[2], 10);
-      
-      // Insert shipment header (itemCount and totalQuantity are calculated from shipment_items)
+
+      // Insert shipment header
       const [shipment] = await trx('materials.shipments')
         .insert({
           shipmentCode,
           shipmentSequence,
+          // Legacy references
           workOrderCode: workOrderCode || null,
           quoteId: quoteId || null,
           planId: planId || null,
-          customerName: customerName || null,
-          customerCompany: customerCompany || null,
-          deliveryAddress: deliveryAddress || null,
+          // Customer info
+          customerId: shipmentData.customerId || null,
+          customerSnapshot: shipmentData.customerSnapshot ? JSON.stringify(shipmentData.customerSnapshot) : null,
+          customerName: customerName || shipmentData.customerSnapshot?.name || null,
+          customerCompany: customerCompany || shipmentData.customerSnapshot?.company || null,
+          deliveryAddress: deliveryAddress || shipmentData.customerSnapshot?.address || null,
+          useAlternateDelivery: shipmentData.useAlternateDelivery || false,
+          alternateDeliveryAddress: shipmentData.alternateDeliveryAddress ? JSON.stringify(shipmentData.alternateDeliveryAddress) : null,
+          // Document settings
+          documentType: shipmentData.documentType || 'waybill',
+          includePrice: shipmentData.includePrice || false,
+          // Currency
+          currency: shipmentData.currency || 'TRY',
+          exchangeRate: shipmentData.exchangeRate || 1.0,
+          // Discount
+          discountType: shipmentData.discountType || null,
+          discountValue: shipmentData.discountValue || 0,
+          // Export settings
+          exportTarget: shipmentData.exportTarget || null,
+          specialCode: shipmentData.specialCode || null,
+          costCenter: shipmentData.costCenter || null,
+          // Transport (P3.3)
+          transport: shipmentData.transport ? JSON.stringify(shipmentData.transport) : '{}',
+          // Waybill date (P3.3)
+          waybillDate: shipmentData.waybillDate || null,
+          // Related quote for 7-day rule (P3.3)
+          relatedQuoteId: shipmentData.relatedQuoteId || null,
+          // Status and metadata
           status: 'pending',
           notes: notes || null,
+          documentNotes: shipmentData.documentNotes || null,
           createdBy: user?.email || 'system',
           createdAt: new Date(),
           updatedAt: new Date()
         })
         .returning('*');
-      
+
       // Add calculated fields to response
       const totalQuantity = items.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0);
       const itemCount = items.length;
-      
+
       // Insert items and process stock
       let shipmentItems = [];
       if (items.length > 0) {
         const StockMovements = (await import('./stockMovements.js')).default;
         const Materials = (await import('./materials.js')).default;
-        
+
         for (let index = 0; index < items.length; index++) {
           const item = items[index];
           const itemCode = `${shipmentCode}-item-${String(index + 1).padStart(2, '0')}`;
-          
+
           // Get material details
           const material = await trx('materials.materials')
             .where({ code: item.materialCode })
             .first();
-          
+
           if (!material) {
             throw new Error(`Malzeme bulunamadı: ${item.materialCode}`);
           }
-          
+
           // Check stock availability
           const quantity = parseFloat(item.quantity);
           const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
-          
+
           if (quantity > availableStock) {
             throw new Error(`Yetersiz stok: ${material.name}. Mevcut: ${availableStock}, İstenen: ${quantity}`);
           }
-          
+
           const previousStock = parseFloat(material.stock);
           const newStock = previousStock - quantity;
-          
+
           // Create stock movement (out - shipment)
           const [stockMovement] = await trx('materials.stock_movements')
             .insert({
@@ -140,16 +167,27 @@ const Shipments = {
               lotNumber: item.lotNumber || null
             })
             .returning('*');
-          
+
           // Update material stock
           await trx('materials.materials')
             .where({ id: material.id })
-            .update({ 
+            .update({
               stock: newStock,
               updatedAt: new Date()
             });
-          
+
           // Insert shipment item
+          // Calculate price fields if includePrice is true
+          const unitPrice = parseFloat(item.unitPrice || 0);
+          const taxRate = parseFloat(item.taxRate || 20);
+          const discountPercent = parseFloat(item.discountPercent || 0);
+
+          const discountAmount = discountPercent > 0 ? (unitPrice * quantity * discountPercent / 100) : 0;
+          const subtotal = (unitPrice * quantity) - discountAmount;
+          const taxAmount = subtotal * (taxRate / 100);
+          const withholdingAmount = parseFloat(item.withholdingAmount || 0);
+          const totalAmount = subtotal + taxAmount - withholdingAmount;
+
           const [shipmentItem] = await trx('materials.shipment_items')
             .insert({
               itemCode,
@@ -162,14 +200,29 @@ const Shipments = {
               quantity,
               unit: item.unit || material.unit || 'adet',
               stockMovementId: stockMovement.id,
+              // Pricing (if includePrice)
+              unitPrice: unitPrice,
+              taxRate: taxRate,
+              discountPercent: discountPercent,
+              discountAmount: discountAmount,
+              subtotal: subtotal,
+              taxAmount: taxAmount,
+              withholdingAmount: withholdingAmount,
+              totalAmount: totalAmount,
+              // Tax exemptions
+              vatExemptionId: item.vatExemptionId || null,
+              withholdingRateId: item.withholdingRateId || null,
+              // Lot/Serial
               lotNumber: item.lotNumber || null,
+              serialNumber: item.serialNumber || null,
+              // Status & notes
               itemStatus: 'pending',
-              notes: item.notes || null,
+              notes: item.itemNotes || item.notes || null,
               createdAt: new Date(),
               updatedAt: new Date()
             })
             .returning('*');
-          
+
           shipmentItems.push({
             ...shipmentItem,
             stockMovement,
@@ -178,16 +231,44 @@ const Shipments = {
           });
         }
       }
-      
+
+      // Calculate shipment totals from items (if includePrice)
+      if (shipmentData.includePrice && shipmentItems.length > 0) {
+        const calculatedSubtotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+        const calculatedTaxTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0);
+        const calculatedWithholdingTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.withholdingAmount || 0), 0);
+        const calculatedDiscountTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.discountAmount || 0), 0);
+        const calculatedGrandTotal = calculatedSubtotal + calculatedTaxTotal - calculatedWithholdingTotal;
+
+        // Update shipment with calculated totals
+        await trx('materials.shipments')
+          .where({ id: shipment.id })
+          .update({
+            subtotal: calculatedSubtotal,
+            taxTotal: calculatedTaxTotal,
+            withholdingTotal: calculatedWithholdingTotal,
+            discountTotal: calculatedDiscountTotal,
+            grandTotal: calculatedGrandTotal,
+            updatedAt: new Date()
+          });
+
+        // Update local shipment object for return
+        shipment.subtotal = calculatedSubtotal;
+        shipment.taxTotal = calculatedTaxTotal;
+        shipment.withholdingTotal = calculatedWithholdingTotal;
+        shipment.discountTotal = calculatedDiscountTotal;
+        shipment.grandTotal = calculatedGrandTotal;
+      }
+
       await trx.commit();
-      
+
       return {
         ...shipment,
         itemCount,
         totalQuantity,
         items: shipmentItems
       };
-      
+
     } catch (error) {
       await trx.rollback();
       console.error('Error creating shipment:', error);
@@ -202,62 +283,84 @@ const Shipments = {
    */
   async getAllShipments(filters = {}) {
     const { status, workOrderCode, quoteId, startDate, endDate, includeItems = true, limit, offset } = filters;
-    
+
     let query = db('materials.shipments')
       .select('*')
       .orderBy('createdAt', 'desc');
-    
+
     if (status) {
       query = query.where('status', status);
     }
-    
+
     if (workOrderCode) {
       query = query.where('workOrderCode', workOrderCode);
     }
-    
+
     if (quoteId) {
       query = query.where('quoteId', quoteId);
     }
-    
+
     if (startDate) {
       query = query.where('createdAt', '>=', startDate);
     }
-    
+
     if (endDate) {
       query = query.where('createdAt', '<=', endDate);
     }
-    
+
     if (limit) {
       query = query.limit(parseInt(limit, 10));
     }
-    
+
     if (offset) {
       query = query.offset(parseInt(offset, 10));
     }
-    
+
     const shipments = await query;
-    
+
     // Include items if requested
     if (includeItems && shipments.length > 0) {
       const shipmentIds = shipments.map(s => s.id);
       const items = await db('materials.shipment_items')
         .whereIn('shipmentId', shipmentIds)
         .orderBy('itemSequence');
-      
+
       // Group items by shipment
       const itemsByShipment = items.reduce((acc, item) => {
         if (!acc[item.shipmentId]) acc[item.shipmentId] = [];
         acc[item.shipmentId].push(item);
         return acc;
       }, {});
-      
+
       return shipments.map(shipment => ({
         ...shipment,
+        // Parse JSON fields
+        customerSnapshot: shipment.customerSnapshot ?
+          (typeof shipment.customerSnapshot === 'string' ? JSON.parse(shipment.customerSnapshot) : shipment.customerSnapshot)
+          : null,
+        transport: shipment.transport ?
+          (typeof shipment.transport === 'string' ? JSON.parse(shipment.transport) : shipment.transport)
+          : {},
+        alternateDeliveryAddress: shipment.alternateDeliveryAddress ?
+          (typeof shipment.alternateDeliveryAddress === 'string' ? JSON.parse(shipment.alternateDeliveryAddress) : shipment.alternateDeliveryAddress)
+          : null,
         items: itemsByShipment[shipment.id] || []
       }));
     }
-    
-    return shipments;
+
+    // Parse JSON fields for shipments without items too
+    return shipments.map(shipment => ({
+      ...shipment,
+      customerSnapshot: shipment.customerSnapshot ?
+        (typeof shipment.customerSnapshot === 'string' ? JSON.parse(shipment.customerSnapshot) : shipment.customerSnapshot)
+        : null,
+      transport: shipment.transport ?
+        (typeof shipment.transport === 'string' ? JSON.parse(shipment.transport) : shipment.transport)
+        : {},
+      alternateDeliveryAddress: shipment.alternateDeliveryAddress ?
+        (typeof shipment.alternateDeliveryAddress === 'string' ? JSON.parse(shipment.alternateDeliveryAddress) : shipment.alternateDeliveryAddress)
+        : null
+    }));
   },
 
   /**
@@ -269,19 +372,29 @@ const Shipments = {
     const shipment = await db('materials.shipments')
       .where({ id: shipmentId })
       .first();
-    
+
     if (!shipment) {
       const error = new Error('Shipment not found');
       error.code = 'NOT_FOUND';
       throw error;
     }
-    
+
     const items = await db('materials.shipment_items')
       .where({ shipmentId: shipmentId })
       .orderBy('itemSequence');
-    
+
     return {
       ...shipment,
+      // Parse JSON fields
+      customerSnapshot: shipment.customerSnapshot ?
+        (typeof shipment.customerSnapshot === 'string' ? JSON.parse(shipment.customerSnapshot) : shipment.customerSnapshot)
+        : null,
+      transport: shipment.transport ?
+        (typeof shipment.transport === 'string' ? JSON.parse(shipment.transport) : shipment.transport)
+        : {},
+      alternateDeliveryAddress: shipment.alternateDeliveryAddress ?
+        (typeof shipment.alternateDeliveryAddress === 'string' ? JSON.parse(shipment.alternateDeliveryAddress) : shipment.alternateDeliveryAddress)
+        : null,
       items
     };
   },
@@ -295,17 +408,17 @@ const Shipments = {
     const shipment = await db('materials.shipments')
       .where({ shipmentCode })
       .first();
-    
+
     if (!shipment) {
       const error = new Error('Shipment not found');
       error.code = 'NOT_FOUND';
       throw error;
     }
-    
+
     const items = await db('materials.shipment_items')
       .where({ shipmentCode })
       .orderBy('itemSequence');
-    
+
     return {
       ...shipment,
       items
@@ -322,20 +435,20 @@ const Shipments = {
     const shipment = await db('materials.shipments')
       .where({ id: shipmentId })
       .first();
-    
+
     if (!shipment) {
       const error = new Error('Shipment not found');
       error.code = 'NOT_FOUND';
       throw error;
     }
-    
+
     // Can't update if delivered or cancelled
     if (shipment.status === 'delivered' || shipment.status === 'cancelled') {
       const error = new Error('Cannot update completed shipment');
       error.code = 'INVALID_STATUS';
       throw error;
     }
-    
+
     const allowedFields = [
       'workOrderCode',
       'quoteId',
@@ -345,21 +458,21 @@ const Shipments = {
       'deliveryAddress',
       'notes'
     ];
-    
+
     const filteredUpdates = {};
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         filteredUpdates[field] = updates[field];
       }
     }
-    
+
     filteredUpdates.updatedAt = new Date();
-    
+
     const [updated] = await db('materials.shipments')
       .where({ id: shipmentId })
       .update(filteredUpdates)
       .returning('*');
-    
+
     return updated;
   },
 
@@ -377,32 +490,32 @@ const Shipments = {
       delivered: [],
       cancelled: []
     };
-    
+
     const shipment = await db('materials.shipments')
       .where({ id: shipmentId })
       .first();
-    
+
     if (!shipment) {
       const error = new Error('Shipment not found');
       error.code = 'NOT_FOUND';
       throw error;
     }
-    
+
     const currentStatus = shipment.status;
     const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
-    
+
     if (!allowedTransitions.includes(newStatus)) {
       const error = new Error(`Cannot transition from ${currentStatus} to ${newStatus}`);
       error.code = 'INVALID_TRANSITION';
       throw error;
     }
-    
+
     const updateData = {
       status: newStatus,
       updatedAt: new Date(),
       updatedBy: updatedBy
     };
-    
+
     if (newStatus === 'shipped') {
       updateData.shippedAt = new Date();
     } else if (newStatus === 'delivered') {
@@ -410,11 +523,11 @@ const Shipments = {
     } else if (newStatus === 'cancelled') {
       updateData.cancelledAt = new Date();
     }
-    
+
     await db('materials.shipments')
       .where({ id: shipmentId })
       .update(updateData);
-    
+
     // Update item statuses too
     await db('materials.shipment_items')
       .where({ shipmentId })
@@ -422,7 +535,7 @@ const Shipments = {
         itemStatus: newStatus,
         updatedAt: new Date()
       });
-    
+
     return this.getShipmentById(shipmentId);
   },
 
@@ -435,51 +548,51 @@ const Shipments = {
    */
   async cancelShipment(shipmentId, reason, cancelledBy) {
     const trx = await db.transaction();
-    
+
     try {
       const shipment = await trx('materials.shipments')
         .where({ id: shipmentId })
         .first();
-      
+
       if (!shipment) {
         const error = new Error('Shipment not found');
         error.code = 'NOT_FOUND';
         throw error;
       }
-      
+
       if (shipment.status === 'delivered') {
         const error = new Error('Cannot cancel delivered shipment');
         error.code = 'ALREADY_DELIVERED';
         throw error;
       }
-      
+
       if (shipment.status === 'cancelled') {
         const error = new Error('Shipment already cancelled');
         error.code = 'ALREADY_CANCELLED';
         throw error;
       }
-      
+
       // Get items to restore stock
       const items = await trx('materials.shipment_items')
         .where({ shipmentId });
-      
+
       // Restore stock for each item
       for (const item of items) {
         const material = await trx('materials.materials')
           .where({ code: item.materialCode })
           .first();
-        
+
         if (material) {
           const newStock = parseFloat(material.stock) + parseFloat(item.quantity);
-          
+
           // Update material stock
           await trx('materials.materials')
             .where({ id: material.id })
-            .update({ 
+            .update({
               stock: newStock,
               updatedAt: new Date()
             });
-          
+
           // Create reversal stock movement
           await trx('materials.stock_movements')
             .insert({
@@ -506,7 +619,7 @@ const Shipments = {
             });
         }
       }
-      
+
       // Update shipment status
       await trx('materials.shipments')
         .where({ id: shipmentId })
@@ -517,7 +630,7 @@ const Shipments = {
           cancelledBy: cancelledBy,
           updatedAt: new Date()
         });
-      
+
       // Update item statuses
       await trx('materials.shipment_items')
         .where({ shipmentId })
@@ -525,11 +638,11 @@ const Shipments = {
           itemStatus: 'cancelled',
           updatedAt: new Date()
         });
-      
+
       await trx.commit();
-      
+
       return this.getShipmentById(shipmentId);
-      
+
     } catch (error) {
       await trx.rollback();
       throw error;
@@ -546,30 +659,30 @@ const Shipments = {
       .select('status')
       .count('* as count')
       .groupBy('status');
-    
+
     // Total shipments count
     const [shipmentCount] = await db('materials.shipments')
       .count('* as total_shipments');
-    
+
     // Calculate totals from shipment_items
     const [itemTotals] = await db('materials.shipment_items')
       .sum('quantity as total_quantity')
       .count('* as total_items');
-    
+
     // Recent shipments (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const [recentStats] = await db('materials.shipments')
       .where('"createdAt"', '>=', thirtyDaysAgo)
       .count('* as recent_shipments');
-    
+
     // Recent items quantity
     const [recentItems] = await db('materials.shipment_items as si')
       .join('materials.shipments as s', 's.id', 'si.shipmentId')
       .where('s.createdAt', '>=', thirtyDaysAgo)
       .sum('si.quantity as recent_quantity');
-    
+
     return {
       byStatus: statusCounts.reduce((acc, row) => {
         acc[row.status] = parseInt(row.count, 10);
@@ -592,26 +705,26 @@ const Shipments = {
     const shipment = await db('materials.shipments')
       .where({ id: shipmentId })
       .first();
-    
+
     if (!shipment) {
       const error = new Error('Shipment not found');
       error.code = 'NOT_FOUND';
       throw error;
     }
-    
+
     if (shipment.status !== 'pending') {
       const error = new Error('Can only delete pending shipments');
       error.code = 'INVALID_STATUS';
       throw error;
     }
-    
+
     // Use cancel logic to restore stock
     await this.cancelShipment(shipmentId, 'Deleted by user', 'system');
-    
+
     // Then actually delete
     await db('materials.shipment_items').where({ shipmentId }).delete();
     await db('materials.shipments').where({ id: shipmentId }).delete();
-    
+
     return true;
   }
 };

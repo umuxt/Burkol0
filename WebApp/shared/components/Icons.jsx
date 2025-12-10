@@ -19,7 +19,7 @@ import {
   Phone,
   Mail,
   Copy,
-  
+
   // Navigation & UI
   FileText,
   DollarSign,
@@ -33,7 +33,7 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
-  
+
   // Production
   Play,
   Pause,
@@ -54,23 +54,23 @@ import {
   Send,
   Grid3x3,
   GripVertical,
-  
+
   // Status
   Check,
   XCircle,
   Info,
   Lock,
   Unlock,
-  
+
   // Price warnings
   AlertTriangle,
   RefreshCw,
   Wallet,
-  
+
   // Price comparison icons
   Calculator,
   Sliders,
-  
+
   // CRM Icons
   User,
   UserPlus,
@@ -86,7 +86,11 @@ import {
   PenTool,
   HelpCircle,
   FileSpreadsheet,
-  
+
+  // Invoice/Receipt icons (P4.4)
+  Receipt,
+  FileCode,
+
 } from 'lucide-react';
 
 // Export all icons with consistent naming
@@ -107,7 +111,7 @@ export const Icons = {
   Phone,
   Mail,
   Copy,
-  
+
   // Navigation & UI
   FileText,
   DollarSign,
@@ -121,7 +125,7 @@ export const Icons = {
   ChevronDown,
   ChevronRight,
   Search,
-  
+
   // Production
   Play,
   Pause,
@@ -142,23 +146,23 @@ export const Icons = {
   Send,
   Grid3x3,
   GripVertical,
-  
+
   // Status
   Check,
   XCircle,
   Info,
   Lock,
   Unlock,
-  
+
   // Price warnings
   AlertTriangle,
   RefreshCw,
   Wallet,
-  
+
   // Price comparison icons
   Calculator,
   Sliders,
-  
+
   // CRM Icons
   User,
   UserPlus,
@@ -174,17 +178,21 @@ export const Icons = {
   PenTool,
   HelpCircle,
   FileSpreadsheet,
+
+  // Invoice/Receipt icons (P4.4)
+  Receipt,
+  FileCode,
 };
 
 // Helper component for consistent icon rendering
 export function Icon({ name, size = 16, className = '', ...props }) {
   const IconComponent = Icons[name];
-  
+
   if (!IconComponent) {
     console.warn(`Icon "${name}" not found in Icons library`);
     return null;
   }
-  
+
   return <IconComponent size={size} className={className} {...props} />;
 }
 
@@ -262,6 +270,9 @@ export {
   PenTool,
   HelpCircle,
   FileSpreadsheet,
+  // Invoice/Receipt icons (P4.4)
+  Receipt,
+  FileCode,
 };
 
 export default Icons;

@@ -60,11 +60,11 @@ module.exports = {
     console.log('🚩 Feature Flags Configuration:');
     console.log(`   USE_CANONICAL_NODES: ${this.USE_CANONICAL_NODES ? '✅ ENABLED' : '❌ DISABLED'}`);
     console.log(`   ENABLE_VALIDATION: ${this.ENABLE_VALIDATION ? '✅ ENABLED' : '❌ DISABLED'}`);
-    
+
     if (!this.USE_CANONICAL_NODES) {
       console.warn('⚠️  Canonical nodes disabled - using executionGraph fallback');
     }
-    
+
     if (!this.ENABLE_VALIDATION) {
       console.warn('⚠️  Validation disabled - accepting invalid plans (not recommended for production)');
     }

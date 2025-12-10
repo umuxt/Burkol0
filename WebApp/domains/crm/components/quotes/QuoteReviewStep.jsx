@@ -150,11 +150,11 @@ export default function QuoteReviewStep({
             </span>
           </div>
           <div className="review-item">
-            <span className="review-label">Ad Soyad:</span>
+            <span className="review-label">Cari Hesap / Ad Soyad:</span>
             <span className="review-value">{formatValue(displayCustomer.name)}</span>
           </div>
           <div className="review-item">
-            <span className="review-label">Şirket:</span>
+            <span className="review-label">Firma / Marka:</span>
             <span className="review-value">{formatValue(displayCustomer.company)}</span>
           </div>
           <div className="review-item">
@@ -229,16 +229,16 @@ export default function QuoteReviewStep({
           {formFields.map(field => {
             const value = formData[field.id]
             const fieldType = field.type || field.fieldType
-            
+
             // For checkbox, empty check is different - false is a valid value
-            const isEmpty = fieldType === 'checkbox' 
+            const isEmpty = fieldType === 'checkbox'
               ? (value === null || value === undefined)
               : (value === null || value === undefined || value === '')
 
             // Get display value - show optionLabel for select/radio fields
             const getDisplayValue = () => {
               if (isEmpty) return '-'
-              
+
               // Checkbox - show Evet/Hayır
               if (fieldType === 'checkbox') {
                 if (value === true || value === 'true' || value === 1 || value === '1') {
@@ -246,19 +246,19 @@ export default function QuoteReviewStep({
                 }
                 return 'Hayır'
               }
-              
+
               if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options) {
                 const selectedOption = field.options.find(opt => opt.optionCode === value)
                 return selectedOption?.optionLabel || value
               }
-              
+
               if (fieldType === 'multiselect' && field.options && Array.isArray(value)) {
                 return value.map(v => {
                   const opt = field.options.find(o => o.optionCode === v)
                   return opt?.optionLabel || v
                 }).join(', ')
               }
-              
+
               if (Array.isArray(value)) return value.join(', ')
               return value
             }
@@ -395,8 +395,8 @@ export default function QuoteReviewStep({
           <span className="summary-icon"><User size={16} /></span>
           <span className="summary-text">
             {customerType === 'existing' ? 'Mevcut müşteri seçildi' :
-             customerType === 'new' ? 'Yeni müşteri kaydedilecek' :
-             'Müşterisiz teklif'}
+              customerType === 'new' ? 'Yeni müşteri kaydedilecek' :
+                'Müşterisiz teklif'}
           </span>
         </div>
         <div className="summary-item">

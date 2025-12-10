@@ -12,19 +12,19 @@ import logger from '../../utils/logger.js';
  * Setup customer routes
  */
 export function setupCustomerRoutes(app) {
-  
+
   // ==================== GET ALL CUSTOMERS ====================
   app.get('/api/customers', requireAuth, async (req, res) => {
     try {
       logger.info('GET /api/customers - Fetching all customers');
-      
+
       const filters = {
         search: req.query.search,
         company: req.query.company
       };
 
       const customers = await customerService.getCustomers(filters);
-      
+
       logger.success(`Found ${customers.length} customers`);
       res.json(customers);
     } catch (error) {
@@ -38,9 +38,9 @@ export function setupCustomerRoutes(app) {
     try {
       const { q, limit } = req.query;
       logger.info(`GET /api/customers/search - Searching for: ${q}`);
-      
+
       const customers = await customerService.searchCustomers(q, parseInt(limit) || 10);
-      
+
       logger.success(`Found ${customers.length} matching customers`);
       res.json(customers);
     } catch (error) {
@@ -54,9 +54,9 @@ export function setupCustomerRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`GET /api/customers/${id} - Fetching customer details`);
-      
+
       const customer = await customerService.getCustomerById(id);
-      
+
       if (!customer) {
         logger.warning(`Customer not found: ${id}`);
         return res.status(404).json({ error: 'Customer not found' });
@@ -75,9 +75,9 @@ export function setupCustomerRoutes(app) {
     try {
       const { id } = req.params;
       logger.info(`GET /api/customers/${id}/stats - Fetching customer with stats`);
-      
+
       const customer = await customerService.getCustomerWithStats(id);
-      
+
       if (!customer) {
         logger.warning(`Customer not found: ${id}`);
         return res.status(404).json({ error: 'Customer not found' });
@@ -114,15 +114,19 @@ export function setupCustomerRoutes(app) {
         city,
         district,
         neighbourhood,
-        postalCode
+        postalCode,
+        isEInvoiceTaxpayer,
+        gibPkLabel,
+        defaultInvoiceScenario,
+        isEDespatchTaxpayer
       } = req.body;
 
       logger.info('POST /api/customers - Creating new customer', { name, company });
 
       if (!name) {
-        return res.status(400).json({ 
-          error: 'Missing required field', 
-          details: ['name is required'] 
+        return res.status(400).json({
+          error: 'Missing required field',
+          details: ['name is required']
         });
       }
 
@@ -146,7 +150,11 @@ export function setupCustomerRoutes(app) {
         city,
         district,
         neighbourhood,
-        postalCode
+        postalCode,
+        isEInvoiceTaxpayer,
+        gibPkLabel,
+        defaultInvoiceScenario,
+        isEDespatchTaxpayer
       });
 
       logger.success(`Customer created: ${customer.id}`);
@@ -184,7 +192,7 @@ export function setupCustomerRoutes(app) {
         neighbourhood,
         postalCode
       } = req.body;
-      
+
       logger.info(`PATCH /api/customers/${id} - Updating customer`);
 
       const updates = {};
@@ -209,9 +217,15 @@ export function setupCustomerRoutes(app) {
       if (district !== undefined) updates.district = district;
       if (neighbourhood !== undefined) updates.neighbourhood = neighbourhood;
       if (postalCode !== undefined) updates.postalCode = postalCode;
+      // e-Document fields
+      if (req.body.isEInvoiceTaxpayer !== undefined) updates.isEInvoiceTaxpayer = req.body.isEInvoiceTaxpayer;
+      if (req.body.gibPkLabel !== undefined) updates.gibPkLabel = req.body.gibPkLabel;
+      if (req.body.gibDespatchPkLabel !== undefined) updates.gibDespatchPkLabel = req.body.gibDespatchPkLabel;
+      if (req.body.defaultInvoiceScenario !== undefined) updates.defaultInvoiceScenario = req.body.defaultInvoiceScenario;
+      if (req.body.isEDespatchTaxpayer !== undefined) updates.isEDespatchTaxpayer = req.body.isEDespatchTaxpayer;
 
       const customer = await customerService.updateCustomer(id, updates);
-      
+
       if (!customer) {
         logger.warning(`Customer not found: ${id}`);
         return res.status(404).json({ error: 'Customer not found' });
@@ -232,7 +246,7 @@ export function setupCustomerRoutes(app) {
       logger.info(`DELETE /api/customers/${id} - Soft deleting customer`);
 
       const customer = await customerService.deleteCustomer(id);
-      
+
       if (!customer) {
         logger.warning(`Customer not found: ${id}`);
         return res.status(404).json({ error: 'Customer not found' });
@@ -253,16 +267,16 @@ export function setupCustomerRoutes(app) {
       logger.info(`DELETE /api/customers/${id}/permanent - Permanently deleting customer`);
 
       await customerService.permanentDeleteCustomer(id);
-      
+
       logger.success(`Customer permanently deleted: ${id}`);
       res.json({ success: true, message: 'Customer permanently deleted' });
     } catch (error) {
       logger.error('Failed to permanently delete customer', { error: error.message });
-      
+
       if (error.message.includes('Cannot permanently delete')) {
         return res.status(400).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Failed to permanently delete customer', message: error.message });
     }
   });

@@ -32,7 +32,7 @@ export default function CustomerSearchInput({
   const [initialLoading, setInitialLoading] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [customersLoaded, setCustomersLoaded] = useState(false)
-  
+
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
   const debounceRef = useRef(null)
@@ -41,7 +41,7 @@ export default function CustomerSearchInput({
   useEffect(() => {
     function handleClickOutside(event) {
       if (
-        dropdownRef.current && 
+        dropdownRef.current &&
         !dropdownRef.current.contains(event.target) &&
         inputRef.current &&
         !inputRef.current.contains(event.target)
@@ -57,15 +57,15 @@ export default function CustomerSearchInput({
   // Load all customers on first focus
   async function loadAllCustomers() {
     if (customersLoaded || initialLoading) return
-    
+
     setInitialLoading(true)
     try {
       const customers = await customersService.getCustomers({ limit: 50 })
       // Sort alphabetically by company then name
       const sorted = (customers || []).sort((a, b) => {
-        const companyA = (a.company || a.name || '').toLowerCase()
-        const companyB = (b.company || b.name || '').toLowerCase()
-        return companyA.localeCompare(companyB, 'tr')
+        const nameA = (a.name || a.company || '').toLowerCase()
+        const nameB = (b.name || b.company || '').toLowerCase()
+        return nameA.localeCompare(nameB, 'tr')
       })
       setAllCustomers(sorted)
       setFilteredResults(sorted)
@@ -95,19 +95,19 @@ export default function CustomerSearchInput({
     debounceRef.current = setTimeout(() => {
       setLoading(true)
       const term = searchTerm.toLowerCase().trim()
-      
+
       const filtered = allCustomers.filter(customer => {
         const name = (customer.name || '').toLowerCase()
         const company = (customer.company || '').toLowerCase()
         const email = (customer.email || '').toLowerCase()
         const phone = (customer.phone || '').toLowerCase()
-        
-        return name.includes(term) || 
-               company.includes(term) || 
-               email.includes(term) ||
-               phone.includes(term)
+
+        return name.includes(term) ||
+          company.includes(term) ||
+          email.includes(term) ||
+          phone.includes(term)
       })
-      
+
       setFilteredResults(filtered)
       setHighlightedIndex(-1)
       setLoading(false)
@@ -135,13 +135,13 @@ export default function CustomerSearchInput({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setHighlightedIndex(prev => 
+        setHighlightedIndex(prev =>
           prev < filteredResults.length - 1 ? prev + 1 : 0
         )
         break
       case 'ArrowUp':
         e.preventDefault()
-        setHighlightedIndex(prev => 
+        setHighlightedIndex(prev =>
           prev > 0 ? prev - 1 : filteredResults.length - 1
         )
         break
@@ -180,7 +180,7 @@ export default function CustomerSearchInput({
           )}
         </div>
         {!disabled && (
-          <button 
+          <button
             type="button"
             onClick={handleClear}
             className="customer-search-clear-btn"
@@ -244,10 +244,10 @@ export default function CustomerSearchInput({
                   onMouseEnter={() => setHighlightedIndex(index)}
                 >
                   <div className="customer-search-item-main">
+                    <span className="customer-search-item-name">{customer.name}</span>
                     {customer.company && (
                       <span className="customer-search-item-company">{customer.company}</span>
                     )}
-                    <span className="customer-search-item-name">{customer.name}</span>
                   </div>
                   <div className="customer-search-item-secondary">
                     {customer.email && (

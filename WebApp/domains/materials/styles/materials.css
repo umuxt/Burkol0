@@ -4864,3 +4864,472 @@ textareatextarea/* Material Details Layout - Yeniden düzenlenmiş */
 .text-nowrap {
   white-space: nowrap;
 }
+
+/* ===========================================
+   DROPDOWN STYLES - Filter Dropdowns
+   =========================================== */
+.mes-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.mes-dropdown .mes-filter-button {
+  min-width: 120px;
+  justify-content: space-between;
+}
+
+.mes-dropdown .mes-filter-button svg.rotated {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.mes-dropdown .filter-badge {
+  background: rgb(59, 130, 246);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+.mes-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: white;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdown-fade-in 0.15s ease-out;
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mes-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgb(55, 65, 81);
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.mes-dropdown-item:hover {
+  background: rgb(249, 250, 251);
+}
+
+.mes-dropdown-item.active {
+  background: rgb(239, 246, 255);
+  color: rgb(37, 99, 235);
+  font-weight: 500;
+}
+
+.mes-dropdown-item .item-count {
+  font-size: 11px;
+  color: rgb(156, 163, 175);
+  background: rgb(243, 244, 246);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.mes-dropdown-item.active .item-count {
+  background: rgb(219, 234, 254);
+  color: rgb(59, 130, 246);
+}
+
+/* Filter Result Count */
+.filter-result-count {
+  font-size: 12px;
+  color: rgb(107, 114, 128);
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+/* ===========================================
+   STATUS ICON STYLES - Export/Import Indicators
+   =========================================== */
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.status-icon.is-exported {
+  background: rgba(139, 92, 246, 0.15);
+  color: rgb(139, 92, 246);
+}
+
+.status-icon.is-imported {
+  background: rgba(59, 130, 246, 0.15);
+  color: rgb(59, 130, 246);
+}
+
+.status-icon.is-completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: rgb(16, 185, 129);
+}
+
+/* ===========================================
+   ACCORDION STYLES - AddShipmentModal
+   =========================================== */
+.shipment-accordion {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.shipment-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: var(--muted-bg, #f9fafb);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.shipment-accordion-header:hover {
+  background-color: #f3f4f6;
+}
+
+.shipment-accordion-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shipment-accordion-header-left svg {
+  color: #6b7280;
+}
+
+.shipment-accordion-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.shipment-accordion-content {
+  padding: 14px;
+  background-color: #ffffff;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+/* Accordion Content Grid */
+.accordion-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.accordion-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* Form Labels in Modal */
+.shipment-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.shipment-form-label-required::after {
+  content: ' *';
+  color: #dc2626;
+}
+
+.shipment-form-label-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+/* Checkbox and Radio Labels */
+.shipment-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+}
+
+.shipment-checkbox-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.shipment-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+}
+
+/* Accordion Sub-sections */
+.accordion-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accordion-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 24px;
+}
+
+/* Export Format Checkboxes */
+.export-format-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.export-format-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+/* Item Detail Panel */
+.item-detail-panel {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.item-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.item-detail-label {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.item-detail-note {
+  margin-top: 10px;
+}
+
+/* Discount Row Flex */
+.discount-inline-flex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discount-input {
+  width: 100px;
+}
+
+/* Section Headers in Modal */
+.shipment-section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 10px;
+}
+
+/* Accordion Inner Sections */
+.accordion-section {
+  margin-bottom: 12px;
+}
+
+.accordion-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Export Checkbox Group */
+.export-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.export-format-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+/* Customer Info Box */
+.customer-info-box {
+  background-color: var(--muted-bg, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.customer-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.customer-info-label {
+  color: #6b7280;
+}
+
+.customer-info-value {
+  color: #111827;
+}
+
+.customer-info-address {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+/* New Customer Form */
+.new-customer-form {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+/* Text Colors for Modal */
+.text-dark { color: #111827; }
+.text-medium { color: #374151; }
+.text-muted { color: #6b7280; }
+.text-light { color: #9ca3af; }
+.text-error { color: #dc2626; }
+.text-success { color: #16a34a; }
+.text-primary { color: #3b82f6; }
+
+/* Modal Section Header */
+.modal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* Button Link Small */
+.btn-link-sm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #3b82f6;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-link-sm:hover {
+  color: #1d4ed8;
+  background-color: #eff6ff;
+}
+
+/* Dropdown Empty State */
+.dropdown-empty-state {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Form Grid Layouts */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.form-col-span-2 {
+  grid-column: span 2;
+}
+
+/* Summary Section Styles */
+.summary-customer-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.summary-section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.summary-address {
+  margin-top: 6px;
+}
+
+/* Input Width Helpers */
+.price-input {
+  width: 80px;
+}
+
+.discount-percent-input {
+  width: 60px;
+}
+
+/* Scrollable Dropdown */
+.dropdown-menu-scrollable {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.pos-z15 {
+  position: relative;
+  z-index: 15;
+}
+

@@ -15,6 +15,13 @@
 - Operations, Workers, Stations, Skills, Substations
 - Work Orders CRUD
 - Key-based skills reference system
+- **[INVOICE-EXPORT-REFACTOR-PLAN.md](./INVOICE-EXPORT-REFACTOR-PLAN.md)** - Invoice & Export Refactor Plan (Phase 4-5)
+
+**PHASE 5: CRM Invoice & Export** ✅ COMPLETE
+- ✅ Invoice/Waybill/Proforma Separation
+- ✅ 7-Day Rule Enforcement (Invoice deadline)
+- ✅ ETTN Import/Export Integration (Logo/Zirve)
+- ✅ Stock Integration with Partial Shipments
 
 **PHASE 2: Production Core** 🔄 IN PROGRESS
 - ✅ Production Plans CRUD with Enhanced Launch Algorithm
@@ -76,6 +83,7 @@ npm run migrate:rollback
 - **Inventory:** FIFO consumption, lot tracking, partial reservations
 - **Real-time:** SSE notifications, live status updates
 - **Concurrent Safety:** Database-level locks prevent conflicts
+- **Invoice & Export:** Proforma generation, XML export for ERPs, E-Invoice integration, 7-day rule compliance
 
 ---
 
@@ -86,5 +94,5 @@ Original design: https://www.figma.com/design/LrmKaLaSnKWnrffkzVG6dV/Production-
 
 ---
 
-**Last Updated:** 28 Kasım 2025  
+**Last Updated:** 10 Aralık 2025  
 **Version:** 2.1 - BeePlan Transformation

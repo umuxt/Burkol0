@@ -43,12 +43,12 @@ class Quotes {
   static async generateQuoteId() {
     const today = new Date();
     const dateKey = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-    
+
     // Get count of quotes created today
     const count = await db('quotes.quotes')
       .where('id', 'like', `TKF-${dateKey}-%`)
       .count('* as count');
-    
+
     const nextNumber = (parseInt(count[0].count) || 0) + 1;
     return `TKF-${dateKey}-${String(nextNumber).padStart(4, '0')}`;
   }
@@ -60,7 +60,7 @@ class Quotes {
    */
   static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceSettingId, notes, formData, createdBy, isCustomer, customerId, projectName }) {
     const trx = await db.transaction();
-    
+
     try {
       const quoteId = await this.generateQuoteId();
 
@@ -115,7 +115,7 @@ class Quotes {
       // Calculate price if setting is provided
       if (priceSettingId && formData) {
         const calculation = await PriceSettings.calculatePrice(priceSettingId, formData);
-        
+
         // Update quote with calculated price
         await trx('quotes.quotes')
           .where('id', quoteId)
@@ -127,7 +127,7 @@ class Quotes {
       }
 
       await trx.commit();
-      
+
       // Return full quote with related data
       return await this.getById(quoteId);
     } catch (error) {
@@ -154,7 +154,7 @@ class Quotes {
       // QT-7: Key hem fieldCode hem de DB ID olabilir
       // Önce fieldCode ile eşleştir
       let field = fields.find(f => f.fieldCode === key);
-      
+
       // Bulamazsa DB ID ile dene
       if (!field) {
         const keyAsNumber = parseInt(key, 10);
@@ -162,12 +162,12 @@ class Quotes {
           field = fields.find(f => f.id === keyAsNumber);
         }
       }
-      
+
       if (!field) {
         console.warn(`[_saveFormData] Field not found for key: ${key}`);
         return null;
       }
-      
+
       return {
         quoteId: quoteId,
         fieldId: field.id,
@@ -220,16 +220,20 @@ class Quotes {
       query = query.where('createdAt', '<=', filters.toDate);
     }
 
+    if (filters.customerId) {
+      query = query.where('customerId', filters.customerId);
+    }
+
     const quotes = await query.orderBy('createdAt', 'desc');
-    
+
     // QT-4: Get all form data for these quotes in one query
     const quoteIds = quotes.map(q => q.id);
-    const allFormData = quoteIds.length > 0 
+    const allFormData = quoteIds.length > 0
       ? await db('quotes.quote_form_data')
-          .whereIn('quoteId', quoteIds)
-          .select('quoteId', 'fieldCode', 'fieldValue')
+        .whereIn('quoteId', quoteIds)
+        .select('quoteId', 'fieldCode', 'fieldValue')
       : [];
-    
+
     // Group form data by quoteId
     const formDataByQuote = {};
     allFormData.forEach(item => {
@@ -238,7 +242,7 @@ class Quotes {
       }
       formDataByQuote[item.quoteId][item.fieldCode] = item.fieldValue;
     });
-    
+
     // Normalize deliveryDate and priceStatus for all quotes
     // Also build manualOverride object for frontend compatibility
     quotes.forEach(quote => {
@@ -254,7 +258,7 @@ class Quotes {
         timestamp: quote.updatedAt
       } : null;
     });
-    
+
     return quotes;
   }
 
@@ -265,7 +269,7 @@ class Quotes {
     const quote = await db('quotes.quotes')
       .where('id', id)
       .first();
-    
+
     if (!quote) {
       return null;
     }
@@ -274,7 +278,7 @@ class Quotes {
     const formData = await db('quotes.quote_form_data')
       .where('quoteId', id)
       .select('fieldCode', 'fieldValue');
-    
+
     const formDataObj = {};
     formData.forEach(item => {
       formDataObj[item.fieldCode] = item.fieldValue;
@@ -288,7 +292,7 @@ class Quotes {
     const allFiles = await db('quotes.quote_files')
       .where('quoteId', id)
       .orderBy('createdAt');
-    
+
     // Separate files by type
     const technicalFiles = allFiles.filter(f => f.fileType === 'technical' || f.fileType === 'tech');
     const productImages = allFiles.filter(f => f.fileType === 'product' || f.fileType === 'image');
@@ -302,6 +306,16 @@ class Quotes {
         .where('id', quote.customerId)
         .first();
     }
+
+    // Get quote items for invoice
+    const items = await db('quotes.quote_items')
+      .where('quoteId', id)
+      .orderBy('lineNumber');
+
+    // Calculate items total
+    const itemsTotal = items.reduce((sum, item) => sum + parseFloat(item.totalAmount || 0), 0);
+    const itemsSubtotal = items.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+    const itemsTaxTotal = items.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0);
 
     // Normalize deliveryDate and priceStatus
     this.normalizeDeliveryDate(quote);
@@ -323,7 +337,11 @@ class Quotes {
       technicalFiles: [...technicalFiles, ...otherFiles],
       productImages: productImages,
       customer: customer, // SYNC-FIX: Include full customer data for QuoteDetailsPanel
-      manualOverride: manualOverride // Add manualOverride for frontend
+      manualOverride: manualOverride, // Add manualOverride for frontend
+      items: items, // Quote items for invoice
+      itemsTotal: itemsTotal, // Total including tax
+      itemsSubtotal: itemsSubtotal, // Subtotal before tax
+      itemsTaxTotal: itemsTaxTotal // Total tax amount
     };
   }
 
@@ -333,10 +351,10 @@ class Quotes {
    */
   static async update(id, updates) {
     const trx = await db.transaction();
-    
+
     try {
       const updateData = {};
-      
+
       // Update basic fields
       if (updates.customerName) updateData.customerName = updates.customerName;
       if (updates.customerEmail) updateData.customerEmail = updates.customerEmail;
@@ -349,20 +367,20 @@ class Quotes {
       if (updates.isCustomer !== undefined) updateData.isCustomer = updates.isCustomer;
       if (updates.customerId !== undefined) updateData.customerId = updates.customerId;
       if (updates.projectName !== undefined) updateData.projectName = updates.projectName;  // QT-1
-      
+
       // Update form template fields
       if (updates.formTemplateId !== undefined) updateData.formTemplateId = updates.formTemplateId;
       if (updates.formTemplateCode !== undefined) updateData.formTemplateCode = updates.formTemplateCode;
-      
+
       // Update price setting fields
       if (updates.priceSettingId !== undefined) updateData.priceSettingId = updates.priceSettingId;
       if (updates.priceSettingCode !== undefined) updateData.priceSettingCode = updates.priceSettingCode;
-      
+
       // Update price fields
       if (updates.calculatedPrice !== undefined) updateData.calculatedPrice = updates.calculatedPrice;
       if (updates.finalPrice !== undefined) updateData.finalPrice = updates.finalPrice;
       if (updates.lastCalculatedAt !== undefined) updateData.lastCalculatedAt = updates.lastCalculatedAt;
-      
+
       updateData.updatedAt = db.fn.now();
 
       const [quote] = await trx('quotes.quotes')
@@ -376,7 +394,7 @@ class Quotes {
         await trx('quotes.quote_form_data')
           .where('quoteId', id)
           .delete();
-        
+
         // Insert new form data
         await this._saveFormData(trx, id, updates.formData);
 
@@ -384,7 +402,7 @@ class Quotes {
         // (means caller wants auto-calculation, not manual override)
         if (updates.calculatedPrice === undefined && quote.priceSettingId) {
           const calculation = await PriceSettings.calculatePrice(quote.priceSettingId, updates.formData);
-          
+
           await trx('quotes.quotes')
             .where('id', id)
             .update({
@@ -396,7 +414,7 @@ class Quotes {
       }
 
       await trx.commit();
-      
+
       return await this.getById(id);
     } catch (error) {
       await trx.rollback();
@@ -436,18 +454,18 @@ class Quotes {
       .where('id', id)
       .update(updateData)
       .returning('*');
-    
+
     // Create MES work order when quote approved
     if (status === 'approved' && quote) {
       try {
         console.log(`🔍 Quote ${id} approved, creating MES work order...`);
-        
+
         // Get full quote data including form data for work order creation
         const fullQuote = await this.getById(id);
-        
+
         const workOrder = await WorkOrders.createFromQuote(id, fullQuote);
         console.log(`✅ Work order ${workOrder.code} created for quote ${id}`);
-        
+
         // Store WO code in quote for reference
         await db('quotes.quotes')
           .where('id', id)
@@ -460,10 +478,10 @@ class Quotes {
         // Don't fail the quote approval, just log the error
       }
     }
-    
+
     // Normalize deliveryDate before returning
     this.normalizeDeliveryDate(quote);
-    
+
     return quote;
   }
 
@@ -481,10 +499,10 @@ class Quotes {
         updatedAt: db.fn.now()
       })
       .returning('*');
-    
+
     // Normalize deliveryDate before returning
     this.normalizeDeliveryDate(quote);
-    
+
     return quote;
   }
 
@@ -506,10 +524,10 @@ class Quotes {
         updatedAt: db.fn.now()
       })
       .returning('*');
-    
+
     // Normalize deliveryDate before returning
     this.normalizeDeliveryDate(quote);
-    
+
     return quote;
   }
 
@@ -531,7 +549,7 @@ class Quotes {
         updatedAt: db.fn.now()
       })
       .returning('*');
-    
+
     return file;
   }
 
@@ -542,7 +560,7 @@ class Quotes {
     const count = await db('quotes.quote_files')
       .where('id', fileId)
       .delete();
-    
+
     return count > 0;
   }
 
@@ -553,7 +571,7 @@ class Quotes {
     const count = await db('quotes.quotes')
       .where('id', id)
       .delete();
-    
+
     return count > 0;
   }
 
@@ -614,10 +632,10 @@ class Quotes {
    */
   static async recalculate(id) {
     const trx = await db.transaction();
-    
+
     try {
       const quote = await trx('quotes.quotes').where('id', id).first();
-      
+
       if (!quote || !quote.priceSettingId) {
         throw new Error('Quote not found or has no price setting');
       }
@@ -625,7 +643,7 @@ class Quotes {
       // Get form data
       const formDataRows = await trx('quotes.quote_form_data')
         .where('quoteId', id);
-      
+
       const formData = {};
       formDataRows.forEach(row => {
         formData[row.fieldCode] = row.fieldValue;
@@ -633,7 +651,7 @@ class Quotes {
 
       // Calculate price
       const calculation = await PriceSettings.calculatePrice(quote.priceSettingId, formData);
-      
+
       // Update quote
       await trx('quotes.quotes')
         .where('id', id)
@@ -687,11 +705,11 @@ class Quotes {
         const assignments = await db('mes.worker_assignments')
           .where('planId', plan.id)
           .select('status');
-        
+
         const totalAssignments = assignments.length;
         const completedAssignments = assignments.filter(a => a.status === 'completed').length;
         const allCompleted = totalAssignments > 0 && completedAssignments === totalAssignments;
-        
+
         if (allCompleted) {
           // All work packages completed
           return {
@@ -719,9 +737,9 @@ class Quotes {
     }
 
     // WO exists but plan not launched - allow edit with warning
-    return { 
-      canEdit: true, 
-      warning: 'wo_exists', 
+    return {
+      canEdit: true,
+      warning: 'wo_exists',
       workOrderCode: wo.code,
       productionState: wo.productionState || 'pending'
     };
