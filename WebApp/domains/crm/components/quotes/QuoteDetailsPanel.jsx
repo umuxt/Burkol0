@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool, Calculator, Sliders, Receipt } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Edit, Download, Trash2, Lock, Unlock, AlertTriangle, RefreshCw, Wallet, MapPin, FileText, Image, FolderOpen, Paperclip, PenTool, Calculator, Sliders, Receipt, Plus, ListTodo, Package } from '../../../../shared/components/Icons.jsx'
 import { PriceStatusBadge } from '../pricing/PriceStatusBadge.js'
 import API, { API_BASE } from '../../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../../shared/lib/utils.js'
@@ -12,6 +12,7 @@ import QuoteEditLockBanner from './QuoteEditLockBanner.jsx'
 import FormUpdateModal from './FormUpdateModal.jsx'
 import PriceConfirmModal from './PriceConfirmModal.jsx'
 import AddInvoiceModal from './AddInvoiceModal.jsx'
+import AddItemModal from './AddItemModal.jsx'
 
 export default function QuoteDetailsPanel({
   quote,
@@ -79,6 +80,12 @@ export default function QuoteDetailsPanel({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [sevenDayWarning, setSevenDayWarning] = useState(null)
+
+  // P4.8: Quote Items state
+  const [quoteItems, setQuoteItems] = useState([])
+  const [itemsLoading, setItemsLoading] = useState(false)
+  const [itemsExpanded, setItemsExpanded] = useState(true)
+  const [showAddItemModal, setShowAddItemModal] = useState(false)
 
   // Fetch edit status when quote changes
   // Optimized - only fetch form/price changes if canEdit=true
@@ -254,6 +261,73 @@ export default function QuoteDetailsPanel({
       prevQuoteIdRef.current = quote.id
     }
   }, [quote?.id, quote?.technicalFiles, quote?.productImages, quote?.files])
+
+  // P4.8: Load quote items
+  const loadQuoteItems = async () => {
+    if (!quote?.id) return
+    console.log('📦 Loading quote items for:', quote.id)
+    try {
+      setItemsLoading(true)
+      const response = await fetch(`${API_BASE}/api/quotes/${quote.id}/items`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+      })
+      console.log('📦 Items API response status:', response.status)
+      if (response.ok) {
+        const data = await response.json()
+        console.log('📦 Items API response data:', data)
+        // API returns { success, data: { items, totals } } format
+        const items = data.data?.items || data.items || data || []
+        console.log('📦 Extracted items:', items)
+        setQuoteItems(Array.isArray(items) ? items : [])
+      }
+    } catch (err) {
+      console.error('Error loading quote items:', err)
+    } finally {
+      setItemsLoading(false)
+    }
+  }
+
+  // P4.8: Load quote items when quote changes  
+  useEffect(() => {
+    if (quote?.id) {
+      console.log('📦 useEffect triggered for quote items, id:', quote.id)
+      loadQuoteItems()
+    }
+  }, [quote?.id])
+
+  // P4.8: Delete quote item
+  const handleDeleteItem = async (itemId) => {
+    if (!confirm('Bu kalemi silmek istediğinize emin misiniz?')) return
+    try {
+      const response = await fetch(`${API_BASE}/api/quotes/items/${itemId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+      })
+      if (response.ok) {
+        showToast('Kalem silindi', 'success')
+        loadQuoteItems()
+      } else {
+        showToast('Kalem silinemedi', 'error')
+      }
+    } catch (err) {
+      console.error('Error deleting item:', err)
+      showToast('Kalem silinemedi', 'error')
+    }
+  }
+
+  // P4.8: Calculate items totals
+  const itemsTotals = useMemo(() => {
+    if (!Array.isArray(quoteItems) || quoteItems.length === 0) {
+      return { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0 }
+    }
+    return quoteItems.reduce((acc, item) => ({
+      subtotal: acc.subtotal + (parseFloat(item.subtotal) || 0),
+      discountTotal: acc.discountTotal + (parseFloat(item.discountAmount) || 0),
+      taxTotal: acc.taxTotal + (parseFloat(item.taxAmount) || 0),
+      grandTotal: acc.grandTotal + (parseFloat(item.totalAmount) || 0)
+    }), { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0 })
+  }, [quoteItems])
+
 
   const formatManualPriceInput = (price) => {
     if (price === null || price === undefined || price === '') return ''
@@ -2360,6 +2434,217 @@ export default function QuoteDetailsPanel({
               </span>
             </div>
 
+            {/* P4.8: Fatura Kalemleri Section */}
+            <div style={{
+              marginTop: '16px',
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              overflow: 'hidden'
+            }}>
+              {/* Header - Accordion Toggle */}
+              <div
+                onClick={() => setItemsExpanded(!itemsExpanded)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  background: '#f9fafb',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ListTodo size={14} style={{ color: '#6b7280' }} />
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+                    Fatura Kalemleri
+                  </span>
+                  <span style={{
+                    padding: '2px 6px',
+                    background: '#e5e7eb',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                    color: '#6b7280'
+                  }}>
+                    {Array.isArray(quoteItems) ? quoteItems.length : 0}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowAddItemModal(true)
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '4px',
+                      background: 'white',
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Plus size={12} />
+                    Kalem Ekle
+                  </button>
+                  <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                    {itemsExpanded ? '▼' : '▶'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Content */}
+              {itemsExpanded && (
+                <div style={{ padding: '12px' }}>
+                  {/* Reference Price */}
+                  <div style={{
+                    marginBottom: '12px',
+                    padding: '8px 12px',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: '#0369a1'
+                  }}>
+                    <strong>Teklif Referans Fiyatı:</strong> {new Intl.NumberFormat('tr-TR').format(quote?.price || 0)} ₺
+                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280' }}>(tahmini)</span>
+                  </div>
+
+                  {/* Items Table */}
+                  {itemsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                      Yükleniyor...
+                    </div>
+                  ) : (!Array.isArray(quoteItems) || quoteItems.length === 0) ? (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '24px',
+                      color: '#9ca3af',
+                      fontSize: '13px'
+                    }}>
+                      <Package size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
+                      <div>Henüz kalem eklenmemiş</div>
+                      <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                        Fatura işlemleri modalından kalem ekleyebilirsiniz
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: '12px'
+                        }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb' }}>
+                              <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Ürün/Hizmet</th>
+                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Miktar</th>
+                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Birim Fiyat</th>
+                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>İskonto</th>
+                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>KDV</th>
+                              <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Toplam</th>
+                              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '40px' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quoteItems.map((item, idx) => (
+                              <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '8px' }}>
+                                  <div style={{ fontWeight: '500' }}>{item.description || item.itemName}</div>
+                                  {item.itemCode && (
+                                    <code style={{
+                                      fontSize: '10px',
+                                      color: '#6b7280',
+                                      background: '#f3f4f6',
+                                      padding: '1px 4px',
+                                      borderRadius: '3px'
+                                    }}>
+                                      {item.itemCode}
+                                    </code>
+                                  )}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                  {item.quantity} {item.unit}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                  {new Intl.NumberFormat('tr-TR').format(item.unitPrice || 0)} ₺
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'right', color: item.discountAmount > 0 ? '#dc2626' : '#9ca3af' }}>
+                                  {item.discountAmount > 0 ? `-${new Intl.NumberFormat('tr-TR').format(item.discountAmount)} ₺` : '—'}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'right' }}>
+                                  %{item.taxRate || 0}
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>
+                                  {new Intl.NumberFormat('tr-TR').format(item.totalAmount || 0)} ₺
+                                </td>
+                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    style={{
+                                      padding: '4px',
+                                      border: 'none',
+                                      background: 'transparent',
+                                      cursor: 'pointer',
+                                      color: '#9ca3af'
+                                    }}
+                                    title="Sil"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Totals Summary */}
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '12px',
+                        background: '#f9fafb',
+                        borderRadius: '6px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>Ara Toplam:</span>
+                          <span>{new Intl.NumberFormat('tr-TR').format(itemsTotals.subtotal)} ₺</span>
+                        </div>
+                        {itemsTotals.discountTotal > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px', color: '#dc2626' }}>
+                            <span>İskonto:</span>
+                            <span>-{new Intl.NumberFormat('tr-TR').format(itemsTotals.discountTotal)} ₺</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
+                          <span style={{ color: '#6b7280' }}>KDV Toplam:</span>
+                          <span>{new Intl.NumberFormat('tr-TR').format(itemsTotals.taxTotal)} ₺</span>
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          paddingTop: '8px',
+                          borderTop: '1px solid #e5e7eb',
+                          fontSize: '14px',
+                          fontWeight: '600'
+                        }}>
+                          <span>Genel Toplam:</span>
+                          <span style={{ color: '#059669' }}>{new Intl.NumberFormat('tr-TR').format(itemsTotals.grandTotal)} ₺</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* 7 Gün Uyarısı */}
             {sevenDayWarning && sevenDayWarning.hasWarning && (
               <div style={{
@@ -2697,6 +2982,16 @@ export default function QuoteDetailsPanel({
             onRefreshQuote()
           }
           showToast('Fatura işlemi tamamlandı!', 'success')
+        }}
+      />
+
+      {/* P4.9: Add Item Modal */}
+      <AddItemModal
+        isOpen={showAddItemModal}
+        quoteId={quote?.id}
+        onClose={() => setShowAddItemModal(false)}
+        onItemAdded={() => {
+          loadQuoteItems()
         }}
       />
     </div>

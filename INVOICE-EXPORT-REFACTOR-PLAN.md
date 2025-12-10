@@ -3308,9 +3308,9 @@ Validasyonlar:
 ```
 
 **Test:**
-- [ ] Step 3: Export çalışıyor, dosya iniyor
-- [ ] Step 4: Import çalışıyor, DB'ye kaydediliyor
-- [ ] Full wizard akışı sorunsuz
+- [x] Step 3: Export çalışıyor, dosya iniyor
+- [x] Step 4: Import çalışıyor, DB'ye kaydediliyor
+- [x] Full wizard akışı sorunsuz
 
 ---
 
@@ -3387,11 +3387,11 @@ Validasyonlar:
 ```
 
 **Test:**
-- [ ] GET /api/service-cards hizmet listesi dönüyor
-- [ ] POST /api/service-cards yeni hizmet ekliyor
-- [ ] CRM'de Ayarlar tab'ı görünüyor
-- [ ] Hizmet ekleme/düzenleme çalışıyor
-- [ ] Fatura ayarları kaydediliyor
+- [x] GET /api/service-cards hizmet listesi dönüyor (11 aktif kart)
+- [x] POST /api/service-cards yeni hizmet ekliyor
+- [x] CRM'de Ayarlar tab'ı görünüyor (QuotesTabs settings id)
+- [x] Hizmet ekleme/düzenleme çalışıyor
+- [x] Fatura ayarları kaydediliyor (crm_invoice_config key oluşturuldu)
 
 ---
 
@@ -3431,10 +3431,10 @@ Validasyonlar:
 ```
 
 **Test:**
-- [ ] QuoteDetailsPanel'de kalem section görünüyor
-- [ ] Kalem ekleme çalışıyor
-- [ ] Kalem silme çalışıyor
-- [ ] Toplamlar otomatik güncelleniyor
+- [x] QuoteDetailsPanel'de kalem section görünüyor (Fatura Kalemleri accordion)
+- [x] Kalem ekleme çalışıyor (AddItemModal entegrasyonu)
+- [x] Kalem silme çalışıyor (handleDeleteItem)
+- [x] Toplamlar otomatik güncelleniyor (itemsTotals useMemo)
 
 ---
 
@@ -3493,11 +3493,11 @@ Realtime Hesaplama:
 ```
 
 **Test:**
-- [ ] Modal açılıyor
-- [ ] Malzeme dropdown'u çalışıyor
-- [ ] Hizmet girişi çalışıyor
-- [ ] Realtime hesaplama doğru
-- [ ] Kalem ekleme API'ye gidiyor
+- [x] Modal açılıyor (invoice-modal-wide class, scroll çalışıyor)
+- [x] Malzeme dropdown'u çalışıyor (birim otomatik dolduruluyor)
+- [x] Hizmet girişi çalışıyor (service cards dropdown)
+- [x] Realtime hesaplama doğru (calculations useMemo)
+- [x] Kalem ekleme API'ye gidiyor (POST /api/quotes/:id/items)
 
 ---
 
@@ -3933,9 +3933,9 @@ Hata durumunda:
 | P4.4 | QuoteDetailsPanel Fatura İşlemleri Section | ✅ |
 | P4.5 | AddInvoiceModal Step 1-2 | ✅ |
 | P4.6 | AddInvoiceModal Step 3-4 | ✅ |
-| P4.7 | Service Cards API + CRM Ayarlar Tab | ⏳ |
-| P4.8 | QuoteDetailsPanel'e Kalem Section | ⬜ |
-| P4.9 | Kalem Ekleme Modal (AddItemModal) | ⬜ |
+| P4.7 | Service Cards API + CRM Ayarlar Tab | ✅ |
+| P4.8 | QuoteDetailsPanel'e Kalem Section | ✅ |
+| P4.9 | Kalem Ekleme Modal (AddItemModal) | ✅ |
 | P4.10 | AddInvoiceModal Kalem Yönetimi | ⬜ |
 | P4.11 | 7 Gün Kuralı ve CSS | ⬜ |
 | P4.12 | Entegrasyon Testi | ⬜ |

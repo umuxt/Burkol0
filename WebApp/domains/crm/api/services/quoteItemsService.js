@@ -43,10 +43,26 @@ export async function addQuoteItem(quoteId, itemData, user) {
         throw error;
     }
 
-    const item = await QuoteItems.create(quoteId, {
-        ...itemData,
-        createdBy: user?.email
-    });
+    // Only pick valid database columns
+    const validItem = {
+        productName: itemData.productName,
+        description: itemData.description || null,
+        stockCode: itemData.stockCode || null,
+        quantity: itemData.quantity,
+        unit: itemData.unit || 'Adet',
+        unitPrice: itemData.unitPrice,
+        taxRate: itemData.taxRate || 20,
+        discountPercent: itemData.discountPercent || 0,
+        discountAmount: itemData.discountAmount || 0,
+        subtotal: itemData.subtotal || 0,
+        taxAmount: itemData.taxAmount || 0,
+        totalAmount: itemData.totalAmount || 0,
+        vatExemptionId: itemData.vatExemptionId || null,
+        withholdingRateId: itemData.withholdingRateId || null,
+        withholdingAmount: itemData.withholdingAmount || 0
+    };
+
+    const item = await QuoteItems.create(quoteId, validItem);
 
     return item;
 }
@@ -79,8 +95,7 @@ export async function updateQuoteItem(itemId, itemData, user) {
     }
 
     const item = await QuoteItems.update(itemId, {
-        ...itemData,
-        updatedBy: user?.email
+        ...itemData
     });
 
     return item;
