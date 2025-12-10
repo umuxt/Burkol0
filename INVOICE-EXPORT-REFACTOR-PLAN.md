@@ -3820,9 +3820,9 @@ Referans: INVOICE-EXPORT-REFACTOR-PLAN.md Bölüm 8.7
 - `/WebApp/domains/crm/components/QuoteList.jsx` veya QuoteTable.jsx
 
 **Test:**
-- [ ] Yeni kolon tabloda görünüyor
-- [ ] Badge'lar doğru renklerle gösteriliyor
-- [ ] Her durum için doğru etiket
+- [x] Yeni kolon tabloda görünüyor
+- [x] Badge'lar doğru renklerle gösteriliyor (Lucide Icon: Blue/Green)
+- [x] Her durum için doğru etiket
 - [ ] (Opsiyonel) Filter çalışıyor
 
 ---

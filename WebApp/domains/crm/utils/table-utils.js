@@ -1,9 +1,10 @@
 // Quotes Table Utils - Table column management and data formatting for quotes
 import React from 'react';
 import * as Utils from '../../../shared/lib/utils.js'
+import { FileText, CheckCircle } from '../../../shared/components/Icons.jsx'
 
 // Safe formatPrice function with fallback
-const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
+const formatPrice = Utils.formatPrice || function (price, currency = 'TL') {
   const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
   const formatted = n.toFixed(2) // dot decimal, no grouping
   return `₺${formatted}`
@@ -21,7 +22,7 @@ function getWarningInfoForQuote(quote) {
   const status = quote.priceStatus.status
   const diffSummary = quote.priceStatus.differenceSummary
   const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
-  
+
   // Eğer uyarı gizlenmişse warning yok
   if (quote.versionWarningHidden === true) {
     return { type: 'none', color: null, priority: 0 }
@@ -29,32 +30,32 @@ function getWarningInfoForQuote(quote) {
 
   // Kırmızı uyarı: Fiyat farkı var
   if (priceDiff > 0 || status === 'price-drift') {
-    return { 
-      type: 'price', 
+    return {
+      type: 'price',
       color: '#dc3545', // Kırmızı
       textColor: 'white',
       symbol: '!',
       title: 'Fiyat değişti - Güncelleme gerekli',
-      priority: 2 
+      priority: 2
     }
   }
 
   // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
   if (status === 'content-drift' || status === 'outdated') {
-    const hasParameterChanges = diffSummary?.parameterChanges && 
+    const hasParameterChanges = diffSummary?.parameterChanges &&
       (diffSummary.parameterChanges.added?.length > 0 ||
-       diffSummary.parameterChanges.removed?.length > 0 ||
-       diffSummary.parameterChanges.modified?.length > 0)
+        diffSummary.parameterChanges.removed?.length > 0 ||
+        diffSummary.parameterChanges.modified?.length > 0)
     const hasFormulaChange = diffSummary?.formulaChanged === true
-    
+
     if (hasParameterChanges || hasFormulaChange) {
-      return { 
-        type: 'version', 
+      return {
+        type: 'version',
         color: '#ffc107', // Sarı
         textColor: '#000',
         symbol: '~',
         title: 'Versiyon değişti - Parametre/formül güncellemesi',
-        priority: 1 
+        priority: 1
       }
     }
   }
@@ -141,11 +142,11 @@ export function getTableColumns(formConfig) {
     { id: 'company', label: 'Şirket', type: 'text', width: 150, freeze: 'left' },
     { id: 'projectName', label: 'Proje', type: 'text', width: 150, freeze: 'left' }
   ]
-  
+
   // QT-4: Dinamik kolonları form config'den oluştur
   const dynamicColumns = [];
   const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
-  
+
   const filteredAndSorted = fields
     .filter(field => field.display?.showInTable === true || field.showInTable === true)
     .sort((a, b) => {
@@ -153,7 +154,7 @@ export function getTableColumns(formConfig) {
       const orderB = b.display?.tableOrder ?? b.tableOrder ?? 999;
       return orderA - orderB;
     });
-  
+
   filteredAndSorted.forEach(field => {
     dynamicColumns.push({
       id: field.fieldCode || field.id,
@@ -164,14 +165,15 @@ export function getTableColumns(formConfig) {
       isDynamic: true  // QT-5 için önemli flag
     });
   });
-  
+
   // PRE-QT4-3: Sabit Sağ Kolonlar (Freeze)
   const fixedRightColumns = [
     { id: 'price', label: 'Tahmini Fiyat', type: 'currency', width: 120, freeze: 'right' },
     { id: 'delivery_date', label: 'Termine Kalan', type: 'text', width: 110, freeze: 'right' },
+    { id: 'invoiceStatus', label: 'E-Belge', type: 'invoice_status', width: 70, freeze: 'right', align: 'center' },
     { id: 'status', label: 'Durum', type: 'text', width: 100, freeze: 'right' }
   ]
-  
+
   return [...fixedLeftColumns, ...dynamicColumns, ...fixedRightColumns]
 }
 
@@ -186,16 +188,16 @@ export function checkFieldMismatch(quote, dynamicColumns) {
   const tableFieldCodes = dynamicColumns
     .filter(col => col.isDynamic)
     .map(col => col.id);
-  
+
   // Quote'ta olan ama tabloda olmayan alanlar
   const extraFields = quoteFieldCodes.filter(code => !tableFieldCodes.includes(code));
-  
+
   // Tabloda olan ama quote'ta olmayan alanlar
   const missingFields = tableFieldCodes.filter(code => !quoteFieldCodes.includes(code));
-  
+
   // Herhangi bir uyuşmazlık var mı?
   const hasMismatch = extraFields.length > 0 || missingFields.length > 0;
-  
+
   return { hasMismatch, missingFields, extraFields };
 }
 
@@ -207,31 +209,37 @@ export function getFieldValue(quote, fieldId, formConfig = null) {
     'projectName': () => quote.projectName || '',
     'price': () => quote.finalPrice || quote.calculatedPrice || 0,
     'delivery_date': () => quote.deliveryDate || '',
+    'invoiceStatus': () => {
+      if (!!quote.invoiceImportedAt || quote.status === 'invoiceImported') return '3_imported';
+      if (!!quote.invoiceExportedAt || quote.status === 'invoiceExported') return '2_exported';
+      if (!!quote.proformaNumber || quote.status === 'proformaSent') return '1_proforma';
+      return '0_none';
+    },
     'status': () => quote.status || 'new'
   };
-  
+
   if (fixedFieldMap[fieldId]) {
     return fixedFieldMap[fieldId]();
   }
-  
+
   // Detay paneli için backward compatibility (name, phone, email)
   if (fieldId === 'name') return quote.customerName || ''
   if (fieldId === 'phone') return quote.customerPhone || ''
   if (fieldId === 'email') return quote.customerEmail || ''
-  
+
   // QT-4: Dinamik alanlar - formData veya customFields'dan oku
   // PostgreSQL formatı: quote.formData = { FIELD_xxx: value, ... }
   // Legacy formatı: quote.customFields = { fieldId: value, ... }
   const rawValue = quote.formData?.[fieldId] || quote.customFields?.[fieldId] || '';
-  
+
   // QT-4: Option code ise label'a çevir (dropdown, select, radio alanları için)
   if (rawValue && formConfig) {
     const fields = formConfig?.fields || formConfig?.formStructure?.fields || [];
     const field = fields.find(f => (f.fieldCode || f.id) === fieldId);
-    
+
     if (field && field.options && field.options.length > 0) {
       // Option code ile eşleşen option'ı bul
-      const option = field.options.find(opt => 
+      const option = field.options.find(opt =>
         opt.optionCode === rawValue || opt.value === rawValue
       );
       if (option) {
@@ -244,7 +252,7 @@ export function getFieldValue(quote, fieldId, formConfig = null) {
       }
     }
   }
-  
+
   return rawValue;
 }
 
@@ -261,16 +269,16 @@ export function formatFieldValue(value, column, item, context) {
   // If context is provided, this is for table display with special handling
   if (context) {
     const { getPriceChangeType, setSettingsModal, openPriceReview, calculatePrice, statusLabel, t } = context;
-    
+
     switch (column.id) {
       case 'date':
         if (value) {
           // Convert to local date/time using toLocaleString
           const date = new Date(value);
           if (!isNaN(date.getTime())) {
-            return date.toLocaleString('tr-TR', { 
-              day: '2-digit', 
-              month: '2-digit', 
+            return date.toLocaleString('tr-TR', {
+              day: '2-digit',
+              month: '2-digit',
               year: 'numeric',
               hour: '2-digit',
               minute: '2-digit'
@@ -278,14 +286,14 @@ export function formatFieldValue(value, column, item, context) {
           }
         }
         return '';
-        
+
       case 'customer':
         return (item.customerName || '') + (item.customerCompany ? ' — ' + item.customerCompany : '');
-        
+
       case 'project':
         const proj = value || '';
         return proj.length > 15 ? proj.substring(0, 15) + '...' : proj;
-        
+
       case 'price':
         const priceStatus = item?.priceStatus || null
         const manualOverrideActive = item?.manualOverride?.active === true || priceStatus?.status === 'manual'
@@ -302,7 +310,7 @@ export function formatFieldValue(value, column, item, context) {
 
         // Yeni uyarı sistemi kullan
         const warningInfo = getWarningInfoForQuote(item)
-        
+
         if (warningInfo.priority === 0) {
           // Uyarı yok, normal fiyat göster
           return formatPrice(parseFloat(value) || 0)
@@ -366,7 +374,7 @@ export function formatFieldValue(value, column, item, context) {
         if (!value || value === '') {
           return '';
         }
-        
+
         // Parse date - if it's just a date string (YYYY-MM-DD), create date at noon local time
         // to avoid timezone issues
         let deliveryDate;
@@ -376,17 +384,17 @@ export function formatFieldValue(value, column, item, context) {
         } else {
           deliveryDate = new Date(value);
         }
-        
+
         const today = new Date();
         today.setHours(12, 0, 0, 0);
         deliveryDate.setHours(12, 0, 0, 0);
-        
+
         const diffTime = deliveryDate - today;
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-        
+
         let displayText = '';
         let style = {};
-        
+
         if (diffDays < 0) {
           displayText = `${Math.abs(diffDays)} gün gecikti`;
           style = { color: '#dc3545', fontWeight: '600' };
@@ -400,9 +408,9 @@ export function formatFieldValue(value, column, item, context) {
           displayText = `${diffDays} gün kaldı`;
           style = {};
         }
-        
+
         return React.createElement('span', { style }, displayText);
-        
+
       case 'status':
         const statusValue = value || 'new';
         const statusText = statusLabel(statusValue, t);
@@ -412,7 +420,7 @@ export function formatFieldValue(value, column, item, context) {
           { value: 'approved', label: 'Onaylandı' },
           { value: 'rejected', label: 'Reddedildi' }
         ];
-        
+
         // Map status to CSS class
         const statusClassMap = {
           'new': 'new',
@@ -420,9 +428,9 @@ export function formatFieldValue(value, column, item, context) {
           'approved': 'approved',
           'rejected': 'rejected'
         };
-        
-        return React.createElement('div', { 
-          style: { position: 'relative', display: 'inline-block' } 
+
+        return React.createElement('div', {
+          style: { position: 'relative', display: 'inline-block' }
         },
           React.createElement('select', {
             value: statusValue,
@@ -437,14 +445,44 @@ export function formatFieldValue(value, column, item, context) {
             className: `status-badge ${statusClassMap[statusValue] || 'new'}`
           },
             ...statusOptions.map(option =>
-              React.createElement('option', { 
-                key: option.value, 
+              React.createElement('option', {
+                key: option.value,
                 value: option.value
               }, option.label)
             )
           )
         );
-        
+
+      case 'invoiceStatus':
+        const hasProforma = !!item.proformaNumber || item.status === 'proformaSent';
+        const isExported = !!item.invoiceExportedAt || item.status === 'invoiceExported';
+        const isImported = !!item.invoiceImportedAt || item.status === 'invoiceImported';
+
+        if (isImported || isExported) {
+          return React.createElement('div', {
+            title: isImported ? 'Fatura Tamamlandı (ETTN Alındı)' : 'Fatura Kesildi (Export Edildi)',
+            style: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }
+          },
+            React.createElement(CheckCircle, { size: 18, color: '#10b981' }) // Green
+          );
+        }
+
+        if (hasProforma) {
+          return React.createElement('div', {
+            title: `Proforma Oluşturuldu: ${item.proformaNumber}`,
+            style: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }
+          },
+            React.createElement(FileText, { size: 18, color: '#3b82f6' }) // Blue
+          );
+        }
+
+        return React.createElement('div', {
+          title: 'Belge Yok',
+          style: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }
+        },
+          React.createElement('span', { style: { color: '#9ca3af', fontSize: '20px', lineHeight: '18px' } }, '-')
+        );
+
       default:
         if (column.type === 'currency') {
           return formatPrice(parseFloat(value) || 0)
@@ -456,14 +494,14 @@ export function formatFieldValue(value, column, item, context) {
         return value || '';
     }
   }
-  
+
   // Default formatting without context
   if (column.type === 'currency') {
     return formatPrice(parseFloat(value) || 0);
   } else if (column.type === 'date') {
     return (value || '').slice(0, 10);
   }
-  
+
   return value || '';
 }
 
