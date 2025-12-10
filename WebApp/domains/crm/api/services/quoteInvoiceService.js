@@ -299,28 +299,35 @@ const QuoteInvoiceService = {
      */
     async checkSevenDayRule(quoteId) {
         try {
-            // Get all shipments related to this quote
+            // Get all shipments related to this quote that are officially imported (completed)
+            // User requirement: "resmi belge kesildiyse ve importlandıysa"
             const shipments = await db('materials.shipments')
                 .where('relatedQuoteId', quoteId)
-                .whereIn('status', ['exported', 'completed'])
-                .orderBy('createdAt', 'asc');
+                // STATUS CHANGE: Only 'completed' implies it was imported back with an official document number
+                // 'exported' only means generating XML/CSV, not necessarily officially finalized in ERP
+                .where('status', 'completed')
+                .whereNotNull('externalDocNumber') // Double check for official document number
+                .orderBy('importedAt', 'asc'); // Use importedAt as the reference time
 
             if (!shipments || shipments.length === 0) {
                 return {
                     hasWarning: false,
-                    isOverdue: false,
+                    warningLevel: null,
                     daysRemaining: null,
                     shipments: []
                 };
             }
 
-            // Find the oldest exported shipment
+            // Find the oldest shipment to determine the strict deadline
             const oldestShipment = shipments[0];
-            const shipmentDate = new Date(oldestShipment.createdAt);
+            // Use importedAt as the official "Waybill Date" entry into system
+            // Fallback to createdAt if importedAt is missing (should not happen for completed)
+            const shipmentDate = new Date(oldestShipment.importedAt || oldestShipment.createdAt);
             const now = new Date();
 
-            // Calculate days elapsed
-            const daysDiff = Math.floor((now - shipmentDate) / (1000 * 60 * 60 * 24));
+            // Calculate days elapsed (1 day = 24 * 60 * 60 * 1000 ms)
+            const diffTime = Math.abs(now - shipmentDate);
+            const daysDiff = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const daysRemaining = 7 - daysDiff;
 
             // Check if invoice was imported (no warning needed if already invoiced)
@@ -328,18 +335,46 @@ const QuoteInvoiceService = {
                 .where('id', quoteId)
                 .first();
 
-            const hasInvoice = quote && quote.invoiceImportedAt;
+            const hasInvoice = quote && (quote.invoiceImportedAt || quote.invoiceNumber || quote.status === 'invoiceImported');
+
+            let warningLevel = 'info';
+            if (daysRemaining > 5) {
+                warningLevel = 'info'; // Green
+            } else if (daysRemaining >= 3) {
+                warningLevel = 'warning'; // Yellow
+            } else if (daysRemaining >= 0) {
+                warningLevel = 'danger'; // Red
+            } else {
+                warningLevel = 'critical'; // Dark Red
+            }
+
+            if (hasInvoice) {
+                return {
+                    hasWarning: false,
+                    warningLevel: 'success',
+                    daysRemaining: null,
+                    shipments: []
+                };
+            }
 
             return {
-                hasWarning: !hasInvoice && daysDiff >= 5, // Warning at 5 days
-                isOverdue: !hasInvoice && daysDiff > 7,    // Overdue after 7 days
-                daysRemaining: hasInvoice ? null : Math.max(0, daysRemaining),
+                hasWarning: true,
+                warningLevel,
+                daysRemaining,
+                daysElapsed: daysDiff,
+                deadline: new Date(shipmentDate.getTime() + (7 * 24 * 60 * 60 * 1000)),
+                oldestShipment: {
+                    id: oldestShipment.id,
+                    externalDocNumber: oldestShipment.externalDocNumber,
+                    date: shipmentDate
+                },
                 shipments: shipments.map(s => ({
                     id: s.id,
                     shipmentCode: s.shipmentCode,
+                    externalDocNumber: s.externalDocNumber,
                     status: s.status,
-                    createdAt: s.createdAt,
-                    daysAgo: Math.floor((now - new Date(s.createdAt)) / (1000 * 60 * 60 * 24))
+                    importedAt: s.importedAt,
+                    daysAgo: Math.floor((now - new Date(s.importedAt || s.createdAt)) / (1000 * 60 * 60 * 24))
                 }))
             };
 

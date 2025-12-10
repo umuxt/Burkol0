@@ -53,6 +53,9 @@ export const dict = {
     s_not: 'Uygun Değil',
     s_quoted: 'Teklif Verildi',
     s_approved: 'Onaylandı',
+    s_proforma_sent: 'Proforma Gönderildi',
+    s_invoice_exported: 'Fatura Export Edildi',
+    s_invoice_imported: 'Fatura İçe Aktarıldı',
     a_update: 'Güncelle',
     a_add: 'Kayıt Ekle',
     a_delete: 'Sil',
@@ -469,6 +472,9 @@ export function statusLabel(s, t) {
   if (s === 'not') return t.s_not
   if (s === 'quoted') return t.s_quoted
   if (s === 'approved') return t.s_approved || 'Approved'
+  if (s === 'proformaSent') return t.s_proforma_sent || 'Proforma Sent'
+  if (s === 'invoiceExported') return t.s_invoice_exported || 'Invoice Exported'
+  if (s === 'invoiceImported') return t.s_invoice_imported || 'Invoice Imported'
   return s
 }
 
@@ -477,7 +483,7 @@ export function useI18n() {
   const [lang, setLang] = useState(initialLang)
   useEffect(() => {
     localStorage.setItem('bk_lang', lang)
-    try { document.documentElement.setAttribute('lang', lang) } catch {}
+    try { document.documentElement.setAttribute('lang', lang) } catch { }
   }, [lang])
   const t = useMemo(() => dict[lang] || dict.tr, [lang])
   return { t, lang, setLang }

@@ -16,8 +16,8 @@ function lsLoad() {
 function lsSave(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)) }
 function lsClear() { localStorage.removeItem(LS_KEY) }
 function lsAdd(q) { const arr = lsLoad(); arr.unshift(q); lsSave(arr) }
-function lsUpdate(id, patch) { 
-  const arr = lsLoad().map(x => x.id === id ? { ...x, ...patch } : x); 
+function lsUpdate(id, patch) {
+  const arr = lsLoad().map(x => x.id === id ? { ...x, ...patch } : x);
   lsSave(arr);
   return arr.find(x => x.id === id);
 }
@@ -26,42 +26,42 @@ function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(ar
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   try {
     const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bp_lang') || localStorage.getItem('lang'))) || 'tr'
-    const mergedHeaders = { 
-      ...(options.headers || {}), 
+    const mergedHeaders = {
+      ...(options.headers || {}),
       'Accept-Language': lang,
       'Cache-Control': 'no-cache'
     }
     const mergedOptions = { ...options, headers: mergedHeaders }
-    
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-    
+
     try {
-      const response = await fetch(url, { 
-        ...mergedOptions, 
-        signal: controller.signal 
+      const response = await fetch(url, {
+        ...mergedOptions,
+        signal: controller.signal
       })
       clearTimeout(timeoutId)
-      
+
       // Handle 429 (rate limit) specifically
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After') || '60'
         throw new Error(`Rate limit exceeded. Retry after ${retryAfter} seconds.`)
       }
-      
+
       // Handle 503 (service unavailable) with specific message
       if (response.status === 503) {
         throw new Error('Service temporarily unavailable. Please try again later.')
       }
-      
+
       return response
     } catch (fetchError) {
       clearTimeout(timeoutId)
-      
+
       if (fetchError.name === 'AbortError') {
         throw new Error('timeout')
       }
-      
+
       // Network or other fetch errors
       throw fetchError
     }
@@ -69,21 +69,21 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
     // Fallback to original behavior if localStorage not accessible
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-    
+
     try {
-      const response = await fetch(url, { 
-        ...options, 
-        signal: controller.signal 
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
       })
       clearTimeout(timeoutId)
       return response
     } catch (fetchError) {
       clearTimeout(timeoutId)
-      
+
       if (fetchError.name === 'AbortError') {
         throw new Error('timeout')
       }
-      
+
       throw fetchError
     }
   }
@@ -95,22 +95,22 @@ function getApiBase() {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL
   }
-  
+
   // Runtime URL detection - most reliable for production
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname
     const protocol = window.location.protocol
     const port = window.location.port
-    
+
     // Production domains
-    if (hostname.includes('vercel.app') || 
-        hostname.includes('beeplan.vercel.app') ||
-        hostname.includes('burkol') ||
-        protocol === 'https:') {
+    if (hostname.includes('vercel.app') ||
+      hostname.includes('beeplan.vercel.app') ||
+      hostname.includes('burkol') ||
+      protocol === 'https:') {
       console.log('🔧 API: Production detected, using empty string (Vercel rewrites handle /api)')
       return ''
     }
-    
+
     // Local development - check if server is running
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       console.log('🔧 API: Local development detected')
@@ -122,7 +122,7 @@ function getApiBase() {
       return ''
     }
   }
-  
+
   // Final fallback - assume production
   console.log('🔧 API: Fallback to empty string (for Vercel rewrites)')
   return ''
@@ -130,8 +130,8 @@ function getApiBase() {
 
 export const API_BASE = getApiBase()
 
-function getToken() { 
-  try { 
+function getToken() {
+  try {
     const token = localStorage.getItem('bp_admin_token')
     // Development fallback: use dev token if no real token exists
     // Accept several common local hostnames and Vite dev mode
@@ -142,12 +142,12 @@ function getToken() {
       console.log('🔧 getToken: using development fallback token (dev-admin-token)', { hostname, isDevEnv })
       return 'dev-admin-token'
     }
-    return token || '' 
-  } catch { 
-    return '' 
-  } 
+    return token || ''
+  } catch {
+    return ''
+  }
 }
-function setToken(t) { try { if (t) localStorage.setItem('bp_admin_token', t); else localStorage.removeItem('bp_admin_token') } catch {} }
+function setToken(t) { try { if (t) localStorage.setItem('bp_admin_token', t); else localStorage.removeItem('bp_admin_token') } catch { } }
 
 export function withAuth(headers = {}) {
   const token = getToken()
@@ -305,14 +305,14 @@ export const API = {
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
       const backendQuotes = await res.json()
-      
+
       // Only return Backend API quotes - no localStorage merging
       return backendQuotes
     } catch (e) {
       console.error('Backend API connection failed:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
-      
+
       // For other errors, return empty array instead of localStorage fallback
       return []
     }
@@ -332,8 +332,8 @@ export const API = {
             versionId: 'Admin-20251009-07',
             capturedAt: new Date().toISOString()
           },
-          priceStatus: { 
-            ...quote.priceStatus, 
+          priceStatus: {
+            ...quote.priceStatus,
             status: 'current',
             differenceSummary: null
           }
@@ -396,15 +396,15 @@ export const API = {
   async createQuote(payload) {
     // Build correct URL - if API_BASE is already '/api', don't duplicate
     const url = API_BASE.endsWith('/api') ? `${API_BASE}/quotes` : `${API_BASE}/api/quotes`
-    
+
     try {
       const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      
+
       if (!res.ok) {
         const errorText = await res.text()
         throw new Error(`create failed: ${res.status} - ${errorText}`)
       }
-      
+
       const result = await res.json()
       return result
     } catch (e) {
@@ -433,10 +433,10 @@ export const API = {
 
       for (const quote of localQuotes) {
         try {
-          const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(quote) 
+          const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(quote)
           })
           if (res.ok) {
             synced++
@@ -477,16 +477,16 @@ export const API = {
       try {
         const s = String(status).toLowerCase()
         if (s === 'approved' || s === 'onaylandı' || s === 'onaylandi') {
-          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
+          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch { }
           try {
             await fetchWithTimeout(`${API_BASE}/api/mes/approved-quotes/ensure`, {
               method: 'POST',
               headers: withAuth({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({ quoteId: id })
             })
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
       return out
     } catch (e) {
       lsUpdate(id, { status })
@@ -495,10 +495,10 @@ export const API = {
   },
   async addQuote(quoteData) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { 
-        method: 'POST', 
-        headers: withAuth({ 'Content-Type': 'application/json' }), 
-        body: JSON.stringify(quoteData) 
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(quoteData)
       })
       if (!res.ok) throw new Error('add failed')
       return await res.json()
@@ -532,7 +532,7 @@ export const API = {
           } else if (err && err.message) {
             errMsg = err.message
           }
-        } catch {}
+        } catch { }
         throw new Error(errMsg)
       }
       const out = await res.json()
@@ -540,16 +540,16 @@ export const API = {
       try {
         const s = String(status).toLowerCase()
         if (s === 'approved' || s === 'onaylandı' || s === 'onaylandi') {
-          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
+          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch { }
           try {
             await fetchWithTimeout(`${API_BASE}/api/mes/approved-quotes/ensure`, {
               method: 'POST',
               headers: withAuth({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({ quoteId: id })
             })
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
       return out
     } catch (e) {
       console.error('Status update error:', e)
@@ -566,7 +566,7 @@ export const API = {
       return { ok: true, local: true }
     }
   },
-  
+
   // Quote File Operations
   async addQuoteFile(quoteId, fileData) {
     try {
@@ -582,7 +582,7 @@ export const API = {
       throw e
     }
   },
-  
+
   async deleteQuoteFile(quoteId, fileId) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/files/${fileId}`, {
@@ -596,7 +596,19 @@ export const API = {
       throw e
     }
   },
-  
+
+  async checkSevenDayRule(quoteId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/seven-day-check`, {
+        headers: withAuth()
+      }, 5000);
+      return await res.json();
+    } catch (e) {
+      console.error('checkSevenDayRule API error:', e);
+      throw e;
+    }
+  },
+
   downloadTxt(id, data, showNotification) {
     const url = `${API_BASE}/api/quotes/${id}/txt`
     fetchWithTimeout(url, { headers: withAuth() }, 2500).then(async (res) => {
@@ -688,10 +700,10 @@ export const API = {
   },
   async verifyAdminAccess(email, password) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/auth/verify-admin`, { 
-        method: 'POST', 
-        headers: withAuth({ 'Content-Type': 'application/json' }), 
-        body: JSON.stringify({ email, password }) 
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/verify-admin`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ email, password })
       })
       const data = await res.json()
       if (!res.ok) {
@@ -704,19 +716,19 @@ export const API = {
     }
   },
   async logout() {
-    try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch {}
+    try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch { }
     setToken('')
   },
   async listSessions() {
     const token = getToken()
-    
+
     let res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: withAuth() })
 
     // Dev fallback: if unauthorized, retry once with dev token
-    if (res.status === 401 && (window?.location?.hostname === 'localhost' || window?.location?.hostname?.startsWith('127.') || window?.location?.hostname?.startsWith('192.') )) {
+    if (res.status === 401 && (window?.location?.hostname === 'localhost' || window?.location?.hostname?.startsWith('127.') || window?.location?.hostname?.startsWith('192.'))) {
       try {
         res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: { Authorization: 'Bearer dev-admin-token' } })
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!res.ok) throw new Error('list_sessions_failed')
     const payload = await res.json().catch(() => ([]))
@@ -752,23 +764,23 @@ export const API = {
   },
   async saveSettings(settings) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/settings`, { 
-        method: 'POST', 
+      const res = await fetchWithTimeout(`${API_BASE}/api/settings`, {
+        method: 'POST',
         headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(settings)
       })
       if (!res.ok) throw new Error('save settings failed')
       const out = await res.json()
-      try { window.dispatchEvent(new CustomEvent('master-data:invalidated', { detail: { source: 'settings' } })) } catch {}
+      try { window.dispatchEvent(new CustomEvent('master-data:invalidated', { detail: { source: 'settings' } })) } catch { }
       return out
     } catch (e) {
       throw e
     }
   },
-  
+
   // ==================== FORM CONFIGURATION APIs - PostgreSQL ====================
   // These are handled by quotesPostgresAdapter
-  
+
   // ==================== PRICE SETTINGS APIs - PostgreSQL ====================
   // These are handled by quotesPostgresAdapter
 
@@ -854,9 +866,9 @@ export const API = {
   // Update quote version without changing price
   async updateQuoteVersion(id) {
     // For now, always use localStorage mode for these new endpoints
-    const updatedQuote = lsUpdate(id, { 
-      priceVersionApplied: { 
-        version: Date.now(), 
+    const updatedQuote = lsUpdate(id, {
+      priceVersionApplied: {
+        version: Date.now(),
         versionId: `manual-${Date.now()}`,
         capturedAt: new Date().toISOString()
       },
@@ -868,13 +880,13 @@ export const API = {
   // Hide version warning for quote
   async hideVersionWarning(id) {
     // For now, always use localStorage mode for these new endpoints
-    const updatedQuote = lsUpdate(id, { 
+    const updatedQuote = lsUpdate(id, {
       versionWarningHidden: true,
       priceStatus: { status: 'current' }
     })
     return { success: true, quote: updatedQuote }
   },
-  
+
   // Clear localStorage quotes (admin utility)
   clearLocalStorageQuotes() {
     lsClear()

@@ -3,6 +3,7 @@ import { X, FileText, ChevronRight, ChevronLeft, Check, Download, Upload, AlertT
 import AddItemModal from './AddItemModal.jsx'
 import { API_BASE, withAuth, fetchWithTimeout } from '../../../../shared/lib/api.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
+import SevenDayWarning from './SevenDayWarning.jsx'
 // CSS is imported globally via quotes.css
 
 /**
@@ -664,6 +665,9 @@ export default function AddInvoiceModal({
 
                 {/* Content */}
                 <div className="quote-modal-content">
+                    {/* 7-Day Rule Warning */}
+                    <SevenDayWarning quoteId={quote?.id} />
+
                     {/* Error Display */}
                     {error && (
                         <div className="invoice-error-box mb-16">

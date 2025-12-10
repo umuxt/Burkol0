@@ -13,6 +13,7 @@ import FormUpdateModal from './FormUpdateModal.jsx'
 import PriceConfirmModal from './PriceConfirmModal.jsx'
 import AddInvoiceModal from './AddInvoiceModal.jsx'
 import AddItemModal from './AddItemModal.jsx'
+import SevenDayWarning from './SevenDayWarning.jsx'
 
 export default function QuoteDetailsPanel({
   quote,
@@ -1105,6 +1106,9 @@ export default function QuoteDetailsPanel({
 
   return (
     <div className="quote-detail-panel">
+      {/* 7-Day Rule Warning (Banner for Critical/Danger) */}
+      <SevenDayWarning quoteId={quote?.id} placement="banner" />
+
       {/* PROMPT-13: Missing Delivery Date Warning Banner */}
       {missingDeliveryDate && quote?.status !== 'approved' && (
         <div style={{
@@ -1484,291 +1488,304 @@ export default function QuoteDetailsPanel({
                     border: '1px solid #3b82f6',
                     borderRadius: '4px',
                     background: 'white',
-                    fontSize: '14px'
+                    fontSize: '12px',
+                    flex: 1
                   }}
                 >
-                  <option value="new">Yeni</option>
-                  <option value="pending">Beklemede</option>
-                  <option value="approved">Onaylandı</option>
-                  <option value="rejected">Reddedildi</option>
+                  <option value="new">{t.s_new}</option>
+                  <option value="review">{t.s_review}</option>
+                  <option value="feasible">{t.s_feasible}</option>
+                  <option value="not">{t.s_not}</option>
+                  <option value="quoted">{t.s_quoted}</option>
+                  <option value="approved">{t.s_approved}</option>
+                  <option value="proformaSent">{t.s_proforma_sent || 'Proforma'}</option>
+                  <option value="invoiceExported">{t.s_invoice_exported || 'Export'}</option>
+                  <option value="invoiceImported">{t.s_invoice_imported || 'Import'}</option>
                 </select>
               ) : (
                 <span style={{ fontSize: '12px', color: '#111827' }}>
-                  {statusLabel[currStatus] || currStatus}
+                  {statusLabel(currStatus, t)}
                 </span>
               )}
             </div>
+
+            {/* 7-Day Rule Info (Compact) */}
+            <SevenDayWarning quoteId={quote?.id} placement="detail-row" />
           </div>
 
           {/* D1: Form Bilgileri - Separate container with own edit state */}
-          {formFields.length > 0 && (
-            <div style={{
-              marginBottom: '16px',
-              padding: '12px',
-              background: 'white',
-              borderRadius: '6px',
-              border: formEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb'
-            }}>
+
+          {/* D1: Form Bilgileri - Separate container with own edit state */}
+          {
+            formFields.length > 0 && (
               <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                margin: '0 0 12px 0',
-                borderBottom: '1px solid #e5e7eb',
-                paddingBottom: '6px'
+                marginBottom: '16px',
+                padding: '12px',
+                background: 'white',
+                borderRadius: '6px',
+                border: formEditing ? '2px solid #3b82f6' : '1px solid #e5e7eb'
               }}>
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#111827'
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  margin: '0 0 12px 0',
+                  borderBottom: '1px solid #e5e7eb',
+                  paddingBottom: '6px'
                 }}>
-                  Form Bilgileri
-                </h3>
-                {!formEditing ? (
-                  <button
-                    type="button"
-                    onClick={() => !isEditLocked && setFormEditing(true)}
-                    disabled={isEditLocked}
-                    style={{
-                      padding: '4px 10px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      background: isEditLocked ? '#f3f4f6' : 'white',
-                      color: isEditLocked ? '#9ca3af' : '#374151',
-                      cursor: isEditLocked ? 'not-allowed' : 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      opacity: isEditLocked ? 0.6 : 1
-                    }}
-                    title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Form alanlarını düzenle'}
-                  >
-                    <Edit size={12} /> Düzenle
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#111827'
+                  }}>
+                    Form Bilgileri
+                  </h3>
+                  {!formEditing ? (
                     <button
                       type="button"
-                      onClick={handleFormEditCancel}
+                      onClick={() => !isEditLocked && setFormEditing(true)}
+                      disabled={isEditLocked}
                       style={{
                         padding: '4px 10px',
                         border: '1px solid #d1d5db',
                         borderRadius: '4px',
-                        background: 'white',
-                        color: '#374151',
-                        cursor: 'pointer',
-                        fontSize: '11px'
-                      }}
-                    >
-                      İptal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleFormFieldsSave}
-                      style={{
-                        padding: '4px 10px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        cursor: 'pointer',
+                        background: isEditLocked ? '#f3f4f6' : 'white',
+                        color: isEditLocked ? '#9ca3af' : '#374151',
+                        cursor: isEditLocked ? 'not-allowed' : 'pointer',
                         fontSize: '11px',
-                        fontWeight: '500'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        opacity: isEditLocked ? 0.6 : 1
                       }}
+                      title={isEditLocked ? 'İş emri üretimde - düzenleme kilitli' : 'Form alanlarını düzenle'}
                     >
-                      Kaydet
+                      <Edit size={12} /> Düzenle
                     </button>
-                  </div>
-                )}
-              </div>
-
-              {formFields.map(field => {
-                // D1 FIX: Always use formFieldsData for display (it's the source of truth for form fields)
-                const value = formFieldsData[field.id] || form[field.id] || ''
-                const label = field.label || field.fieldName || field.id
-
-                return (
-                  <div key={field.id} className="detail-item" style={{
-                    display: 'flex',
-                    alignItems: field.type === 'textarea' ? 'flex-start' : 'center',
-                    marginBottom: '8px'
-                  }}>
-                    <span className="detail-label" style={{
-                      fontWeight: '600',
-                      fontSize: '12px',
-                      color: '#374151',
-                      minWidth: '120px',
-                      marginRight: '8px'
-                    }}>
-                      {label}:
-                    </span>
-                    {formEditing ? (
-                      // PROMPT-D2: Field type based rendering with optionCode/optionLabel support
-                      (() => {
-                        const fieldType = field.type || field.fieldType || 'text';
-                        const inputStyle = {
-                          padding: '8px 12px',
-                          border: '1px solid #3b82f6',
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={handleFormEditCancel}
+                        style={{
+                          padding: '4px 10px',
+                          border: '1px solid #d1d5db',
                           borderRadius: '4px',
                           background: 'white',
-                          width: '100%',
-                          fontSize: '14px'
-                        };
+                          color: '#374151',
+                          cursor: 'pointer',
+                          fontSize: '11px'
+                        }}
+                      >
+                        İptal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFormFieldsSave}
+                        style={{
+                          padding: '4px 10px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          background: '#3b82f6',
+                          color: 'white',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '500'
+                        }}
+                      >
+                        Kaydet
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                        switch (fieldType) {
-                          case 'textarea':
-                            return (
-                              <textarea
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                placeholder={field.placeholder}
-                                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
-                              />
-                            );
+                {formFields.map(field => {
+                  // D1 FIX: Always use formFieldsData for display (it's the source of truth for form fields)
+                  const value = formFieldsData[field.id] || form[field.id] || ''
+                  const label = field.label || field.fieldName || field.id
 
-                          case 'select':
-                          case 'dropdown':
-                            return (
-                              <select
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                style={inputStyle}
-                              >
-                                <option value="">Seçiniz</option>
-                                {(field.options || []).filter(opt => opt !== null).map(opt => (
-                                  <option key={opt.optionCode || opt.id} value={opt.optionCode}>
-                                    {opt.optionLabel}
-                                  </option>
-                                ))}
-                              </select>
-                            );
-
-                          case 'radio':
-                            return (
-                              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                {(field.options || []).filter(opt => opt !== null).map(opt => (
-                                  <label key={opt.optionCode || opt.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                                    <input
-                                      type="radio"
-                                      name={field.id}
-                                      value={opt.optionCode}
-                                      checked={value === opt.optionCode}
-                                      onChange={handleFormFieldChange}
-                                    />
-                                    <span style={{ fontSize: '12px' }}>{opt.optionLabel}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            );
-
-                          case 'checkbox':
-                            return (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                                <input
-                                  type="checkbox"
-                                  name={field.id}
-                                  checked={value === true || value === 'true' || value === 1}
-                                  onChange={(e) => handleFormFieldChange({
-                                    target: { name: field.id, value: e.target.checked }
-                                  })}
-                                />
-                                <span style={{ fontSize: '12px' }}>{field.placeholder || 'Evet'}</span>
-                              </label>
-                            );
-
-                          case 'number':
-                            return (
-                              <input
-                                type="number"
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                placeholder={field.placeholder}
-                                step={field.step || 'any'}
-                                min={field.min}
-                                max={field.max}
-                                style={inputStyle}
-                              />
-                            );
-
-                          case 'email':
-                            return (
-                              <input
-                                type="email"
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                placeholder={field.placeholder || 'ornek@email.com'}
-                                style={inputStyle}
-                              />
-                            );
-
-                          case 'phone':
-                          case 'tel':
-                            return (
-                              <input
-                                type="tel"
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                placeholder={field.placeholder || '05XX XXX XX XX'}
-                                style={inputStyle}
-                              />
-                            );
-
-                          case 'date':
-                            return (
-                              <input
-                                type="date"
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                style={inputStyle}
-                              />
-                            );
-
-                          case 'text':
-                          default:
-                            return (
-                              <input
-                                type="text"
-                                name={field.id}
-                                value={value}
-                                onChange={handleFormFieldChange}
-                                placeholder={field.placeholder}
-                                style={inputStyle}
-                              />
-                            );
-                        }
-                      })()
-                    ) : (
-                      // PROMPT-D2: Display mode - show optionLabel for select/radio fields
-                      <span style={{ fontSize: '12px', color: '#111827' }}>
-                        {(() => {
-                          const fieldType = field.type || field.fieldType || 'text';
-                          if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options && value) {
-                            const validOptions = (field.options || []).filter(opt => opt != null);
-                            const selectedOption = validOptions.find(opt => opt.optionCode === value);
-                            return selectedOption?.optionLabel || value || '—';
-                          }
-                          if (fieldType === 'checkbox') {
-                            // Only show Evet/Hayır if value is explicitly set, otherwise show '—'
-                            if (value === '' || value === undefined || value === null) return '—';
-                            return value === true || value === 'true' || value === 1 || value === '1' ? 'Evet' : 'Hayır';
-                          }
-                          return value || '—';
-                        })()}
+                  return (
+                    <div key={field.id} className="detail-item" style={{
+                      display: 'flex',
+                      alignItems: field.type === 'textarea' ? 'flex-start' : 'center',
+                      marginBottom: '8px'
+                    }}>
+                      <span className="detail-label" style={{
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        color: '#374151',
+                        minWidth: '120px',
+                        marginRight: '8px'
+                      }}>
+                        {label}:
                       </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                      {formEditing ? (
+                        // PROMPT-D2: Field type based rendering with optionCode/optionLabel support
+                        (() => {
+                          const fieldType = field.type || field.fieldType || 'text';
+                          const inputStyle = {
+                            padding: '8px 12px',
+                            border: '1px solid #3b82f6',
+                            borderRadius: '4px',
+                            background: 'white',
+                            width: '100%',
+                            fontSize: '14px'
+                          };
+
+                          switch (fieldType) {
+                            case 'textarea':
+                              return (
+                                <textarea
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+                                />
+                              );
+
+                            case 'select':
+                            case 'dropdown':
+                              return (
+                                <select
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  style={inputStyle}
+                                >
+                                  <option value="">Seçiniz</option>
+                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                    <option key={opt.optionCode || opt.id} value={opt.optionCode}>
+                                      {opt.optionLabel}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+
+                            case 'radio':
+                              return (
+                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                  {(field.options || []).filter(opt => opt !== null).map(opt => (
+                                    <label key={opt.optionCode || opt.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                      <input
+                                        type="radio"
+                                        name={field.id}
+                                        value={opt.optionCode}
+                                        checked={value === opt.optionCode}
+                                        onChange={handleFormFieldChange}
+                                      />
+                                      <span style={{ fontSize: '12px' }}>{opt.optionLabel}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              );
+
+                            case 'checkbox':
+                              return (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    name={field.id}
+                                    checked={value === true || value === 'true' || value === 1}
+                                    onChange={(e) => handleFormFieldChange({
+                                      target: { name: field.id, value: e.target.checked }
+                                    })}
+                                  />
+                                  <span style={{ fontSize: '12px' }}>{field.placeholder || 'Evet'}</span>
+                                </label>
+                              );
+
+                            case 'number':
+                              return (
+                                <input
+                                  type="number"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  step={field.step || 'any'}
+                                  min={field.min}
+                                  max={field.max}
+                                  style={inputStyle}
+                                />
+                              );
+
+                            case 'email':
+                              return (
+                                <input
+                                  type="email"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder || 'ornek@email.com'}
+                                  style={inputStyle}
+                                />
+                              );
+
+                            case 'phone':
+                            case 'tel':
+                              return (
+                                <input
+                                  type="tel"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder || '05XX XXX XX XX'}
+                                  style={inputStyle}
+                                />
+                              );
+
+                            case 'date':
+                              return (
+                                <input
+                                  type="date"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  style={inputStyle}
+                                />
+                              );
+
+                            case 'text':
+                            default:
+                              return (
+                                <input
+                                  type="text"
+                                  name={field.id}
+                                  value={value}
+                                  onChange={handleFormFieldChange}
+                                  placeholder={field.placeholder}
+                                  style={inputStyle}
+                                />
+                              );
+                          }
+                        })()
+                      ) : (
+                        // PROMPT-D2: Display mode - show optionLabel for select/radio fields
+                        <span style={{ fontSize: '12px', color: '#111827' }}>
+                          {(() => {
+                            const fieldType = field.type || field.fieldType || 'text';
+                            if ((fieldType === 'select' || fieldType === 'dropdown' || fieldType === 'radio') && field.options && value) {
+                              const validOptions = (field.options || []).filter(opt => opt != null);
+                              const selectedOption = validOptions.find(opt => opt.optionCode === value);
+                              return selectedOption?.optionLabel || value || '—';
+                            }
+                            if (fieldType === 'checkbox') {
+                              // Only show Evet/Hayır if value is explicitly set, otherwise show '—'
+                              if (value === '' || value === undefined || value === null) return '—';
+                              return value === true || value === 'true' || value === 1 || value === '1' ? 'Evet' : 'Hayır';
+                            }
+                            return value || '—';
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          }
 
           {/* Müşteri Bilgileri */}
           <div style={{
@@ -2843,13 +2860,14 @@ export default function QuoteDetailsPanel({
               )}
             </div>
           </div>
-        </form>
-      </div>
+        </form >
+      </div >
 
       {/* C2: Form Update Modal */}
-      <FormUpdateModal
+      < FormUpdateModal
         isOpen={showFormUpdateModal}
-        onClose={() => setShowFormUpdateModal(false)}
+        onClose={() => setShowFormUpdateModal(false)
+        }
         quote={quote}
         oldFormData={quote?.formData || {}}
         oldFields={oldFormFields}
@@ -2860,228 +2878,230 @@ export default function QuoteDetailsPanel({
       />
 
       {/* C3: Price Recalculation Confirmation Modal */}
-      {showPriceRecalcModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
+      {
+        showPriceRecalcModal && (
           <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
-            width: '100%',
-            maxWidth: '550px',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            padding: '24px'
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: '#dcfce7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <RefreshCw size={24} style={{ color: '#16a34a' }} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-                  Fiyat Güncelleme
-                </h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
-                  Fiyatlandırma ayarları değişti
-                </p>
-              </div>
-            </div>
-
-            {/* C3: Show what changed */}
-            {priceChanges && (priceChanges.formulaChanged || priceChanges.parameterChanges?.length > 0) && (
-              <div style={{
-                background: '#fffbeb',
-                border: '1px solid #fcd34d',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '16px'
-              }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={16} />
-                  Değişiklikler
-                </h4>
-
-                {/* Formula change */}
-                {priceChanges.formulaChanged && (
-                  <div style={{ marginBottom: priceChanges.parameterChanges?.length > 0 ? '12px' : 0 }}>
-                    <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Calculator size={14} />
-                      Formül Değişti:
-                    </div>
-                    <div style={{
-                      background: 'white',
-                      borderRadius: '6px',
-                      padding: '8px 12px',
-                      fontSize: '13px',
-                      fontFamily: 'monospace'
-                    }}>
-                      <div style={{ color: '#dc2626', marginBottom: '4px' }}>
-                        <span style={{ opacity: 0.6 }}>Eski:</span> {priceChanges.oldFormula || '(yok)'}
-                      </div>
-                      <div style={{ color: '#16a34a' }}>
-                        <span style={{ opacity: 0.6 }}>Yeni:</span> {priceChanges.newFormula || '(yok)'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Parameter changes */}
-                {priceChanges.parameterChanges?.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Sliders size={14} />
-                      Parametre Değişiklikleri:
-                    </div>
-                    <div style={{
-                      background: 'white',
-                      borderRadius: '6px',
-                      padding: '8px 12px',
-                      fontSize: '13px'
-                    }}>
-                      {priceChanges.parameterChanges.map((change, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '4px 0',
-                            borderBottom: idx < priceChanges.parameterChanges.length - 1 ? '1px solid #f3f4f6' : 'none'
-                          }}
-                        >
-                          <span style={{ fontWeight: '500', color: '#374151' }}>
-                            {change.name || change.code}
-                            {change.unit && <span style={{ opacity: 0.5, fontSize: '11px', marginLeft: '4px' }}>({change.unit})</span>}
-                          </span>
-                          <span style={{ fontFamily: 'monospace' }}>
-                            {change.type === 'added' && (
-                              <span style={{ color: '#16a34a' }}>
-                                + {change.newValue}
-                              </span>
-                            )}
-                            {change.type === 'removed' && (
-                              <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>
-                                {change.oldValue}
-                              </span>
-                            )}
-                            {change.type === 'changed' && (
-                              <>
-                                <span style={{ color: '#dc2626' }}>{change.oldValue}</span>
-                                <span style={{ margin: '0 6px', color: '#9ca3af' }}>→</span>
-                                <span style={{ color: '#16a34a' }}>{change.newValue}</span>
-                              </>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             <div style={{
-              background: '#f9fafb',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '20px'
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+              width: '100%',
+              maxWidth: '550px',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              padding: '24px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ fontSize: '13px', color: '#6b7280' }}>Mevcut Fiyat:</span>
-                <span style={{ fontSize: '16px', fontWeight: '500', color: '#374151' }}>
-                  {parseFloat(quote?.finalPrice || quote?.calculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6b7280' }}>Yeni Fiyat:</span>
-                <span style={{ fontSize: '18px', fontWeight: '600', color: '#16a34a' }}>
-                  {(newCalculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
-                </span>
-              </div>
-              {newCalculatedPrice !== null && quote?.finalPrice && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                 <div style={{
-                  marginTop: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid #e5e7eb',
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: '#dcfce7',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
-                  <span style={{ fontSize: '13px', color: '#6b7280' }}>Fark:</span>
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: newCalculatedPrice > parseFloat(quote.finalPrice) ? '#dc2626' : '#16a34a'
-                  }}>
-                    {newCalculatedPrice > parseFloat(quote.finalPrice) ? '+' : ''}
-                    {(newCalculatedPrice - parseFloat(quote.finalPrice)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
-                    {' '}
-                    ({newCalculatedPrice > parseFloat(quote.finalPrice) ? '↑' : '↓'}
-                    {Math.abs(((newCalculatedPrice - parseFloat(quote.finalPrice)) / parseFloat(quote.finalPrice)) * 100).toFixed(1)}%)
-                  </span>
+                  <RefreshCw size={24} style={{ color: '#16a34a' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                    Fiyat Güncelleme
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>
+                    Fiyatlandırma ayarları değişti
+                  </p>
+                </div>
+              </div>
+
+              {/* C3: Show what changed */}
+              {priceChanges && (priceChanges.formulaChanged || priceChanges.parameterChanges?.length > 0) && (
+                <div style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fcd34d',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  marginBottom: '16px'
+                }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle size={16} />
+                    Değişiklikler
+                  </h4>
+
+                  {/* Formula change */}
+                  {priceChanges.formulaChanged && (
+                    <div style={{ marginBottom: priceChanges.parameterChanges?.length > 0 ? '12px' : 0 }}>
+                      <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Calculator size={14} />
+                        Formül Değişti:
+                      </div>
+                      <div style={{
+                        background: 'white',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        fontFamily: 'monospace'
+                      }}>
+                        <div style={{ color: '#dc2626', marginBottom: '4px' }}>
+                          <span style={{ opacity: 0.6 }}>Eski:</span> {priceChanges.oldFormula || '(yok)'}
+                        </div>
+                        <div style={{ color: '#16a34a' }}>
+                          <span style={{ opacity: 0.6 }}>Yeni:</span> {priceChanges.newFormula || '(yok)'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Parameter changes */}
+                  {priceChanges.parameterChanges?.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sliders size={14} />
+                        Parametre Değişiklikleri:
+                      </div>
+                      <div style={{
+                        background: 'white',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px'
+                      }}>
+                        {priceChanges.parameterChanges.map((change, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '4px 0',
+                              borderBottom: idx < priceChanges.parameterChanges.length - 1 ? '1px solid #f3f4f6' : 'none'
+                            }}
+                          >
+                            <span style={{ fontWeight: '500', color: '#374151' }}>
+                              {change.name || change.code}
+                              {change.unit && <span style={{ opacity: 0.5, fontSize: '11px', marginLeft: '4px' }}>({change.unit})</span>}
+                            </span>
+                            <span style={{ fontFamily: 'monospace' }}>
+                              {change.type === 'added' && (
+                                <span style={{ color: '#16a34a' }}>
+                                  + {change.newValue}
+                                </span>
+                              )}
+                              {change.type === 'removed' && (
+                                <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>
+                                  {change.oldValue}
+                                </span>
+                              )}
+                              {change.type === 'changed' && (
+                                <>
+                                  <span style={{ color: '#dc2626' }}>{change.oldValue}</span>
+                                  <span style={{ margin: '0 6px', color: '#9ca3af' }}>→</span>
+                                  <span style={{ color: '#16a34a' }}>{change.newValue}</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setShowPriceRecalcModal(false)
-                  setNewCalculatedPrice(null)
-                  setPriceChanges(null)
-                }}
-                style={{
-                  padding: '10px 20px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  background: 'white',
-                  color: '#374151',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                İptal
-              </button>
-              <button
-                onClick={handlePriceRecalcConfirm}
-                disabled={priceRecalcLoading}
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  background: '#16a34a',
-                  color: 'white',
-                  cursor: priceRecalcLoading ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  opacity: priceRecalcLoading ? 0.6 : 1
-                }}
-              >
-                {priceRecalcLoading ? 'Güncelleniyor...' : 'Fiyatı Güncelle'}
-              </button>
+              <div style={{
+                background: '#f9fafb',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '20px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>Mevcut Fiyat:</span>
+                  <span style={{ fontSize: '16px', fontWeight: '500', color: '#374151' }}>
+                    {parseFloat(quote?.finalPrice || quote?.calculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>Yeni Fiyat:</span>
+                  <span style={{ fontSize: '18px', fontWeight: '600', color: '#16a34a' }}>
+                    {(newCalculatedPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                  </span>
+                </div>
+                {newCalculatedPrice !== null && quote?.finalPrice && (
+                  <div style={{
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: '13px', color: '#6b7280' }}>Fark:</span>
+                    <span style={{
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: newCalculatedPrice > parseFloat(quote.finalPrice) ? '#dc2626' : '#16a34a'
+                    }}>
+                      {newCalculatedPrice > parseFloat(quote.finalPrice) ? '+' : ''}
+                      {(newCalculatedPrice - parseFloat(quote.finalPrice)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                      {' '}
+                      ({newCalculatedPrice > parseFloat(quote.finalPrice) ? '↑' : '↓'}
+                      {Math.abs(((newCalculatedPrice - parseFloat(quote.finalPrice)) / parseFloat(quote.finalPrice)) * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowPriceRecalcModal(false)
+                    setNewCalculatedPrice(null)
+                    setPriceChanges(null)
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    background: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handlePriceRecalcConfirm}
+                  disabled={priceRecalcLoading}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: '#16a34a',
+                    color: 'white',
+                    cursor: priceRecalcLoading ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    opacity: priceRecalcLoading ? 0.6 : 1
+                  }}
+                >
+                  {priceRecalcLoading ? 'Güncelleniyor...' : 'Fiyatı Güncelle'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* D1/E2: Price Confirm Modal for Edit Mode - Refactored to separate component */}
       <PriceConfirmModal
@@ -3117,6 +3137,6 @@ export default function QuoteDetailsPanel({
           loadQuoteItems()
         }}
       />
-    </div>
+    </div >
   )
 }
