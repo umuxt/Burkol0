@@ -79,4 +79,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-export default app;
+// Vercel serverless handler
+export default function handler(req, res) {
+  return app(req, res);
+}
+
+// Also export app for local development
+export { app };
