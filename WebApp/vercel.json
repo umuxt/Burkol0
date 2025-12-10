@@ -1,7 +1,14 @@
 {
-  "buildCommand": "cd WebApp && npm run build",
-  "outputDirectory": "WebApp/dist",
-  "installCommand": "cd WebApp && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/pages/login.html",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { 
       "source": "/api/:path*", 

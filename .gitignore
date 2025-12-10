@@ -165,3 +165,5 @@ WebApp/server.log
 # Firebase service account key - MUTLAKA GİZLE
 WebApp/config/serviceAccountKey.json
 **/serviceAccountKey.json
+.vercel
+.env*.local
