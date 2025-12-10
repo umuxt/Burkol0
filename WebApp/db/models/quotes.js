@@ -307,6 +307,16 @@ class Quotes {
         .first();
     }
 
+    // Get quote items for invoice
+    const items = await db('quotes.quote_items')
+      .where('quoteId', id)
+      .orderBy('lineNumber');
+
+    // Calculate items total
+    const itemsTotal = items.reduce((sum, item) => sum + parseFloat(item.totalAmount || 0), 0);
+    const itemsSubtotal = items.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+    const itemsTaxTotal = items.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0);
+
     // Normalize deliveryDate and priceStatus
     this.normalizeDeliveryDate(quote);
     this.normalizePriceStatus(quote);
@@ -327,7 +337,11 @@ class Quotes {
       technicalFiles: [...technicalFiles, ...otherFiles],
       productImages: productImages,
       customer: customer, // SYNC-FIX: Include full customer data for QuoteDetailsPanel
-      manualOverride: manualOverride // Add manualOverride for frontend
+      manualOverride: manualOverride, // Add manualOverride for frontend
+      items: items, // Quote items for invoice
+      itemsTotal: itemsTotal, // Total including tax
+      itemsSubtotal: itemsSubtotal, // Subtotal before tax
+      itemsTaxTotal: itemsTaxTotal // Total tax amount
     };
   }
 

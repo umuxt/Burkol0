@@ -3314,9 +3314,251 @@ Validasyonlar:
 
 ---
 
-### P4.7: 7 Gün Kuralı ve CSS
+### P4.7: Service Cards API + CRM Ayarlar Tab
 
 **Bağımlılık:** P4.6 tamamlanmış olmalı
+
+**Amaç:** Hizmet kartları için API endpoint'leri oluştur ve CRM'e ayarlar tab'ı ekle. Bu, fatura kalemlerinde "Hizmet" seçeneğinin çalışması için gerekli.
+
+**Mevcut Altyapı:**
+- `materials.service_cards` tablosu mevcut (code, name, defaultPrice, vatRate)
+- `settings.settings` tablosunda `shipment_module_config.companyInfo` mevcut
+- `AccountTab.jsx` şirket bilgileri UI zaten var
+
+**Dosyalar:**
+- `db/models/serviceCards.js` (YENİ)
+- `domains/crm/api/controllers/serviceCardsController.js` (YENİ)
+- `domains/crm/components/settings/CrmSettingsTab.jsx` (YENİ)
+- `server.js` (route ekle)
+
+**Prompt:**
+```
+1. serviceCards.js model oluştur:
+   - getAll() → Tüm aktif hizmet kartları
+   - getById(id) → Tek kayıt
+   - create(data) → Yeni hizmet kartı
+   - update(id, data) → Güncelle
+   - delete(id) → Soft delete (isActive = false)
+
+   Tablo: materials.service_cards
+   Alanlar: code, name, category, unit, defaultPrice, vatRate, taxExempt, glCode, notes
+
+2. serviceCardsController.js oluştur:
+   - GET /api/service-cards → Liste (isActive=true)
+   - GET /api/service-cards/:id → Detay
+   - POST /api/service-cards → Ekle
+   - PATCH /api/service-cards/:id → Güncelle
+   - DELETE /api/service-cards/:id → Sil
+
+3. CrmSettingsTab.jsx oluştur:
+   ┌─────────────────────────────────────────────────────────────────┐
+   │  CRM Ayarları                                                    │
+   ├─────────────────────────────────────────────────────────────────┤
+   │                                                                  │
+   │  📋 Hizmet Kartları                                             │
+   │  ├── [+ Yeni Hizmet Ekle]                                       │
+   │  ├── ┌────────┬────────────────┬───────┬─────────┬────────┐    │
+   │  │   │ Kod    │ Hizmet Adı     │ Fiyat │ KDV     │ İşlem  │    │
+   │  │   ├────────┼────────────────┼───────┼─────────┼────────┤    │
+   │  │   │ NAK-01 │ Şehir İçi Nak. │ 500   │ %20     │ ✏️ 🗑  │    │
+   │  │   │ SRV-01 │ Montaj         │ 150   │ %20     │ ✏️ 🗑  │    │
+   │  │   └────────┴────────────────┴───────┴─────────┴────────┘    │
+   │                                                                  │
+   │  ⚙️ Fatura Ayarları                                             │
+   │  ├── Varsayılan KDV Oranı: [%20 ▼]                              │
+   │  ├── Proforma Prefix: [PF-__________]                           │
+   │  ├── Fatura Prefix: [INV-__________]                            │
+   │  └── Otomatik Numaralama: ☑                                     │
+   │                                                                  │
+   │  🏢 Şirket Bilgileri (Read-only, AccountTab'dan)                │
+   │  └── Firma: XYZ A.Ş. | VKN: 1234567890                          │
+   │                                                                  │
+   └─────────────────────────────────────────────────────────────────┘
+
+4. CRM ana component'ına (QuotesManager veya CrmLayout) "Ayarlar" tab'ı ekle.
+
+5. settings.settings'e yeni key ekle: "crm_invoice_config"
+   {
+     defaultVatRate: 20,
+     proformaPrefix: "PF",
+     invoicePrefix: "INV",
+     autoNumbering: true
+   }
+```
+
+**Test:**
+- [ ] GET /api/service-cards hizmet listesi dönüyor
+- [ ] POST /api/service-cards yeni hizmet ekliyor
+- [ ] CRM'de Ayarlar tab'ı görünüyor
+- [ ] Hizmet ekleme/düzenleme çalışıyor
+- [ ] Fatura ayarları kaydediliyor
+
+---
+
+### P4.8: QuoteDetailsPanel'e Kalem Section Ekle
+
+**Bağımlılık:** P4.7 tamamlanmış olmalı
+
+**Amaç:** Quote detay paneline fatura kalemleri section'ı ekle. Kullanıcılar buradan kalem ekleyebilir/silebilir.
+
+**Dosyalar:**
+- `domains/crm/components/quotes/QuoteDetailsPanel.jsx`
+- `db/models/quoteItems.js` (YENİ)
+- `domains/crm/api/controllers/quoteItemsController.js` (YENİ)
+
+**Prompt:**
+```
+1. quoteItems.js model oluştur:
+   - getByQuoteId(quoteId) → Tüm kalemleri getir
+   - create(quoteId, itemData) → Kalem ekle
+   - update(id, itemData) → Kalem güncelle
+   - delete(id) → Kalem sil
+   - Trigger otomatik hesaplama yapıyor (subtotal, taxAmount, totalAmount)
+
+2. quoteItemsController.js oluştur:
+   - GET /api/quotes/:id/items → Liste
+   - POST /api/quotes/:id/items → Ekle
+   - PATCH /api/quotes/:id/items/:itemId → Güncelle
+   - DELETE /api/quotes/:id/items/:itemId → Sil
+
+3. QuoteDetailsPanel.jsx'e "Fatura Kalemleri" section ekle:
+   - Accordion yapısında
+   - Kalem tablosu (Ürün, Miktar, Birim Fiyat, İskonto, KDV, Toplam)
+   - [+ Kalem Ekle] butonu
+   - Her satırda [Düzenle] [Sil] ikonları
+   - Referans bilgi: "Teklif Fiyatı: X TL (tahmini)"
+   - Toplam özeti: Ara Toplam, KDV, Genel Toplam
+```
+
+**Test:**
+- [ ] QuoteDetailsPanel'de kalem section görünüyor
+- [ ] Kalem ekleme çalışıyor
+- [ ] Kalem silme çalışıyor
+- [ ] Toplamlar otomatik güncelleniyor
+
+---
+
+### P4.9: Kalem Ekleme Modal (Malzeme/Hizmet Seçici)
+
+**Bağımlılık:** P4.8 tamamlanmış olmalı
+
+**Amaç:** Fatura kalemi eklemek için modal. Malzeme kataloğundan seçim veya serbest hizmet girişi.
+
+**Dosyalar:**
+- `domains/crm/components/quotes/AddItemModal.jsx` (YENİ)
+- `domains/crm/styles/quotes.css` (CSS ekle)
+
+**Prompt:**
+```
+AddItemModal.jsx oluştur:
+
+Modal Yapısı:
+┌─────────────────────────────────────────────────────────────────┐
+│  Kalem Ekle                                             [X]    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Kalem Tipi: ○ Malzeme  ○ Hizmet                               │
+│                                                                 │
+│  [Malzeme seçiliyse]                                           │
+│  Malzeme: [__________ Dropdown (materials.materials) _______▼] │
+│  Stok Kodu: [Otomatik dolacak]                                 │
+│                                                                 │
+│  [Hizmet seçiliyse]                                            │
+│  Hizmet Adı: [________________]                                │
+│                                                                 │
+│  Miktar: [_____]  Birim: [adet ▼]                              │
+│  Birim Fiyat: [_________]                                      │
+│  KDV Oranı: [%20 ▼]  (18, 10, 8, 1, 0)                        │
+│  Satır İskontosu: [___%] veya [___TL]                         │
+│                                                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Önizleme:                                                      │
+│  Ara Toplam: 1.000 TL                                          │
+│  İskonto: -50 TL                                                │
+│  KDV: 190 TL                                                    │
+│  Satır Toplam: 1.140 TL                                        │
+│                                                                 │
+│                        [İptal]  [Ekle]                         │
+└─────────────────────────────────────────────────────────────────┘
+
+API Entegrasyonu:
+- GET /api/materials → Malzeme listesi dropdown için
+- POST /api/quotes/:id/items → Kalem ekle
+
+Realtime Hesaplama:
+- Miktar * Birim Fiyat = Ara Toplam
+- Ara Toplam - İskonto = Net Tutar
+- Net Tutar * KDV Oranı = KDV
+- Net Tutar + KDV = Satır Toplam
+```
+
+**Test:**
+- [ ] Modal açılıyor
+- [ ] Malzeme dropdown'u çalışıyor
+- [ ] Hizmet girişi çalışıyor
+- [ ] Realtime hesaplama doğru
+- [ ] Kalem ekleme API'ye gidiyor
+
+---
+
+### P4.10: AddInvoiceModal'da Kalem Yönetimi
+
+**Bağımlılık:** P4.9 tamamlanmış olmalı
+
+**Amaç:** Fatura modal'ında kalem listesi göster ve yönet. Genel iskonto ekle.
+
+**Dosya:** `domains/crm/components/quotes/AddInvoiceModal.jsx`
+
+**Prompt:**
+```
+AddInvoiceModal.jsx'i güncelle:
+
+Step 2'yi "Kalemler & İskonto" olarak değiştir:
+
+1. Kalem Listesi:
+   - Mevcut kalemleri tablo olarak göster
+   - [+ Kalem Ekle] butonu → AddItemModal açar
+   - Her satırda [🗑] sil butonu
+   - Satır düzenleme (inline veya modal)
+
+2. Referans Bilgi:
+   - "Teklif Tahmini Fiyatı: X TL" (sadece bilgi, read-only)
+   - "⚠️ Fatura tutarı teklif tutarından farklı olabilir"
+
+3. Genel İskonto Section:
+   - İskonto Tipi: ○ Yüzde  ○ Tutar
+   - Değer: [____]
+   - Açıklama: [________________]
+
+4. Toplam Özeti (realtime güncellenen):
+   - Kalemler Toplamı: X TL
+   - Genel İskonto: -Y TL
+   - Ara Toplam: Z TL
+   - KDV Toplam: K TL
+   - GENEL TOPLAM: T TL
+
+5. Step akışını güncelle:
+   - Step 1: Müşteri + Temel Ayarlar
+   - Step 2: Kalemler + İskonto (YENİ)
+   - Step 3: Ödeme Koşulları
+   - Step 4: Export
+   - Step 5: Import
+
+6. canProceedToNext validasyonu:
+   - Step 2: En az 1 kalem olmalı
+```
+
+**Test:**
+- [ ] Step 2 kalem yönetimi çalışıyor
+- [ ] Genel iskonto uygulanıyor
+- [ ] Toplamlar doğru hesaplanıyor
+- [ ] Export, kalemlerden fatura oluşturuyor
+
+---
+
+### P4.11: 7 Gün Kuralı ve CSS
+
+**Bağımlılık:** P4.10 tamamlanmış olmalı
 
 **Amaç:** 7 gün kuralı uyarısı ve görsel düzenlemeler.
 
@@ -3350,9 +3592,9 @@ Validasyonlar:
 
 ---
 
-### P4.8: Entegrasyon Testi
+### P4.12: Entegrasyon Testi
 
-**Bağımlılık:** P4.7 tamamlanmış olmalı
+**Bağımlılık:** P4.11 tamamlanmış olmalı
 
 **Amaç:** Tüm fatura entegrasyonunu uçtan uca test et.
 
@@ -3362,31 +3604,37 @@ Manuel Entegrasyon Testi Planı:
 
 1. Veritabanı Kontrolü:
    - quote_documents tablosu var mı?
+   - quote_items tablosu var mı?
    - İlişkiler doğru mu?
 
 2. Senaryo Testi:
    A. Quote Detay'a git
-   B. "Fatura İşlemleri"ne tıkla
-   C. Proforma oluştur (PF-2025-XXXX gelmeli)
-   D. Ayarları seç (Ticari Fatura)
-   E. Export yap (XML indi mi?)
-   F. Import yap (Dummy XML yükle)
-   G. Modal kapandı, panel güncellendi mi?
+   B. Kalem ekle (malzeme veya hizmet)
+   C. Satır iskontosu uygula
+   D. "Fatura İşlemleri"ne tıkla
+   E. Step 1: Müşteri bilgilerini kontrol et
+   F. Step 2: Kalemleri gör, genel iskonto ekle
+   G. Step 3: Ödeme koşullarını seç
+   H. Step 4: Export yap (XML indi mi?)
+   I. Step 5: Import yap (Dummy XML yükle)
+   J. Modal kapandı, panel güncellendi mi?
 
 3. Edge Cases:
-   - Proforma varken modal açınca Step 1 doğru geliyor mu?
+   - Kalem olmadan export denenirse uyarı vermeli
    - 7 gün süresi geçmiş shipment için uyarı çıkıyor mu?
-   - Import edilmiş faturaya tekrar işlem yapılamamalı (veya uyarı vermeli).
+   - Import edilmiş faturaya tekrar işlem yapılamamalı
 
 Test sonuçlarını raporla ve varsa bugfix yap.
 ```
 
 **Test Edilecek Sayfa:**
-- `/WebApp/pages/quote-dashboard.html` -> Quote Detail
+- `/WebApp/pages/quote-dashboard.html` → Quote Detail
 
 **Başarı Kriteri:**
+- [ ] Kalem ekleme çalışıyor
+- [ ] İskonto hesaplamaları doğru
 - [ ] Full akış hatasız tamamlandı
-- [ ] DB'de kayıtlar doğru (documentType: proforma, export, import)
+- [ ] DB'de kayıtlar doğru (quote_items, quote_documents)
 
 
 ## FAZ 5: CRM ENTEGRASYONLARı (3 PROMPT)
@@ -3671,9 +3919,26 @@ Hata durumunda:
 | 1 | Veritabanı (Migrations) | 8 (P1.1-P1.8) | - |
 | 2 | Backend API | 7 (P2.1-P2.7) | FAZ 1 |
 | 3 | Shipment Panel Sadeleştirme | 4 (P3.1-P3.4) | FAZ 2 |
-| 4 | Quotes Panel Güncelleme | 6 (P4.1-P4.6) | FAZ 3 |
+| 4 | Quotes Panel Güncelleme | 12 (P4.1-P4.12) | FAZ 3 |
 | 5 | CRM Entegrasyonları | 3 (P5.1-P5.3) | FAZ 4 |
-| **TOPLAM** | | **28 PROMPT** | |
+| **TOPLAM** | | **34 PROMPT** | |
+
+### FAZ 4 Detay
+
+| Prompt | Konu | Durum |
+|--------|------|-------|
+| P4.1 | quote_documents Migration | ✅ |
+| P4.2 | QuoteDocuments Model | ✅ |
+| P4.3 | Invoice API Entegrasyonu | ✅ |
+| P4.4 | QuoteDetailsPanel Fatura İşlemleri Section | ✅ |
+| P4.5 | AddInvoiceModal Step 1-2 | ✅ |
+| P4.6 | AddInvoiceModal Step 3-4 | ✅ |
+| P4.7 | Service Cards API + CRM Ayarlar Tab | ⏳ |
+| P4.8 | QuoteDetailsPanel'e Kalem Section | ⬜ |
+| P4.9 | Kalem Ekleme Modal (AddItemModal) | ⬜ |
+| P4.10 | AddInvoiceModal Kalem Yönetimi | ⬜ |
+| P4.11 | 7 Gün Kuralı ve CSS | ⬜ |
+| P4.12 | Entegrasyon Testi | ⬜ |
 
 ### Uygulama Sırası
 
@@ -3684,7 +3949,7 @@ P2.1 → P2.2 → P2.3 → P2.4 → P2.5 → P2.6 → P2.7 (API TEST)
                                                         ↓
 P3.1 → P3.2 → P3.3 → P3.4 (SHIPMENT TEST)
                                                         ↓
-P4.1 → P4.2 → P4.3 → P4.4 → P4.5 → P4.6 (QUOTES TEST)
+P4.1 → P4.2 → P4.3 → P4.4 → P4.5 → P4.6 → P4.7 → P4.8 → P4.9 → P4.10 → P4.11 → P4.12 (QUOTES TEST)
                                                         ↓
 P5.1 → P5.2 → P5.3 (FINAL E2E TEST)
 ```

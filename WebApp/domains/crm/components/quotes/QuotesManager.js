@@ -16,6 +16,7 @@ import QuotesTabs from './QuotesTabs.jsx'
 import PricingManager from '../pricing/PricingManager.jsx'
 import FormManager from '../forms/FormManager.jsx'
 import CustomersManager from '../customers/CustomersManager.jsx'
+import CrmSettingsTab from '../settings/CrmSettingsTab.jsx'
 import { showToast } from '../../../../shared/components/MESToast.js'
 import { FileText } from '../../../../shared/components/Icons.jsx'
 
@@ -32,7 +33,7 @@ function getQuoteWarningInfo(quote) {
   const status = quote.priceStatus.status
   const diffSummary = quote.priceStatus.differenceSummary
   const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
-  
+
   // Eğer uyarı gizlenmişse warning yok
   if (quote.versionWarningHidden === true) {
     return { type: 'none', color: null, priority: 0 }
@@ -40,28 +41,28 @@ function getQuoteWarningInfo(quote) {
 
   // Kırmızı uyarı: Fiyat farkı var
   if (priceDiff > 0 || status === 'price-drift') {
-    return { 
-      type: 'price', 
+    return {
+      type: 'price',
       color: '#dc3545', // Kırmızı
       bgColor: 'rgba(220, 53, 69, 0.1)',
-      priority: 2 
+      priority: 2
     }
   }
 
   // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
   if (status === 'content-drift' || status === 'outdated') {
-    const hasParameterChanges = diffSummary?.parameterChanges && 
+    const hasParameterChanges = diffSummary?.parameterChanges &&
       (diffSummary.parameterChanges.added?.length > 0 ||
-       diffSummary.parameterChanges.removed?.length > 0 ||
-       diffSummary.parameterChanges.modified?.length > 0)
+        diffSummary.parameterChanges.removed?.length > 0 ||
+        diffSummary.parameterChanges.modified?.length > 0)
     const hasFormulaChange = diffSummary?.formulaChanged === true
-    
+
     if (hasParameterChanges || hasFormulaChange) {
-      return { 
-        type: 'version', 
+      return {
+        type: 'version',
         color: '#ffc107', // Sarı
         bgColor: 'rgba(255, 193, 7, 0.1)',
-        priority: 1 
+        priority: 1
       }
     }
   }
@@ -135,7 +136,7 @@ function QuotesManager({ t, onLogout }) {
   async function loadQuotes() {
     setLoading(true);
     setError(null);
-    
+
     try {
       console.log('🔧 Admin: Loading quotes from API...');
       const quotesData = await API.listQuotes();
@@ -191,15 +192,15 @@ function QuotesManager({ t, onLogout }) {
       console.log('📊 Active form changed, reloading formConfig:', event.detail);
       loadFormConfig();
     }
-    
+
     function handleDisplaySettingsChange(event) {
       console.log('📊 Display settings changed, reloading formConfig:', event.detail);
       loadFormConfig();
     }
-    
+
     window.addEventListener('activeFormChanged', handleActiveFormChange);
     window.addEventListener('formDisplaySettingsChanged', handleDisplaySettingsChange);
-    
+
     return () => {
       window.removeEventListener('activeFormChanged', handleActiveFormChange);
       window.removeEventListener('formDisplaySettingsChanged', handleDisplaySettingsChange);
@@ -217,8 +218,8 @@ function QuotesManager({ t, onLogout }) {
           if (prev[key] !== undefined && prev[key] !== null) {
             // Mevcut değerleri koru (boş olmayan)
             const isEmpty = Array.isArray(prev[key]) ? prev[key].length === 0 :
-                           typeof prev[key] === 'object' ? (!prev[key].from && !prev[key].to && !prev[key].min && !prev[key].max) :
-                           prev[key] === '' || prev[key] === 'all';
+              typeof prev[key] === 'object' ? (!prev[key].from && !prev[key].to && !prev[key].min && !prev[key].max) :
+                prev[key] === '' || prev[key] === 'all';
             if (!isEmpty) {
               merged[key] = prev[key];
             }
@@ -241,14 +242,14 @@ function QuotesManager({ t, onLogout }) {
     try {
       // PostgreSQL: All quotes stored in database
       // All data now directly from PostgreSQL
-      
+
       // Reload quotes using the same method as initial load
       await loadQuotes()
-      
+
       // B0: Only reload settings if explicitly needed, not on every refresh
       // await loadPriceSettings()
       // await loadFormConfig()
-      
+
       if (activeTab === 'users') {
         await loadUsers()
       }
@@ -277,7 +278,7 @@ function QuotesManager({ t, onLogout }) {
           formData: selectedQuote.formData,
           customer: selectedQuote.customer
         }
-        
+
         // Sadece gerçekten bir değişiklik varsa güncelle
         if (JSON.stringify(mergedQuote) !== JSON.stringify(selectedQuote)) {
           console.log('🔧 Updating detail panel - preserving files and details')
@@ -293,10 +294,10 @@ function QuotesManager({ t, onLogout }) {
       console.log('🔧 DEBUG: Calling API.addQuote...')
       const result = await API.addQuote(recordData)
       console.log('🔧 DEBUG: API.addQuote result:', result)
-      
+
       console.log('🔧 DEBUG: Refreshing list...')
       await refresh() // Reload the list
-      
+
       console.log('🔧 DEBUG: Showing success notification...')
       showToast('Kayıt başarıyla eklendi', 'success')
       console.log('🔧 DEBUG: Add record completed successfully')
@@ -309,10 +310,10 @@ function QuotesManager({ t, onLogout }) {
   async function setItemStatus(itemId, newStatus) {
     try {
       // PROMPT-13: Pre-check deliveryDate before approve
-      const isApprove = String(newStatus).toLowerCase() === 'approved' || 
-                        String(newStatus).toLowerCase() === 'onaylandı' || 
-                        String(newStatus).toLowerCase() === 'onaylandi'
-      
+      const isApprove = String(newStatus).toLowerCase() === 'approved' ||
+        String(newStatus).toLowerCase() === 'onaylandı' ||
+        String(newStatus).toLowerCase() === 'onaylandi'
+
       if (isApprove) {
         // Find the quote in the list or use selectedQuote
         const quote = selectedQuote?.id === itemId ? selectedQuote : list.find(q => q.id === itemId)
@@ -321,21 +322,21 @@ function QuotesManager({ t, onLogout }) {
           return
         }
       }
-      
+
       await quotesService.updateStatus(itemId, newStatus)
-      
+
       // Update the detail item if it's currently being viewed
       if (selectedQuote && selectedQuote.id === itemId) {
         setSelectedQuote(prev => ({ ...prev, status: newStatus }))
       }
-      
+
       await refresh() // Reload the list
       showToast('Durum başarıyla güncellendi', 'success')
 
       // If approved, notify MES Approved Quotes to refresh
       if (String(newStatus).toLowerCase() === 'approved' || String(newStatus).toLowerCase() === 'onaylandı' || String(newStatus).toLowerCase() === 'onaylandi') {
-        try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: itemId }); ch.close?.() } catch {}
-        try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch {}
+        try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: itemId }); ch.close?.() } catch { }
+        try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch { }
       }
     } catch (error) {
       console.error('Error updating status:', error)
@@ -363,7 +364,7 @@ function QuotesManager({ t, onLogout }) {
   function exportToCSV() {
     try {
       // Seçili kayıtlar varsa onları kullan, yoksa filtrelenmiş tüm kayıtları kullan
-      const dataToExport = selected.size > 0 
+      const dataToExport = selected.size > 0
         ? filtered.filter(item => selected.has(item.id))
         : filtered
 
@@ -453,7 +454,7 @@ function QuotesManager({ t, onLogout }) {
       // Dosyayı indir
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
-      
+
       if (link.download !== undefined) {
         const url = URL.createObjectURL(blob)
         link.setAttribute('href', url)
@@ -462,8 +463,8 @@ function QuotesManager({ t, onLogout }) {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-        
-        const exportMessage = selected.size > 0 
+
+        const exportMessage = selected.size > 0
           ? `${selected.size} seçili kayıt CSV olarak export edildi`
           : `${dataToExport.length} kayıt CSV olarak export edildi`
         showToast(exportMessage, 'success')
@@ -492,7 +493,7 @@ function QuotesManager({ t, onLogout }) {
         showToast('Email ve şifre gerekli', 'error')
         return
       }
-      
+
       await API.addUser(newUser.email, newUser.password, newUser.role)
       setNewUser({ email: '', password: '', role: 'admin' })
       setUserModal(false)
@@ -508,7 +509,7 @@ function QuotesManager({ t, onLogout }) {
     if (!confirm(`${email} kullanıcısını silmek istediğinizden emin misiniz?`)) {
       return
     }
-    
+
     try {
       await API.deleteUser(email)
       await loadUsers()
@@ -523,7 +524,7 @@ function QuotesManager({ t, onLogout }) {
     try {
       console.log('📊 Loading active price settings from new API...')
       const setting = await priceApi.getActiveSetting()
-      
+
       if (!setting || !setting.id) {
         console.warn('⚠️ No active price setting found, using empty defaults')
         setPriceSettings({
@@ -669,10 +670,10 @@ function QuotesManager({ t, onLogout }) {
 
   async function setItemStatus(id, st) {
     // PROMPT-13: Pre-check deliveryDate before approve
-    const isApprove = String(st).toLowerCase() === 'approved' || 
-                      String(st).toLowerCase() === 'onaylandı' || 
-                      String(st).toLowerCase() === 'onaylandi'
-    
+    const isApprove = String(st).toLowerCase() === 'approved' ||
+      String(st).toLowerCase() === 'onaylandı' ||
+      String(st).toLowerCase() === 'onaylandi'
+
     if (isApprove) {
       const quote = list.find(q => q.id === id)
       if (quote && !quote.deliveryDate) {
@@ -680,7 +681,7 @@ function QuotesManager({ t, onLogout }) {
         return
       }
     }
-    
+
     try {
       await quotesService.updateStatus(id, st)
       // Update the specific quote in the list instead of full refresh
@@ -693,13 +694,13 @@ function QuotesManager({ t, onLogout }) {
     }
     // If approved, notify MES Approved Quotes to refresh
     if (isApprove) {
-      try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
-      try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch {}
+      try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch { }
+      try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch { }
     }
   }
 
-  async function remove(id) { 
-    await API.remove(id) 
+  async function remove(id) {
+    await API.remove(id)
     // Remove the specific quote from the list instead of full refresh
     setList(prevList => prevList.filter(quote => quote.id !== id))
     // If this was the detail view, close it
@@ -764,32 +765,32 @@ function QuotesManager({ t, onLogout }) {
     }
 
     const idToQuote = new Map(list.map(q => [q.id, q]))
-    
+
     // Filter out locked quotes (manual override active)
     const unlockedIds = targetIds.filter(id => {
       const quote = idToQuote.get(id)
       return !quote?.manualOverride?.active
     })
-    
+
     const lockedIds = targetIds.filter(id => {
       const quote = idToQuote.get(id)
       return quote?.manualOverride?.active
     })
-    
+
     // Filter out quotes that don't need updates (current price = calculated price)
     const needsUpdateIds = []
     const alreadyCurrentIds = []
-    
+
     unlockedIds.forEach(id => {
       const quote = idToQuote.get(id)
       if (!quote) return
-      
+
       const currentPrice = parseFloat(quote.price) || 0
       const calculatedPrice = parseFloat(quote.priceStatus?.calculatedPrice) || 0
-      
+
       // Check if prices are exactly the same and status is current
       const isAlreadyCurrent = (currentPrice === calculatedPrice) && (quote.priceStatus?.status === 'current')
-      
+
       if (isAlreadyCurrent) {
         console.log(`💡 Quote ${id}: Already current - current: ${currentPrice}, calculated: ${calculatedPrice}`)
         alreadyCurrentIds.push(id)
@@ -797,11 +798,11 @@ function QuotesManager({ t, onLogout }) {
         needsUpdateIds.push(id)
       }
     })
-    
+
     if (lockedIds.length > 0) {
       console.log(`🔒 Skipping ${lockedIds.length} locked quotes:`, lockedIds)
     }
-    
+
     if (alreadyCurrentIds.length > 0) {
       console.log(`✅ Skipping ${alreadyCurrentIds.length} already current quotes:`, alreadyCurrentIds)
     }
@@ -812,7 +813,7 @@ function QuotesManager({ t, onLogout }) {
 
     // If no quotes need updating, show message and return
     if (total === 0) {
-      const message = skipped > 0 
+      const message = skipped > 0
         ? `Tüm kayıtlar zaten güncel veya kilitli (${skipped} kayıt atlandı)`
         : 'Güncellenecek kayıt bulunamadı'
       showToast(message, 'info')
@@ -953,11 +954,11 @@ function QuotesManager({ t, onLogout }) {
     }
     const fallbackSummary = initialDiff
       ? {
-          ...initialDiff,
-          priceDiff: initialDiff.priceDiff ?? (fallbackNew - fallbackOriginal),
-          oldPrice: initialDiff.oldPrice ?? fallbackOriginal,
-          newPrice: initialDiff.newPrice ?? fallbackNew
-        }
+        ...initialDiff,
+        priceDiff: initialDiff.priceDiff ?? (fallbackNew - fallbackOriginal),
+        oldPrice: initialDiff.oldPrice ?? fallbackOriginal,
+        newPrice: initialDiff.newPrice ?? fallbackNew
+      }
       : null
 
     setPriceReview({
@@ -1002,22 +1003,22 @@ function QuotesManager({ t, onLogout }) {
 
   async function handlePriceReviewApply() {
     if (!priceReview) return
-    
+
     try {
       // Check if update is actually needed before API call
       const currentPrice = parseFloat(priceReview.originalPrice) || 0
       const newPrice = parseFloat(priceReview.newPrice) || 0
-      
+
       if (currentPrice === newPrice) {
         console.log('💡 Price review: No actual price change needed', { currentPrice, newPrice })
         showToast('Fiyat zaten güncel, güncelleme gerekmedi', 'info')
         setPriceReview(null)
         return
       }
-      
+
       console.log('🔧 Applying price update for quote:', priceReview.item.id)
       setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
-      
+
       const response = await API.applyNewPrice(priceReview.item.id)
       if (!response || response.success === false) {
         throw new Error(response?.error || 'apply price failed')
@@ -1055,11 +1056,11 @@ function QuotesManager({ t, onLogout }) {
 
   async function handleVersionUpdate() {
     if (!priceReview) return
-    
+
     try {
       console.log('🔧 Updating version for quote:', priceReview.item.id)
       setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
-      
+
       const response = await quotesService.updateQuoteVersion(priceReview.item.id)
       if (!response || response.success === false) {
         throw new Error(response?.error || 'version update failed')
@@ -1095,11 +1096,11 @@ function QuotesManager({ t, onLogout }) {
 
   async function handleHideWarning() {
     if (!priceReview) return
-    
+
     try {
       console.log('🔧 Hiding warning for quote:', priceReview.item.id)
       setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
-      
+
       const response = await API.hideVersionWarning(priceReview.item.id)
       if (!response || response.success === false) {
         throw new Error(response?.error || 'hide warning failed')
@@ -1195,7 +1196,7 @@ function QuotesManager({ t, onLogout }) {
                 React.createElement('span', { className: 'stat-label' }, 'Seçili'),
                 React.createElement('span', { className: 'stat-value' }, selected.size)
               ),
-              (function() {
+              (function () {
                 const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
                 if (flaggedCount === 0) return null
                 return [
@@ -1217,21 +1218,21 @@ function QuotesManager({ t, onLogout }) {
             },
             className: 'mes-primary-action is-compact',
             disabled: loading
-          }, 
+          },
             React.createElement('span', null, '✚'),
             React.createElement('span', null, 'Yeni Teklif')
           ),
-          
+
           React.createElement('button', {
             onClick: () => exportToCSV(),
             className: 'mes-filter-button is-compact',
             title: selected.size > 0 ? `${selected.size} seçili kaydı dışa aktar` : `${filtered.length} kaydı dışa aktar`,
             disabled: loading
-          }, 
+          },
             React.createElement('span', null, '📊'),
             React.createElement('span', null, selected.size > 0 ? `CSV (${selected.size})` : 'CSV')
           ),
-          
+
           selected.size > 0 && React.createElement('button', {
             onClick: (e) => {
               if (confirm(`${selected.size} kayıt silinecek. Emin misiniz?`)) {
@@ -1243,11 +1244,11 @@ function QuotesManager({ t, onLogout }) {
             className: 'mes-filter-clear is-compact',
             title: 'Seçili kayıtları sil',
             disabled: loading
-          }, 
+          },
             React.createElement('span', null, '🗑️'),
             React.createElement('span', null, `Sil (${selected.size})`)
           ),
-          
+
           // Locked quotes toggle
           React.createElement('button', {
             onClick: () => {
@@ -1255,7 +1256,7 @@ function QuotesManager({ t, onLogout }) {
             },
             title: filters.lockedOnly ? 'Kilitli filtresi aktif' : 'Sadece fiyatı kilitli kayıtları göster',
             className: filters.lockedOnly ? 'mes-filter-button is-compact active' : 'mes-filter-button is-compact'
-          }, 
+          },
             React.createElement('span', null, '🔒')
           ),
 
@@ -1268,17 +1269,17 @@ function QuotesManager({ t, onLogout }) {
             className: 'mes-search-input',
             disabled: loading
           }),
-          
+
           // Filter Controls Container
           React.createElement('div', { className: 'mes-filter-controls' },
             // Filter Button
             React.createElement('button', {
               onClick: () => setFilterPopup(true),
               className: getActiveFilterCount(filters) > 0 ? 'mes-filter-button is-compact active' : 'mes-filter-button is-compact'
-            }, 
+            },
               React.createElement('span', null, '🔍'),
               React.createElement('span', null, 'Filtreler'),
-              getActiveFilterCount(filters) > 0 && React.createElement('span', { 
+              getActiveFilterCount(filters) > 0 && React.createElement('span', {
                 className: 'filter-badge',
                 style: {
                   position: 'absolute',
@@ -1297,22 +1298,22 @@ function QuotesManager({ t, onLogout }) {
                 }
               }, getActiveFilterCount(filters))
             ),
-            
+
             // Clear Filters
-            (function() {
+            (function () {
               const activeFilterCount = getActiveFilterCount(filters)
               const hasGlobalSearch = globalSearch && globalSearch.trim().length > 0
               const hasLockedFilter = filters.lockedOnly
-              
+
               if (activeFilterCount === 0 && !hasGlobalSearch && !hasLockedFilter) {
                 return null
               }
-              
+
               return React.createElement('button', {
                 onClick: () => clearFilters(setFilters, setGlobalSearch),
                 className: 'mes-filter-clear is-compact',
                 title: 'Tüm filtreleri temizle'
-              }, 
+              },
                 React.createElement('span', null, '✕'),
                 React.createElement('span', null, 'Temizle')
               )
@@ -1320,235 +1321,238 @@ function QuotesManager({ t, onLogout }) {
           )
         ),
 
-    // Quotes container - table on left, detail panel on right (like materials)
-    React.createElement('div', { className: 'quotes-container' },
-      // Left side - Table
-      React.createElement('div', { className: 'quotes-table-panel' },
-        React.createElement('div', { className: 'quotes-table-container' },
-          React.createElement('div', { className: 'quotes-table-wrapper' },
-        
-        // Loading state - show spinner only, hide table
-        loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
-          React.createElement('div', { className: 'spinner' }),
-          React.createElement('div', { className: 'loading-text' }, 'Veriler yükleniyor...')
-        ),
-        
-        // Error state - show error only
-        error && !loading && !bulkProgress && React.createElement('div', { className: 'quotes-empty-state' },
-          React.createElement('div', { className: 'empty-icon' }, '⚠️'),
-          React.createElement('div', { className: 'empty-title' }, 'Veri yükleme hatası'),
-          React.createElement('div', { className: 'empty-message' }, error)
-        ),
-        
-        // Table only renders when not loading
-        !loading && !error && React.createElement('table', { className: 'quotes-table' },
-          React.createElement('thead', null,
-            React.createElement('tr', null,
-              React.createElement('th', { style: { width: '40px', textAlign: 'center' } },
-                React.createElement('input', {
-                  type: 'checkbox',
-                  checked: selected.size === filtered.length && filtered.length > 0,
-                  onChange: (e) => toggleAll(e.target.checked),
-                  onClick: (e) => e.stopPropagation(),
-                  title: 'Tümünü seç'
-                })
-              ),
-              ...tableColumns.map((col, colIndex) => {
-                const isActive = sortConfig?.columnId === col.id
-                const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
-                // QT-5: Freeze class hesaplama - kolon ID bazında
-                let freezeClass = ''
-                if (col.freeze === 'left') {
-                  const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
-                  freezeClass = `freeze-left freeze-left-${leftIndex}`
-                } else if (col.freeze === 'right') {
-                  const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
-                  freezeClass = `freeze-right freeze-right-${rightIndex}`
-                }
-                return React.createElement('th', { 
-                  key: col.id,
-                  className: freezeClass,
-                  style: { minWidth: col.width || '120px', whiteSpace: 'nowrap' }
-                },
-                  React.createElement('button', {
-                    type: 'button',
-                    onClick: () => handleSort(col.id),
-                    className: isActive ? 'mes-sort-button active' : 'mes-sort-button'
-                  },
-                    col.label,
-                    React.createElement('span', { className: 'mes-sort-icon' }, indicator)
+        // Quotes container - table on left, detail panel on right (like materials)
+        React.createElement('div', { className: 'quotes-container' },
+          // Left side - Table
+          React.createElement('div', { className: 'quotes-table-panel' },
+            React.createElement('div', { className: 'quotes-table-container' },
+              React.createElement('div', { className: 'quotes-table-wrapper' },
+
+                // Loading state - show spinner only, hide table
+                loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
+                  React.createElement('div', { className: 'spinner' }),
+                  React.createElement('div', { className: 'loading-text' }, 'Veriler yükleniyor...')
+                ),
+
+                // Error state - show error only
+                error && !loading && !bulkProgress && React.createElement('div', { className: 'quotes-empty-state' },
+                  React.createElement('div', { className: 'empty-icon' }, '⚠️'),
+                  React.createElement('div', { className: 'empty-title' }, 'Veri yükleme hatası'),
+                  React.createElement('div', { className: 'empty-message' }, error)
+                ),
+
+                // Table only renders when not loading
+                !loading && !error && React.createElement('table', { className: 'quotes-table' },
+                  React.createElement('thead', null,
+                    React.createElement('tr', null,
+                      React.createElement('th', { style: { width: '40px', textAlign: 'center' } },
+                        React.createElement('input', {
+                          type: 'checkbox',
+                          checked: selected.size === filtered.length && filtered.length > 0,
+                          onChange: (e) => toggleAll(e.target.checked),
+                          onClick: (e) => e.stopPropagation(),
+                          title: 'Tümünü seç'
+                        })
+                      ),
+                      ...tableColumns.map((col, colIndex) => {
+                        const isActive = sortConfig?.columnId === col.id
+                        const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
+                        // QT-5: Freeze class hesaplama - kolon ID bazında
+                        let freezeClass = ''
+                        if (col.freeze === 'left') {
+                          const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
+                          freezeClass = `freeze-left freeze-left-${leftIndex}`
+                        } else if (col.freeze === 'right') {
+                          const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
+                          freezeClass = `freeze-right freeze-right-${rightIndex}`
+                        }
+                        return React.createElement('th', {
+                          key: col.id,
+                          className: freezeClass,
+                          style: { minWidth: col.width || '120px', whiteSpace: 'nowrap' }
+                        },
+                          React.createElement('button', {
+                            type: 'button',
+                            onClick: () => handleSort(col.id),
+                            className: isActive ? 'mes-sort-button active' : 'mes-sort-button'
+                          },
+                            col.label,
+                            React.createElement('span', { className: 'mes-sort-icon' }, indicator)
+                          )
+                        )
+                      })
+                    )
+                  ),
+                  React.createElement('tbody', null,
+                    currentPageItems.map(item => {
+                      const warningInfo = getQuoteWarningInfo(item)
+                      const hasWarning = warningInfo.priority > 0
+
+                      return React.createElement('tr', {
+                        key: item.id,
+                        onClick: () => handleRowClick(item),
+                        className: selected.has(item.id) ? 'selected' : '',
+                        style: { cursor: 'pointer' }
+                      },
+                        React.createElement('td', null,
+                          React.createElement('input', {
+                            type: 'checkbox',
+                            checked: selected.has(item.id),
+                            onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) },
+                            onClick: (e) => e.stopPropagation()
+                          })
+                        ),
+                        ...tableColumns.map((col, colIndex) => {
+                          // QT-5: Freeze class hesaplama - kolon ID bazında
+                          let freezeClass = ''
+                          if (col.freeze === 'left') {
+                            const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
+                            freezeClass = `freeze-left freeze-left-${leftIndex}`
+                          } else if (col.freeze === 'right') {
+                            const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
+                            freezeClass = `freeze-right freeze-right-${rightIndex}`
+                          }
+
+                          // Dinamik kolon için değer yoksa boş göster, varsa normal göster
+                          const value = getFieldValue(item, col.id, formConfig)
+
+                          return React.createElement('td', {
+                            key: col.id,
+                            className: freezeClass
+                          },
+                            formatFieldValue(
+                              getFieldValue(item, col.id, formConfig),
+                              col,
+                              item,
+                              {
+                                getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
+                                setSettingsModal,
+                                openPriceReview,
+                                calculatePrice: (quote) => calculatePrice(quote, priceSettings),
+                                setItemStatus,
+                                statusLabel,
+                                t
+                              }
+                            )
+                          )
+                        })
+                      )
+                    })
                   )
                 )
-              })
-            )
-          ),
-          React.createElement('tbody', null,
-            currentPageItems.map(item => {
-              const warningInfo = getQuoteWarningInfo(item)
-              const hasWarning = warningInfo.priority > 0
-              
-              return React.createElement('tr', { 
-                key: item.id,
-                onClick: () => handleRowClick(item),
-                className: selected.has(item.id) ? 'selected' : '',
-                style: { cursor: 'pointer' }
-              },
-                React.createElement('td', null,
-                  React.createElement('input', {
-                    type: 'checkbox',
-                    checked: selected.has(item.id),
-                    onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) },
-                    onClick: (e) => e.stopPropagation()
-                  })
-                ),
-                ...tableColumns.map((col, colIndex) => {
-                  // QT-5: Freeze class hesaplama - kolon ID bazında
-                  let freezeClass = ''
-                  if (col.freeze === 'left') {
-                    const leftIndex = ['date', 'company', 'projectName'].indexOf(col.id)
-                    freezeClass = `freeze-left freeze-left-${leftIndex}`
-                  } else if (col.freeze === 'right') {
-                    const rightIndex = ['price', 'delivery_date', 'status'].indexOf(col.id)
-                    freezeClass = `freeze-right freeze-right-${rightIndex}`
-                  }
-                  
-                  // Dinamik kolon için değer yoksa boş göster, varsa normal göster
-                  const value = getFieldValue(item, col.id, formConfig)
-                  
-                  return React.createElement('td', { 
-                    key: col.id,
-                    className: freezeClass
-                  },
-                    formatFieldValue(
-                      getFieldValue(item, col.id, formConfig),
-                      col,
-                      item,
-                      {
-                        getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
-                        setSettingsModal,
-                        openPriceReview,
-                        calculatePrice: (quote) => calculatePrice(quote, priceSettings),
-                        setItemStatus,
-                        statusLabel,
-                        t
-                      }
-                    )
-                  )
-                })
               )
-            })
-          )
-        )
-      )
-    ),
+            ),
 
-    // Pagination
-    totalPages > 1 && React.createElement('div', { 
-      className: 'pagination-container',
-      style: { 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        gap: '10px', 
-        marginTop: '20px',
-        padding: '20px 0'
-      }
-    },
-      React.createElement('button', {
-        onClick: () => setPagination(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) })),
-        disabled: pagination.currentPage === 1,
-        className: 'btn btn-sm',
-        style: { padding: '5px 10px' }
-      }, '← Önceki'),
-      
-      React.createElement('span', { 
-        style: { 
-          color: 'var(--text)', 
-          fontSize: '14px',
-          margin: '0 15px'
-        }
-      }, `Sayfa ${pagination.currentPage} / ${totalPages} (${totalItems} kayıt)`),
-      
-      React.createElement('button', {
-        onClick: () => setPagination(prev => ({ ...prev, currentPage: Math.min(totalPages, prev.currentPage + 1) })),
-        disabled: pagination.currentPage === totalPages,
-        className: 'btn btn-sm',
-        style: { padding: '5px 10px' }
-      }, 'Sonraki →'),
-      
-      React.createElement('select', {
-        value: pagination.itemsPerPage,
-        onChange: (e) => setPagination(prev => ({ 
-          ...prev, 
-          itemsPerPage: parseInt(e.target.value),
-          currentPage: 1 
-        })),
-        style: {
-          marginLeft: '20px',
-          padding: '5px',
-          borderRadius: '4px',
-          border: '1px solid rgba(255,255,255,0.2)',
-          background: 'rgba(255,255,255,0.1)',
-          color: 'var(--text)'
-        }
-      },
-        React.createElement('option', { value: 5 }, '5 kayıt'),
-        React.createElement('option', { value: 10 }, '10 kayıt'),
-        React.createElement('option', { value: 25 }, '25 kayıt'),
-        React.createElement('option', { value: 50 }, '50 kayıt')
-      )
-    )
-      ), // End of quotes-table-panel
+            // Pagination
+            totalPages > 1 && React.createElement('div', {
+              className: 'pagination-container',
+              style: {
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '10px',
+                marginTop: '20px',
+                padding: '20px 0'
+              }
+            },
+              React.createElement('button', {
+                onClick: () => setPagination(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) })),
+                disabled: pagination.currentPage === 1,
+                className: 'btn btn-sm',
+                style: { padding: '5px 10px' }
+              }, '← Önceki'),
 
-      // Right side - Detail Panel
-      selectedQuote && React.createElement(QuoteDetailsPanel, {
-        quote: selectedQuote,
-        onClose: () => setSelectedQuote(null),
-        onSave: async (quoteId, quoteData) => {
-          await quotesService.updateQuote(quoteId, quoteData)
-          await refresh()
+              React.createElement('span', {
+                style: {
+                  color: 'var(--text)',
+                  fontSize: '14px',
+                  margin: '0 15px'
+                }
+              }, `Sayfa ${pagination.currentPage} / ${totalPages} (${totalItems} kayıt)`),
+
+              React.createElement('button', {
+                onClick: () => setPagination(prev => ({ ...prev, currentPage: Math.min(totalPages, prev.currentPage + 1) })),
+                disabled: pagination.currentPage === totalPages,
+                className: 'btn btn-sm',
+                style: { padding: '5px 10px' }
+              }, 'Sonraki →'),
+
+              React.createElement('select', {
+                value: pagination.itemsPerPage,
+                onChange: (e) => setPagination(prev => ({
+                  ...prev,
+                  itemsPerPage: parseInt(e.target.value),
+                  currentPage: 1
+                })),
+                style: {
+                  marginLeft: '20px',
+                  padding: '5px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: 'var(--text)'
+                }
+              },
+                React.createElement('option', { value: 5 }, '5 kayıt'),
+                React.createElement('option', { value: 10 }, '10 kayıt'),
+                React.createElement('option', { value: 25 }, '25 kayıt'),
+                React.createElement('option', { value: 50 }, '50 kayıt')
+              )
+            )
+          ), // End of quotes-table-panel
+
+          // Right side - Detail Panel
+          selectedQuote && React.createElement(QuoteDetailsPanel, {
+            quote: selectedQuote,
+            onClose: () => setSelectedQuote(null),
+            onSave: async (quoteId, quoteData) => {
+              await quotesService.updateQuote(quoteId, quoteData)
+              await refresh()
+            },
+            onDelete: remove,
+            onStatusChange: setItemStatus,
+            formConfig,
+            t,
+            loading: loading,
+            onRefreshQuote: refresh,
+            globalProcessing,
+            setGlobalProcessing,
+            checkAndProcessVersionUpdates,
+            currentQuotes: list
+          })
+        ), // End of quotes-container
+      ), // End of Tab 1: Teklifler content
+
+      // Tab 2: Müşteriler
+      React.createElement(CustomersManager, {
+        t: t
+      }),
+
+      // Tab 3: Fiyatlandırma
+      React.createElement(PricingManager, {
+        t: t,
+        globalProcessing: globalProcessing,
+        setGlobalProcessing: setGlobalProcessing,
+        checkAndProcessVersionUpdates: () => {
+          // Version updates için callback
+          loadQuotes()
         },
-        onDelete: remove,
-        onStatusChange: setItemStatus,
-        formConfig,
-        t,
-        loading: loading,
-        onRefreshQuote: refresh,
-        globalProcessing,
-        setGlobalProcessing,
-        checkAndProcessVersionUpdates,
-        currentQuotes: list
-      })
-    ), // End of quotes-container
-    ), // End of Tab 1: Teklifler content
-    
-    // Tab 2: Müşteriler
-    React.createElement(CustomersManager, {
-      t: t
-    }),
-    
-    // Tab 3: Fiyatlandırma
-    React.createElement(PricingManager, {
-      t: t,
-      globalProcessing: globalProcessing,
-      setGlobalProcessing: setGlobalProcessing,
-      checkAndProcessVersionUpdates: () => {
-        // Version updates için callback
-        loadQuotes()
-      },
-      renderHeaderActions: (actions, versionHistory) => {
-        setPricingHeaderActions(actions)
-        setPricingVersionHistory(versionHistory)
-      }
-    }),
-    
-    // Tab 4: Form Yapısı
-    React.createElement(FormManager, {
-      t: t,
-      renderHeaderActions: (actions) => {
-        setFormHeaderActions(actions)
-      }
-    })
+        renderHeaderActions: (actions, versionHistory) => {
+          setPricingHeaderActions(actions)
+          setPricingVersionHistory(versionHistory)
+        }
+      }),
+
+      // Tab 4: Form Yapısı
+      React.createElement(FormManager, {
+        t: t,
+        renderHeaderActions: (actions) => {
+          setFormHeaderActions(actions)
+        }
+      }),
+
+      // Tab 5: CRM Ayarları
+      React.createElement(CrmSettingsTab, {})
     ), // End of QuotesTabs
 
     bulkProgress && React.createElement(BulkProgressOverlay, {
@@ -1586,8 +1590,8 @@ function QuotesManager({ t, onLogout }) {
     }),
 
     // Price review modal
-    priceReview && priceReview.item && React.createElement('div', { 
-      className: 'modal-overlay', 
+    priceReview && priceReview.item && React.createElement('div', {
+      className: 'modal-overlay',
       onClick: () => setPriceReview(null),
       style: {
         position: 'fixed',
@@ -1602,17 +1606,17 @@ function QuotesManager({ t, onLogout }) {
         zIndex: 1000
       }
     },
-      React.createElement('div', { 
-        className: 'card detail-modal', 
-        onClick: (e) => e.stopPropagation(), 
-        style: { 
+      React.createElement('div', {
+        className: 'card detail-modal',
+        onClick: (e) => e.stopPropagation(),
+        style: {
           width: 'min(500px, 90vw)',
           maxHeight: '85vh',
           overflowY: 'auto',
           position: 'relative',
           padding: '20px',
           margin: '20px'
-        } 
+        }
       },
         // Header
         React.createElement('div', {
@@ -1643,7 +1647,7 @@ function QuotesManager({ t, onLogout }) {
             }
           }, '×')
         ),
-        
+
         // Content
         priceReview.loading && React.createElement('p', { style: { marginBottom: '12px', color: '#999' } }, 'Karşılaştırma yükleniyor...'),
         priceReview.error && React.createElement('p', { style: { marginBottom: '12px', color: '#dc3545' } }, `Hata: ${priceReview.error}`),
@@ -1657,8 +1661,8 @@ function QuotesManager({ t, onLogout }) {
             const warningInfo = getQuoteWarningInfo(priceReview.item)
             // Fiyat farkı varsa kırmızı, yoksa sarı (versiyon farkı)
             const color = Math.abs(priceDiff) > 0 ? '#dc3545' : '#ffc107'
-            return React.createElement('p', { 
-              style: { margin: '8px 0', color, fontWeight: '600' } 
+            return React.createElement('p', {
+              style: { margin: '8px 0', color, fontWeight: '600' }
             }, `Fiyat Farkı: ₺${priceDiff.toFixed(2)}`)
           })(),
           priceReview.versions && React.createElement('div', { style: { margin: '8px 0', fontSize: '13px', color: '#666' } },
@@ -1710,22 +1714,22 @@ function QuotesManager({ t, onLogout }) {
             )
           })()
         ),
-        
+
         // Footer buttons
-        React.createElement('div', { 
-          style: { 
-            display: 'flex', 
-            gap: '10px', 
+        React.createElement('div', {
+          style: {
+            display: 'flex',
+            gap: '10px',
             justifyContent: 'flex-end',
             borderTop: '1px solid rgba(255,255,255,0.1)',
             paddingTop: '15px'
-          } 
+          }
         },
           (() => {
             const priceDiff = priceReview.differenceSummary?.priceDiff || 0
             const hasPriceDifference = Math.abs(priceDiff) > 0
             const hasVersionDifference = priceReview.versions?.applied?.version !== priceReview.versions?.latest?.version
-            
+
             if (hasPriceDifference) {
               // Normal fiyat güncelleme durumu
               return [

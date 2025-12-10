@@ -16,7 +16,7 @@ function withAuth(req, res, next) {
       const s = getSession(token);
       if (s) req.user = s;
     }
-  } catch {}
+  } catch { }
   next();
 }
 
@@ -25,7 +25,7 @@ router.get('/system', withAuth, async (req, res) => {
   try {
     const config = await Settings.getSetting('system_config');
     // Return default values if not set
-    res.json(config || { 
+    res.json(config || {
       lotTracking: true, // Default ON
       currency: 'TRY',
       dateFormat: 'DD.MM.YYYY'
@@ -41,16 +41,50 @@ router.post('/system', withAuth, async (req, res) => {
   try {
     const settings = req.body;
     const updatedBy = req.user?.email || 'system';
-    
+
     // Merge with existing settings to avoid overwriting other keys
     const current = await Settings.getSetting('system_config') || {};
     const merged = { ...current, ...settings };
-    
+
     const updated = await Settings.setSetting('system_config', merged, updatedBy);
-    
+
     res.json(updated.value);
   } catch (error) {
     console.error('Error updating system settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// GET /api/settings/:key - Generic settings getter
+router.get('/:key', withAuth, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const config = await Settings.getSetting(key);
+
+    if (!config) {
+      // Return empty object if not found (will be created on first PUT)
+      return res.json({ key, value: null });
+    }
+
+    res.json({ key, value: config });
+  } catch (error) {
+    console.error(`Error fetching settings ${req.params.key}:`, error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+// PUT /api/settings/:key - Generic settings setter
+router.put('/:key', withAuth, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const value = req.body;
+    const updatedBy = req.user?.email || 'system';
+
+    const updated = await Settings.setSetting(key, value, updatedBy);
+
+    res.json({ key, value: updated.value });
+  } catch (error) {
+    console.error(`Error updating settings ${req.params.key}:`, error);
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
