@@ -19,6 +19,10 @@
       "source": "/api/health",
       "destination": "/api/health.js"
     },
+    {
+      "source": "/api/debug",
+      "destination": "/api/debug.js"
+    },
     { 
       "source": "/api/:path*", 
       "destination": "/api/index.js"
