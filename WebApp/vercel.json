@@ -2,6 +2,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 10
+    }
+  },
   "redirects": [
     {
       "source": "/",
@@ -12,7 +17,7 @@
   "rewrites": [
     { 
       "source": "/api/:path*", 
-      "destination": "https://api.test-burkolmetal.com/api/:path*" 
+      "destination": "/api/index.js"
     }
   ],
   "headers": [
