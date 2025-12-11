@@ -1392,14 +1392,17 @@ domains/crm/utils/logger.js:
 ```
 
 **Düzenlenecek Dosyalar:**
-- `/WebApp/db/connection.js`
-- `/WebApp/domains/crm/api/services/priceSettingsService.js`
-- `/WebApp/db/neon_schema.sql` veya migration
+- `/WebApp/db/connection.js` ✅
+- `/WebApp/server/priceCalculator.js` ✅
+- `/WebApp/db/neon_schema.sql` ✅
 
 **Başarı Kriterleri:**
-- [ ] PostgreSQL logları azaltıldı
-- [ ] Price debug logları DEBUG modunda
-- [ ] filePath TEXT olarak çalışıyor
+- [x] PostgreSQL logları azaltıldı ✅ (sadece ilk bağlantıda)
+- [x] Price debug logları DEBUG modunda ✅
+- [x] filePath TEXT olarak çalışıyor ✅
+
+**Uygulama Notu (2025-12-11):**
+PostgreSQL bağlantı logu artık sadece ilk bağlantıda görünüyor. Price calculation debug logları `DEBUG=true` ile gösterilecek. `quote_files.filePath` kolonu TEXT olarak güncellendi (local DB ve schema).
 
 ---
 

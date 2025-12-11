@@ -5,27 +5,27 @@
 function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
   // Convert to number
   const num = parseFloat(value);
-  
+
   // Check if it's a valid number
   if (isNaN(num)) {
     throw new Error(`${fieldName} must be a valid number, received: ${value}`);
   }
-  
+
   // Check for negative values (critical security issue)
   if (num < 0) {
     throw new Error(`${fieldName} cannot be negative: ${num}`);
   }
-  
+
   // Check for extreme values (DoS attack prevention)
   if (num > 1000000) {
     throw new Error(`${fieldName} exceeds maximum limit (1,000,000): ${num}`);
   }
-  
+
   // Sistem akışını bozma - sıfır değerlere izin ver ama logla
   if (num === 0) {
     console.log(`⚠️ Zero ${fieldName} detected but allowed for system compatibility`);
   }
-  
+
   return num;
 }
 
@@ -33,16 +33,16 @@ function validateCalculatedPrice(price) {
   if (isNaN(price) || !isFinite(price)) {
     throw new Error(`Invalid price calculation result: ${price}`);
   }
-  
+
   if (price < 0) {
     throw new Error(`Price cannot be negative: ${price}`);
   }
-  
+
   // Business rule: maximum reasonable price (100M limit)
   if (price > 100000000) {
     throw new Error(`Calculated price exceeds reasonable business limits: ${price}`);
   }
-  
+
   return price;
 }
 
@@ -64,13 +64,13 @@ function sanitizeFormula(formula) {
     /fs\./i,
     /\.exec\s*\(/i
   ];
-  
+
   for (const pattern of dangerousPatterns) {
     if (pattern.test(formula)) {
       throw new Error(`Formula contains unauthorized functions: ${pattern.source}`);
     }
   }
-  
+
   return formula;
 }
 
@@ -82,10 +82,10 @@ export function calculatePriceServer(quote, settings) {
   try {
     // Sanitize formula first
     const sanitizedFormula = sanitizeFormula(settings.formula);
-    
+
     // Create parameter values map
     const paramValues = {}
-    
+
     // Build lookup map from parameters
     // Each parameter can have its own lookup table: { optionCode: value }
     const parameterLookupMap = {}
@@ -97,16 +97,16 @@ export function calculatePriceServer(quote, settings) {
         })
       }
     })
-    
+
     settings.parameters.forEach(param => {
       // Use parameter ID for consistency (formulas use IDs)
       const paramKey = param.id
-      
+
       if (param.type === 'fixed') {
         paramValues[paramKey] = parseFloat(param.value) || 0
       } else if (param.type === 'form' || param.type === 'form_lookup') {
         let value = 0
-        
+
         if (param.formField === 'qty') {
           // Orijinal sistem mantığını koru
           const rawQty = quote.qty || quote.customFields?.qty || 0;
@@ -114,7 +114,7 @@ export function calculatePriceServer(quote, settings) {
           value = validateAndSanitizeQuantity(rawQty, 'quantity');
         } else if (param.formField === 'thickness') {
           // Orijinal sistem mantığını koru
-          const rawThickness = quote.thickness || quote.customFields?.thickness || 0;  
+          const rawThickness = quote.thickness || quote.customFields?.thickness || 0;
           value = validateAndSanitizeQuantity(rawThickness, 'thickness');
         } else if (param.formField === 'dimensions') {
           // Calculate area from dimensions string or numeric values
@@ -136,10 +136,10 @@ export function calculatePriceServer(quote, settings) {
           if (fieldValue === undefined && quote.customFields) {
             fieldValue = quote.customFields[param.formField]
           }
-          
+
           // Use optionCode for lookup values
           const paramLookups = parameterLookupMap[param.id]
-          
+
           if (Array.isArray(fieldValue)) {
             // Multi-select: sum up values for all selected options
             if (paramLookups) {
@@ -158,29 +158,31 @@ export function calculatePriceServer(quote, settings) {
             value = parseFloat(fieldValue) || 0
           }
         }
-        
+
         paramValues[paramKey] = value
       }
     })
 
-    // SERVER DEBUG: Critical debugging information
-    console.log('🔍 SERVER PRICE CALCULATION DEBUG:', {
-      quoteId: quote.id,
-      paramValues: paramValues,
-      originalFormula: settings.formula,
-      customFields: quote.customFields
-    })
+    // SERVER DEBUG: Sadece DEBUG modunda göster
+    if (process.env.DEBUG === 'true') {
+      console.log('🔍 SERVER PRICE CALCULATION DEBUG:', {
+        quoteId: quote.id,
+        paramValues: paramValues,
+        originalFormula: settings.formula,
+        customFields: quote.customFields
+      });
+    }
 
     // Evaluate formula with comprehensive math functions
     let formula = sanitizedFormula.replace(/^=/, '') // Remove leading =
-    
+
     // Excel fonksiyonlarını JavaScript fonksiyonlarına çevir (client ile uyumlu)
     formula = formula.replace(/\bMAX\s*\(/g, 'Math.max(')
     formula = formula.replace(/\bMIN\s*\(/g, 'Math.min(')
     formula = formula.replace(/\bABS\s*\(/g, 'Math.abs(')
     formula = formula.replace(/\bPOW\s*\(/g, 'Math.pow(')
     formula = formula.replace(/\bSQRT\s*\(/g, 'Math.sqrt(')
-    
+
     // Replace parameter names with actual values (case-sensitive)
     Object.keys(paramValues).forEach(paramName => {
       // Use word boundaries and escape special regex characters in parameter names
@@ -189,7 +191,9 @@ export function calculatePriceServer(quote, settings) {
       formula = formula.replace(regex, paramValues[paramName])
     })
 
-    console.log('🔍 SERVER FORMULA AFTER REPLACEMENT:', formula)
+    if (process.env.DEBUG === 'true') {
+      console.log('🔍 SERVER FORMULA AFTER REPLACEMENT:', formula);
+    }
 
     // Create comprehensive math context
     const mathContext = {
@@ -205,7 +209,7 @@ export function calculatePriceServer(quote, settings) {
       LN: Math.log,
       LOG: Math.log10,
       LOG10: Math.log10,
-      
+
       // Trigonometric Functions
       SIN: Math.sin,
       COS: Math.cos,
@@ -214,7 +218,7 @@ export function calculatePriceServer(quote, settings) {
       ACOS: Math.acos,
       ATAN: Math.atan,
       ATAN2: Math.atan2,
-      
+
       // Rounding Functions
       CEILING: Math.ceil,
       CEIL: Math.ceil,
@@ -222,19 +226,19 @@ export function calculatePriceServer(quote, settings) {
       TRUNC: Math.trunc,
       ROUNDUP: (num, digits = 0) => Math.ceil(num * Math.pow(10, digits)) / Math.pow(10, digits),
       ROUNDDOWN: (num, digits = 0) => Math.floor(num * Math.pow(10, digits)) / Math.pow(10, digits),
-      
+
       // Statistical Functions
       AVERAGE: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
       SUM: (...args) => args.reduce((a, b) => a + b, 0),
       COUNT: (...args) => args.filter(x => typeof x === 'number' && !isNaN(x)).length,
       COUNTA: (...args) => args.filter(x => x != null && x !== '').length,
-      
+
       // Logical Functions
       IF: (condition, trueValue, falseValue) => condition ? trueValue : falseValue,
       AND: (...args) => args.every(arg => Boolean(arg)),
       OR: (...args) => args.some(arg => Boolean(arg)),
       NOT: (value) => !Boolean(value),
-      
+
       // Text Functions
       LEN: (text) => String(text || '').length,
       LEFT: (text, num) => String(text || '').substring(0, num),
@@ -242,17 +246,17 @@ export function calculatePriceServer(quote, settings) {
       MID: (text, start, num) => String(text || '').substring(start - 1, start - 1 + num),
       UPPER: (text) => String(text || '').toUpperCase(),
       LOWER: (text) => String(text || '').toLowerCase(),
-      
+
       // Constants
       PI: Math.PI,
       E: Math.E,
-      
+
       // Custom Business Functions
       MARGIN: (cost, markup) => cost * (1 + markup / 100),
       DISCOUNT: (price, discountPercent) => price * (1 - discountPercent / 100),
       VAT: (amount, vatRate) => amount * (1 + vatRate / 100),
       MARKUP: (cost, marginPercent) => cost / (1 - marginPercent / 100),
-      
+
       // Range/Array Functions
       SUMPRODUCT: (...pairs) => {
         if (pairs.length % 2 !== 0) return 0;
@@ -267,14 +271,14 @@ export function calculatePriceServer(quote, settings) {
     // Safer evaluation using Function constructor
     try {
       const result = Function(
-        'mathCtx', 
+        'mathCtx',
         'formula',
         `
         const {${Object.keys(mathContext).join(', ')}} = mathCtx;
         return (${formula});
         `
       )(mathContext, formula)
-      
+
       // Validate the calculated price before returning
       const price = Number(result) || 0;
       return validateCalculatedPrice(price);
@@ -282,14 +286,14 @@ export function calculatePriceServer(quote, settings) {
       console.error('❌ Formula evaluation error:', evalError.message, 'Formula:', formula)
       throw new Error(`Price calculation failed: ${evalError.message}`);
     }
-    
+
   } catch (e) {
     console.error('❌ Price calculation error:', e.message)
     // For security validation errors, throw them up to be handled by the API
-    if (e.message.includes('exceeds maximum limit') || 
-        e.message.includes('cannot be negative') || 
-        e.message.includes('must be a valid number') ||
-        e.message.includes('unauthorized functions')) {
+    if (e.message.includes('exceeds maximum limit') ||
+      e.message.includes('cannot be negative') ||
+      e.message.includes('must be a valid number') ||
+      e.message.includes('unauthorized functions')) {
       throw e;
     }
     return quote.price || 0

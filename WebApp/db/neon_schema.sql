@@ -3276,7 +3276,7 @@ CREATE TABLE quotes.quote_files (
     "quoteId" character varying(50) NOT NULL,
     "fileType" character varying(50) NOT NULL,
     "fileName" character varying(255) NOT NULL,
-    "filePath" character varying(500) NOT NULL,
+    "filePath" text NOT NULL,
     "mimeType" character varying(100),
     "fileSize" bigint,
     description text,

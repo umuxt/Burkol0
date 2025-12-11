@@ -15,21 +15,25 @@ const config = {
   client: 'pg',
   connection: isProduction
     ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      }
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    }
     : {
-        host: process.env.DB_HOST || 'localhost',
-        port: process.env.DB_PORT || 5432,
-        database: process.env.DB_NAME || 'beeplan_dev',
-        user: process.env.DB_USER || 'umutyalcin',
-        password: process.env.DB_PASSWORD || ''
-      },
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'beeplan_dev',
+      user: process.env.DB_USER || 'umutyalcin',
+      password: process.env.DB_PASSWORD || ''
+    },
   pool: {
     min: 0,  // Serverless-friendly: allow zero connections
     max: isProduction ? 5 : 10,  // Fewer connections for serverless
     afterCreate: (conn, done) => {
-      console.log(`✅ PostgreSQL connection established (${isProduction ? 'Neon' : 'Local'})`);
+      // Log sadece ilk bağlantıda veya DEBUG modunda
+      if (!global._dbConnectionLogged) {
+        console.log(`✅ PostgreSQL connection established (${isProduction ? 'Neon' : 'Local'})`);
+        global._dbConnectionLogged = true;
+      }
       done(null, conn);
     }
   },
