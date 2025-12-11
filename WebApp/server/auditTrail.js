@@ -42,13 +42,8 @@ export async function logAuditEvent(options) {
       ipAddress
     });
 
-    // Tablo formatında log (sadece development'ta detaylı göster)
-    logAudit({
-      entityType,
-      entityId: String(entityId || 'N/A'),
-      action,
-      userEmail: performer.email
-    });
+    // Console log kaldırıldı - logOperation kullanıldığında oradan yapılıyor
+    // Sadece DB'ye yazılıyor
   } catch (err) {
     logError('Audit', `Failed to log ${entityType}.${action}: ${err?.message}`);
   }

@@ -60,12 +60,14 @@ app.use((req, res, next) => {
   const origin = req.headers.origin
 
   // In development, always allow the requesting origin
+  // CORS logs are silent by default in development (use CORS_LOG=verbose to enable)
   if (process.env.NODE_ENV !== 'production') {
     // Always set CORS headers in development
     const allowOrigin = origin || 'http://localhost:3000'
     res.header('Access-Control-Allow-Origin', allowOrigin)
     res.header('Access-Control-Allow-Credentials', 'true')
-    if (origin && process.env.CORS_LOG !== 'silent') {
+    // CORS logs silent by default in dev
+    if (origin && process.env.CORS_LOG === 'verbose') {
       console.log('🔓 CORS (dev mode) allowed for:', origin)
     }
   } else {
@@ -73,9 +75,10 @@ app.use((req, res, next) => {
     if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin)
       res.header('Access-Control-Allow-Credentials', 'true')
-      if (process.env.CORS_LOG !== 'silent') console.log('✅ CORS allowed for:', origin)
+      if (process.env.CORS_LOG === 'verbose') console.log('✅ CORS allowed for:', origin)
     } else {
-      if (process.env.CORS_LOG !== 'silent') console.log('❌ CORS blocked origin:', origin)
+      // Always log blocked origins in production for security monitoring
+      if (origin) console.log('❌ CORS blocked origin:', origin)
     }
   }
 

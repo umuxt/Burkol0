@@ -1343,14 +1343,63 @@ logOperation({
 ```
 
 **Düzenlenecek Dosyalar:**
-- `/WebApp/server/utils/logger.js`
-- `/WebApp/server.js` (CORS log kaldırma)
+- `/WebApp/server/utils/logger.js` ✅
+- `/WebApp/server.js` (CORS log kaldırma) ✅
+- `/WebApp/domains/crm/api/controllers/quoteController.js` ✅ (logOperation entegrasyonu)
+- `/WebApp/server/auditTrail.js` ✅ (duplicate log kaldırma)
 
 **Başarı Kriterleri:**
-- [ ] logOperation fonksiyonu çalışıyor
-- [ ] Birleşik tablo formatı console'da görünüyor
-- [ ] CORS success logları görünmüyor
-- [ ] Audit loglar hala DB'ye yazılıyor
+- [x] logOperation fonksiyonu çalışıyor ✅
+- [x] Birleşik tablo formatı console'da görünüyor ✅
+- [x] CORS success logları görünmüyor ✅
+- [x] Audit loglar hala DB'ye yazılıyor ✅
+- [x] Eski logger'dan veri kaybı yok (customerType eklendi) ✅
+
+**Uygulama Notu (2025-12-11):**
+`logOperation` fonksiyonu eklendi. Quote create endpoint'i birleşik format kullanıyor. CORS logları development'ta varsayılan sessiz. Duplicate audit log sorunu çözüldü.
+
+---
+
+### P1.1c: Diğer Logları Temizleme ve Şema Düzeltmesi (SONRA)
+
+**Bağımlılık:** P1.1b tamamlanmış olmalı
+
+**Amaç:** 
+1. PostgreSQL bağlantı loglarını azalt
+2. Price calculation debug loglarını DEBUG moduna taşı
+3. `quote_files.filePath` kolonunu TEXT olarak değiştir (varchar(500) → text)
+
+**Prompt:**
+```
+Gereksiz logları temizle ve filePath şema sorunu düzelt.
+
+## 1. PostgreSQL Bağlantı Logları
+db/connection.js dosyasında:
+- İlk bağlantıda bir kez göster
+- Sonraki bağlantılarda sessiz kal (veya DEBUG modunda göster)
+
+## 2. Price Calculation Debug Logları
+domains/crm/api/services/priceSettingsService.js dosyasında:
+- 🔍 SERVER PRICE CALCULATION DEBUG loglarını DEBUG=true kontrolü altına al
+
+## 3. FilePath Şema Düzeltmesi
+Migration ekle veya direkt güncelle:
+ALTER TABLE quotes.quote_files ALTER COLUMN "filePath" TYPE TEXT;
+
+## 4. CRM Domain Logger Temizliği
+domains/crm/utils/logger.js:
+- Audit içeren endpoint'lerde logger.success kaldır (logOperation kullanılıyor)
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/db/connection.js`
+- `/WebApp/domains/crm/api/services/priceSettingsService.js`
+- `/WebApp/db/neon_schema.sql` veya migration
+
+**Başarı Kriterleri:**
+- [ ] PostgreSQL logları azaltıldı
+- [ ] Price debug logları DEBUG modunda
+- [ ] filePath TEXT olarak çalışıyor
 
 ---
 

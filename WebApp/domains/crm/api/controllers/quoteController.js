@@ -14,6 +14,7 @@ import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
 import { uploadFileToStorage, deleteFileFromStorage } from '../../../../server/storage.js';
 import { logAuditEvent } from '../../../../server/auditTrail.js';
+import { logOperation } from '../../../../server/utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
@@ -391,31 +392,35 @@ export function setupQuotesRoutes(app) {
         logger.info(`Saved ${productImages.length} product images for quote ${quote.id}`);
       }
 
-      logger.success('Quote created successfully', {
-        quoteId: quote.id,
-        customerId: resolvedCustomerId,
-        customerType: customerType || 'legacy',
-        calculatedPrice: quote.calculatedPrice,
-        filesCount: (files?.length || 0) + (productImages?.length || 0)
-      });
-
       // Quote'u dosyalarla birlikte yeniden getir
       const fullQuote = await quoteService.getQuoteById(quote.id);
 
-      // Audit: quote.create
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: quote.id,
-        action: 'create',
-        changes: {
-          customerName: resolvedCustomerName,
-          customerId: resolvedCustomerId,
-          calculatedPrice: quote.calculatedPrice,
-          status: quote.status
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE CREATE',
+        details: {
+          quoteId: quote.id,
+          customer: resolvedCustomerId || 'N/A',
+          type: customerType || 'legacy',
+          price: quote.calculatedPrice || 0,
+          files: (files?.length || 0) + (productImages?.length || 0)
         },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
+        audit: {
+          entityType: 'quote',
+          entityId: quote.id,
+          action: 'create',
+          changes: {
+            customerName: resolvedCustomerName,
+            customerId: resolvedCustomerId,
+            calculatedPrice: quote.calculatedPrice,
+            status: quote.status
+          },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
+      });
 
       res.status(201).json({ success: true, quote: fullQuote });
     } catch (error) {
