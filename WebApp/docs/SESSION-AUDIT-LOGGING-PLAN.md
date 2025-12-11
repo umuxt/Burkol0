@@ -1220,11 +1220,14 @@ await logAuditEvent({
 ```
 
 **Düzenlenecek Dosya:**
-- `/WebApp/server/auditTrail.js`
+- `/WebApp/server/auditTrail.js` ✅
 
 **Başarı Kriterleri:**
-- [ ] logAuditEvent export ediliyor
-- [ ] Test kaydı audit_logs'da görünüyor
+- [x] logAuditEvent export ediliyor ✅
+- [x] Audit loglar audit_logs'da görünüyor ✅ (session login/logout çalışıyor)
+
+**Uygulama Notu (2025-12-11):**
+Generic `logAuditEvent` helper eklendi. Tüm domain'lerde (CRM, MES, Materials) kullanılmaya hazır. Logger entegrasyonu ile tablo formatında console output sağlanıyor.
 
 ---
 

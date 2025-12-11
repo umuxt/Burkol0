@@ -1,6 +1,64 @@
 import { updateSession } from './auth.js'
 import db from '../db/connection.js'
+import { logAudit, logError } from './utils/logger.js'
 
+/**
+ * Generic audit log helper for all domains
+ * Use this for CRM, MES, Materials audit logging
+ * 
+ * @param {object} options
+ * @param {string} options.entityType - Entity type: quote, shipment, material, user, session, plan, etc.
+ * @param {string|number} options.entityId - Record ID
+ * @param {string} options.action - Action: create, update, delete, approve, launch, etc.
+ * @param {object} options.changes - Change details (before/after values)
+ * @param {object} options.performer - { email, userName, sessionId }
+ * @param {string} options.ipAddress - Client IP address
+ */
+export async function logAuditEvent(options) {
+  const {
+    entityType,
+    entityId,
+    action,
+    changes = {},
+    performer = {},
+    ipAddress = null
+  } = options;
+
+  // Validation
+  if (!entityType || !action) {
+    console.warn('[auditTrail] Missing required fields: entityType or action');
+    return;
+  }
+
+  try {
+    await db('settings.audit_logs').insert({
+      entityType,
+      entityId: String(entityId || 'N/A'),
+      action,
+      changes: JSON.stringify(changes),
+      userId: performer.userName || performer.email || 'system',
+      userEmail: performer.email || null,
+      createdAt: new Date(),
+      ipAddress
+    });
+
+    // Tablo formatında log (sadece development'ta detaylı göster)
+    logAudit({
+      entityType,
+      entityId: String(entityId || 'N/A'),
+      action,
+      userEmail: performer.email
+    });
+  } catch (err) {
+    logError('Audit', `Failed to log ${entityType}.${action}: ${err?.message}`);
+  }
+}
+
+/**
+ * Session activity audit helper (for login/logout)
+ * @param {object} req - Express request object
+ * @param {object} activity - Activity details
+ */
 export async function auditSessionActivity(req, activity = {}) {
   try {
     if (!activity || typeof activity !== 'object') return
@@ -35,7 +93,6 @@ export async function auditSessionActivity(req, activity = {}) {
     })
 
     // Persist audit entry to PostgreSQL (audit_logs)
-    // Map to actual table columns: entityType, entityId, action, changes (jsonb), userId, userEmail, createdAt, ipAddress
     try {
       const dbEntry = {
         entityType: activity.type || activity.scope || 'session',
@@ -55,11 +112,12 @@ export async function auditSessionActivity(req, activity = {}) {
       }
       await db('settings.audit_logs').insert(dbEntry)
     } catch (err) {
-      console.warn('[auditTrail] PostgreSQL write failed:', err?.message)
+      // Sessiz - logAuditEvent kullan
     }
   } catch (error) {
-    console.error('Audit session activity error:', error)
+    logError('Audit', `Session activity error: ${error?.message}`)
   }
 }
 
+// Default export (backward compatibility)
 export default auditSessionActivity
