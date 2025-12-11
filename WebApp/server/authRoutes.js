@@ -367,18 +367,24 @@ export function setupAuthRoutes(app) {
       await upsertUser(user)
       console.log('[authRoutes] User created successfully')
 
-      auditSessionActivity(req, {
-        type: 'user-management',
-        action: 'create',
-        scope: 'users',
-        title: `Yeni kullanıcı eklendi (${email})`,
-        description: `Rol: ${role}`,
-        metadata: {
-          email,
-          role,
-          createdAt: user.createdAt
-        }
-      })
+      // Audit log - fire and forget, don't block response
+      try {
+        auditSessionActivity(req, {
+          type: 'user-management',
+          action: 'create',
+          scope: 'users',
+          title: `Yeni kullanıcı eklendi (${email})`,
+          description: `Rol: ${role}`,
+          metadata: {
+            email,
+            role,
+            createdAt: user.createdAt
+          }
+        }).catch(err => console.warn('[authRoutes] Audit log failed:', err?.message))
+      } catch (auditErr) {
+        console.warn('[authRoutes] Audit log error:', auditErr?.message)
+      }
+      
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
       console.error('Add user error:', error)

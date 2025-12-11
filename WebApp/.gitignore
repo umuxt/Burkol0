@@ -41,3 +41,4 @@ temp/
 *.backup
 backup/
 *.firebase.bak
+.vercel
