@@ -382,7 +382,7 @@ export function setupAuthRoutes(app) {
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
       console.error('Add user error:', error)
-      res.status(500).json({ error: 'User creation failed' })
+      res.status(500).json({ error: 'User creation failed', details: error?.message || String(error) })
     }
   })
 
