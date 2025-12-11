@@ -2,7 +2,7 @@
 import crypto from 'crypto'
 import { 
   createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword,
-  upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromDatabase, listSessionsFromDatabase, getUserByEmail
+  upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromDatabase, listSessionsFromDatabase, getUserByEmail, deleteUserPermanently
 } from './auth.js'
 import auditSessionActivity from './auditTrail.js'
 
@@ -330,7 +330,7 @@ export function setupAuthRoutes(app) {
   })
 
   // Add user endpoint
-  app.post('/api/auth/users', requireAuth, (req, res) => {
+  app.post('/api/auth/users', requireAuth, async (req, res) => {
     const { email, password, role = 'admin' } = req.body
     
     if (!email || !password) {
@@ -343,7 +343,7 @@ export function setupAuthRoutes(app) {
     
     try {
       // Kullanıcı zaten var mı kontrol et
-      const existingUser = getUserByEmail(email)
+      const existingUser = await getUserByEmail(email)
       if (existingUser) {
         return res.status(400).json({ error: 'User already exists' })
       }
@@ -360,7 +360,7 @@ export function setupAuthRoutes(app) {
         createdAt: new Date().toISOString()
       }
       
-      upsertUser(user)
+      await upsertUser(user)
 
       auditSessionActivity(req, {
         type: 'user-management',
@@ -382,12 +382,12 @@ export function setupAuthRoutes(app) {
   })
 
   // Delete user endpoint (Toggle active status - aktifleştir/deaktifleştir)
-  app.delete('/api/auth/users/:email', requireAuth, (req, res) => {
+  app.delete('/api/auth/users/:email', requireAuth, async (req, res) => {
     const { email } = req.params
     
     try {
       // Kullanıcı var mı kontrol et
-      const existingUser = getUserByEmail(email)
+      const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
@@ -406,7 +406,7 @@ export function setupAuthRoutes(app) {
         [newActiveStatus ? 'activatedBy' : 'deactivatedBy']: req.user.email
       }
       
-      upsertUser(updatedUser)
+      await upsertUser(updatedUser)
 
       const actionType = newActiveStatus ? 'activate' : 'deactivate'
       const actionTitle = newActiveStatus ? 'aktifleştirildi' : 'devre dışı bırakıldı'
@@ -436,12 +436,12 @@ export function setupAuthRoutes(app) {
   })
 
   // Permanent delete user endpoint (Hard delete - kullanıcıyı kalıcı olarak sil)
-  app.delete('/api/auth/users/:email/permanent', requireAuth, (req, res) => {
+  app.delete('/api/auth/users/:email/permanent', requireAuth, async (req, res) => {
     const { email } = req.params
     
     try {
       // Kullanıcı var mı kontrol et
-      const existingUser = jsondb.getUser(email)
+      const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
@@ -452,7 +452,7 @@ export function setupAuthRoutes(app) {
       }
       
       // Hard delete: kullanıcıyı tamamen sil
-      jsondb.deleteUser(email)
+      await deleteUserPermanently(email)
 
       auditSessionActivity(req, {
         type: 'user-management',
@@ -476,13 +476,13 @@ export function setupAuthRoutes(app) {
   })
 
   // Update user endpoint
-  app.put('/api/auth/users/:email', requireAuth, (req, res) => {
+  app.put('/api/auth/users/:email', requireAuth, async (req, res) => {
     const { email } = req.params
     const { password, role } = req.body
     
     try {
       // Kullanıcı var mı kontrol et
-      const existingUser = jsondb.getUser(email)
+      const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
@@ -506,7 +506,7 @@ export function setupAuthRoutes(app) {
       
       updates.updatedAt = new Date().toISOString()
       
-      jsondb.upsertUser(updates)
+      await upsertUser(updates)
 
       const changes = []
       if (password && password.length >= 6) {

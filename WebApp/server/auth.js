@@ -212,9 +212,16 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-// Admin helpers to replace jsondb usage in routes
-export function upsertUser(user) {
-  if (user && user.email) memory.users.set(user.email, user)
+// Admin helpers - PostgreSQL backed
+export async function upsertUser(user) {
+  if (user && user.email) {
+    memory.users.set(user.email, user)
+    try {
+      await Users.upsertUser(user)
+    } catch (err) {
+      console.warn('[auth] Failed to persist user to PostgreSQL:', err?.message)
+    }
+  }
 }
 
 export function getAllSessions() {
@@ -293,6 +300,35 @@ export async function listSessionsFromDatabase() {
   }
 }
 
-export function getUserByEmail(email) {
-  return memory.users.get(email)
+export async function getUserByEmail(email) {
+  // First check memory cache
+  let user = memory.users.get(email)
+  
+  // If not in memory, try database
+  if (!user) {
+    try {
+      user = await Users.getUserByEmail(email)
+      if (user) {
+        memory.users.set(email, user)
+      }
+    } catch (err) {
+      console.warn('[auth] Failed to fetch user from DB:', err?.message)
+    }
+  }
+  
+  return user
+}
+
+export async function deleteUserPermanently(email) {
+  // Remove from memory
+  memory.users.delete(email)
+  
+  // Remove from database
+  try {
+    await Users.deleteUser(email)
+    return true
+  } catch (err) {
+    console.warn('[auth] Failed to delete user from DB:', err?.message)
+    return false
+  }
 }
