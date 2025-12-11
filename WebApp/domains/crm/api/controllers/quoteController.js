@@ -13,6 +13,7 @@ import Quotes from '../../../../db/models/quotes.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
 import { uploadFileToStorage, deleteFileFromStorage } from '../../../../server/storage.js';
+import { logAuditEvent } from '../../../../server/auditTrail.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
@@ -401,6 +402,21 @@ export function setupQuotesRoutes(app) {
       // Quote'u dosyalarla birlikte yeniden getir
       const fullQuote = await quoteService.getQuoteById(quote.id);
 
+      // Audit: quote.create
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: quote.id,
+        action: 'create',
+        changes: {
+          customerName: resolvedCustomerName,
+          customerId: resolvedCustomerId,
+          calculatedPrice: quote.calculatedPrice,
+          status: quote.status
+        },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
+
       res.status(201).json({ success: true, quote: fullQuote });
     } catch (error) {
       logger.error('Failed to create quote', { error: error.message });
@@ -458,6 +474,20 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
+      // Audit: quote.update
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: 'update',
+        changes: {
+          customerName: updates.customerName,
+          projectName: updates.projectName,
+          updatedBy: updates.updatedBy
+        },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
+
       logger.success('Quote updated successfully', { quoteId: id });
       res.json({ success: true, quote });
     } catch (error) {
@@ -489,6 +519,21 @@ export function setupQuotesRoutes(app) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
+
+      // Audit: quote.approve veya quote.reject
+      const auditAction = status === 'approved' ? 'approve' : (status === 'rejected' ? 'reject' : 'statusChange');
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: auditAction,
+        changes: {
+          status: quote.status,
+          approvedAt: quote.approvedAt,
+          approvedBy: quote.approvedBy
+        },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
 
       logger.success('Quote status updated', {
         quoteId: id,
@@ -562,15 +607,31 @@ export function setupQuotesRoutes(app) {
 
       const quote = await Quotes.update(id, updateData);
 
-      // Log audit trail
+      // Audit: quote.updateForm
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: 'updateForm',
+        changes: {
+          before: {
+            formTemplateCode: existingQuote.formTemplateCode,
+            priceSettingCode: existingQuote.priceSettingCode,
+            calculatedPrice: existingQuote.calculatedPrice
+          },
+          after: {
+            formTemplateCode: formTemplateCode,
+            priceSettingCode: priceSettingCode,
+            calculatedPrice: calculatedPrice
+          }
+        },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
+
       logger.success('Quote form updated via C2 modal', {
         quoteId: id,
         oldFormTemplateCode: existingQuote.formTemplateCode,
         newFormTemplateCode: formTemplateCode,
-        oldPriceSettingCode: existingQuote.priceSettingCode,
-        newPriceSettingCode: priceSettingCode,
-        oldPrice: existingQuote.calculatedPrice,
-        newPrice: calculatedPrice,
         updatedBy: req.user?.email || 'system'
       });
 
@@ -609,6 +670,20 @@ export function setupQuotesRoutes(app) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
+
+      // Audit: quote.setManualPrice
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: 'setManualPrice',
+        changes: {
+          manualPrice: quote.manualPrice,
+          finalPrice: quote.finalPrice,
+          reason: reason
+        },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
 
       logger.success('Manual price set', {
         quoteId: id,
@@ -651,6 +726,16 @@ export function setupQuotesRoutes(app) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
+
+      // Audit: quote.clearManualPrice
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: 'clearManualPrice',
+        changes: { reason: reason },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
 
       logger.success('Manual price cleared', { quoteId: id });
 
@@ -763,6 +848,16 @@ export function setupQuotesRoutes(app) {
         logger.warning(`Quote not found: ${id}`);
         return res.status(404).json({ error: 'Quote not found' });
       }
+
+      // Audit: quote.delete
+      logAuditEvent({
+        entityType: 'quote',
+        entityId: id,
+        action: 'delete',
+        changes: { deletedBy: req.user?.email },
+        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      }).catch(() => { });
 
       logger.success('Quote deleted', { quoteId: id });
       res.json({ success: true });

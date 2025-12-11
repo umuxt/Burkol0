@@ -1231,9 +1231,132 @@ Generic `logAuditEvent` helper eklendi. Tüm domain'lerde (CRM, MES, Materials) 
 
 ---
 
-### P1.2: Quote CRUD Audit Logging
+### P1.1b: Birleşik Console Logger Formatı (YENİ)
 
 **Bağımlılık:** P1.1 tamamlanmış olmalı
+
+**Amaç:** Success log ve Audit log'u tek bir tablo formatında birleştir. CORS loglarını sessiz yap.
+
+**Prompt:**
+```
+server/utils/logger.js dosyasını genişlet, birleşik log formatı ekle.
+
+## YENİ FORMAT
+
+Mevcut durum (iki ayrı log):
+  ✅ Quote created successfully
+    • quoteId: TKF-20251211-0001
+    • customerId: 19
+  │ 📋 AUDIT │ create │ quote │ TKF-202512 │ 15:56:30 │
+
+Yeni format (tek birleşik tablo):
+  ┌────────────────────────────────────────────────────────┐
+  │ ✅ QUOTE CREATE                                        │
+  │    quoteId:   TKF-20251211-0001                        │
+  │    customer:  19                                       │
+  │    price:     0                                        │
+  ├────────────────────────────────────────────────────────┤
+  │ 📋 quote.create │ umutyalcin8@... │ 15:56:30           │
+  └────────────────────────────────────────────────────────┘
+
+## YENİ FONKSİYON
+
+```javascript
+/**
+ * Birleşik işlem ve audit logu
+ * @param {object} options
+ * @param {'success'|'warning'|'error'} options.type - Log tipi
+ * @param {string} options.action - Aksiyon adı: 'QUOTE CREATE', 'SHIPMENT UPDATE' vb.
+ * @param {object} options.details - Detaylar: { quoteId: '...', customer: '...' }
+ * @param {object} options.audit - Audit bilgisi (opsiyonel)
+ */
+export function logOperation(options) {
+  const { type = 'success', action, details = {}, audit } = options;
+  
+  const time = new Date().toLocaleTimeString('tr-TR', { 
+    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+  });
+  
+  const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '❌';
+  const width = 56;
+  
+  // Üst kısım
+  console.log('┌' + '─'.repeat(width) + '┐');
+  console.log(`│ ${icon} ${action.padEnd(width - 4)} │`);
+  
+  // Detaylar (alt alta)
+  Object.entries(details).forEach(([key, value]) => {
+    const line = `   ${key.padEnd(12)} ${String(value ?? '').slice(0, width - 18)}`;
+    console.log(`│${line.padEnd(width)} │`);
+  });
+  
+  // Audit kısmı (varsa)
+  if (audit) {
+    console.log('├' + '─'.repeat(width) + '┤');
+    const auditLine = `📋 ${audit.action.padEnd(15)} │ ${(audit.userEmail || 'system').slice(0, 20).padEnd(20)} │ ${time}`;
+    console.log(`│ ${auditLine.padEnd(width - 2)} │`);
+    
+    // DB'ye yaz (fire-and-forget)
+    logAuditEvent(audit).catch(() => {});
+  }
+  
+  console.log('└' + '─'.repeat(width) + '┘');
+}
+```
+
+## CORS LOGLARI SESSİZ YAP
+
+server.js veya ilgili middleware'de CORS success loglarını kaldır veya DEBUG moduna taşı.
+
+## KULLANIM ÖRNEĞİ
+
+Quote controller'da:
+```javascript
+// ESKİ (iki ayrı log)
+logger.success('Quote created successfully', { quoteId: quote.id, ... });
+logAuditEvent({ entityType: 'quote', action: 'create', ... }).catch(() => {});
+
+// YENİ (tek birleşik log)
+logOperation({
+  type: 'success',
+  action: 'QUOTE CREATE',
+  details: {
+    quoteId: quote.id,
+    customer: resolvedCustomerId,
+    price: quote.calculatedPrice
+  },
+  audit: {
+    entityType: 'quote',
+    entityId: quote.id,
+    action: 'create',
+    changes: { ... },
+    performer: { email: req.user?.email },
+    ipAddress: req.ip
+  }
+});
+```
+
+## TEST
+- Quote oluştur
+- Console'da tek birleşik tablo görünmeli
+- CORS logları görünmemeli
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/server/utils/logger.js`
+- `/WebApp/server.js` (CORS log kaldırma)
+
+**Başarı Kriterleri:**
+- [ ] logOperation fonksiyonu çalışıyor
+- [ ] Birleşik tablo formatı console'da görünüyor
+- [ ] CORS success logları görünmüyor
+- [ ] Audit loglar hala DB'ye yazılıyor
+
+---
+
+### P1.2: Quote CRUD Audit Logging
+
+**Bağımlılık:** P1.1 tamamlanmış olmalı (P1.1b ile entegrasyon sonra yapılacak)
 
 **Amaç:** Quote oluşturma/güncelleme/silme işlemlerini logla.
 
@@ -1243,73 +1366,41 @@ Quote API route'larına audit logging ekle.
 
 ## HEDEF DOSYA
 Önce quote route'ların nerede olduğunu bul:
-- /WebApp/server/quoteRoutes.js veya
-- /WebApp/server/apiRoutes.js içinde quotes endpoint'leri
+- /WebApp/domains/crm/api/controllers/quoteController.js
 
 ## EKLENECEK AUDIT LOGLAR
 
 ### POST /api/quotes (Create)
 ```javascript
-import { logAuditEvent } from './auditTrail.js';
+import { logAuditEvent } from '../../../../server/auditTrail.js';
 
 // ... mevcut create logic ...
 
 // Başarılı kayıt sonrası:
-await logAuditEvent({
+logAuditEvent({
   entityType: 'quote',
-  entityId: newQuote.id,
+  entityId: quote.id,
   action: 'create',
   changes: {
-    customerName: newQuote.customerName,
-    finalPrice: newQuote.finalPrice,
-    status: newQuote.status
+    customerName: resolvedCustomerName,
+    customerId: resolvedCustomerId,
+    calculatedPrice: quote.calculatedPrice,
+    status: quote.status
   },
-  performer: {
-    email: req.user?.email,
-    userName: req.user?.userName,
-    sessionId: req.user?.sessionId
-  },
+  performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
   ipAddress: req.ip
-});
+}).catch(() => {});
 ```
 
-### PUT /api/quotes/:id (Update)
-```javascript
-// Mevcut veriyi al (değişiklik karşılaştırması için)
-const oldQuote = await getQuoteById(id);
-
-// ... update logic ...
-
-await logAuditEvent({
-  entityType: 'quote',
-  entityId: id,
-  action: 'update',
-  changes: {
-    before: { status: oldQuote.status, finalPrice: oldQuote.finalPrice },
-    after: { status: updatedQuote.status, finalPrice: updatedQuote.finalPrice }
-  },
-  performer: { email: req.user?.email, sessionId: req.user?.sessionId },
-  ipAddress: req.ip
-});
-```
-
-### Approve endpoint
-```javascript
-await logAuditEvent({
-  entityType: 'quote',
-  entityId: id,
-  action: 'approve',
-  changes: { approvedBy: req.user?.email, approvedAt: new Date().toISOString() },
-  performer: { email: req.user?.email, sessionId: req.user?.sessionId },
-  ipAddress: req.ip
-});
-```
+### PATCH /api/quotes/:id (Update)
+### PATCH /api/quotes/:id/status (Approve/Reject)
+### PUT /api/quotes/:id/form (UpdateForm - C2 Modal)
+### POST/DELETE /api/quotes/:id/manual-price (SetManualPrice/ClearManualPrice)
+### DELETE /api/quotes/:id (Delete)
 
 ## NOT
-Tüm audit loglar async olmalı ve hata response'u etkilememeli (fire-and-forget pattern):
-```javascript
-logAuditEvent({...}).catch(err => console.warn('Audit failed:', err?.message));
-```
+- P1.1b tamamlandıktan sonra logOperation() ile birleşik format kullanılacak
+- Şu an logAuditEvent() + logger.success() ayrı çağrılıyor
 
 ## TEST
 - Yeni quote oluştur
@@ -1317,12 +1408,18 @@ logAuditEvent({...}).catch(err => console.warn('Audit failed:', err?.message));
 ```
 
 **Düzenlenecek Dosyalar:**
-- Quote API route dosyası (bul ve düzenle)
+- `/WebApp/domains/crm/api/controllers/quoteController.js` ✅
 
 **Başarı Kriterleri:**
-- [ ] Quote create audit_logs'da görünüyor
-- [ ] Quote update audit_logs'da görünüyor
-- [ ] Approve işlemi loglanıyor
+- [x] Quote create audit_logs'da görünüyor ✅
+- [x] Quote update audit_logs'da görünüyor ✅
+- [x] Quote updateForm audit_logs'da görünüyor ✅
+- [x] Quote setManualPrice/clearManualPrice audit_logs'da görünüyor ✅
+- [x] Quote delete audit_logs'da görünüyor ✅
+- [ ] logOperation() entegrasyonu (P1.1b sonrası)
+
+**Uygulama Notu (2025-12-11):**
+Quote controller'a audit logging eklendi. 8 farklı aksiyon loglanıyor: create, update, approve, reject, statusChange, updateForm, setManualPrice, clearManualPrice, delete. Console formatı P1.1b ile birleşik formata çevrilecek.
 
 ---
 
