@@ -8,6 +8,7 @@ import db from '../db/connection.js'
 const memory = {
   sessions: new Map(), // key: token
   sessionsById: new Map(), // key: sessionId
+  users: new Map(), // key: email - cache for user lookups
   systemConfig: { dailySessionCounters: {} }
 }
 
