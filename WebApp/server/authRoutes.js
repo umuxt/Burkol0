@@ -5,6 +5,7 @@ import {
   upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromDatabase, listSessionsFromDatabase, getUserByEmail, deleteUserPermanently
 } from './auth.js'
 import auditSessionActivity from './auditTrail.js'
+import { logSession, logError } from './utils/logger.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
@@ -34,10 +35,12 @@ export function setupAuthRoutes(app) {
     const token = await createSession(email)
     const session = await getSession(token)
 
-    // Audit: log login event to audit_logs (best-effort)
+    // Tablo formatında login logu
+    logSession('login', { email, sessionId: session?.sessionId })
+
+    // Audit: log login event to audit_logs (best-effort, sessiz)
     try {
       if (session?.sessionId) {
-        // attach to req for audit trail helper
         req.user = session
         await auditSessionActivity(req, {
           type: 'session',
@@ -48,6 +51,7 @@ export function setupAuthRoutes(app) {
         })
       }
     } catch { }
+
     res.json({
       token,
       user: result,
@@ -69,6 +73,7 @@ export function setupAuthRoutes(app) {
       const session = await getSession(token)
       if (session) {
         const logoutTime = new Date().toISOString()
+        const sessionDuration = new Date() - new Date(session.loginTime)
 
         // Session'a logout bilgisi ekle
         const logoutActivity = {
@@ -81,7 +86,7 @@ export function setupAuthRoutes(app) {
           description: `${session.email} oturumu sonlandırıldı`,
           metadata: {
             email: session.email,
-            sessionDuration: new Date() - new Date(session.loginTime)
+            sessionDuration: sessionDuration
           },
           performedBy: {
             email: session.email,
@@ -90,9 +95,8 @@ export function setupAuthRoutes(app) {
           }
         }
 
-        // Session'ı güncelle - PostgreSQL'e kaydet
+        // Session'ı güncelle - PostgreSQL'e kaydet (sessiz)
         try {
-          // updateSession bekler: sessionData objesi (sessionId içermeli)
           await updateSession({
             sessionId: session.sessionId,
             logoutTime: logoutTime,
@@ -100,24 +104,27 @@ export function setupAuthRoutes(app) {
             lastActivityAt: logoutTime,
             activityLog: [logoutActivity]
           })
-          console.log('✅ Logout: Session updated with logoutTime:', session.sessionId)
         } catch (updateError) {
-          console.error('❌ Logout: Failed to update session:', updateError?.message)
-          // Devam et - en azından memory'den sil
+          logError('Logout', `Failed to update session: ${updateError?.message}`)
         }
 
-        // Audit: persist logout activity
+        // Audit: persist logout activity (sessiz)
         try {
           req.user = { ...session, logoutTime, isActive: false }
           await auditSessionActivity(req, logoutActivity)
-          console.log('✅ Logout: Audit log created for session:', session.sessionId)
         } catch (auditError) {
-          console.warn('⚠️ Logout: Failed to create audit log:', auditError?.message)
+          // Sessiz - ana log yeterli
         }
 
-        // Session'ı memory'den sil (soft delete - DB'de kalır)
+        // Session'ı memory'den sil
         deleteSession(token)
-        console.log('✅ Logout: Session removed from memory:', session.sessionId)
+
+        // Tablo formatında logout logu
+        logSession('logout', {
+          email: session.email,
+          sessionId: session.sessionId,
+          duration: sessionDuration
+        })
       }
     }
 

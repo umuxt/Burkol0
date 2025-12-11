@@ -1139,13 +1139,20 @@ console.log('✅ Session updated:', session.sessionId, 'Fields:', Object.keys(up
 P0.1 ile birlikte test edilecek
 ```
 
-**Düzenlenecek Dosya:**
-- `/WebApp/db/models/sessions.js`
+**Düzenlenecek Dosyalar:**
+- `/WebApp/db/models/sessions.js` ✅
+- `/WebApp/server/utils/logger.js` ✅ (YENİ - Tablo formatı console logger)
+- `/WebApp/server/authRoutes.js` ✅ (Logger entegrasyonu)
+- `/WebApp/db/models/users.js` ✅ (Gereksiz loglar temizlendi)
 
 **Başarı Kriterleri:**
-- [ ] sessionId string olarak validate ediliyor
-- [ ] activityLog array olarak append ediliyor
-- [ ] Console log güncellenen alanları gösteriyor
+- [x] sessionId string olarak validate ediliyor ✅
+- [x] activityLog array olarak append ediliyor ✅
+- [x] Console log güncellenen alanları gösteriyor ✅
+- [x] Tablo formatında login/logout logları ✅ (BONUS)
+
+**Uygulama Notu (2025-12-11):**
+Tablo formatında console logger eklendi (`server/utils/logger.js`). Login/logout logları artık düzenli tablo formatında görünüyor. Gereksiz debug logları tüm session/user dosyalarından temizlendi.
 
 ---
 

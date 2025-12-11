@@ -12,7 +12,7 @@ export async function getAllUsers() {
     const users = await db('users')
       .select('*')
       .orderBy('createdAt', 'desc');
-    
+
     return users;
   } catch (error) {
     console.error('❌ Error getting all users:', error);
@@ -28,7 +28,7 @@ export async function getUserByEmail(email) {
     const user = await db('users')
       .where({ email })
       .first();
-    
+
     return user || null;
   } catch (error) {
     console.error('❌ Error getting user by email:', error);
@@ -44,7 +44,7 @@ export async function getUserById(id) {
     const user = await db('users')
       .where({ id })
       .first();
-    
+
     return user || null;
   } catch (error) {
     console.error('❌ Error getting user by ID:', error);
@@ -68,19 +68,18 @@ export async function createUser(userData) {
       workerId: userData.workerId || null,
       createdAt: db.fn.now()
     };
-    
+
     // Store plain password if provided (for migration compatibility)
     if (userData.password) {
       insertData.plainPassword = userData.password;
     } else if (userData.plainPassword) {
       insertData.plainPassword = userData.plainPassword;
     }
-    
+
     const [user] = await db('users')
       .insert(insertData)
       .returning('*');
-    
-    console.log('✅ User created:', user.email);
+
     return user;
   } catch (error) {
     console.error('❌ Error creating user:', error);
@@ -106,12 +105,11 @@ export async function updateUser(email, updates) {
         deactivatedAt: updates.active === false ? db.fn.now() : null
       })
       .returning('*');
-    
+
     if (!user) {
       throw new Error('User not found');
     }
-    
-    console.log('✅ User updated:', user.email);
+
     return user;
   } catch (error) {
     console.error('❌ Error updating user:', error);
@@ -125,7 +123,7 @@ export async function updateUser(email, updates) {
 export async function upsertUser(userData) {
   try {
     const existing = await getUserByEmail(userData.email);
-    
+
     if (existing) {
       return await updateUser(userData.email, userData);
     } else {
@@ -149,12 +147,11 @@ export async function deleteUser(email) {
         deactivatedAt: db.fn.now()
       })
       .returning('*');
-    
+
     if (!user) {
       throw new Error('User not found');
     }
-    
-    console.log('✅ User deactivated:', user.email);
+
     return user;
   } catch (error) {
     console.error('❌ Error deleting user:', error);
@@ -168,20 +165,19 @@ export async function deleteUser(email) {
 export async function verifyUserCredentials(email, password, hashPassword) {
   try {
     const user = await getUserByEmail(email);
-    
+
     if (!user) {
       console.log('❌ User not found:', email);
       return null;
     }
-    
+
     if (!user.active) {
       console.log('❌ User deactivated:', email);
       return { error: 'account_deactivated', message: 'Hesabınız devre dışı bırakılmış.' };
     }
-    
+
     // Plain password check (for backward compatibility)
     if (user.plainPassword && user.plainPassword === password) {
-      console.log('✅ User verified with plain password:', email);
       return {
         id: user.id,
         email: user.email,
@@ -190,12 +186,11 @@ export async function verifyUserCredentials(email, password, hashPassword) {
         workerId: user.workerId
       };
     }
-    
+
     // Hash-based authentication
     if (user.pwHash && user.pwSalt && hashPassword) {
       const { hash } = hashPassword(password, user.pwSalt);
       if (hash === user.pwHash) {
-        console.log('✅ User verified with hash:', email);
         return {
           id: user.id,
           email: user.email,
@@ -205,7 +200,7 @@ export async function verifyUserCredentials(email, password, hashPassword) {
         };
       }
     }
-    
+
     console.log('❌ Invalid password for user:', email);
     return null;
   } catch (error) {

@@ -41,8 +41,7 @@ export async function createSession(sessionData) {
         activityLog: insertData.activityLog
       })
       .returning('*');
-    
-    console.log('✅ Session created/updated:', session.sessionId);
+
     return normalizeSession(session);
   } catch (error) {
     console.error('❌ Error creating session:', error);
@@ -58,7 +57,7 @@ export async function getSessionByToken(token) {
     const session = await db('sessions')
       .where({ token })
       .first();
-    
+
     return session ? normalizeSession(session) : null;
   } catch (error) {
     console.error('❌ Error getting session by token:', error);
@@ -74,7 +73,7 @@ export async function getSessionById(sessionId) {
     const session = await db('sessions')
       .where({ sessionId: sessionId })
       .first();
-    
+
     return session ? normalizeSession(session) : null;
   } catch (error) {
     console.error('❌ Error getting session by ID:', error);
@@ -89,7 +88,7 @@ export async function getAllSessions() {
   try {
     const sessions = await db('sessions')
       .orderBy('loginTime', 'desc');
-    
+
     return sessions.map(normalizeSession);
   } catch (error) {
     console.error('❌ Error getting all sessions:', error);
@@ -99,41 +98,63 @@ export async function getAllSessions() {
 
 /**
  * Update session
+ * @param {string} sessionId - Session ID (required, must be string)
+ * @param {object} updates - Fields to update (lastActivityAt, isActive, logoutTime, activityLog)
  */
 export async function updateSession(sessionId, updates) {
+  // Parametre validasyonu
+  if (!sessionId || typeof sessionId !== 'string') {
+    console.error('[sessions] Invalid sessionId:', sessionId, 'Type:', typeof sessionId);
+    throw new Error('Invalid sessionId: must be a non-empty string');
+  }
+
+  if (!updates || typeof updates !== 'object') {
+    console.error('[sessions] Invalid updates:', updates);
+    throw new Error('Invalid updates: must be an object');
+  }
+
   try {
-    const updateData = {
-      lastActivityAt: updates.lastActivityAt,
-      isActive: updates.isActive !== undefined ? updates.isActive : undefined,
-      logoutTime: updates.logoutTime,
-    };
-    
+    // Sadece geçerli alanları al
+    const updateData = {};
+
+    if (updates.lastActivityAt !== undefined) {
+      updateData.lastActivityAt = updates.lastActivityAt;
+    }
+
+    if (updates.isActive !== undefined) {
+      updateData.isActive = updates.isActive;
+    }
+
+    if (updates.logoutTime !== undefined) {
+      updateData.logoutTime = updates.logoutTime;
+    }
+
     // Handle activity log append
     if (updates.activityLog) {
       const existing = await getSessionById(sessionId);
-      const existingLog = existing?.activityLog || [];
+      const existingLog = Array.isArray(existing?.activityLog) ? existing.activityLog : [];
       const newLog = Array.isArray(updates.activityLog) ? updates.activityLog : [updates.activityLog];
       updateData.activityLog = JSON.stringify([...existingLog, ...newLog]);
     }
-    
-    // Remove undefined values
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) delete updateData[key];
-    });
-    
+
+    // Güncellenecek alan yoksa erken çık
+    if (Object.keys(updateData).length === 0) {
+      const existing = await getSessionById(sessionId);
+      return existing;
+    }
+
     const [session] = await db('sessions')
       .where({ sessionId: sessionId })
       .update(updateData)
       .returning('*');
-    
+
     if (!session) {
-      throw new Error('Session not found');
+      throw new Error('Session not found: ' + sessionId);
     }
-    
-    console.log('✅ Session updated:', session.sessionId);
+
     return normalizeSession(session);
   } catch (error) {
-    console.error('❌ Error updating session:', error);
+    console.error('❌ Error updating session:', sessionId, error?.message);
     throw error;
   }
 }
@@ -151,11 +172,7 @@ export async function deleteSession(token) {
         logoutTime: db.fn.now()
       })
       .returning('*');
-    
-    if (session) {
-      console.log('✅ Session deleted:', session.sessionId);
-    }
-    
+
     return session ? normalizeSession(session) : null;
   } catch (error) {
     console.error('❌ Error deleting session:', error);
@@ -175,11 +192,7 @@ export async function deleteSessionById(sessionId) {
         logoutTime: db.fn.now()
       })
       .returning('*');
-    
-    if (session) {
-      console.log('✅ Session deleted by ID:', session.sessionId);
-    }
-    
+
     return session ? normalizeSession(session) : null;
   } catch (error) {
     console.error('❌ Error deleting session by ID:', error);
@@ -199,11 +212,7 @@ export async function cleanupExpiredSessions() {
         isActive: false,
         logoutTime: db.fn.now()
       });
-    
-    if (deleted > 0) {
-      console.log(`✅ Cleaned up ${deleted} expired sessions`);
-    }
-    
+
     return deleted;
   } catch (error) {
     console.error('❌ Error cleaning up expired sessions:', error);
@@ -216,7 +225,7 @@ export async function cleanupExpiredSessions() {
  */
 function normalizeSession(session) {
   if (!session) return null;
-  
+
   return {
     sessionId: session.sessionId,
     token: session.token,
@@ -229,8 +238,8 @@ function normalizeSession(session) {
     lastActivityAt: session.lastActivityAt,
     logoutTime: session.logoutTime,
     isActive: session.isActive,
-    activityLog: typeof session.activityLog === 'string' 
-      ? JSON.parse(session.activityLog) 
+    activityLog: typeof session.activityLog === 'string'
+      ? JSON.parse(session.activityLog)
       : (session.activityLog || [])
   };
 }
