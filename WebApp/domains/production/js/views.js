@@ -439,10 +439,10 @@ export function generateWeeklyTimeline(scheduleType) {
   if (arguments.length > 1 && typeof arguments[1] === 'string') {
     idPrefix = arguments[1] || '';
   }
-  const dayIds = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(id => 
+  const dayIds = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(id =>
     idPrefix + (scheduleType === 'fixed' ? id : `${scheduleType}-${id}`)
   );
-  
+
   return `
     <div style="border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden;">
       <!-- Header with days -->
@@ -511,7 +511,7 @@ function generateVerticalHourMarks() {
 // Generate time grid lines for day columns with compressed spacing
 function generateTimeGridLines() {
   let lines = '';
-  for(let i = 0; i <= 24; i += 2) {
+  for (let i = 0; i <= 24; i += 2) {
     // Compress the spacing by 25% (multiply by 0.75)
     const percentage = ((i / 24) * 100) * 0.75;
     lines += `<div style="position: absolute; top: ${percentage}%; left: 0; right: 0; height: 1px; background: var(--border); opacity: 0.3;"></div>`;
@@ -1809,7 +1809,7 @@ export function generateApprovedQuotes() {
 // CSS for metadata column visibility
 export function injectMetadataToggleStyles() {
   if (document.getElementById('metadata-toggle-styles')) return;
-  
+
   const style = document.createElement('style');
   style.id = 'metadata-toggle-styles';
   style.textContent = `
@@ -1850,10 +1850,10 @@ export function injectMetadataToggleStyles() {
 // Toggle metadata columns visibility
 export function toggleMetadataColumns() {
   tableState.showMetadataColumns = !tableState.showMetadataColumns;
-  
+
   const metadataColumns = document.querySelectorAll('.metadata-column');
   const toggleBtn = document.querySelector('.metadata-toggle-btn');
-  
+
   metadataColumns.forEach(col => {
     if (tableState.showMetadataColumns) {
       col.classList.remove('hidden');
@@ -1861,7 +1861,7 @@ export function toggleMetadataColumns() {
       col.classList.add('hidden');
     }
   });
-  
+
   if (toggleBtn) {
     toggleBtn.textContent = tableState.showMetadataColumns ? 'Hide Details' : 'Show Details';
     toggleBtn.classList.toggle('active', tableState.showMetadataColumns);
@@ -1879,14 +1879,14 @@ export function toggleMetadataColumns() {
 export async function initActiveTasksWidget() {
   const container = document.getElementById('active-tasks-widget');
   if (!container) return;
-  
+
   try {
     // Import API functions dynamically
     const { getWorkerPortalTasks, getWorkers } = await import('./mesApi.js');
-    
+
     // Get real workers from PostgreSQL (not hardcoded state.js mock data)
     const workers = await getWorkers();
-    
+
     // If no workers exist yet, show empty state
     if (!workers || workers.length === 0) {
       container.innerHTML = `
@@ -1898,20 +1898,20 @@ export async function initActiveTasksWidget() {
       `;
       return;
     }
-    
+
     // Aggregate task counts across all workers
     let totalReady = 0;
     let totalInProgress = 0;
     let totalPaused = 0;
     let totalPending = 0;
     let failedWorkers = [];
-    
+
     for (const worker of workers) {
       try {
         // Pass workerId explicitly so admin requests use query param
         const result = await getWorkerPortalTasks(worker.id);
         const tasks = result.tasks || [];
-        
+
         totalReady += tasks.filter(t => t.status === 'ready').length;
         totalInProgress += tasks.filter(t => t.status === 'in_progress').length;
         totalPaused += tasks.filter(t => t.status === 'paused').length;
@@ -1921,7 +1921,7 @@ export async function initActiveTasksWidget() {
         failedWorkers.push({ id: worker.id, name: worker.name, error: err.message });
       }
     }
-    
+
     // Show warning if some workers failed
     const warningHtml = failedWorkers.length > 0 ? `
       <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
@@ -1933,7 +1933,7 @@ export async function initActiveTasksWidget() {
         </div>
       </div>
     ` : '';
-    
+
     // Render widget content
     container.innerHTML = `
       <div class="view-flex-col-gap">
@@ -2007,38 +2007,38 @@ let workPackagesState = {
 export async function initWorkPackagesWidget() {
   const container = document.getElementById('work-packages-widget');
   if (!container) return;
-  
+
   try {
     // Import API functions
     const { getWorkPackages, getWorkers, getStations } = await import('./mesApi.js');
-    
+
     // Load data in parallel
     const [packagesData, workers, stations] = await Promise.all([
       getWorkPackages({ limit: 500 }),
       getWorkers(),
       getStations()
     ]);
-    
+
     workPackagesState.allPackages = packagesData.workPackages || [];
     workPackagesState.workers = workers || [];
     workPackagesState.stations = stations || [];
     workPackagesState.filteredPackages = workPackagesState.allPackages;
-    
+
     // Populate filter dropdowns
     populateWorkPackagesFilters();
-    
+
     // Bind event listeners
     bindWorkPackagesEvents();
-    
+
     // Setup auto-refresh listeners
     setupWorkPackagesAutoRefresh();
-    
+
     // Apply default filters (hide completed on initial load)
     applyWorkPackagesFilters();
-    
+
     // Render table
     renderWorkPackagesTable();
-    
+
   } catch (err) {
     console.error('Failed to load work packages widget:', err);
     const errorMessage = err.message || 'Bilinmeyen hata';
@@ -2066,19 +2066,19 @@ function setupWorkPackagesAutoRefresh() {
     if (workPackagesState.refreshDebounceTimer) {
       clearTimeout(workPackagesState.refreshDebounceTimer);
     }
-    
+
     // Set new timer (500ms debounce)
     workPackagesState.refreshDebounceTimer = setTimeout(async () => {
       await refreshWorkPackagesData(false); // false = silent refresh (no button state change)
     }, 500);
   };
-  
+
   // Listen to window event (legacy support)
   window.addEventListener('assignments:updated', (e) => {
     console.log('Work Packages: Received window event assignments:updated', e.detail);
     debouncedRefresh();
   });
-  
+
   // Listen to BroadcastChannel
   try {
     const assignmentsChannel = new BroadcastChannel('mes-assignments');
@@ -2088,7 +2088,7 @@ function setupWorkPackagesAutoRefresh() {
         debouncedRefresh();
       }
     };
-    
+
     // Store reference for cleanup if needed
     workPackagesState.broadcastChannel = assignmentsChannel;
   } catch (err) {
@@ -2106,44 +2106,44 @@ async function refreshWorkPackagesData(showButtonState = true) {
     console.log('Work Packages: Refresh already in progress, skipping');
     return;
   }
-  
+
   workPackagesState.isRefreshing = true;
-  
+
   const refreshBtn = document.getElementById('work-packages-refresh-btn');
   const container = document.getElementById('work-packages-widget');
-  
+
   try {
     // Show refreshing state
     if (showButtonState && refreshBtn) {
       refreshBtn.disabled = true;
       refreshBtn.innerHTML = '<span><i class="fa-solid fa-spinner fa-spin"></i></span> Loading...';
     }
-    
+
     // Import API functions
     const { getWorkPackages, clearWorkPackagesCache } = await import('./mesApi.js');
-    
+
     // Clear cache and fetch fresh data
     clearWorkPackagesCache();
     const packagesData = await getWorkPackages({ limit: 500 }, true);
-    
+
     // Update state
     workPackagesState.allPackages = packagesData.workPackages || [];
-    
+
     console.log(`📦 Work Packages loaded:`, {
       total: workPackagesState.allPackages.length,
       statuses: [...new Set(workPackagesState.allPackages.map(p => p.status))],
       workOrders: [...new Set(workPackagesState.allPackages.map(p => p.workOrderCode))],
       samplePackage: workPackagesState.allPackages[0]
     });
-    
+
     // Reapply filters
     applyWorkPackagesFilters();
-    
+
     // Re-render table
     renderWorkPackagesTable();
-    
+
     console.log(`✓ Work Packages refreshed: ${workPackagesState.allPackages.length} packages loaded`);
-    
+
   } catch (err) {
     console.error('Work Packages refresh failed:', err);
     if (showButtonState) {
@@ -2151,13 +2151,13 @@ async function refreshWorkPackagesData(showButtonState = true) {
     }
   } finally {
     workPackagesState.isRefreshing = false;
-    
+
     // Restore button state
     if (showButtonState && refreshBtn) {
       refreshBtn.disabled = false;
       refreshBtn.innerHTML = '<span>🔄</span> Refresh';
     }
-    
+
     // Remove loading overlay
     const loadingOverlay = document.getElementById('wp-loading-overlay');
     if (loadingOverlay) {
@@ -2168,7 +2168,7 @@ async function refreshWorkPackagesData(showButtonState = true) {
 
 function populateWorkPackagesFilters() {
   const statusOptions = ['pending', 'queued', 'ready', 'in-progress', 'paused', 'completed', 'cancelled'];
-  
+
   // Status filter
   const statusList = document.getElementById('wp-filter-status-list');
   if (statusList) {
@@ -2190,7 +2190,7 @@ function populateWorkPackagesFilters() {
       </label>
     `).join('');
   }
-  
+
   // Stations filter
   const stationsList = document.getElementById('wp-filter-stations-list');
   if (stationsList && workPackagesState.stations.length > 0) {
@@ -2204,7 +2204,7 @@ function populateWorkPackagesFilters() {
 }
 
 // Work Packages Filter Panel Controls (Global - called from onclick)
-window.toggleWPFilterPanel = function(type) {
+window.toggleWPFilterPanel = function (type) {
   const panel = document.getElementById(`wp-filter-${type}-panel`);
   if (!panel) return;
   const isOpen = panel.style.display === 'block';
@@ -2217,18 +2217,18 @@ window.toggleWPFilterPanel = function(type) {
   panel.style.display = isOpen ? 'none' : 'block';
 };
 
-window.hideWPFilterPanel = function(type) {
+window.hideWPFilterPanel = function (type) {
   const panel = document.getElementById(`wp-filter-${type}-panel`);
   if (panel) panel.style.display = 'none';
 };
 
-window.clearWPFilter = function(type) {
+window.clearWPFilter = function (type) {
   const filterProp = getWPFilterProperty(type);
   if (!filterProp || !workPackagesState[filterProp]) {
     console.error(`Invalid filter type: ${type}`);
     return;
   }
-  
+
   workPackagesState[filterProp] = [];
   const list = document.getElementById(`wp-filter-${type}-list`);
   if (list) {
@@ -2240,7 +2240,7 @@ window.clearWPFilter = function(type) {
   updateWPClearFiltersButton();
 };
 
-window.searchWPFilter = function(type, searchInput) {
+window.searchWPFilter = function (type, searchInput) {
   const searchTerm = searchInput.value.toLowerCase();
   const list = document.getElementById(`wp-filter-${type}-list`);
   if (!list) return;
@@ -2261,13 +2261,13 @@ function getWPFilterProperty(type) {
   return mapping[type];
 }
 
-window.handleWPFilterChange = function(type, checkbox) {
+window.handleWPFilterChange = function (type, checkbox) {
   const filterProp = getWPFilterProperty(type);
   if (!filterProp || !workPackagesState[filterProp]) {
     console.error(`Invalid filter type: ${type}`);
     return;
   }
-  
+
   const value = checkbox.value;
   if (checkbox.checked) {
     if (!workPackagesState[filterProp].includes(value)) {
@@ -2282,32 +2282,32 @@ window.handleWPFilterChange = function(type, checkbox) {
   updateWPClearFiltersButton();
 };
 
-window.clearAllWPFilters = function() {
+window.clearAllWPFilters = function () {
   const searchInput = document.getElementById('wp-search-input');
-  
+
   workPackagesState.searchTerm = '';
   workPackagesState.statusFilters = [];
   workPackagesState.workerFilters = [];
   workPackagesState.stationFilters = [];
-  
+
   if (searchInput) searchInput.value = '';
-  
+
   // Clear all checkboxes
   document.querySelectorAll('#wp-filter-status-list input[type="checkbox"]').forEach(cb => cb.checked = false);
   document.querySelectorAll('#wp-filter-workers-list input[type="checkbox"]').forEach(cb => cb.checked = false);
   document.querySelectorAll('#wp-filter-stations-list input[type="checkbox"]').forEach(cb => cb.checked = false);
-  
+
   // Update counts
   updateWPFilterCount('status');
   updateWPFilterCount('workers');
   updateWPFilterCount('stations');
-  
+
   applyWorkPackagesFilters();
   renderWorkPackagesTable();
   updateWPClearFiltersButton();
 };
 
-window.setWorkPackagesChartGrouping = function(mode) {
+window.setWorkPackagesChartGrouping = function (mode) {
   const normalized = mode === 'substation' ? 'substation' : 'worker';
   if (workPackagesState.chartGrouping === normalized) return;
   workPackagesState.chartGrouping = normalized;
@@ -2351,7 +2351,7 @@ function bindWorkPackagesEvents() {
       setWorkPackagesView(!workPackagesState.isChartVisible);
     };
   }
-  
+
   // Search input
   const searchInput = document.getElementById('wp-search-input');
   const clearBtn = document.getElementById('wp-clear-filters-btn');
@@ -2366,7 +2366,7 @@ function bindWorkPackagesEvents() {
   }
 
 
-  
+
   // Hide completed toggle
   const hideCompletedWrapper = document.getElementById('wp-hide-completed-wrapper');
   const hideCompletedToggle = document.getElementById('wp-hide-completed-toggle');
@@ -2394,7 +2394,7 @@ function bindWorkPackagesEvents() {
       if (hideCompletedWrapper) hideCompletedWrapper.title = 'Click to hide completed tasks';
     }
   }
-  
+
   // Initialize clear filters button
   updateWPClearFiltersButton();
 
@@ -2434,9 +2434,9 @@ function normalizeWPStatus(status) {
 
 function applyWorkPackagesFilters() {
   let filtered = workPackagesState.allPackages;
-  
+
   console.log(`🔍 Applying filters to ${filtered.length} packages`);
-  
+
   // Hide completed filter (applied first)
   if (workPackagesState.hideCompleted) {
     const beforeCount = filtered.length;
@@ -2446,7 +2446,7 @@ function applyWorkPackagesFilters() {
     });
     console.log(`  ✂️  hideCompleted: ${beforeCount} → ${filtered.length}`);
   }
-  
+
   // Search filter
   if (workPackagesState.searchTerm) {
     const term = workPackagesState.searchTerm;
@@ -2463,34 +2463,34 @@ function applyWorkPackagesFilters() {
       return searchFields.includes(term);
     });
   }
-  
+
   // Status filter
   if (workPackagesState.statusFilters.length > 0) {
     filtered = filtered.filter(pkg => workPackagesState.statusFilters.includes(normalizeWPStatus(pkg.status)));
   }
-  
+
   // Worker filter
   if (workPackagesState.workerFilters.length > 0) {
     filtered = filtered.filter(pkg => workPackagesState.workerFilters.includes(pkg.workerId));
   }
-  
+
   // Station filter
   if (workPackagesState.stationFilters.length > 0) {
     filtered = filtered.filter(pkg => workPackagesState.stationFilters.includes(pkg.stationId));
   }
-  
+
   console.log(`  ✅ Final filtered count: ${filtered.length}`);
-  
+
   workPackagesState.filteredPackages = filtered;
 }
 
 function renderWorkPackagesTable() {
   const container = document.getElementById('work-packages-widget');
   if (!container) return;
-  
+
   const packages = workPackagesState.filteredPackages;
-  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-  
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]));
+
   const getStatusBadge = (status) => {
     const statusMap = {
       'pending': { label: 'Pending', className: 'badge badge-outline' },
@@ -2504,7 +2504,7 @@ function renderWorkPackagesTable() {
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
     return `<span class="${s.className}" class="view-badge-xs">${s.label}</span>`;
   };
-  
+
   const getMaterialBadge = (status) => {
     const statusDots = {
       'sufficient': { color: '#22c55e', label: 'Stok Yeterli' },
@@ -2518,7 +2518,7 @@ function renderWorkPackagesTable() {
     const title = label.replace(/"/g, '&quot;');
     return `<span class="material-status-dot" role="img" aria-label="${title}" title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 999px; background-color: ${color};"></span>`;
   };
-  
+
   const renderSubstationDisplay = (pkg) => {
     const code = pkg.substationCode || pkg.subStationCode || '';
     const name = pkg.substationName || pkg.subStationName || pkg.stationName || '';
@@ -2533,20 +2533,20 @@ function renderWorkPackagesTable() {
       : '';
     return codeHtml + nameHtml;
   };
-  
+
   // Render canStart flag icon with tooltip
   const renderCanStartFlag = (pkg) => {
     const status = normalizeWPStatus(pkg.status);
-    
+
     // Already completed or in-progress - show dash
     if (status === 'completed' || status === 'in-progress') {
       return '<span class="mes-muted-text" class="view-text-12">—</span>';
     }
-    
+
     const prereqs = pkg.prerequisites || {};
     const canStart = prereqs.canStart === true;
     const materialIssue = prereqs.materialsReady === false;
-    
+
     // Build tooltip with reasons (only for cannot start case)
     const reasons = [];
     if (prereqs.predecessorsDone === false) {
@@ -2562,13 +2562,13 @@ function renderWorkPackagesTable() {
     if (prereqs.workerQueueBlocked === true) {
       reasons.push('Sırada önce başka iş var');
     }
-    
+
     if (canStart) {
       // Can start - green flag
       // If material issue, show red M next to green flag
       const tooltip = materialIssue ? 'Başlatılabilir (Malzeme uyarısı)' : 'Başlatılabilir';
-      const materialWarning = materialIssue 
-        ? '<span style="color: #dc2626; font-weight: 700; font-size: 11px; margin-left: 2px;">M</span>' 
+      const materialWarning = materialIssue
+        ? '<span style="color: #dc2626; font-weight: 700; font-size: 11px; margin-left: 2px;">M</span>'
         : '';
       return `<span style="display: inline-flex; align-items: center;"><i data-lucide="flag" class="icon-16-success" title="${tooltip}"></i>${materialWarning}</span>`;
     } else {
@@ -2577,30 +2577,30 @@ function renderWorkPackagesTable() {
       return `<i data-lucide="flag" class="icon-16-danger" title="${tooltip}"></i>`;
     }
   };
-  
+
   const formatTime = (iso) => {
     if (!iso) return '—';
     try {
       const date = new Date(iso);
       if (isNaN(date.getTime())) return '—';
-      return date.toLocaleString('tr-TR', { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return date.toLocaleString('tr-TR', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch {
       return '—';
     }
   };
-  
+
   const tableRows = packages.map((pkg, index) => {
     const quoteUrl = `/pages/production.html?view=approved-quotes&highlight=${encodeURIComponent(pkg.workOrderCode)}`;
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
     const normalizedStatus = normalizeWPStatus(pkg.status);
     const materialCellContent = normalizedStatus === 'completed' ? '' : getMaterialBadge(pkg.materialStatus);
     const rowBackground = index % 2 === 0 ? '#ffffff' : '#f7f8fb';
-    
+
     // DEBUG: Log each package being rendered
     console.log(`🎨 Rendering package:`, {
       id: pkg.id,
@@ -2609,7 +2609,7 @@ function renderWorkPackagesTable() {
       workOrderCode: pkg.workOrderCode,
       status: pkg.status
     });
-    
+
     return `
       <tr class="mes-table-row" onclick="showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}')" style="cursor: pointer; background-color: ${rowBackground};">
         <td>
@@ -2653,7 +2653,7 @@ function renderWorkPackagesTable() {
       </tr>
     `;
   }).join('');
-  
+
   const headerRow = `
     <tr>
       <th class="w-1-nowrap">ID</th>
@@ -2690,7 +2690,7 @@ function renderWorkPackagesTable() {
   `;
 
   if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
-    try { lucide.createIcons(); } catch {}
+    try { lucide.createIcons(); } catch { }
   }
 
   renderWorkPackagesChart();
@@ -2706,7 +2706,7 @@ function renderWorkPackagesChart() {
   const minRowHeight = 72;
 
   const activeStatuses = new Set(['pending', 'queued', 'in-progress']);
-  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]));
   const packages = (workPackagesState.filteredPackages || []).filter(pkg => {
     const normalizedStatus = normalizeWPStatus(pkg.status);
     return activeStatuses.has(normalizedStatus);
@@ -2721,7 +2721,7 @@ function renderWorkPackagesChart() {
     const substationLabel = pkg.substationCode || pkg.subStationCode || pkg.stationName || 'Unassigned Substation';
     const workerKey = pkg.workerId || 'unassigned-worker';
     const substationKey = pkg.substationId || pkg.subStationId || pkg.substationCode || pkg.stationId || 'unassigned-substation';
-    
+
     return {
       raw: pkg,
       assignmentId,
@@ -2764,10 +2764,10 @@ function renderWorkPackagesChart() {
       const topOffset = (item.lane * laneHeight) + laneBaseOffset;
       const tooltipHtml = buildWorkPackageTooltip(item);
       const tooltipAttr = tooltipHtml.replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
-      const predecessorsAttr = item.predecessorNodeIds.length > 0 
-        ? `data-predecessors="${item.predecessorNodeIds.join(',')}"` 
+      const predecessorsAttr = item.predecessorNodeIds.length > 0
+        ? `data-predecessors="${item.predecessorNodeIds.join(',')}"`
         : '';
-      
+
       return `
         <div
           class="wp-chart-bar status-${item.status.replace('_', '-')}"
@@ -2843,7 +2843,7 @@ function buildWorkPackagesChartGroups(packages) {
     const subtitle = grouping === 'worker'
       ? (item.substationCode || item.stationName || '—')
       : (item.workerName || '—');
-    
+
     if (!groupMap.has(key)) {
       groupMap.set(key, {
         key,
@@ -2880,7 +2880,7 @@ function buildWorkPackagesChartGroups(packages) {
 }
 
 function buildWorkPackageTooltip(item) {
-  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]));
   const rows = [];
   rows.push(`<div class="wp-chart-tooltip-title">${esc(item.assignmentId)}</div>`);
   // Plan adı ve firma adı - paket no'nun altında
@@ -2930,10 +2930,10 @@ function setupWorkPackagesChartTooltips(rootEl) {
 function highlightPredecessorBars(hoveredBar, rootEl, highlight) {
   const predecessorsAttr = hoveredBar.getAttribute('data-predecessors');
   if (!predecessorsAttr) return;
-  
+
   const directPredecessorNodeIds = predecessorsAttr.split(',').filter(Boolean);
   if (directPredecessorNodeIds.length === 0) return;
-  
+
   // Build a map of all bars by nodeId for quick lookup
   const allBars = rootEl.querySelectorAll('.wp-chart-bar[data-node-id]');
   const barsByNodeId = new Map();
@@ -2941,18 +2941,18 @@ function highlightPredecessorBars(hoveredBar, rootEl, highlight) {
     const nodeId = bar.getAttribute('data-node-id');
     if (nodeId) barsByNodeId.set(nodeId, bar);
   });
-  
+
   // Recursively collect ALL predecessors in the chain
   const allPredecessorNodeIds = new Set();
-  
+
   function collectPredecessorsRecursive(nodeIds, depth = 0) {
     if (depth > 50) return; // Safety limit to prevent infinite loops
-    
+
     nodeIds.forEach(nodeId => {
       if (allPredecessorNodeIds.has(nodeId)) return; // Already processed
-      
+
       allPredecessorNodeIds.add(nodeId);
-      
+
       // Find the bar for this nodeId and get its predecessors
       const bar = barsByNodeId.get(nodeId);
       if (bar) {
@@ -2964,10 +2964,10 @@ function highlightPredecessorBars(hoveredBar, rootEl, highlight) {
       }
     });
   }
-  
+
   // Start recursive collection from direct predecessors
   collectPredecessorsRecursive(directPredecessorNodeIds);
-  
+
   // Apply or remove highlighting to all predecessor bars
   allPredecessorNodeIds.forEach(nodeId => {
     const bar = barsByNodeId.get(nodeId);
@@ -3316,21 +3316,21 @@ function formatChartTime(timestamp) {
 export async function initStationAlertsWidget() {
   const container = document.getElementById('station-alerts-widget');
   if (!container) return;
-  
+
   try {
     // Import API dependencies
     const { API_BASE, withAuth } = await import('../../../shared/lib/api.js');
-    
+
     // Fetch alerts from mes-alerts collection
     const res = await fetch(`${API_BASE}/api/mes/alerts?type=station_error&limit=5`, {
       headers: withAuth()
     });
-    
+
     // Handle API errors gracefully
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
       console.warn('Alerts API error:', errorData);
-      
+
       // Show empty state instead of error for 500s (likely empty collection)
       container.innerHTML = `
         <div class="view-empty-full">
@@ -3341,10 +3341,10 @@ export async function initStationAlertsWidget() {
       `;
       return;
     }
-    
+
     const data = await res.json();
     const alerts = data.alerts || [];
-    
+
     if (alerts.length === 0) {
       container.innerHTML = `
         <div class="view-empty-full">
@@ -3354,12 +3354,12 @@ export async function initStationAlertsWidget() {
       `;
       return;
     }
-    
+
     // Render alerts list
     const alertsHtml = alerts.map(alert => {
       const createdAt = new Date(alert.createdAt);
       const timeAgo = getTimeAgo(createdAt);
-      
+
       return `
         <div class="view-info-box">
           <div class="flex-between view-mb-4">
@@ -3377,7 +3377,7 @@ export async function initStationAlertsWidget() {
         </div>
       `;
     }).join('');
-    
+
     container.innerHTML = alertsHtml;
   } catch (err) {
     console.error('Failed to load station alerts widget:', err);
@@ -3396,7 +3396,7 @@ export async function initStationAlertsWidget() {
  */
 function getTimeAgo(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
-  
+
   if (seconds < 60) return 'Az önce';
   if (seconds < 3600) return `${Math.floor(seconds / 60)} dk önce`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} saat önce`;
@@ -3428,7 +3428,7 @@ export async function initProductionPlansWidget() {
 
     // Show most recent 5 plans
     const recentPlans = plans.slice(0, 5);
-    
+
     const plansHtml = recentPlans.map(plan => {
       const createdAt = new Date(plan.createdAt);
       const statusColors = {
@@ -3587,10 +3587,10 @@ export async function initWorkersOverviewWidget() {
   try {
     const { getWorkers } = await import('./mesApi.js');
     const { aggregateWorkersByStatus, getStatusLabel } = await import('../../../shared/utils/workerStatus.js');
-    
+
     const workers = await getWorkers();
     const statusCounts = aggregateWorkersByStatus(workers);
-    
+
     const totalWorkers = workers.length;
     const activeWorkers = statusCounts.available + statusCounts.busy;
     const onLeaveWorkers = statusCounts.leaveSick + statusCounts.leaveVacation;
@@ -3690,13 +3690,13 @@ export async function initDashboardWidgets() {
 export async function showWorkPackageDetail(assignmentId) {
   console.log('🔍 showWorkPackageDetail called with:', assignmentId);
   console.log('🔍 workPackagesState.allPackages count:', workPackagesState.allPackages?.length || 0);
-  
+
   // Normalize ID for comparison (handle both string and number)
   const normalizedId = String(assignmentId);
-  const workPackage = workPackagesState.allPackages.find(pkg => 
+  const workPackage = workPackagesState.allPackages.find(pkg =>
     String(pkg.assignmentId) === normalizedId || String(pkg.id) === normalizedId
   );
-  
+
   if (!workPackage) {
     console.warn('⚠️ Work package not found for ID:', assignmentId);
     console.log('Available IDs:', workPackagesState.allPackages?.map(p => p.assignmentId || p.id));
@@ -3708,7 +3708,7 @@ export async function showWorkPackageDetail(assignmentId) {
 
   const detailPanel = document.getElementById('work-package-detail-panel');
   const detailContent = document.getElementById('work-package-detail-content');
-  
+
   if (!detailPanel || !detailContent) {
     console.error('❌ Detail panel elements not found:', { detailPanel: !!detailPanel, detailContent: !!detailContent });
     return;
@@ -3716,7 +3716,7 @@ export async function showWorkPackageDetail(assignmentId) {
 
   // Show detail panel
   detailPanel.style.display = 'block';
-  
+
   // Show loading state first
   detailContent.innerHTML = `
     <div class="view-empty-center-20">
@@ -3727,7 +3727,7 @@ export async function showWorkPackageDetail(assignmentId) {
   try {
     // Try to fetch additional details if we have workOrderCode or planId
     let additionalData = {};
-    
+
     // Fetch work order details if available
     if (workPackage.workOrderCode) {
       try {
@@ -3741,7 +3741,7 @@ export async function showWorkPackageDetail(assignmentId) {
         console.warn('Failed to fetch work order details:', err);
       }
     }
-    
+
     // Fetch plan details if available
     if (workPackage.planId) {
       try {
@@ -3755,7 +3755,7 @@ export async function showWorkPackageDetail(assignmentId) {
         console.warn('Failed to fetch plan details:', err);
       }
     }
-    
+
     // Generate work package detail content with additional data
     detailContent.innerHTML = generateWorkPackageDetailContent(workPackage, additionalData);
   } catch (err) {
@@ -3784,8 +3784,8 @@ export function closeWorkPackageDetail() {
  */
 function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
   ensureWorkPackageDetailStyles();
-  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-  
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]));
+
   const getStatusBadge = (status) => {
     const statusMap = {
       'pending': { label: 'Beklemede', className: 'badge badge-outline' },
@@ -3798,24 +3798,24 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
     return `<span class="${s.className}" class="view-badge-xs">${s.label}</span>`;
   };
-  
+
   const getMaterialBadge = (status) => {
     if (status === 'ok') return '<span class="badge badge-success" class="view-badge-sm">Hazır</span>';
     if (status === 'short') return '<span class="badge badge-destructive" class="view-badge-sm">Eksik</span>';
     return '<span class="badge badge-outline" class="view-badge-sm">Bilinmeyen</span>';
   };
-  
+
   const formatTime = (iso) => {
     if (!iso) return '—';
     try {
       const date = new Date(iso);
       if (isNaN(date.getTime())) return '—';
-      return date.toLocaleString('tr-TR', { 
+      return date.toLocaleString('tr-TR', {
         day: 'numeric',
-        month: 'long', 
+        month: 'long',
         year: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit' 
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch {
       return '—';
@@ -4201,25 +4201,25 @@ function renderProductionResults(workPackage, escFn = (v) => v) {
   const inputScrap = workPackage.inputScrapCount || {};
   const productionScrap = workPackage.productionScrapCount || {};
   const defectQty = parseFloat(workPackage.defectQuantity) || 0;
-  
+
   // Check if there's any scrap data to show
   const hasInputScrap = Object.keys(inputScrap).length > 0;
   const hasProductionScrap = Object.keys(productionScrap).length > 0;
   const hasDefect = defectQty > 0;
-  
+
   // Only show section if there's any fire/scrap data
   if (!hasInputScrap && !hasProductionScrap && !hasDefect) {
     return '';
   }
-  
+
   const unitLabel = workPackage.unit || 'adet';
   const materialNames = workPackage.materialNames || {};
-  
+
   // Helper function to get material name
   const getMaterialName = (code) => {
     return materialNames[code] || code || '—';
   };
-  
+
   // Build scrap rows for JSONB scrap data
   const buildScrapRows = (scrapData, category, badgeColor) => {
     return Object.entries(scrapData).map(([code, qty]) => {
@@ -4235,11 +4235,11 @@ function renderProductionResults(workPackage, escFn = (v) => v) {
       `;
     }).join('');
   };
-  
+
   // Build rows for each scrap type
   const inputScrapRows = buildScrapRows(inputScrap, 'Hasarlı Gelen', 'warning');
   const productionScrapRows = buildScrapRows(productionScrap, 'Üretim Hasarı', 'danger');
-  
+
   // Defect quantity row (for finished product)
   const defectRow = hasDefect ? `
     <tr>
@@ -4249,14 +4249,14 @@ function renderProductionResults(workPackage, escFn = (v) => v) {
       <td class="is-number text-danger">${defectQty} ${unitLabel}</td>
     </tr>
   ` : '';
-  
+
   const allScrapRows = inputScrapRows + productionScrapRows + defectRow;
-  
+
   // Calculate total scrap
   const totalInputScrap = Object.values(inputScrap).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
   const totalProductionScrap = Object.values(productionScrap).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
   const totalScrap = totalInputScrap + totalProductionScrap + defectQty;
-  
+
   return `
     <div class="mes-detail-section">
       <div class="mes-detail-section-header">

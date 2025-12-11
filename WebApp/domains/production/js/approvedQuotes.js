@@ -39,7 +39,7 @@ function toggleAQPlanType() {
 // Production state constants (backend canonical values from mes.work_orders.productionState)
 const PRODUCTION_STATES = {
   WAITING_APPROVAL: 'Üretim Onayı Bekliyor',
-  IN_PRODUCTION: 'Üretiliyor', 
+  IN_PRODUCTION: 'Üretiliyor',
   PAUSED: 'Üretim Durduruldu',
   COMPLETED: 'Üretim Tamamlandı',
   CANCELLED: 'İptal Edildi'
@@ -72,7 +72,7 @@ export async function initializeApprovedQuotesUI() {
         }
       }
     }
-  } catch {}
+  } catch { }
 
   const search = document.getElementById('approved-quotes-search')
   if (search) {
@@ -92,13 +92,19 @@ export async function initializeApprovedQuotesUI() {
   if (btnDel) btnDel.addEventListener('click', () => toggleAQFilterPanel('delivery'))
   const btnClearAll = document.getElementById('aq-filter-clear-all')
   if (btnClearAll) btnClearAll.addEventListener('click', clearAllAQFilters)
-  
+
   // Add event listeners for panel controls that used to use onclick
   setupPanelEventListeners()
-  
+
   // Initialize sort indicators
   updateSortIndicators()
-  
+
+  // Hide detail panel on initial load (P1.3a fix)
+  const detailPanel = document.getElementById('approved-quote-detail-panel')
+  if (detailPanel) {
+    detailPanel.style.display = 'none'
+  }
+
   // Initialize complete
   await loadQuotesAndRender()
 }
@@ -114,7 +120,7 @@ function setupPanelEventListeners() {
       btn.addEventListener('click', () => hideAQFilterPanel('state'))
     }
   })
-  
+
   // Delivery panel controls
   const deliveryButtons = document.querySelectorAll('#aq-filter-delivery-panel button')
   deliveryButtons.forEach(btn => {
@@ -126,13 +132,13 @@ function setupPanelEventListeners() {
       btn.addEventListener('click', () => applyAQDeliveryFilter())
     }
   })
-  
+
   // Gecikmiş workorderlar butonu
   const overdueBtn = document.getElementById('aq-filter-delivery-overdue')
   if (overdueBtn) {
     overdueBtn.addEventListener('click', () => applyOverdueFilter())
   }
-  
+
   // Hızlı seçim butonları
   const quickSelectBtns = document.querySelectorAll('.quick-select-btn')
   quickSelectBtns.forEach(btn => {
@@ -141,7 +147,7 @@ function setupPanelEventListeners() {
       applyQuickDateFilter(days)
     })
   })
-  
+
   // State filter checkboxes using data-state attribute
   const stateCheckboxes = document.querySelectorAll('#aq-filter-state-panel input[type="checkbox"][data-state]')
   stateCheckboxes.forEach(checkbox => {
@@ -155,7 +161,7 @@ function setupPanelEventListeners() {
 }
 
 // Optional: expose manual refresh hook for other apps to call directly
-try { window.refreshApprovedQuotes = () => loadQuotesAndRender() } catch {}
+try { window.refreshApprovedQuotes = () => loadQuotesAndRender() } catch { }
 
 // Production state management functions
 function getProductionState(workOrderCode) {
@@ -170,16 +176,16 @@ async function setProductionState(workOrderCode, newState, updateServer = true) 
     if (updateServer) {
       await updateProductionState(workOrderCode, newState)
     }
-    
+
     // Update local cache
     const quoteIndex = quotesState.findIndex(q => q.workOrderCode === workOrderCode)
     if (quoteIndex !== -1) {
       quotesState[quoteIndex].productionState = newState
       quotesState[quoteIndex].productionStateUpdatedAt = new Date().toISOString()
     }
-    
+
     renderApprovedQuotesTable()
-    
+
     console.log(`✅ Production state updated: ${workOrderCode} -> ${newState}`)
   } catch (error) {
     console.error('❌ Failed to update production state:', error)
@@ -197,23 +203,23 @@ async function checkPlanMaterialAvailability(plan) {
     // Fetch plan details with nodes and materials
     const planDetails = await getProductionPlanDetails(plan.id);
     const nodes = planDetails?.nodes || [];
-    
+
     if (nodes.length === 0) {
       return { allAvailable: true, shortages: [], hasCriticalShortages: false };
     }
-    
+
     // Aggregate materials from all nodes
     const materialMap = new Map();
     nodes.forEach(node => {
       const materials = node.material_inputs || [];
       materials.forEach(mat => {
         if (!mat.materialCode || !mat.requiredQuantity) return;
-        
+
         const key = mat.materialCode;
         const qty = parseFloat(mat.requiredQuantity) || 0;
-        
+
         if (qty <= 0) return;
-        
+
         if (materialMap.has(key)) {
           materialMap.get(key).required += qty;
         } else {
@@ -225,22 +231,22 @@ async function checkPlanMaterialAvailability(plan) {
         }
       });
     });
-    
+
     const requiredMaterials = Array.from(materialMap.values());
-    
+
     if (requiredMaterials.length === 0) {
       return { allAvailable: true, shortages: [], hasCriticalShortages: false };
     }
-    
+
     // Check availability via backend
     const result = await checkMesMaterialAvailability(requiredMaterials);
-    
+
     // Categorize shortages: critical if >50% missing
     const criticalThreshold = 0.5;
-    const criticalShortages = (result.shortages || []).filter(s => 
+    const criticalShortages = (result.shortages || []).filter(s =>
       s.shortage > s.required * criticalThreshold
     );
-    
+
     return {
       allAvailable: result.allAvailable,
       shortages: result.shortages || [],
@@ -248,7 +254,7 @@ async function checkPlanMaterialAvailability(plan) {
       criticalShortages,
       checkedAt: result.checkedAt
     };
-    
+
   } catch (error) {
     console.error('Material availability check failed:', error);
     // On error, don't block launch but warn user
@@ -269,43 +275,43 @@ async function startProduction(workOrderCode) {
   try {
     // Find the production plan for this work order
     const plan = productionPlansMap[workOrderCode];
-    
+
     if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı. Lütfen önce bir üretim planı oluşturun.');
       return;
     }
-    
+
     // 🆕 STEP 1: Check material availability BEFORE launching
     console.log('🔍 Checking material availability for plan:', plan.id);
     const materialCheck = await checkPlanMaterialAvailability(plan);
-    
+
     // 🆕 STEP 2: Show material shortage warnings (if any)
     if (!materialCheck.allAvailable && materialCheck.shortages.length > 0) {
-      const criticalList = materialCheck.hasCriticalShortages 
-        ? materialCheck.criticalShortages.map(s => 
-            `  🚨 ${s.code}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}\n     (Eksik: ${s.shortage} ${s.unit})`
-          ).join('\n')
+      const criticalList = materialCheck.hasCriticalShortages
+        ? materialCheck.criticalShortages.map(s =>
+          `  🚨 ${s.code}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}\n     (Eksik: ${s.shortage} ${s.unit})`
+        ).join('\n')
         : '';
-      
+
       const minorList = materialCheck.shortages
         .filter(s => !materialCheck.criticalShortages.includes(s))
-        .map(s => 
+        .map(s =>
           `  ⚠️ ${s.code}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}\n     (Eksik: ${s.shortage} ${s.unit})`
         ).join('\n');
-      
+
       const warningMessage = materialCheck.hasCriticalShortages
         ? `🚨 KRİTİK MALZEME EKSİKLİĞİ\n\n${criticalList}\n${minorList ? '\n' + minorList : ''}`
         : `⚠️ MALZEME UYARISI\n\n${minorList}`;
-      
+
       const proceedWithShortages = confirm(
         warningMessage +
         `\n\nYine de üretimi başlatmak istiyor musunuz?\n` +
         `(Üretim sırasında malzeme tedarik etmeniz gerekecek)`
       );
-      
+
       if (!proceedWithShortages) return; // User cancelled
     }
-    
+
     // 🆕 STEP 3: If material check failed (API error), warn but allow proceed
     if (materialCheck.error) {
       const proceedWithError = confirm(
@@ -313,7 +319,7 @@ async function startProduction(workOrderCode) {
       );
       if (!proceedWithError) return;
     }
-    
+
     // STEP 4: Final confirmation
     const confirmed = confirm(
       `Üretimi Başlatmak İstediğinizden Emin misiniz?\n\n` +
@@ -321,20 +327,20 @@ async function startProduction(workOrderCode) {
       `Plan: ${plan.name}\n\n` +
       `Bu işlem tüm operasyonlar için kaynak ataması yapacak ve üretim başlatılacaktır.`
     );
-    
+
     if (!confirmed) return;
-    
+
     // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
     await setProductionState(workOrderCode, 'Başlatılıyor...', false);
-    
+
     try {
       // Call launch endpoint
       const result = await launchProductionPlan(plan.id, workOrderCode);
-      
+
       // Success! Update state to IN_PRODUCTION (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
-      
+
       // Build success message with launch summary
       const totalNodes = result.summary?.totalNodes || 0;
       const assignedCount = result.summary?.assignedNodes || result.assignments?.length || 0;
@@ -342,17 +348,17 @@ async function startProduction(workOrderCode) {
       const queuedCount = result.queuedTasks || 0;
       const estimatedDuration = result.summary?.estimatedDuration || 0;
       const parallelPaths = result.summary?.parallelPaths || 0;
-      
+
       let message = `🚀 Üretim başarıyla başlatıldı!\n\n`;
       message += `✅ ${assignedCount}${totalNodes > 0 ? ` / ${totalNodes}` : ''} operasyon atandı\n`;
       message += `👷 ${totalWorkers} işçi görevlendirildi\n`;
-      
+
       // Show unassigned nodes warning if any
       if (totalNodes > assignedCount) {
         const unassigned = totalNodes - assignedCount;
         message += `⚠️ ${unassigned} operasyon atama bekliyor (kaynak müsait değil)\n`;
       }
-      
+
       if (queuedCount > 0) {
         message += `⏳ ${queuedCount} operasyon kuyrukta\n`;
       }
@@ -364,43 +370,43 @@ async function startProduction(workOrderCode) {
       if (parallelPaths > 1) {
         message += `🔀 ${parallelPaths} paralel yol tespit edildi\n`;
       }
-      
+
       // Check for material shortage warnings (if backend adds this later)
       if (result.warnings && result.warnings.materialShortages && result.warnings.materialShortages.length > 0) {
-        const shortageList = result.warnings.materialShortages.map(s => 
+        const shortageList = result.warnings.materialShortages.map(s =>
           `• ${s.nodeName || 'Node'} – ${s.materialCode}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}`
         ).join('\n');
-        
+
         message += `\n⚠️ Malzeme Eksiklikleri (Bilgilendirme):\n${shortageList}\n\nÜretim başladı; stokları en kısa sürede tamamlayın.`;
       }
-      
+
       // Check for assignment warnings (if backend adds this later)
       if (result.warnings && result.warnings.assignmentWarnings && result.warnings.assignmentWarnings.length > 0) {
-        const warningList = result.warnings.assignmentWarnings.map(w => 
+        const warningList = result.warnings.assignmentWarnings.map(w =>
           `• ${w.nodeName}: ${w.warnings.join(', ')}`
         ).join('\n');
-        
+
         message += `\n⚠️ Atama Uyarıları:\n${warningList}`;
       }
-      
+
       alert(message);
-      
+
       // Refresh quotes and plans
       await loadQuotesAndRender();
-      
+
       // Emit event for other components (e.g., plan overview)
       try {
         const channel = new BroadcastChannel('mes-assignments');
         channel.postMessage({ type: 'assignments:updated', planId: plan.id, workOrderCode });
         channel.close();
-      } catch {}
-      
+      } catch { }
+
     } catch (error) {
       console.error('Launch failed:', error);
-      
+
       // Restore original state (don't update server, just UI)
       await setProductionState(workOrderCode, originalState, false);
-      
+
       // Show detailed error message based on error type
       if (error.code === 'approved_quote_not_found') {
         // Approved quote not found - direct user to create it
@@ -416,21 +422,21 @@ async function startProduction(workOrderCode) {
         alert(`Üretim Başlatılamadı\n\nAktif ve müsait işçi bulunamadı. Lütfen Worker Portal'dan işçilerin durumunu kontrol edin.\n\n${sampleInfo}`);
       } else if (error.status === 422 && error.errors) {
         // Assignment errors
-        const errorList = error.errors.map(e => 
+        const errorList = error.errors.map(e =>
           `- ${e.nodeName || e.nodeId}: ${e.message}`
         ).join('\n');
         alert(`Kaynak Ataması Başarısız\n\n${errorList}\n\nLütfen planı kontrol edip tekrar deneyin.`);
       } else {
         // Generic error - try to extract meaningful message from backend
         let errorMessage = 'Bilinmeyen hata';
-        
+
         // Check if error message contains Turkish user-friendly text
         if (error.message && error.message.includes('yetenek uyuşması')) {
           errorMessage = error.message;
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         alert(`Üretim Başlatılamadı\n\n${errorMessage}\n\nLütfen tekrar deneyin.`);
       }
     }
@@ -449,15 +455,15 @@ async function setUrgentPriority(workOrderCode) {
     const plan = productionPlansMap[workOrderCode];
     const currentUrgent = plan?.isUrgent || false;
     const newUrgent = !currentUrgent;
-    
+
     const confirmed = confirm(
       `${newUrgent ? 'ACİL ÖNCELİĞE ALMAK' : 'NORMAL ÖNCELİĞE DÖNDÜRMEK'} istediğinizden emin misiniz?\n\n` +
       `İş Emri: ${workOrderCode}\n` +
       `${newUrgent ? '🚨 Tüm work package\'lar aynı anda başlatılabilir hale gelecek!' : '⏳ Sadece ilk work package başlatılabilir hale gelecek.'}`
     );
-    
+
     if (!confirmed) return;
-    
+
     const response = await fetch('/api/mes/set-urgent-priority', {
       method: 'POST',
       headers: {
@@ -466,19 +472,19 @@ async function setUrgentPriority(workOrderCode) {
       },
       body: JSON.stringify({ workOrderCode, urgent: newUrgent })
     });
-    
+
     const result = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(result.message || result.error || 'Öncelik ayarlanamadı');
     }
-    
+
     alert(`✅ ${result.message}`);
-    
+
     // Refresh data
     await fetchProductionPlans();
     renderApprovedQuotesTable();
-    
+
   } catch (error) {
     console.error('Set urgent priority error:', error);
     alert(`❌ Hata: ${error.message}`);
@@ -491,12 +497,12 @@ async function setUrgentPriority(workOrderCode) {
 async function pauseProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
-    
+
     if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
-    
+
     // Confirm pause
     const confirmed = confirm(
       `Üretimi Durdurmak İstediğinizden Emin misiniz?\n\n` +
@@ -504,34 +510,53 @@ async function pauseProduction(workOrderCode) {
       `Plan: ${plan.name}\n\n` +
       `Tüm görevler duraklatılacak ve işçiler bu iş emrinde çalışamayacak.`
     );
-    
+
     if (!confirmed) return;
-    
+
     // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
     await setProductionState(workOrderCode, 'Duraklatılıyor...', false);
-    
+
     try {
       // Call pause endpoint
       const result = await pauseProductionPlan(plan.id);
-      
+
       // Success! Update state to PAUSED (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED, true);
 
-      // Show success message
-      alert(
-        `Üretim durduruldu!\n\n` +
-        `${result.pausedCount} görev duraklatıldı.\n` +
-        `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.`
-      );
-      
+      // Show success message with details
+      const assignments = result.pausedAssignments || [];
+      let message = `Üretim planı duraklatıldı!\n\n`;
+
+      if (assignments.length === 0) {
+        message += `Duraklatılan iş paketi yok (tümü zaten başlamış).`;
+      } else {
+        message += `Duraklatılan iş paketleri:\n\n`;
+
+        // Show first 5 assignments
+        const showCount = Math.min(5, assignments.length);
+        for (let i = 0; i < showCount; i++) {
+          const a = assignments[i];
+          message += `• ${a.assignmentId}\n`;
+          message += `  İşçi: ${a.workerName || 'Atanmamış'}\n`;
+          message += `  İstasyon: ${a.stationName || 'Atanmamış'}\n\n`;
+        }
+
+        // If more than 5, show summary
+        if (assignments.length > 5) {
+          message += `... ve ${assignments.length - 5} iş paketi daha`;
+        }
+      }
+
+      alert(message);
+
       // Refresh
       await loadQuotesAndRender();
-      
+
     } catch (error) {
       console.error('Pause failed:', error);
       await setProductionState(workOrderCode, originalState, false);
-      
+
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {
         alert(
@@ -555,12 +580,12 @@ async function pauseProduction(workOrderCode) {
 async function resumeProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
-    
+
     if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
-    
+
     // Confirm resume
     const confirmed = confirm(
       `Üretime Devam Etmek İstediğinizden Emin misiniz?\n\n` +
@@ -568,33 +593,33 @@ async function resumeProduction(workOrderCode) {
       `Plan: ${plan.name}\n\n` +
       `Duraklatılmış görevler devam edecek.`
     );
-    
+
     if (!confirmed) return;
-    
+
     // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
     await setProductionState(workOrderCode, 'Devam ettiriliyor...', false);
-    
+
     try {
       // Call resume endpoint
       const result = await resumeProductionPlan(plan.id);
-      
+
       // Success! Update state to IN_PRODUCTION (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
-      
+
       // Show success message
       alert(
         `Üretim devam ediyor!\n\n` +
         `${result.resumedCount} görev devam ettirildi.`
       );
-      
+
       // Refresh
       await loadQuotesAndRender();
-      
+
     } catch (error) {
       console.error('Resume failed:', error);
       await setProductionState(workOrderCode, originalState, false);
-      
+
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {
         alert(
@@ -622,12 +647,12 @@ async function completeProduction(workOrderCode) {
 async function cancelProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
-    
+
     if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
-    
+
     // Confirm cancel
     const confirmed = confirm(
       `Üretimi İptal Etmek İstediğinizden Emin misiniz?\n\n` +
@@ -636,53 +661,53 @@ async function cancelProduction(workOrderCode) {
       `⚠️ İptal işleminden önce, o ana kadar ne kadar üretim gerçekleştiğini girmeniz gerekecek.\n` +
       `Bu, malzeme stoklarının doğru şekilde güncellenmesini sağlar.`
     );
-    
+
     if (!confirmed) return;
-    
+
     // Show modal to collect production progress
     const progressData = await showCancelProgressModal(plan);
-    
+
     if (progressData === null) {
       // User cancelled the modal
       return;
     }
-    
+
     // Show loading state
     const originalState = getProductionState(workOrderCode);
     await setProductionState(workOrderCode, 'İptal ediliyor...', false);
-    
+
     try {
       // Call new cancel-with-progress endpoint
       const result = await cancelProductionPlanWithProgress(plan.id, {
         actualOutputQuantity: progressData.actualOutputQuantity,
         defectQuantity: progressData.defectQuantity
       });
-      
+
       // Success! Update state to CANCELLED
       await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED, true);
-      
+
       // Show detailed success message
-      const materialSummary = result.materialAdjustments ? 
+      const materialSummary = result.materialAdjustments ?
         `\n\nMalzeme Hareketleri:\n` +
         `- ${result.materialAdjustments.inputMaterials.length} girdi malzemesi ayarlandı\n` +
         `- Üretilen: ${result.actualOutputQuantity} adet\n` +
-        `- Fire: ${result.defectQuantity} adet` 
+        `- Fire: ${result.defectQuantity} adet`
         : '';
-      
+
       alert(
         `Üretim İptal Edildi\n\n` +
         `${result.cancelledCount} görev iptal edildi.\n` +
         `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.` +
         materialSummary
       );
-      
+
       // Refresh
       await loadQuotesAndRender();
-      
+
     } catch (error) {
       console.error('Cancel failed:', error);
       await setProductionState(workOrderCode, originalState, false);
-      
+
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {
         alert(
@@ -709,17 +734,17 @@ function showCancelProgressModal(plan) {
     let totalPlannedOutput = 0;
     let outputUnit = 'adet';
     let outputCode = '';
-    
+
     // Try to get from first node in execution graph
     if (plan.nodes && plan.nodes.length > 0) {
       const firstNode = plan.nodes[0];
       outputCode = firstNode.outputCode || '';
       totalPlannedOutput = firstNode.outputQty || 0;
     }
-    
+
     // Multiply by plan quantity
     totalPlannedOutput = totalPlannedOutput * (plan.quantity || 1);
-    
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.zIndex = '10000';
@@ -800,33 +825,33 @@ function showCancelProgressModal(plan) {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     const actualOutputInput = modal.querySelector('#cancelActualOutput');
     const defectInput = modal.querySelector('#cancelDefectQty');
     const confirmBtn = modal.querySelector('#confirmCancelWithProgressBtn');
-    
+
     actualOutputInput.focus();
     actualOutputInput.select();
-    
+
     confirmBtn.onclick = () => {
       const actualOutputQuantity = parseFloat(actualOutputInput.value);
       const defectQuantity = parseFloat(defectInput.value) || 0;
-      
+
       // Validation
       if (isNaN(actualOutputQuantity) || actualOutputQuantity < 0) {
         alert('Lütfen geçerli bir üretim miktarı girin (0 veya daha fazla)');
         actualOutputInput.focus();
         return;
       }
-      
+
       if (defectQuantity < 0) {
         alert('Fire miktarı negatif olamaz');
         defectInput.focus();
         return;
       }
-      
+
       // Confirm one more time
       const total = actualOutputQuantity + defectQuantity;
       const finalConfirm = confirm(
@@ -837,30 +862,30 @@ function showCancelProgressModal(plan) {
         `Bu değerlerle üretim iptal edilecek ve malzeme stokları güncellenecektir.\n\n` +
         `Devam etmek istiyor musunuz?`
       );
-      
+
       if (!finalConfirm) return;
-      
+
       modal.remove();
       resolve({
         actualOutputQuantity,
         defectQuantity
       });
     };
-    
+
     modal.onclick = (e) => {
       if (e.target === modal) {
         modal.remove();
         resolve(null);
       }
     };
-    
+
     // Allow Enter key to submit
     const handleEnter = (e) => {
       if (e.key === 'Enter') {
         confirmBtn.click();
       }
     };
-    
+
     actualOutputInput.addEventListener('keypress', handleEnter);
     defectInput.addEventListener('keypress', handleEnter);
   });
@@ -883,7 +908,7 @@ async function ensureApprovedQuote(quoteId) {
     })
     // Ignore non-200s silently; listing will still refresh
     await res.json().catch(() => ({}))
-  } catch {}
+  } catch { }
 }
 
 async function fetchProductionPlans() {
@@ -893,13 +918,13 @@ async function fetchProductionPlans() {
       fetch(`${API_BASE}/api/mes/production-plans?_t=${Date.now()}`, { headers: withAuth() }),
       fetch(`${API_BASE}/api/mes/templates?_t=${Date.now()}`, { headers: withAuth() })
     ])
-    
+
     const plansData = plansRes.ok ? await plansRes.json() : { productionPlans: [] }
     const templatesData = templatesRes.ok ? await templatesRes.json() : { templates: [] }
-    
+
     const plans = Array.isArray(plansData?.productionPlans) ? plansData.productionPlans : []
     const templates = Array.isArray(templatesData?.templates) ? templatesData.templates : []
-    
+
     console.log('📦 Fetched production plans:', plans.map(p => ({
       id: p.id,
       workOrderCode: p.workOrderCode,
@@ -907,17 +932,17 @@ async function fetchProductionPlans() {
       nodeCount: p.nodeCount,
       launchStatus: p.launchStatus
     })));
-    
+
     console.log('📦 Fetched templates:', templates.map(t => ({
       id: t.id,
       workOrderCode: t.workOrderCode,
       status: t.status,
       nodeCount: t.nodeCount
     })));
-    
+
     // Create a map of workOrderCode to plan data
     productionPlansMap = {}
-    
+
     // Add production plans (status='production' or 'draft')
     plans.forEach(plan => {
       if (plan.workOrderCode) {
@@ -934,7 +959,7 @@ async function fetchProductionPlans() {
         }
       }
     })
-    
+
     // Add templates (status='template') - these usually don't have workOrderCode
     templates.forEach(template => {
       // Templates might not have workOrderCode (stored as reusable templates)
@@ -949,7 +974,7 @@ async function fetchProductionPlans() {
         }
       }
     })
-    
+
     console.log('✅ Production plans map built:', Object.keys(productionPlansMap).length, 'entries');
   } catch (e) {
     console.error('❌ Failed to fetch production plans:', e)
@@ -966,7 +991,7 @@ async function loadQuotesAndRender() {
       fetch(`${API_BASE}/api/mes/approved-quotes?_t=${Date.now()}`, { headers: withAuth() }),
       fetchProductionPlans()
     ])
-    
+
     if (!quotesRes.ok) throw new Error(`quotes_load_failed ${quotesRes.status}`)
     const data = await quotesRes.json()
     // API returns { approvedQuotes }
@@ -1006,7 +1031,7 @@ function renderApprovedQuotesTable() {
       const parseYMD = (str) => {
         if (typeof str !== 'string') return new Date('');
         const m = str.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-        if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10))
+        if (m) return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10))
         return new Date(str)
       }
       const d = parseYMD(deliveryDate)
@@ -1034,7 +1059,7 @@ function renderApprovedQuotesTable() {
   if (currentSort.field) {
     rows.sort((a, b) => {
       let valueA, valueB
-      
+
       switch (currentSort.field) {
         case 'woCode':
           valueA = (a.workOrderCode || a.id || a.quoteId || '').toLowerCase()
@@ -1070,12 +1095,12 @@ function renderApprovedQuotesTable() {
         default:
           return 0
       }
-      
+
       // Handle date comparison
       if (valueA instanceof Date && valueB instanceof Date) {
         return currentSort.direction === 'asc' ? valueA - valueB : valueB - valueA
       }
-      
+
       // Handle string comparison
       if (valueA < valueB) return currentSort.direction === 'asc' ? -1 : 1
       if (valueA > valueB) return currentSort.direction === 'asc' ? 1 : -1
@@ -1093,8 +1118,8 @@ function renderApprovedQuotesTable() {
     const company = q.company || '-'
     const idForRow = (q?.workOrderCode || '').trim()
     const deliveryDate = q.deliveryDate || (q.quoteSnapshot && q.quoteSnapshot.deliveryDate) || ''
-    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]))
-    
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]))
+
     // Build delivery date cell with remaining/overdue badge
     let deliveryCell = '-'
     if (deliveryDate) {
@@ -1112,7 +1137,7 @@ function renderApprovedQuotesTable() {
         return new Date(str);
       }
       const msPerDay = 24 * 60 * 60 * 1000
-      const toMidnight = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x }
+      const toMidnight = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
       const today = toMidnight(new Date())
       const d = parseYMD(deliveryDate)
       if (!isNaN(d.getTime())) {
@@ -1130,15 +1155,15 @@ function renderApprovedQuotesTable() {
         deliveryCell = esc(deliveryDate)
       }
     }
-    
+
     // Get production plan info
     let planCell = '-'
     const plan = productionPlansMap[idForRow]
     if (plan) {
       const fullPlanId = plan.id || ''
       // Display full plan ID for new format (PPL-MMYY-XXX), keep slice for old format
-      const shortPlanId = fullPlanId.startsWith('PPL-') ? fullPlanId : 
-                         (fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId)
+      const shortPlanId = fullPlanId.startsWith('PPL-') ? fullPlanId :
+        (fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId)
       const planName = plan.name || ''
       // Check if template or production plan (based on status field)
       const isTemplate = plan.status === 'template'
@@ -1157,15 +1182,15 @@ function renderApprovedQuotesTable() {
     const hasProductionPlan = !!plan && plan.status !== 'template'
     let productionStateCell = '<span class="text-muted-sm">—</span>'
     let actionsCell = ''
-    
+
     if (hasProductionPlan) {
       // Determine actual production state - map backend state to frontend labels
       let currentState = PRODUCTION_STATES.WAITING_APPROVAL;
-      
+
       // Get backend production state and map to frontend label
       const backendState = getProductionState(idForRow);
       const mappedState = mapBackendStateToFrontend(backendState);
-      
+
       console.log('🎯 State mapping:', {
         workOrderCode: idForRow,
         backendState,
@@ -1173,11 +1198,11 @@ function renderApprovedQuotesTable() {
         planStatus: plan.status,
         launchStatus: plan.launchStatus
       });
-      
+
       // Use mapped state if it's a valid known state
       if (mappedState !== backendState) {
         currentState = mappedState;
-      } 
+      }
       // Otherwise check plan metadata
       else if (plan.launchStatus === 'cancelled') {
         currentState = PRODUCTION_STATES.CANCELLED;
@@ -1195,9 +1220,9 @@ function renderApprovedQuotesTable() {
           currentState = 'Plan Hazırlanıyor'; // Plan not ready
         }
       }
-      
+
       let stateClass = 'state-text-waiting'
-      switch(currentState) {
+      switch (currentState) {
         case PRODUCTION_STATES.WAITING_APPROVAL:
           stateClass = 'state-text-waiting'; break
         case PRODUCTION_STATES.IN_PRODUCTION:
@@ -1215,12 +1240,12 @@ function renderApprovedQuotesTable() {
 
       // Button rendering based on state
       const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 9px; padding: 1px 3px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
-      
+
       // Show "Başla" if plan is ready (status=production, has nodes, not launched)
-      const canLaunch = plan.status === 'production' && 
-                        plan.nodeCount > 0 && 
-                        !plan.launchStatus;
-      
+      const canLaunch = plan.status === 'production' &&
+        plan.nodeCount > 0 &&
+        !plan.launchStatus;
+
       console.log('🔍 Launch check:', {
         workOrderCode: idForRow,
         status: plan.status,
@@ -1228,7 +1253,7 @@ function renderApprovedQuotesTable() {
         launchStatus: plan.launchStatus,
         canLaunch
       });
-      
+
       if (currentState === PRODUCTION_STATES.WAITING_APPROVAL && canLaunch) {
         actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" class="btn-action btn-start" title=\"Üretimi Başlat\">🏁 Başlat</button>`
       } else if (currentState === PRODUCTION_STATES.IN_PRODUCTION) {
@@ -1312,7 +1337,8 @@ function onAQFilterChange(type, value, checked) {
 function clearAQFilter(type) {
   if (type === 'planType') aqFilters.planTypes.clear()
   else if (type === 'state') aqFilters.states.clear()
-  else if (type === 'delivery') { aqFilters.deliveryFrom = ''; aqFilters.deliveryTo = '';
+  else if (type === 'delivery') {
+    aqFilters.deliveryFrom = ''; aqFilters.deliveryTo = '';
     const f = document.getElementById('aq-filter-delivery-from'); if (f) f.value = ''
     const t = document.getElementById('aq-filter-delivery-to'); if (t) t.value = ''
   }
@@ -1343,13 +1369,13 @@ function applyOverdueFilter() {
   const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
   aqFilters.deliveryFrom = ''
   aqFilters.deliveryTo = today
-  
+
   // Input alanlarını da güncelle
   const f = document.getElementById('aq-filter-delivery-from')
   const t = document.getElementById('aq-filter-delivery-to')
   if (f) f.value = ''
   if (t) t.value = today
-  
+
   updateAQFilterBadges()
   hideAQFilterPanel('delivery')
   renderApprovedQuotesTable()
@@ -1360,19 +1386,19 @@ function applyQuickDateFilter(days) {
   const today = new Date()
   const targetDate = new Date(today)
   targetDate.setDate(today.getDate() + days)
-  
+
   const todayStr = today.toISOString().split('T')[0]
   const targetStr = targetDate.toISOString().split('T')[0]
-  
+
   aqFilters.deliveryFrom = todayStr
   aqFilters.deliveryTo = targetStr
-  
+
   // Input alanlarını da güncelle
   const f = document.getElementById('aq-filter-delivery-from')
   const t = document.getElementById('aq-filter-delivery-to')
   if (f) f.value = todayStr
   if (t) t.value = targetStr
-  
+
   updateAQFilterBadges()
   hideAQFilterPanel('delivery')
   renderApprovedQuotesTable()
@@ -1387,10 +1413,10 @@ function sortApprovedQuotes(field) {
     currentSort.field = field
     currentSort.direction = 'asc'
   }
-  
+
   // Update sort indicators
   updateSortIndicators()
-  
+
   // Re-render table with sorted data
   renderApprovedQuotesTable()
 }
@@ -1402,7 +1428,7 @@ function updateSortIndicators() {
     span.textContent = '↕'
     span.style.opacity = '0.6'
   })
-  
+
   // Set active sort indicator
   if (currentSort.field) {
     const button = document.querySelector(`[onclick*="sortApprovedQuotes('${currentSort.field}')"] span`)
@@ -1451,7 +1477,7 @@ export async function showApprovedQuoteDetail(id) {
   if (!panel || !content) return
   panel.style.display = 'block'
 
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]))
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]))
   const field = (label, value) => `
     <div class="detail-row-wide">
       <div class="detail-label-wide">${esc(label)}</div>
@@ -1473,24 +1499,24 @@ export async function showApprovedQuoteDetail(id) {
     const response = await fetch(`${API_BASE}/api/mes/approved-quotes/${encodeURIComponent(id)}`, {
       headers: withAuth()
     })
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }
-    
+
     const details = await response.json()
     const { workOrder, quote, customer, formData } = details
-    
+
     // Format dates
     const formatDate = (dateStr) => {
       if (!dateStr) return '-';
       try {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '-';
-        return date.toLocaleDateString('tr-TR', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
+        return date.toLocaleDateString('tr-TR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
         });
       } catch (e) {
         return '-';
@@ -1509,7 +1535,7 @@ export async function showApprovedQuoteDetail(id) {
       ${field('Yetkili', customer?.contactPerson || details.customerName || customer?.name || '-')}
       ${field('Telefon', details.phone || customer?.phone || '-')}
     `
-    
+
     // Add address if available
     if (customer?.address) {
       let addressStr = customer.address
@@ -1525,7 +1551,7 @@ export async function showApprovedQuoteDetail(id) {
         .filter(([key, value]) => value != null && value !== '')
         .map(([key, value]) => field(key, value))
         .join('')
-      
+
       if (formFields) {
         formDataHtml = `
           <div class="section-block">
@@ -1573,7 +1599,7 @@ export async function showApprovedQuoteDetail(id) {
     if (assignmentsSection) {
       const workOrderCode = workOrder?.code || id
       const plan = productionPlansMap[workOrderCode]
-      
+
       if (plan) {
         showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
       } else {
@@ -1587,20 +1613,20 @@ export async function showApprovedQuoteDetail(id) {
     }
   } catch (error) {
     console.error('Failed to fetch work order details:', error)
-    
+
     // Fallback to cached data from quotesState
     const q = quotesState.find(x => x.id === id || x.workOrderCode === id || x.quoteId === id)
-    
+
     if (q) {
       const formatDate = (dateStr) => {
         if (!dateStr) return '-';
         try {
           const date = new Date(dateStr);
           if (isNaN(date.getTime())) return '-';
-          return date.toLocaleDateString('tr-TR', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          return date.toLocaleDateString('tr-TR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
           });
         } catch (e) {
           return '-';
@@ -1644,7 +1670,7 @@ export async function showApprovedQuoteDetail(id) {
       if (assignmentsSection) {
         const workOrderCode = q?.workOrderCode || q?.id
         const plan = productionPlansMap[workOrderCode]
-        
+
         if (plan) {
           showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
         } else {

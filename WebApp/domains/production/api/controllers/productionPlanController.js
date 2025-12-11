@@ -163,7 +163,7 @@ export const pauseProductionPlan = async (req, res) => {
       action: 'PLAN PAUSE',
       details: {
         planId: plan.id,
-        orderCode: plan.orderCode || 'N/A'
+        orderCode: plan.workOrderCode || 'N/A'
       },
       audit: {
         entityType: 'plan',
@@ -176,13 +176,26 @@ export const pauseProductionPlan = async (req, res) => {
       auditFn: logAuditEvent
     });
 
-    res.json({ success: true, plan });
+    res.json({
+      success: true,
+      plan: plan,
+      pausedCount: plan.pausedCount,
+      pausedAssignments: plan.pausedAssignments,
+      workersCleared: plan.workersCleared,
+      stationsCleared: plan.stationsCleared
+    });
   } catch (error) {
     if (error.code === 'NOT_FOUND') {
       return res.status(404).json({ error: 'Plan not found' });
     }
     if (error.code === 'INVALID_STATUS') {
       return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'HAS_IN_PROGRESS_TASKS') {
+      return res.status(400).json({
+        error: error.code,
+        message: error.message
+      });
     }
     console.error('❌ Error pausing plan:', error);
     res.status(500).json({
@@ -202,7 +215,7 @@ export const resumeProductionPlan = async (req, res) => {
       action: 'PLAN RESUME',
       details: {
         planId: plan.id,
-        orderCode: plan.orderCode || 'N/A'
+        orderCode: plan.workOrderCode || 'N/A'
       },
       audit: {
         entityType: 'plan',
@@ -215,7 +228,11 @@ export const resumeProductionPlan = async (req, res) => {
       auditFn: logAuditEvent
     });
 
-    res.json({ success: true, plan });
+    res.json({
+      success: true,
+      plan,
+      resumedCount: plan.resumedCount
+    });
   } catch (error) {
     if (error.code === 'NOT_FOUND') {
       return res.status(404).json({ error: 'Plan not found' });

@@ -3462,6 +3462,12 @@ select.mes-filter-input.is-compact {
   border-collapse: collapse;
 }
 
+.mes-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
 .mes-table-header {
   background: rgb(248, 249, 250);
   position: sticky;

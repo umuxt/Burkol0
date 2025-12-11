@@ -1651,9 +1651,216 @@ logAuditEvent({
 **Uygulama Notu (2025-12-11):**
 MES Production Plan controller'a audit logging eklendi. Create, update, delete, pause, resume ve launch işlemleri `logOperation` ile birleşik formatta loglanıyor.
 
+
+---
+
+### P1.3a: MES Production Plan UI Durum Düzeltmesi
+
+**Bağımlılık:** P1.3 tamamlanmış olmalı
+
+**Amaç:** Production Plan tablosunda plan durumlarını doğru göster ve pause/resume aksiyonlarını çalışır hale getir.
+
+**Sorun:**
+Plan launch edildikten sonra bile UI'da "Plan Hazırlanıyor" (preparing) durumunda gösteriliyor. Bu yüzden pause/resume butonları görünmüyor. Ayrıca MES sisteminde detay panelleri (window'lar) sayfa yüklendiğinde açık geliyor.
+
+**Prompt:**
+```
+MES Production Plan tablosundaki durum gösterimini, aksiyon butonlarını ve detay panellerini düzelt.
+
+## SORUNLAR
+1. Launch edilen planlar hala "Plan Hazırlanıyor" gösteriyor
+2. Pause/Resume butonları launch edilmiş planlar için görünmüyor
+3. Plan durumları (preparing/active/paused) backend'den doğru gelmiyor veya UI'da yanlış yorumlanıyor
+4. **YENİ:** Detay panelleri (assignment details, plan details vb.) sayfa yüklendiğinde açık/görünür durumda geliyor
+
+## DOSYALAR
+- `/WebApp/domains/production/js/productionPlans.js` - Plan tablosu render
+- `/WebApp/domains/production/js/approvedQuotes.js` - Approved quotes tablosu
+- `/WebApp/domains/production/api/services/productionPlanService.js` - Plan durumu yönetimi
+
+## KONTROLLER
+1. Backend'de plan launch edildiğinde `status` doğru update ediliyor mu?
+   - `preparing` -> `active` olmalı launch sonrası
+   
+2. Frontend'de state mapping doğru mu?
+   ```javascript
+   // preparing -> "Plan Hazırlanıyor"
+   // active -> "Aktif" (pause/resume butonları görünür)
+   // paused -> "Duraklatıldı" (resume butonu görünür)
+   // completed -> "Tamamlandı"
+   ```
+
+3. Aksiyon butonları:
+   - Launch butonu: `status === 'draft'` veya `status === 'preparing'`
+   - Pause butonu: `status === 'active'`
+   - Resume butonu: `status === 'paused'`
+
+## DÜZELTİLECEKLER
+
+### 1. productionPlanService.js - Launch sonrası status update
+```javascript
+// launchProductionPlan içinde
+await trx('mes.production_plans')
+  .where('id', planId)
+  .update({
+    status: 'active',  // ← preparing'den active'e geçmeli
+    launchedAt: new Date(),
+    updatedAt: new Date()
+  });
+```
+
+### 2. productionPlans.js - State gösterimi
+```javascript
+function renderStateCell(plan) {
+  const stateMap = {
+    draft: { text: 'Taslak', class: 'state-draft' },
+    preparing: { text: 'Plan Hazırlanıyor', class: 'state-preparing' },
+    active: { text: 'Aktif', class: 'state-active' },
+    paused: { text: 'Duraklatıldı', class: 'state-paused' },
+    completed: { text: 'Tamamlandı', class: 'state-completed' }
+  };
+  
+  const state = stateMap[plan.status] || { text: plan.status, class: '' };
+  return `<div class="state-text ${state.class}">${state.text}</div>`;
+}
+```
+
+### 3. productionPlans.js - Aksiyon butonları
+```javascript
+function renderActionButtons(plan) {
+  const canLaunch = plan.status === 'draft' || plan.status === 'preparing';
+  const canPause = plan.status === 'active';
+  const canResume = plan.status === 'paused';
+  
+  let html = '';
+  
+  if (canLaunch) {
+    html += `<button onclick="launchPlan('${plan.id}')" class="btn-launch">🚀 Başlat</button>`;
+  }
+  
+  if (canPause) {
+    html += `<button onclick="pausePlan('${plan.id}')" class="btn-pause">⏸ Duraklat</button>`;
+  }
+  
+  if (canResume) {
+    html += `<button onclick="resumePlan('${plan.id}')" class="btn-resume">▶ Devam</button>`;
+  }
+  
+  return html || '<span class="action-status-completed">Tamamlandı</span>';
+}
+```
+
+### 4. Detay Panellerini Başlangıçta Kapalı Tut
+
+MES modülündeki tüm detay window/panel'leri sayfa yüklendiğinde kapalı olmalı:
+
+```javascript
+// productionPlans.js, assignmentDetails.js, vb. - init fonksiyonlarında
+function initializePanels() {
+  // Tüm detay panellerini gizle
+  const detailPanels = document.querySelectorAll('.detail-panel, .detail-window, .assignment-detail-panel');
+  detailPanels.forEach(panel => {
+    panel.style.display = 'none';
+    panel.classList.remove('active', 'visible');
+  });
+}
+
+// Sayfa yüklendiğinde çağır
+document.addEventListener('DOMContentLoaded', () => {
+  initializePanels();
+  // ... diğer init fonksiyonları
+});
+```
+
+**Kontrol Edilecek Dosyalar:**
+- `/WebApp/domains/production/js/productionPlans.js`
+- `/WebApp/domains/production/js/approvedQuotes.js`
+- `/WebApp/domains/production/js/assignmentDetails.js` (varsa)
+- `/WebApp/domains/production/html/production.html` - CSS class kontrolleri
+
+## TEST
+1. Sayfayı yenile - Hiçbir detay paneli açık olmamalı
+2. Plan oluştur
+2. Launch et
+3. UI'da "Aktif" görmeli, "Duraklat" butonu olmalı
+4. Duraklat
+5. "Duraklatıldı" görmeli, "Devam" butonu olmalı
+6. Devam ettir
+7. Tekrar "Aktif" görmeli
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/domains/production/api/services/productionPlanService.js`
+- `/WebApp/domains/production/js/productionPlans.js`
+- `/WebApp/domains/production/js/approvedQuotes.js` (approved quotes tablosunda da aynı sorun varsa)
+
+**Başarı Kriterleri:**
+- [x] Launch edilen plan "Aktif" durumunda görünüyor ✅
+- [x] Launch edilen planda "Duraklat" butonu var ✅
+- [x] Pause edilen plan "Duraklatıldı" durumunda ✅
+- [x] Pause edilen planda "Devam" butonu var ✅
+- [x] Resume edilen plan tekrar "Aktif" durumunda ✅
+- [x] Sayfa yüklendiğinde detay panelleri kapalı ✅
+
+**Uygulama Notu (2025-12-12):**
+
+P1.3a başarıyla tamamlandı. Ek olarak aşağıdaki geliştirmeler yapıldı:
+
+#### 1. Pause/Resume İyileştirmeleri
+
+**Backend (`productionPlanService.js`):**
+- `pauseProductionPlan` artık paused assignment detaylarını dönüyor (ID, worker, station)
+- `resumeProductionPlan` artık resumed count dönüyor
+
+**Controller (`productionPlanController.js`):**
+- Pause/resume response'larına `pausedAssignments` ve `resumedCount` eklendi
+
+**Frontend (`approvedQuotes.js`):**
+- Pause success message artık detaylı assignment listesi gösteriyor:
+  ```
+  Üretim planı duraklatıldı!
+  
+  Duraklatılan iş paketleri:
+  
+  • 157
+    İşçi: Ahmet Yılmaz
+    İstasyon: CNC Tezgahı 1
+  
+  • 158
+    İşçi: Mehmet Demir
+    İstasyon: Kaynak Tezgahı A
+  
+  ... ve 3 iş paketi daha
+  ```
+- Resume message artık doğru count gösteriyor (artık "undefined" yok)
+
+#### 2. Route Designer Table Styling Fix
+
+**Sorun:** Route Designer, Stations, Workers, Operations ve diğer tüm MES tablolarında başlık stilleri eksikti (bold değil, background yok)
+
+**Çözüm:**
+- `/WebApp/domains/production/styles/production.css` dosyasına `.mes-table` base class eklendi
+- Tüm MES tabloları artık düzgün başlık stilleriyle görüntüleniyor (bold, gri arka plan)
+
+**Düzeltilen Dosyalar:**
+- `production.css` (`.mes-table` class eklendi)
+
+#### 3. Production Page CDN Timeout Fix
+
+**Sorun:** `production.html` Tailwind CDN yüklenirken sayfa donuyordu
+
+**Çözüm:** 
+- Tailwind CDN comment out edildi (kullanılmıyordu zaten)
+- Lucide icons ve Font Awesome CDN'leri korundu
+
+**Düzeltilen Dosyalar:**
+- `pages/production.html` (Tailwind CDN comment out)
+
+
 ---
 
 ### P1.4: MES Assignment Audit Logging
+
 
 **Bağımlılık:** P1.1 tamamlanmış olmalı
 
@@ -2266,4 +2473,64 @@ export async function logAuditEvent(options) {
 *Oluşturulma: 11 Aralık 2025*
 *Son Güncelleme: v2.2 - Kapsamlı sistem analizi, use-case bazlı loglama ve ortam farkları eklendi*
 
+---
+
+## APPENDIX: Future Development Tasks
+
+Bu bölüm, audit logging implementasyonu sırasında belirlenen ancak şu an için ertelenen geliştirme görevlerini içerir.
+
+### FD-1: Force Pause with Production Tracking
+
+**Durum**: Ertelenmiş  
+**Öncelik**: Orta  
+**İlişkili**: P1.3a - MES Production Plan UI Fixes
+
+**Problem Tanımı:**
+Şu anda bir production plan sadece `pending` veya `queued` görevler varsa pause edilebilir. Eğer bazı görevler `in_progress` durumundaysa (işçiler aktif olarak çalışıyorsa), pause işlemi şu hata ile reddedilir: "Cannot pause - some tasks are in progress."
+
+**İhtiyaç:**
+Production şefi, acil durumda (makine arızası, malzeme eksikliği, vb.) aktif üretimi durdurmak isteyebilir. Bu durumda:
+- Yarı tamamlanmış işlerin miktarlarının kaydedilmesi
+- Fire/hurdaların sayılması (worker "fire" modalinden)
+- Tüketilen malzemelerin hesaplanması
+- Resume sırasında kalan işin ayarlanması
+gerekir.
+
+**Önerilen Çözüm:**
+
+1. **Force Pause Flow:**
+   ```
+   Admin clicks "Durdur" 
+   → System detects in_progress tasks
+   → Shows modal: "Aktif görevler var - Force Pause yapmak ister misiniz?"
+   → If confirmed, shows "Production Tracking Modal":
+      - List all in_progress tasks
+      - For each task:
+        * Planned output: X units
+        * Actual output completed: [INPUT] units
+        * Scrap/Fire: [AUTO-FETCH from fire modal] units
+        * Materials consumed: [AUTO-CALCULATE]
+   → Confirm and pause
+   ```
+
+2. **Backend Changes:**
+   - New endpoint: `POST /api/mes/production-plans/:id/force-pause`
+   - Accept production tracking data
+   - Update assignments with `actualOutput`, `scrapQty`
+   - Adjust material reservations
+   - Calculate remaining work
+
+3. **Resume Behavior:**
+   - When resuming, recalculate remaining work
+   - Adjust downstream dependencies
+   - Update material requirements
+
+**Teknik Notlar:**
+- `cancelProductionPlanWithProgress()` benzeri bir flow kullanılabilir
+- Worker portal'daki fire tracking sistemi ile entegre olmalı
+- Material accounting hassas olmalı
+
+**Estimated Effort**: 3-4 gün
+
+---
 
