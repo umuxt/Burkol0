@@ -124,9 +124,27 @@ export async function createSession(email, days = 7) {
   return token
 }
 
-export function getSession(token) {
+export async function getSession(token) {
   if (!token) return null
-  const session = memory.sessions.get(token)
+  
+  // First check memory cache
+  let session = memory.sessions.get(token)
+  
+  // If not in memory, try database (for serverless environments)
+  if (!session) {
+    try {
+      session = await Sessions.getSessionByToken(token)
+      if (session) {
+        // Cache in memory for subsequent requests in same instance
+        memory.sessions.set(token, session)
+        memory.sessionsById.set(session.sessionId, session)
+      }
+    } catch (err) {
+      console.warn('[auth] Failed to fetch session from DB:', err?.message)
+      return null
+    }
+  }
+  
   if (!session) return null
   
   if (new Date() > new Date(session.expires)) {
@@ -157,7 +175,7 @@ export function deleteSession(token) {
 }
 
 // Middleware
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
   
@@ -176,17 +194,22 @@ export function requireAuth(req, res, next) {
     return next()
   }
   
-  const session = getSession(token)
-  if (!session) {
-    if ((process.env.NODE_ENV || 'development') !== 'production') {
-      req.user = { email: 'dev@beeplan.com', role: 'admin', source: 'dev-invalid-token' }
-      return next()
+  try {
+    const session = await getSession(token)
+    if (!session) {
+      if ((process.env.NODE_ENV || 'development') !== 'production') {
+        req.user = { email: 'dev@beeplan.com', role: 'admin', source: 'dev-invalid-token' }
+        return next()
+      }
+      return res.status(401).json({ error: 'Invalid or expired token' })
     }
-    return res.status(401).json({ error: 'Invalid or expired token' })
+    
+    req.user = session
+    next()
+  } catch (err) {
+    console.error('[auth] Error in requireAuth:', err)
+    return res.status(500).json({ error: 'Authentication error' })
   }
-  
-  req.user = session
-  next()
 }
 
 // Admin helpers to replace jsondb usage in routes

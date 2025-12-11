@@ -34,7 +34,7 @@ import { getSession } from '#server/auth';
 
 const router = express.Router();
 
-function withAuth(req, res, next) {
+async function withAuth(req, res, next) {
   // Basic token presence check (kopyalandı, authentication middleware olarak ayrılabilir)
   const token = req.headers.authorization?.replace('Bearer ', '') || ''
   if (!token && req.hostname !== 'localhost') {
@@ -46,7 +46,7 @@ function withAuth(req, res, next) {
       req.user = { email: 'dev@beeplan.com', userName: 'Dev User' }
     }
     else if (token) {
-      const s = getSession(token)
+      const s = await getSession(token)
       if (s) req.user = s
     }
   } catch {}

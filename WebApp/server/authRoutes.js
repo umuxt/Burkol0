@@ -32,7 +32,7 @@ export function setupAuthRoutes(app) {
     
     // Başarılı login
     const token = await createSession(email)
-    const session = getSession(token)
+    const session = await getSession(token)
     
     // Audit: log login event to audit_logs (best-effort)
     try {
@@ -66,7 +66,7 @@ export function setupAuthRoutes(app) {
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
     
     if (token) {
-      const session = getSession(token)
+      const session = await getSession(token)
       if (session) {
         // Session'a logout bilgisi ekle
         const logoutActivity = {
@@ -135,7 +135,7 @@ export function setupAuthRoutes(app) {
       return res.status(401).json({ error: 'No token provided' })
     }
     
-    const session = getSession(token)
+    const session = await getSession(token)
     if (!session) {
       // For development - allow access without valid session if token starts with 'dev-'
       if (token.startsWith('dev-')) {
@@ -251,7 +251,7 @@ export function setupAuthRoutes(app) {
       }
     }
     
-    const session = getSession(token)
+    const session = await getSession(token)
     console.log('🔍 Sessions: getSession result:', { 
       hasSession: !!session, 
       isDevToken: token.startsWith('dev-'),
@@ -284,7 +284,7 @@ export function setupAuthRoutes(app) {
   })
 
   // Admin: Delete session by ID
-  app.delete('/api/admin/sessions/:sessionId', (req, res) => {
+  app.delete('/api/admin/sessions/:sessionId', async (req, res) => {
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
     
@@ -292,7 +292,7 @@ export function setupAuthRoutes(app) {
       return res.status(401).json({ error: 'No token provided' })
     }
     
-    const session = getSession(token)
+    const session = await getSession(token)
     if (!session && !token.startsWith('dev-')) {
       return res.status(401).json({ error: 'Invalid or expired session' })
     }
