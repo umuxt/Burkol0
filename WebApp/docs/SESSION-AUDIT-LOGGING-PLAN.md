@@ -1537,12 +1537,15 @@ React.createElement('div', null,
 ```
 
 **Düzenlenecek Dosya:**
-- `/WebApp/src/components/settings/UsersTab.jsx`
+- `/WebApp/src/components/settings/UsersTab.jsx` ✅
 
 **Başarı Kriterleri:**
-- [ ] Boş aktivite durumunda anlamlı mesaj
-- [ ] Login/logout zamanları her zaman görünüyor
-- [ ] Aktif session yeşil gösterge
+- [x] Boş aktivite durumunda anlamlı mesaj ✅
+- [x] Login/logout zamanları her zaman görünüyor ✅
+- [x] Aktif session yeşil gösterge ✅
+
+**Uygulama Notu (2025-12-11):**
+Session detay modal'ına "Çıkış" alanı eklendi. Aktif oturumlar "🟢 Aktif" gösteriyor. Boş aktivite durumunda bilgilendirici mesaj ve giriş/çıkış zamanları gösteriliyor.
 
 ---
 

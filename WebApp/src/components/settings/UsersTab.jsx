@@ -16,7 +16,7 @@ export default function UsersTab({ t, isEmbedded = false }) {
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [selectedSession, setSelectedSession] = useState(null)
-  
+
   // Admin erişim kontrolü için
   const [showAccessModal, setShowAccessModal] = useState(false)
   const [accessCredentials, setAccessCredentials] = useState({ email: '', password: '' })
@@ -28,12 +28,12 @@ export default function UsersTab({ t, isEmbedded = false }) {
       setShowAccessModal(true)
       return
     }
-    
+
     // Embedded modda direkt yükleme yapılır (zaten doğrulama AccountTab'de yapıldı)
     if (isEmbedded) {
       setIsVerified(true)
     }
-    
+
     if (activeView === 'sessions') {
       loadSessions()
     } else {
@@ -160,7 +160,7 @@ export default function UsersTab({ t, isEmbedded = false }) {
       } else {
         await loadUsers()
       }
-      
+
     } catch (e) {
       console.error('Admin access error:', e)
       showToast(t.admin_access_error || 'Erişim doğrulama hatası', 'error')
@@ -175,12 +175,12 @@ export default function UsersTab({ t, isEmbedded = false }) {
         showToast(t.users_email_required || 'Email ve şifre gerekli', 'error')
         return
       }
-      
+
       if (newUser.password.length < 6) {
         showToast(t.users_password_min || 'Şifre en az 6 karakter olmalı', 'error')
         return
       }
-      
+
       setLoading(true)
       await API.addUser(newUser.email, newUser.password, newUser.role)
       setNewUser({ email: '', password: '', role: 'admin' })
@@ -197,20 +197,20 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
   async function handleDeleteUser(email) {
     const user = users.find(u => u.email === email)
-    const actionText = user && user.active 
-      ? (t.users_deactivate || 'devre dışı bırakmak') 
+    const actionText = user && user.active
+      ? (t.users_deactivate || 'devre dışı bırakmak')
       : (t.users_activate || 'aktifleştirmek')
-    
+
     if (!confirm(`${email} ${t.users_confirm_action || 'kullanıcısını'} ${actionText} ${t.users_confirm_suffix || 'istediğinizden emin misiniz?'}`)) {
       return
     }
-    
+
     try {
       setLoading(true)
       await API.deleteUser(email) // Backend'de soft delete yapıyor
       await loadUsers()
-      const resultText = user && user.active 
-        ? (t.users_deactivated || 'Kullanıcı devre dışı bırakıldı') 
+      const resultText = user && user.active
+        ? (t.users_deactivated || 'Kullanıcı devre dışı bırakıldı')
         : (t.users_activated || 'Kullanıcı aktifleştirildi')
       showToast(resultText, 'success')
     } catch (e) {
@@ -225,12 +225,12 @@ export default function UsersTab({ t, isEmbedded = false }) {
     if (!confirm(`${email} kullanıcısını kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!`)) {
       return
     }
-    
+
     // Double confirmation for permanent delete
     if (!confirm(`SON UYARI: ${email} kullanıcısı kalıcı olarak silinecek ve tüm verileri kaybolacak. Devam etmek istediğinizden emin misiniz?`)) {
       return
     }
-    
+
     try {
       setLoading(true)
       await API.permanentDeleteUser(email)
@@ -274,7 +274,7 @@ export default function UsersTab({ t, isEmbedded = false }) {
       console.warn('Invalid date string:', dateString)
       return '-'
     }
-    
+
     return date.toLocaleString('tr-TR', {
       year: 'numeric',
       month: 'short',
@@ -287,16 +287,16 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
   function isSessionActive(session) {
     if (!session) return false
-    
+
     // Eğer logoutTime varsa session pasif
     if (session.logoutTime) return false
-    
+
     // Eğer isActive false ise session pasif
     if (session.isActive === false) return false
-    
+
     // Eğer expires geçtiyse session pasif
     if (session.expires && new Date(session.expires) <= new Date()) return false
-    
+
     return true
   }
 
@@ -327,10 +327,10 @@ export default function UsersTab({ t, isEmbedded = false }) {
   const isLogView = activeView === 'sessions'
   const sessionActivities = selectedSession && Array.isArray(selectedSession.activityLog)
     ? [...selectedSession.activityLog].sort((a, b) => {
-        const aTime = new Date(a?.timestamp || a?.createdAt || 0).getTime()
-        const bTime = new Date(b?.timestamp || b?.createdAt || 0).getTime()
-        return bTime - aTime
-      })
+      const aTime = new Date(a?.timestamp || a?.createdAt || 0).getTime()
+      const bTime = new Date(b?.timestamp || b?.createdAt || 0).getTime()
+      return bTime - aTime
+    })
     : null
 
   function formatActivityMetadata(metadata) {
@@ -425,180 +425,180 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
       isLogView
         ? React.createElement(React.Fragment, null,
-            (sessionsLoading
-              ? React.createElement('p', null, t.loading || 'Yükleniyor...')
-              : (sessions.length === 0
-                  ? React.createElement('p', null, t.sessions_empty || 'Henüz oturum kaydı yok.')
-                  : React.createElement('div', { style: { overflowX: 'auto', marginBottom: '20px' } },
-                      React.createElement('table', { style: { width: '100%', minWidth: '1200px', borderCollapse: 'collapse', border: '1px solid #ddd' } },
-                      React.createElement('thead', null,
-                        React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '12%' } }, t.sessions_session_id || 'Oturum ID'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '10%' } }, t.sessions_user || 'Kullanıcı'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '18%' } }, t.users_email || 'Email'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_login || 'Giriş'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, 'Çıkış'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_expires || 'Token Süresi'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '8%' } }, t.users_status || 'Durum'),
-                          React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_actions || 'İşlemler')
-                        )
-                      ),
-                      React.createElement('tbody', null,
-                        sessions.map(session =>
-                          React.createElement('tr', { key: session.sessionId || session.token, style: { borderBottom: '1px solid #eee' } },
-                            React.createElement('td', { style: { padding: '12px' } }, session.sessionId || '—'),
-                            React.createElement('td', { style: { padding: '12px' } }, session.userName || '—'),
-                            React.createElement('td', { style: { padding: '12px' } }, session.email || '—'),
-                            React.createElement('td', { style: { padding: '12px' } }, 
-                              React.createElement('span', {
-                                title: `Raw data: ${session.loginTime}`,
-                                style: { cursor: 'help' }
-                              }, formatDateTime(session.loginTime))
-                            ),
-                            React.createElement('td', { style: { padding: '12px' } }, 
-                              React.createElement('span', {
-                                title: `Raw data: ${session.logoutTime || 'Henüz çıkış yapılmamış'}`,
-                                style: { cursor: 'help' }
-                              }, session.logoutTime ? formatDateTime(session.logoutTime) : '—')
-                            ),
-                            React.createElement('td', { style: { padding: '12px' } }, 
-                              React.createElement('span', {
-                                title: `Raw data: ${session.expires}`,
-                                style: { cursor: 'help' }
-                              }, formatDateTime(session.expires))
-                            ),
-                            React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                              React.createElement('span', {
-                                style: {
-                                  padding: '4px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                  backgroundColor: isSessionActive(session) ? '#d4edda' : '#f8d7da',
-                                  color: isSessionActive(session) ? '#155724' : '#721c24'
-                                }
-                              }, isSessionActive(session) ? (t.users_active || 'Aktif') : (t.sessions_expired || 'Süresi Dolmuş'))
-                            ),
-                            React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                              React.createElement('div', { style: { display: 'flex', justifyContent: 'center' } },
-                                React.createElement('button', {
-                                  type: 'button',
-                                  className: 'btn btn-secondary',
-                                  style: { fontSize: '12px', padding: '4px 8px' },
-                                  disabled: sessionsLoading,
-                                  onClick: () => openSessionDetails(session)
-                                }, t.sessions_details || 'Detaylar')
-                              )
-                            )
+          (sessionsLoading
+            ? React.createElement('p', null, t.loading || 'Yükleniyor...')
+            : (sessions.length === 0
+              ? React.createElement('p', null, t.sessions_empty || 'Henüz oturum kaydı yok.')
+              : React.createElement('div', { style: { overflowX: 'auto', marginBottom: '20px' } },
+                React.createElement('table', { style: { width: '100%', minWidth: '1200px', borderCollapse: 'collapse', border: '1px solid #ddd' } },
+                  React.createElement('thead', null,
+                    React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '12%' } }, t.sessions_session_id || 'Oturum ID'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '10%' } }, t.sessions_user || 'Kullanıcı'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '18%' } }, t.users_email || 'Email'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_login || 'Giriş'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, 'Çıkış'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_expires || 'Token Süresi'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '8%' } }, t.users_status || 'Durum'),
+                      React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_actions || 'İşlemler')
+                    )
+                  ),
+                  React.createElement('tbody', null,
+                    sessions.map(session =>
+                      React.createElement('tr', { key: session.sessionId || session.token, style: { borderBottom: '1px solid #eee' } },
+                        React.createElement('td', { style: { padding: '12px' } }, session.sessionId || '—'),
+                        React.createElement('td', { style: { padding: '12px' } }, session.userName || '—'),
+                        React.createElement('td', { style: { padding: '12px' } }, session.email || '—'),
+                        React.createElement('td', { style: { padding: '12px' } },
+                          React.createElement('span', {
+                            title: `Raw data: ${session.loginTime}`,
+                            style: { cursor: 'help' }
+                          }, formatDateTime(session.loginTime))
+                        ),
+                        React.createElement('td', { style: { padding: '12px' } },
+                          React.createElement('span', {
+                            title: `Raw data: ${session.logoutTime || 'Henüz çıkış yapılmamış'}`,
+                            style: { cursor: 'help' }
+                          }, session.logoutTime ? formatDateTime(session.logoutTime) : '—')
+                        ),
+                        React.createElement('td', { style: { padding: '12px' } },
+                          React.createElement('span', {
+                            title: `Raw data: ${session.expires}`,
+                            style: { cursor: 'help' }
+                          }, formatDateTime(session.expires))
+                        ),
+                        React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                          React.createElement('span', {
+                            style: {
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              backgroundColor: isSessionActive(session) ? '#d4edda' : '#f8d7da',
+                              color: isSessionActive(session) ? '#155724' : '#721c24'
+                            }
+                          }, isSessionActive(session) ? (t.users_active || 'Aktif') : (t.sessions_expired || 'Süresi Dolmuş'))
+                        ),
+                        React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                          React.createElement('div', { style: { display: 'flex', justifyContent: 'center' } },
+                            React.createElement('button', {
+                              type: 'button',
+                              className: 'btn btn-secondary',
+                              style: { fontSize: '12px', padding: '4px 8px' },
+                              disabled: sessionsLoading,
+                              onClick: () => openSessionDetails(session)
+                            }, t.sessions_details || 'Detaylar')
                           )
                         )
                       )
                     )
                   )
-                )),
-            // Session history info
-            React.createElement('div', {
+                )
+              )
+            )),
+          // Session history info
+          React.createElement('div', {
+            style: {
+              marginTop: '20px',
+              padding: '15px',
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              backgroundColor: '#f9f9f9',
+              textAlign: 'center'
+            }
+          },
+            React.createElement('p', {
               style: {
-                marginTop: '20px',
-                padding: '15px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                backgroundColor: '#f9f9f9',
-                textAlign: 'center'
+                margin: 0,
+                color: '#666',
+                fontSize: '14px'
               }
-            },
-              React.createElement('p', {
-                style: {
-                  margin: 0,
-                  color: '#666',
-                  fontSize: '14px'
-                }
-              }, 'Tüm kullanıcı oturumları PostgreSQL veritabanında saklanmaktadır.')
-            )
+            }, 'Tüm kullanıcı oturumları PostgreSQL veritabanında saklanmaktadır.')
           )
-        : (users.length === 0 
-            ? React.createElement('p', null, t.users_no_users || 'Henüz kullanıcı eklenmemiş.')
-            : React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' } },
-                React.createElement('thead', null,
-                  React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
-                    React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_email || 'Email'),
-                    React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_password || 'Şifre'),
-                    React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_role || 'Rol'),
-                    React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.users_status || 'Durum'),
-                    React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.users_actions || 'İşlemler')
-                  )
-                ),
-                React.createElement('tbody', null,
-                  users.map(user => 
-                    React.createElement('tr', { key: user.email, style: { borderBottom: '1px solid #eee' } },
-                      React.createElement('td', { style: { padding: '12px' } }, user.email),
-                      React.createElement('td', { style: { padding: '12px' } },
-                        React.createElement('span', { 
-                          style: { 
-                            fontFamily: 'monospace',
-                            backgroundColor: '#f0f0f0',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: (user.hasPlainPassword && user.password !== '••••••••') ? 'pointer' : 'default',
-                            userSelect: 'text',
-                            transition: 'all 0.2s ease',
-                            minWidth: '80px',
-                            display: 'inline-block'
-                          },
-                          onMouseEnter: () => {
-                            if (user.hasPlainPassword && user.password !== '••••••••') {
-                              setHoveredPassword(user.email)
-                            }
-                          },
-                          onMouseLeave: () => setHoveredPassword(null),
-                          title: (user.hasPlainPassword && user.password !== '••••••••') 
-                            ? 'Fare ile üzerine gelin ve kopyalayın' 
-                            : 'Hashlenmiş şifre - görüntülenemez'
-                        }, (hoveredPassword === user.email && user.hasPlainPassword && user.password !== '••••••••') 
-                          ? user.password 
-                          : '••••••••')
-                      ),
-                      React.createElement('td', { style: { padding: '12px' } }, getRoleLabel(user.role)),
-                      React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                        React.createElement('span', {
-                          style: {
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            backgroundColor: user.active ? '#d4edda' : '#f8d7da',
-                            color: user.active ? '#155724' : '#721c24'
-                          }
-                        }, user.active ? (t.users_active || 'Aktif') : (t.users_inactive || 'Pasif'))
-                      ),
-                      React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                        React.createElement('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center' } },
-                          React.createElement('button', {
-                            onClick: () => setEditingUser(user),
-                            className: 'btn btn-warning',
-                            style: { fontSize: '12px', padding: '4px 8px' },
-                            disabled: loading
-                          }, t.users_edit || 'Düzenle'),
-                          React.createElement('button', {
-                            onClick: () => handleDeleteUser(user.email),
-                            className: user.active ? 'btn btn-warning' : 'btn btn-success',
-                            style: { fontSize: '12px', padding: '4px 8px' },
-                            disabled: loading
-                          }, user.active ? (t.users_deactivate || 'Devre Dışı') : (t.users_activate || 'Aktifleştir')),
-                          React.createElement('button', {
-                            onClick: () => handlePermanentDeleteUser(user.email),
-                            className: 'btn btn-danger',
-                            style: { fontSize: '12px', padding: '4px 8px' },
-                            disabled: loading,
-                            title: 'Kullanıcıyı kalıcı olarak sil'
-                          }, 'Sil')
-                        )
-                      )
+        )
+        : (users.length === 0
+          ? React.createElement('p', null, t.users_no_users || 'Henüz kullanıcı eklenmemiş.')
+          : React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' } },
+            React.createElement('thead', null,
+              React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_email || 'Email'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_password || 'Şifre'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_role || 'Rol'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.users_status || 'Durum'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.users_actions || 'İşlemler')
+              )
+            ),
+            React.createElement('tbody', null,
+              users.map(user =>
+                React.createElement('tr', { key: user.email, style: { borderBottom: '1px solid #eee' } },
+                  React.createElement('td', { style: { padding: '12px' } }, user.email),
+                  React.createElement('td', { style: { padding: '12px' } },
+                    React.createElement('span', {
+                      style: {
+                        fontFamily: 'monospace',
+                        backgroundColor: '#f0f0f0',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        cursor: (user.hasPlainPassword && user.password !== '••••••••') ? 'pointer' : 'default',
+                        userSelect: 'text',
+                        transition: 'all 0.2s ease',
+                        minWidth: '80px',
+                        display: 'inline-block'
+                      },
+                      onMouseEnter: () => {
+                        if (user.hasPlainPassword && user.password !== '••••••••') {
+                          setHoveredPassword(user.email)
+                        }
+                      },
+                      onMouseLeave: () => setHoveredPassword(null),
+                      title: (user.hasPlainPassword && user.password !== '••••••••')
+                        ? 'Fare ile üzerine gelin ve kopyalayın'
+                        : 'Hashlenmiş şifre - görüntülenemez'
+                    }, (hoveredPassword === user.email && user.hasPlainPassword && user.password !== '••••••••')
+                      ? user.password
+                      : '••••••••')
+                  ),
+                  React.createElement('td', { style: { padding: '12px' } }, getRoleLabel(user.role)),
+                  React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                    React.createElement('span', {
+                      style: {
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        backgroundColor: user.active ? '#d4edda' : '#f8d7da',
+                        color: user.active ? '#155724' : '#721c24'
+                      }
+                    }, user.active ? (t.users_active || 'Aktif') : (t.users_inactive || 'Pasif'))
+                  ),
+                  React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                    React.createElement('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center' } },
+                      React.createElement('button', {
+                        onClick: () => setEditingUser(user),
+                        className: 'btn btn-warning',
+                        style: { fontSize: '12px', padding: '4px 8px' },
+                        disabled: loading
+                      }, t.users_edit || 'Düzenle'),
+                      React.createElement('button', {
+                        onClick: () => handleDeleteUser(user.email),
+                        className: user.active ? 'btn btn-warning' : 'btn btn-success',
+                        style: { fontSize: '12px', padding: '4px 8px' },
+                        disabled: loading
+                      }, user.active ? (t.users_deactivate || 'Devre Dışı') : (t.users_activate || 'Aktifleştir')),
+                      React.createElement('button', {
+                        onClick: () => handlePermanentDeleteUser(user.email),
+                        className: 'btn btn-danger',
+                        style: { fontSize: '12px', padding: '4px 8px' },
+                        disabled: loading,
+                        title: 'Kullanıcıyı kalıcı olarak sil'
+                      }, 'Sil')
                     )
                   )
                 )
-              )),
+              )
+            )
+          )),
 
       selectedSession && React.createElement('div', {
         style: {
@@ -680,6 +680,14 @@ export default function UsersTab({ t, isEmbedded = false }) {
               React.createElement('div', null, formatDateTime(selectedSession.expires))
             ),
             React.createElement('div', null,
+              React.createElement('div', { style: { fontSize: '12px', color: '#888', textTransform: 'uppercase' } }, t.sessions_logout || 'Çıkış'),
+              React.createElement('div', null,
+                selectedSession.logoutTime
+                  ? formatDateTime(selectedSession.logoutTime)
+                  : React.createElement('span', { style: { color: '#28a745', fontWeight: 'bold' } }, '🟢 Aktif')
+              )
+            ),
+            React.createElement('div', null,
               React.createElement('div', { style: { fontSize: '12px', color: '#888', textTransform: 'uppercase' } }, t.users_status || 'Durum'),
               React.createElement('div', null, isSessionActive(selectedSession) ? (t.users_active || 'Aktif') : (t.sessions_expired || 'Süresi Dolmuş'))
             ),
@@ -699,20 +707,36 @@ export default function UsersTab({ t, isEmbedded = false }) {
             React.createElement('div', { style: { marginBottom: '12px', fontWeight: 'bold' } }, t.sessions_activity_title || 'Sistem Aktiviteleri'),
             sessionActivities && sessionActivities.length > 0
               ? React.createElement('ul', { style: { paddingLeft: '18px', margin: 0 } },
-                  sessionActivities.map((activity, idx) => {
-                    const performerLabel = activity?.performedBy?.email || activity?.performedBy?.userName || null
-                    const metadataSummary = formatActivityMetadata(activity?.metadata || {}).slice(0, 3)
-                    return React.createElement('li', { key: idx, style: { marginBottom: '8px' } },
-                      React.createElement('div', { style: { fontWeight: 'bold' } }, activity.title || activity.type || t.sessions_activity_unknown || 'Aktivite'),
-                      activity.timestamp && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, formatDateTime(activity.timestamp)),
-                      performerLabel && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, performerLabel),
-                      activity.description && React.createElement('div', { style: { marginTop: '4px', color: '#444' } }, activity.description),
-                      metadataSummary.length > 0 && React.createElement('div', { style: { marginTop: '4px', color: '#555', fontSize: '12px' } }, metadataSummary.join(' • '))
-                    )
-                  })
+                sessionActivities.map((activity, idx) => {
+                  const performerLabel = activity?.performedBy?.email || activity?.performedBy?.userName || null
+                  const metadataSummary = formatActivityMetadata(activity?.metadata || {}).slice(0, 3)
+                  return React.createElement('li', { key: idx, style: { marginBottom: '8px' } },
+                    React.createElement('div', { style: { fontWeight: 'bold' } }, activity.title || activity.type || t.sessions_activity_unknown || 'Aktivite'),
+                    activity.timestamp && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, formatDateTime(activity.timestamp)),
+                    performerLabel && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, performerLabel),
+                    activity.description && React.createElement('div', { style: { marginTop: '4px', color: '#444' } }, activity.description),
+                    metadataSummary.length > 0 && React.createElement('div', { style: { marginTop: '4px', color: '#555', fontSize: '12px' } }, metadataSummary.join(' • '))
+                  )
+                })
+              )
+              : React.createElement('div', {
+                style: {
+                  color: '#666',
+                  fontSize: '14px',
+                  textAlign: 'center',
+                  padding: '20px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '6px'
+                }
+              },
+                React.createElement('p', { style: { marginBottom: '8px', margin: '0 0 8px 0' } },
+                  '📋 Bu oturum için henüz aktivite kaydı yok.'
+                ),
+                React.createElement('p', { style: { fontSize: '12px', color: '#888', margin: 0 } },
+                  `Giriş: ${formatDateTime(selectedSession.loginTime)}`,
+                  selectedSession.logoutTime ? ` | Çıkış: ${formatDateTime(selectedSession.logoutTime)}` : ' | 🟢 Aktif oturum'
                 )
-              : React.createElement('div', { style: { color: '#666', fontSize: '14px' } },
-                  t.sessions_activity_placeholder || 'Bu oturum için sistem aktiviteleri yakında eklenecek.')
+              )
           )
         )
       ),
@@ -846,44 +870,44 @@ export default function UsersTab({ t, isEmbedded = false }) {
           textAlign: 'center'
         }
       },
-        React.createElement('h3', { 
-          style: { marginBottom: '20px', color: '#d32f2f' } 
+        React.createElement('h3', {
+          style: { marginBottom: '20px', color: '#d32f2f' }
         }, '🔐 ' + (t.admin_access_title || 'Admin Erişim Kontrolü')),
-        
-        React.createElement('p', { 
-          style: { marginBottom: '20px', color: '#666' } 
+
+        React.createElement('p', {
+          style: { marginBottom: '20px', color: '#666' }
         }, t.admin_access_desc || 'Kullanıcı yönetimi bölümüne erişmek için admin kimlik bilgilerinizi girin:'),
-        
+
         React.createElement('div', { className: 'form-group', style: { marginBottom: '15px' } },
           React.createElement('label', null, t.users_email || 'Email'),
           React.createElement('input', {
             type: 'email',
             className: 'form-control',
             value: accessCredentials.email,
-            onChange: (e) => setAccessCredentials({...accessCredentials, email: e.target.value}),
+            onChange: (e) => setAccessCredentials({ ...accessCredentials, email: e.target.value }),
             placeholder: t.admin_access_email_placeholder || 'admin@example.com'
           })
         ),
-        
+
         React.createElement('div', { className: 'form-group', style: { marginBottom: '20px' } },
           React.createElement('label', null, t.users_password || 'Şifre'),
           React.createElement('input', {
             type: 'password',
             className: 'form-control',
             value: accessCredentials.password,
-            onChange: (e) => setAccessCredentials({...accessCredentials, password: e.target.value}),
+            onChange: (e) => setAccessCredentials({ ...accessCredentials, password: e.target.value }),
             placeholder: t.admin_access_password_placeholder || 'Admin şifreniz',
             onKeyPress: (e) => e.key === 'Enter' && handleAdminAccess()
           })
         ),
-        
+
         React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'center' } },
           React.createElement('button', {
             onClick: handleAdminAccess,
             className: 'btn btn-primary',
             disabled: loading || !accessCredentials.email || !accessCredentials.password
           }, loading ? (t.loading || 'Yükleniyor...') : (t.admin_access_verify || 'Doğrula')),
-          
+
           React.createElement('button', {
             onClick: () => setShowAccessModal(false),
             className: 'btn btn-secondary'
