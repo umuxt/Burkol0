@@ -15,14 +15,17 @@ export async function auditSessionActivity(req, activity = {}) {
       sessionId
     }
 
+    // Safely get user-agent
+    const userAgent = req?.get ? req.get('user-agent') : (req?.headers?.['user-agent'] || null)
+
     // Entry for session activity log (in-memory)
     const memoryEntry = {
       performedBy: performer,
       timestamp: activity.timestamp || new Date().toISOString(),
       action: activity.action || null,
       details: activity.details || null,
-      ipAddress: req.ip || null,
-      userAgent: req.get('user-agent') || null
+      ipAddress: req?.ip || null,
+      userAgent
     }
 
     // Update session activity log in memory (append)
@@ -43,12 +46,12 @@ export async function auditSessionActivity(req, activity = {}) {
           description: activity.description || null,
           details: activity.details || null,
           metadata: activity.metadata || null,
-          userAgent: req.get('user-agent') || null
+          userAgent
         }),
         userId: performer.userName || performer.email,
         userEmail: performer.email,
         createdAt: new Date(),
-        ipAddress: req.ip || null
+        ipAddress: req?.ip || null
       }
       await db('settings.audit_logs').insert(dbEntry)
     } catch (err) {
