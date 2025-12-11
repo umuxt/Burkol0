@@ -1468,10 +1468,10 @@ logAuditEvent({
 - [x] Quote updateForm audit_logs'da görünüyor ✅
 - [x] Quote setManualPrice/clearManualPrice audit_logs'da görünüyor ✅
 - [x] Quote delete audit_logs'da görünüyor ✅
-- [ ] logOperation() entegrasyonu (P1.1b sonrası)
+- [x] logOperation() entegrasyonu ✅
 
 **Uygulama Notu (2025-12-11):**
-Quote controller'a audit logging eklendi. 8 farklı aksiyon loglanıyor: create, update, approve, reject, statusChange, updateForm, setManualPrice, clearManualPrice, delete. Console formatı P1.1b ile birleşik formata çevrilecek.
+Quote controller'a audit logging eklendi. 8 farklı aksiyon loglanıyor: create, update, approve, reject, statusChange, updateForm, setManualPrice, clearManualPrice, delete. Tüm endpoint'ler birleşik `logOperation()` formatını kullanıyor.
 
 ---
 

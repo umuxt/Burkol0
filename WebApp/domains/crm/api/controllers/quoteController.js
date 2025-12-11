@@ -479,21 +479,30 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Audit: quote.update
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: 'update',
-        changes: {
-          customerName: updates.customerName,
-          projectName: updates.projectName,
-          updatedBy: updates.updatedBy
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE UPDATE',
+        details: {
+          quoteId: id,
+          customer: updates.customerName || 'N/A',
+          project: updates.projectName || 'N/A'
         },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: 'update',
+          changes: {
+            customerName: updates.customerName,
+            projectName: updates.projectName,
+            updatedBy: updates.updatedBy
+          },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
+      });
 
-      logger.success('Quote updated successfully', { quoteId: id });
       res.json({ success: true, quote });
     } catch (error) {
       logger.error('Failed to update quote', { error: error.message });
@@ -525,26 +534,29 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Audit: quote.approve veya quote.reject
+      // Birleşik log: success + audit
       const auditAction = status === 'approved' ? 'approve' : (status === 'rejected' ? 'reject' : 'statusChange');
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: auditAction,
-        changes: {
+      logOperation({
+        type: 'success',
+        action: `QUOTE ${status.toUpperCase()}`,
+        details: {
+          quoteId: id,
           status: quote.status,
-          approvedAt: quote.approvedAt,
-          approvedBy: quote.approvedBy
+          approvedBy: quote.approvedBy || 'N/A'
         },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
-
-      logger.success('Quote status updated', {
-        quoteId: id,
-        status: quote.status,
-        approvedAt: quote.approvedAt,
-        approvedBy: quote.approvedBy
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: auditAction,
+          changes: {
+            status: quote.status,
+            approvedAt: quote.approvedAt,
+            approvedBy: quote.approvedBy
+          },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
       });
 
       res.json({ success: true, quote });
@@ -612,32 +624,36 @@ export function setupQuotesRoutes(app) {
 
       const quote = await Quotes.update(id, updateData);
 
-      // Audit: quote.updateForm
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: 'updateForm',
-        changes: {
-          before: {
-            formTemplateCode: existingQuote.formTemplateCode,
-            priceSettingCode: existingQuote.priceSettingCode,
-            calculatedPrice: existingQuote.calculatedPrice
-          },
-          after: {
-            formTemplateCode: formTemplateCode,
-            priceSettingCode: priceSettingCode,
-            calculatedPrice: calculatedPrice
-          }
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE FORM UPDATE',
+        details: {
+          quoteId: id,
+          oldTemplate: existingQuote.formTemplateCode || 'N/A',
+          newTemplate: formTemplateCode || 'N/A',
+          price: calculatedPrice || 0
         },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
-
-      logger.success('Quote form updated via C2 modal', {
-        quoteId: id,
-        oldFormTemplateCode: existingQuote.formTemplateCode,
-        newFormTemplateCode: formTemplateCode,
-        updatedBy: req.user?.email || 'system'
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: 'updateForm',
+          changes: {
+            before: {
+              formTemplateCode: existingQuote.formTemplateCode,
+              priceSettingCode: existingQuote.priceSettingCode,
+              calculatedPrice: existingQuote.calculatedPrice
+            },
+            after: {
+              formTemplateCode: formTemplateCode,
+              priceSettingCode: priceSettingCode,
+              calculatedPrice: calculatedPrice
+            }
+          },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
       });
 
       res.json({ success: true, quote });
@@ -676,24 +692,28 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Audit: quote.setManualPrice
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: 'setManualPrice',
-        changes: {
-          manualPrice: quote.manualPrice,
-          finalPrice: quote.finalPrice,
-          reason: reason
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE MANUAL PRICE SET',
+        details: {
+          quoteId: id,
+          price: quote.manualPrice,
+          reason: reason || 'N/A'
         },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
-
-      logger.success('Manual price set', {
-        quoteId: id,
-        manualPrice: quote.manualPrice,
-        finalPrice: quote.finalPrice
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: 'setManualPrice',
+          changes: {
+            manualPrice: quote.manualPrice,
+            finalPrice: quote.finalPrice,
+            reason: reason
+          },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
       });
 
       // Return manualOverride object for frontend compatibility
@@ -732,17 +752,24 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Audit: quote.clearManualPrice
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: 'clearManualPrice',
-        changes: { reason: reason },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
-
-      logger.success('Manual price cleared', { quoteId: id });
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE MANUAL PRICE CLEAR',
+        details: {
+          quoteId: id,
+          reason: reason || 'N/A'
+        },
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: 'clearManualPrice',
+          changes: { reason: reason },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
+      });
 
       res.json({
         success: true,
@@ -854,17 +881,25 @@ export function setupQuotesRoutes(app) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
-      // Audit: quote.delete
-      logAuditEvent({
-        entityType: 'quote',
-        entityId: id,
-        action: 'delete',
-        changes: { deletedBy: req.user?.email },
-        performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
-        ipAddress: req.ip
-      }).catch(() => { });
+      // Birleşik log: success + audit
+      logOperation({
+        type: 'success',
+        action: 'QUOTE DELETE',
+        details: {
+          quoteId: id,
+          deletedBy: req.user?.email || 'system'
+        },
+        audit: {
+          entityType: 'quote',
+          entityId: id,
+          action: 'delete',
+          changes: { deletedBy: req.user?.email },
+          performer: { email: req.user?.email, userName: req.user?.userName, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
+      });
 
-      logger.success('Quote deleted', { quoteId: id });
       res.json({ success: true });
     } catch (error) {
       logger.error('Failed to delete quote', { error: error.message });
