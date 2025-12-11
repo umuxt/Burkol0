@@ -119,7 +119,7 @@ export function setupAuthRoutes(app) {
   })
 
   // Me endpoint - get current user info
-  app.get('/api/auth/me', (req, res) => {
+  app.get('/api/auth/me', async (req, res) => {
     // In development mode, bypass authentication for easier testing
         if (process.env.NODE_ENV === 'development') {
           return res.json({
