@@ -28,30 +28,13 @@ export async function verifyUser(email, password) {
 }
 
 // Session management
-export function newToken() { 
-  return crypto.randomBytes(32).toString('base64url') 
+export function newToken() {
+  return crypto.randomBytes(32).toString('base64url')
 }
 
-// Generate session ID with format: ss-yyyymmdd-000x
+// Generate session ID - using UUID for serverless compatibility
 export function generateSessionId() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const dateKey = `${year}${month}${day}`
-  
-  // Get daily counter from system config
-  const dailyCounters = memory.systemConfig.dailySessionCounters || {}
-  const currentCounter = (dailyCounters[dateKey] || 0) + 1
-  
-  // Update counter in system config
-  const updatedCounters = { ...dailyCounters, [dateKey]: currentCounter }
-  memory.systemConfig.dailySessionCounters = updatedCounters
-  
-  // Format counter with leading zeros (4 digits max)
-  const counterStr = String(currentCounter).padStart(4, '0')
-  
-  return `ss-${dateKey}-${counterStr}`
+  return crypto.randomUUID();
 }
 
 export async function createSession(email, days = 7) {
@@ -59,11 +42,11 @@ export async function createSession(email, days = 7) {
   const sessionId = generateSessionId()
   const loginTime = new Date()
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
-  
+
   // Get user info for session from PostgreSQL
   let userName = email.split('@')[0] // fallback
   let workerId = null
-  
+
   try {
     const user = await Users.getUserByEmail(email)
     if (user) {
@@ -73,7 +56,7 @@ export async function createSession(email, days = 7) {
   } catch (error) {
     console.warn('Warning: Could not fetch user details for session:', error.message)
   }
-  
+
   // Create login activity data
   const loginActivity = {
     id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -94,7 +77,7 @@ export async function createSession(email, days = 7) {
       sessionId
     }
   }
-  
+
   const sessionData = {
     sessionId,
     token,
@@ -109,27 +92,27 @@ export async function createSession(email, days = 7) {
     logoutTime: null,
     activityLog: [loginActivity]
   }
-  
+
   // Save to memory stores
   memory.sessions.set(token, sessionData)
   memory.sessionsById.set(sessionId, sessionData)
-  
+
   // Persist to PostgreSQL (best-effort)
   try {
     await Sessions.createSession(sessionData)
   } catch (err) {
     console.warn('[auth] Failed to persist session to PostgreSQL:', err?.message)
   }
-  
+
   return token
 }
 
 export async function getSession(token) {
   if (!token) return null
-  
+
   // First check memory cache
   let session = memory.sessions.get(token)
-  
+
   // If not in memory, try database (for serverless environments)
   if (!session) {
     try {
@@ -144,32 +127,32 @@ export async function getSession(token) {
       return null
     }
   }
-  
+
   if (!session) return null
-  
+
   if (new Date() > new Date(session.expires)) {
     memory.sessions.delete(token)
     // keep sessionsById for admin listing with inactive flag
     return null
   }
-  
+
   // Copy workerId to session object for req.user access
   const sessionWithWorker = { ...session }
   if (session.workerId) {
     sessionWithWorker.workerId = session.workerId
   }
-  
+
   return sessionWithWorker
 }
 
-export function deleteSession(token) { 
+export function deleteSession(token) {
   if (token) {
     const session = memory.sessions.get(token)
     if (session) memory.sessionsById.delete(session.sessionId)
     memory.sessions.delete(token)
     if (session && session.sessionId) {
       // Best-effort PostgreSQL delete
-      Sessions.deleteSessionById(session.sessionId).catch(() => {})
+      Sessions.deleteSessionById(session.sessionId).catch(() => { })
     }
   }
 }
@@ -178,7 +161,7 @@ export function deleteSession(token) {
 export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-  
+
   if (!token) {
     // Development convenience: allow missing token locally
     if ((process.env.NODE_ENV || 'development') !== 'production') {
@@ -187,13 +170,13 @@ export async function requireAuth(req, res, next) {
     }
     return res.status(401).json({ error: 'No token provided' })
   }
-  
+
   // Development mode: allow dev tokens
   if (token.startsWith('dev-')) {
     req.user = { email: 'dev@beeplan.com', role: 'admin' }
     return next()
   }
-  
+
   try {
     const session = await getSession(token)
     if (!session) {
@@ -203,7 +186,7 @@ export async function requireAuth(req, res, next) {
       }
       return res.status(401).json({ error: 'Invalid or expired token' })
     }
-    
+
     req.user = session
     next()
   } catch (err) {
@@ -241,7 +224,7 @@ export async function updateSession(sessionData) {
     memory.sessions.set(tokenEntry[0], merged)
   }
   memory.sessionsById.set(sessionData.sessionId, merged)
-  
+
   // Best-effort PostgreSQL update
   try {
     await Sessions.updateSession(sessionData.sessionId, sessionData)
@@ -258,7 +241,7 @@ export function deleteSessionById(sessionId) {
   }
   const ok = memory.sessionsById.delete(sessionId)
   // Best-effort PostgreSQL delete
-  Sessions.deleteSessionById(sessionId).catch(() => {})
+  Sessions.deleteSessionById(sessionId).catch(() => { })
   return ok
 }
 
@@ -303,7 +286,7 @@ export async function listSessionsFromDatabase() {
 export async function getUserByEmail(email) {
   // First check memory cache
   let user = memory.users.get(email)
-  
+
   // If not in memory, try database
   if (!user) {
     try {
@@ -315,14 +298,14 @@ export async function getUserByEmail(email) {
       console.warn('[auth] Failed to fetch user from DB:', err?.message)
     }
   }
-  
+
   return user
 }
 
 export async function deleteUserPermanently(email) {
   // Remove from memory
   memory.users.delete(email)
-  
+
   // Remove from database
   try {
     await Users.deleteUser(email)

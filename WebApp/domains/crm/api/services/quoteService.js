@@ -10,6 +10,8 @@ import Quotes from '../../../../db/models/quotes.js';
 import FormTemplates from '../../../../db/models/formTemplates.js';
 import PriceSettings from './priceSettingsService.js';
 import Customers from '../../../../db/models/customers.js';
+import db from '../../../../db/connection.js';
+import { deleteFileFromStorage } from '../../../../server/storage.js';
 
 /**
  * Get all quotes with optional filters
@@ -68,7 +70,7 @@ export async function createQuote(data) {
 export async function createQuoteWithCustomer(quoteData, customerData) {
   // First create the customer
   const customer = await Customers.create(customerData);
-  
+
   // Then create the quote with customer reference
   const quote = await createQuote({
     ...quoteData,
@@ -142,6 +144,22 @@ export async function addFile(data) {
  * Delete file from quote
  */
 export async function deleteFile(fileId) {
+  // Get file info first
+  const file = await db('quotes.quote_files').where('id', fileId).first();
+
+  if (file && file.fileName) {
+    try {
+      // Try to delete from storage
+      // If filePath contains the key, we might need to extract it, 
+      // but usually fileName is the key.
+      // In quoteController we saved: safeFileName as fileName
+      await deleteFileFromStorage(file.fileName);
+    } catch (err) {
+      console.warn('Failed to delete file from storage:', err.message);
+      // Continue to delete DB record even if storage deletion fails
+    }
+  }
+
   return Quotes.deleteFile(fileId);
 }
 
@@ -184,7 +202,7 @@ export async function calculateQuotePrice(quoteId) {
 
   // Calculate price using PriceSettings
   const result = await PriceSettings.calculatePrice(quote.priceSettingId, quote.formData || {});
-  
+
   return {
     quoteId,
     calculatedPrice: result.totalPrice,

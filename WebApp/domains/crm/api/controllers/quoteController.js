@@ -3,6 +3,7 @@
  * 
  * API routes for quote management
  * Updated for B0: Uses PriceSettings instead of PriceFormulas
+ * Updated for Cloudflare R2 Storage (Vercel Serverless)
  */
 
 import * as quoteService from '../services/quoteService.js';
@@ -11,25 +12,17 @@ import logger from '../../utils/logger.js';
 import Quotes from '../../../../db/models/quotes.js';
 import PriceSettings from '../services/priceSettingsService.js';
 import customerService from '../services/customerService.js';
-import fs from 'fs';
+import { uploadFileToStorage, deleteFileFromStorage } from '../../../../server/storage.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.join(__dirname, '../../../../uploads/quotes');
+// UPLOADS_DIR deprecated for serverless (using Cloudflare R2)
+// const UPLOADS_DIR = path.join(__dirname, '../../../../uploads/quotes');
 
-// Ensure uploads directory exists (only in non-serverless environments)
-// Vercel serverless has read-only filesystem, skip directory creation
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-if (!isServerless && !fs.existsSync(UPLOADS_DIR)) {
-  try {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  } catch (err) {
-    console.warn('Could not create uploads directory:', err.message);
-  }
-}
+// NOTE: Local uploads directory creation removed - using Cloudflare R2 for storage
 
 /**
  * Setup quotes routes
@@ -693,16 +686,22 @@ export function setupQuotesRoutes(app) {
           // Benzersiz dosya adı oluştur
           const uniqueId = crypto.randomBytes(8).toString('hex');
           const ext = path.extname(fileName) || '';
+
+          // R2 file key
           const safeFileName = `${id}_${uniqueId}${ext}`;
-          const fullPath = path.join(UPLOADS_DIR, safeFileName);
 
-          // Dosyayı kaydet
-          fs.writeFileSync(fullPath, buffer);
+          // Upload directly to Cloudflare R2
+          try {
+            await uploadFileToStorage(buffer, safeFileName, mimeType);
 
-          // DB'ye kaydedilecek relative path
-          savedFilePath = `/uploads/quotes/${safeFileName}`;
+            // For R2, we store the filename/key. The view layer will construct the full URL
+            savedFilePath = `/uploads/quotes/${safeFileName}`; // Keeping this format for compatibility if needed, or just safeFileName
 
-          logger.info(`File saved to disk: ${savedFilePath}`);
+            logger.info(`File uploaded to R2: ${safeFileName}`);
+          } catch (storageError) {
+            logger.error(`Failed to upload to R2: ${storageError.message}`);
+            throw storageError;
+          }
         }
       }
 
