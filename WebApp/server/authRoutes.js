@@ -1,6 +1,6 @@
 // Authentication API Routes
 import crypto from 'crypto'
-import { 
+import {
   createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword,
   upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromDatabase, listSessionsFromDatabase, getUserByEmail, deleteUserPermanently
 } from './auth.js'
@@ -10,30 +10,30 @@ export function setupAuthRoutes(app) {
   // Login endpoint
   app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
-    
+
     const result = await verifyUser(email, password)
-    
+
     // Kullanıcı bulunamadı
     if (!result) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
-    
+
     // Hesap devre dışı bırakılmış
     if (result.error === 'account_deactivated') {
-      return res.status(403).json({ 
-        error: 'account_deactivated', 
-        message: result.message 
+      return res.status(403).json({
+        error: 'account_deactivated',
+        message: result.message
       })
     }
-    
+
     // Başarılı login
     const token = await createSession(email)
     const session = await getSession(token)
-    
+
     // Audit: log login event to audit_logs (best-effort)
     try {
       if (session?.sessionId) {
@@ -47,9 +47,9 @@ export function setupAuthRoutes(app) {
           description: `${email} oturumu başlatıldı`
         })
       }
-    } catch {}
-    res.json({ 
-      token, 
+    } catch { }
+    res.json({
+      token,
       user: result,
       session: {
         sessionId: session?.sessionId,
@@ -64,16 +64,18 @@ export function setupAuthRoutes(app) {
   app.post('/api/auth/logout', async (req, res) => {
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    
+
     if (token) {
       const session = await getSession(token)
       if (session) {
+        const logoutTime = new Date().toISOString()
+
         // Session'a logout bilgisi ekle
         const logoutActivity = {
           id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: new Date().toISOString(),
+          timestamp: logoutTime,
           type: 'session',
-          action: 'logout', 
+          action: 'logout',
           scope: 'auth',
           title: 'Admin panel çıkış yapıldı',
           description: `${session.email} oturumu sonlandırıldı`,
@@ -88,28 +90,37 @@ export function setupAuthRoutes(app) {
           }
         }
 
-        // Session'ı güncelle - logout time ekle
-        const updatedSession = {
-          ...session,
-          logoutTime: new Date().toISOString(),
-          isActive: false,
-          lastActivityAt: new Date().toISOString(),
-          activityLog: [...(session.activityLog || []), logoutActivity]
+        // Session'ı güncelle - PostgreSQL'e kaydet
+        try {
+          // updateSession bekler: sessionData objesi (sessionId içermeli)
+          await updateSession({
+            sessionId: session.sessionId,
+            logoutTime: logoutTime,
+            isActive: false,
+            lastActivityAt: logoutTime,
+            activityLog: [logoutActivity]
+          })
+          console.log('✅ Logout: Session updated with logoutTime:', session.sessionId)
+        } catch (updateError) {
+          console.error('❌ Logout: Failed to update session:', updateError?.message)
+          // Devam et - en azından memory'den sil
         }
-        
-        // Session'ı güncelle (in-memory)
-        await updateSession(updatedSession)
-        
+
         // Audit: persist logout activity
         try {
-          req.user = updatedSession
+          req.user = { ...session, logoutTime, isActive: false }
           await auditSessionActivity(req, logoutActivity)
-        } catch {}
+          console.log('✅ Logout: Audit log created for session:', session.sessionId)
+        } catch (auditError) {
+          console.warn('⚠️ Logout: Failed to create audit log:', auditError?.message)
+        }
+
+        // Session'ı memory'den sil (soft delete - DB'de kalır)
+        deleteSession(token)
+        console.log('✅ Logout: Session removed from memory:', session.sessionId)
       }
-      
-      deleteSession(token)
     }
-    
+
     res.json({ success: true })
   })
 
@@ -121,36 +132,36 @@ export function setupAuthRoutes(app) {
   // Me endpoint - get current user info
   app.get('/api/auth/me', async (req, res) => {
     // In development mode, bypass authentication for easier testing
-        if (process.env.NODE_ENV === 'development') {
-          return res.json({
-            email: 'dev@beeplan.com',        role: 'admin',
+    if (process.env.NODE_ENV === 'development') {
+      return res.json({
+        email: 'dev@beeplan.com', role: 'admin',
         name: 'Dev User'
       })
     }
-    
+
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    
+
     if (!token) {
       return res.status(401).json({ error: 'No token provided' })
     }
-    
+
     const session = await getSession(token)
     if (!session) {
       // For development - allow access without valid session if token starts with 'dev-'
       if (token.startsWith('dev-')) {
-        return res.json({ 
-          email: 'dev@beeplan.com', 
+        return res.json({
+          email: 'dev@beeplan.com',
           role: 'admin',
           name: 'Dev User'
         })
       }
       return res.status(401).json({ error: 'Invalid or expired session' })
     }
-    
+
     // Return user info from session
-    res.json({ 
-      email: session.email, 
+    res.json({
+      email: session.email,
       role: 'admin',
       name: session.userName || 'Admin User',
       sessionId: session.sessionId,
@@ -164,7 +175,7 @@ export function setupAuthRoutes(app) {
   // to verify admin credentials directly from the Users tab access modal.
   app.post('/api/auth/verify-admin', async (req, res) => {
     const { email, password } = req.body
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
@@ -172,12 +183,12 @@ export function setupAuthRoutes(app) {
     try {
       // Kullanıcı doğrulaması (yeni session oluşturmadan) - verifyUser fonksiyonunu kullan
       const result = await verifyUser(email, password)
-      
+
       if (!result || result.error) {
         console.log('❌ Invalid credentials or error:', result)
         return res.status(401).json({ error: 'Invalid credentials' })
       }
-      
+
       // Admin kontrolü
       if (result.role !== 'admin') {
         console.log('❌ Access denied - not admin role:', result.role)
@@ -201,28 +212,28 @@ export function setupAuthRoutes(app) {
         })
       }
 
-      res.json({ 
+      res.json({
         success: true,
         user: result,
         message: 'Admin access verified'
       })
-      
+
     } catch (error) {
       console.error('Admin verification error:', error)
       res.status(500).json({ error: 'Verification failed' })
     }
   })
 
-    // Register endpoint (for initial setup)
+  // Register endpoint (for initial setup)
   app.post('/api/auth/register', (req, res) => {
     const { email, password } = req.body
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
-    
+
     const user = createUser(email, password)
-    
+
     try {
       upsertUser(user)
       res.json({ message: 'User created successfully' })
@@ -235,13 +246,13 @@ export function setupAuthRoutes(app) {
   app.get('/api/admin/sessions', async (req, res) => {
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    
+
     console.log('🔍 Sessions endpoint debug:', {
       hasAuthHeader: !!authHeader,
       authHeader: authHeader ? authHeader.slice(0, 20) + '...' : 'NONE',
       token: token ? token.slice(0, 10) + '...' : 'NONE'
     })
-    
+
     if (!token) {
       if ((process.env.NODE_ENV || 'development') !== 'production') {
         console.warn('⚠️ Sessions: No token provided in dev; continuing for local debugging')
@@ -250,14 +261,14 @@ export function setupAuthRoutes(app) {
         return res.status(401).json({ error: 'No token provided' })
       }
     }
-    
+
     const session = await getSession(token)
-    console.log('🔍 Sessions: getSession result:', { 
-      hasSession: !!session, 
+    console.log('🔍 Sessions: getSession result:', {
+      hasSession: !!session,
       isDevToken: token.startsWith('dev-'),
-      sessionEmail: session?.email 
+      sessionEmail: session?.email
     })
-    
+
     if (!session && !token.startsWith('dev-')) {
       // Prod ortamında memory tabanlı session bulunamadığında 401 yerine
       // sadece uyarı logla ve devam et. Bu endpoint yalnızca listeleme amaçlıdır.
@@ -270,10 +281,10 @@ export function setupAuthRoutes(app) {
       const dbSessions = await listSessionsFromDatabase()
       // Memory'deki mevcut session'ları da ekle
       const memorySessions = getAllSessions()
-      
+
       // İki listeyi birleştir
       const allSessions = [...dbSessions, ...memorySessions]
-      
+
       res.json({ sessions: allSessions })
     } catch (error) {
       console.error('❌ Error loading sessions:', error)
@@ -287,19 +298,19 @@ export function setupAuthRoutes(app) {
   app.delete('/api/admin/sessions/:sessionId', async (req, res) => {
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    
+
     if (!token) {
       return res.status(401).json({ error: 'No token provided' })
     }
-    
+
     const session = await getSession(token)
     if (!session && !token.startsWith('dev-')) {
       return res.status(401).json({ error: 'Invalid or expired session' })
     }
-    
+
     const { sessionId } = req.params
     const deleted = deleteSessionById(sessionId)
-    
+
     if (deleted) {
       res.json({ message: 'Session deleted successfully' })
     } else {
@@ -332,15 +343,15 @@ export function setupAuthRoutes(app) {
   // Add user endpoint
   app.post('/api/auth/users', requireAuth, async (req, res) => {
     const { email, password, role = 'admin' } = req.body
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
-    
+
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' })
     }
-    
+
     try {
       // Kullanıcı zaten var mı kontrol et
       console.log('[authRoutes] Creating user:', email)
@@ -349,7 +360,7 @@ export function setupAuthRoutes(app) {
       if (existingUser) {
         return res.status(400).json({ error: 'User already exists' })
       }
-      
+
       // Yeni kullanıcı oluştur (hem hash hem plain-text)
       const { salt, hash } = hashPassword(password)
       const user = {
@@ -362,7 +373,7 @@ export function setupAuthRoutes(app) {
         active: true, // Yeni kullanıcılar varsayılan olarak aktif
         createdAt: new Date().toISOString()
       }
-      
+
       console.log('[authRoutes] Calling upsertUser...')
       await upsertUser(user)
       console.log('[authRoutes] User created successfully')
@@ -384,7 +395,7 @@ export function setupAuthRoutes(app) {
       } catch (auditErr) {
         console.warn('[authRoutes] Audit log error:', auditErr?.message)
       }
-      
+
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
       console.error('Add user error:', error)
@@ -395,19 +406,19 @@ export function setupAuthRoutes(app) {
   // Delete user endpoint (Toggle active status - aktifleştir/deaktifleştir)
   app.delete('/api/auth/users/:email', requireAuth, async (req, res) => {
     const { email } = req.params
-    
+
     try {
       // Kullanıcı var mı kontrol et
       const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
-      
+
       // Kendi hesabını silmeyi engelle
       if (req.user && req.user.email === email) {
         return res.status(400).json({ error: 'Cannot delete your own account' })
       }
-      
+
       // Toggle active status
       const newActiveStatus = !existingUser.active
       const updatedUser = {
@@ -416,7 +427,7 @@ export function setupAuthRoutes(app) {
         [newActiveStatus ? 'activatedAt' : 'deactivatedAt']: new Date().toISOString(),
         [newActiveStatus ? 'activatedBy' : 'deactivatedBy']: req.user.email
       }
-      
+
       await upsertUser(updatedUser)
 
       const actionType = newActiveStatus ? 'activate' : 'deactivate'
@@ -437,7 +448,7 @@ export function setupAuthRoutes(app) {
           newStatus: newActiveStatus ? 'active' : 'inactive'
         }
       })
-      
+
       const message = newActiveStatus ? 'User activated successfully' : 'User deactivated successfully'
       res.json({ success: true, message, active: newActiveStatus })
     } catch (error) {
@@ -449,19 +460,19 @@ export function setupAuthRoutes(app) {
   // Permanent delete user endpoint (Hard delete - kullanıcıyı kalıcı olarak sil)
   app.delete('/api/auth/users/:email/permanent', requireAuth, async (req, res) => {
     const { email } = req.params
-    
+
     try {
       // Kullanıcı var mı kontrol et
       const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
-      
+
       // Kendi hesabını silmeyi engelle
       if (req.user && req.user.email === email) {
         return res.status(400).json({ error: 'Cannot delete your own account' })
       }
-      
+
       // Hard delete: kullanıcıyı tamamen sil
       await deleteUserPermanently(email)
 
@@ -490,17 +501,17 @@ export function setupAuthRoutes(app) {
   app.put('/api/auth/users/:email', requireAuth, async (req, res) => {
     const { email } = req.params
     const { password, role } = req.body
-    
+
     try {
       // Kullanıcı var mı kontrol et
       const existingUser = await getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
-      
+
       // Güncellenecek alanları hazırla
       const updates = { ...existingUser }
-      
+
       if (password && password.length >= 6) {
         // Şifreyi hash'le ve plain-text de sakla
         const { salt, hash } = hashPassword(password)
@@ -510,13 +521,13 @@ export function setupAuthRoutes(app) {
         // Eski plain password'u temizle
         delete updates.password
       }
-      
+
       if (role) {
         updates.role = role
       }
-      
+
       updates.updatedAt = new Date().toISOString()
-      
+
       await upsertUser(updates)
 
       const changes = []

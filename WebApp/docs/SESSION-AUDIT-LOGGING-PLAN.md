@@ -1076,13 +1076,17 @@ await updateSession(session.sessionId, {
 - logoutTime dolu ve isActive = false olmalı
 ```
 
-**Düzenlenecek Dosya:**
-- `/WebApp/server/authRoutes.js`
+**Düzenlenecek Dosyalar:**
+- `/WebApp/server/authRoutes.js` ✅
+- `/WebApp/shared/components/BeePlanNavigation.js` ✅ (Frontend logout API çağrısı eklendi)
 
 **Başarı Kriterleri:**
-- [ ] Logout sonrası `logoutTime` PostgreSQL'de dolu
-- [ ] `isActive` = false
-- [ ] `activityLog` logout kaydı içeriyor
+- [x] Logout sonrası `logoutTime` PostgreSQL'de dolu ✅ (2025-12-11 test edildi)
+- [x] `isActive` = false ✅
+- [x] `activityLog` logout kaydı içeriyor ✅
+
+**Uygulama Notu (2025-12-11):**
+Frontend'deki `BeePlanNavigation.logout()` fonksiyonu backend API'yi çağırmıyordu. Bu da düzeltildi.
 
 ---
 

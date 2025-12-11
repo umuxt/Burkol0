@@ -27,7 +27,7 @@ class BeePlanNavigation {
   getNavItems() {
     const currentLang = BeePlanNavigation.getCurrentLanguage();
     const isEnglish = currentLang === 'en';
-    
+
     return [
       {
         id: 'admin',
@@ -65,7 +65,7 @@ class BeePlanNavigation {
 
   generateNavHTML() {
     const isLoggedIn = this.isLoggedIn();
-    
+
     // Eğer login değilse sadece brand göster
     if (!isLoggedIn) {
       return `
@@ -106,11 +106,11 @@ class BeePlanNavigation {
 
     // Login ise tam navigation göster
     const navItems = this.getNavItems();
-    
+
     const navButtons = navItems.map(item => {
       const isActive = this.currentPage === item.id;
       const activeClass = isActive ? 'nav-btn-active' : '';
-      
+
       return `
         <a href="${item.href}" class="nav-btn ${activeClass}" data-page="${item.id}">
           <span class="nav-btn-icon">${item.icon}</span>
@@ -587,7 +587,7 @@ class BeePlanNavigation {
     const langTexts = {
       tr: {
         home: 'Yönetim Paneli',
-        quotes: 'CRM', 
+        quotes: 'CRM',
         production: 'Üretim Yönetimi',
         materials: 'Malzeme Yönetimi',
         settings: 'Ayarlar',
@@ -596,7 +596,7 @@ class BeePlanNavigation {
       en: {
         home: 'Admin Panel',
         quotes: 'CRM',
-        production: 'Production Management', 
+        production: 'Production Management',
         materials: 'Material Management',
         settings: 'Settings',
         logout: 'Logout'
@@ -619,7 +619,7 @@ class BeePlanNavigation {
     const menu = document.getElementById('beeplan-lang-menu');
     const button = document.querySelector('.beeplan-lang-button');
     const arrow = document.querySelector('.lang-arrow');
-    
+
     if (menu.classList.contains('show')) {
       menu.classList.remove('show');
       arrow.style.transform = 'rotate(0deg)';
@@ -644,16 +644,41 @@ class BeePlanNavigation {
   }
 
   // Static method for logout
-  static logout() {
+  static async logout() {
     const currentLang = BeePlanNavigation.getCurrentLanguage();
-    const confirmText = currentLang === 'en' 
-      ? 'Are you sure you want to logout?' 
+    const confirmText = currentLang === 'en'
+      ? 'Are you sure you want to logout?'
       : 'Çıkış yapmak istediğinizden emin misiniz?';
-      
+
     if (confirm(confirmText)) {
+      const token = localStorage.getItem('bp_admin_token');
+
+      // Backend'e logout API çağrısı yap
+      if (token) {
+        try {
+          const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (response.ok) {
+            console.log('✅ Logout: Backend session closed');
+          } else {
+            console.warn('⚠️ Logout: Backend returned error:', response.status);
+          }
+        } catch (error) {
+          console.warn('⚠️ Logout: Failed to call backend:', error?.message);
+          // Devam et - en azından local storage temizle
+        }
+      }
+
+      // Local storage temizle
       localStorage.removeItem('bp_admin_token');
       localStorage.removeItem('beeplan_user_data');
-      
+
       // Login sayfasına yönlendir
       window.location.href = './login.html';
     }
