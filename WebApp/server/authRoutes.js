@@ -343,7 +343,9 @@ export function setupAuthRoutes(app) {
     
     try {
       // Kullanıcı zaten var mı kontrol et
+      console.log('[authRoutes] Creating user:', email)
       const existingUser = await getUserByEmail(email)
+      console.log('[authRoutes] Existing user check:', !!existingUser)
       if (existingUser) {
         return res.status(400).json({ error: 'User already exists' })
       }
@@ -352,6 +354,7 @@ export function setupAuthRoutes(app) {
       const { salt, hash } = hashPassword(password)
       const user = {
         email,
+        name: req.body.name || email.split('@')[0],
         pwSalt: salt,
         pwHash: hash,
         plainPassword: password, // Development için plain-text de sakla
@@ -360,7 +363,9 @@ export function setupAuthRoutes(app) {
         createdAt: new Date().toISOString()
       }
       
+      console.log('[authRoutes] Calling upsertUser...')
       await upsertUser(user)
+      console.log('[authRoutes] User created successfully')
 
       auditSessionActivity(req, {
         type: 'user-management',
