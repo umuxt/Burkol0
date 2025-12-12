@@ -2032,8 +2032,8 @@ assignmentController.js'e logWorkerActivity çağrıları eklendi. task_start: w
 - `[MODIFY]` `routes.js`
 
 **Başarı Kriterleri:**
-- [ ] Workers panelinde "Aktivite Logları" tab görünüyor
-- [ ] Loglar doğru sırayla listeleniyor
+- [x] Workers panelinde "Aktivite Logları" tab görünüyor
+- [x] Loglar doğru sırayla listeleniyor
 
 ---
 
@@ -2044,8 +2044,8 @@ assignmentController.js'e logWorkerActivity çağrıları eklendi. task_start: w
 - `[MODIFY]` `settingsService.js`
 
 **Başarı Kriterleri:**
-- [ ] "Worker Log Saklama Süresi" input'u var
-- [ ] Cleanup job eski logları siliyor
+- [x] "Worker Log Saklama Süresi" input'u var
+- [x] Cleanup job eski logları siliyor
 
 ---
 
@@ -2653,4 +2653,3 @@ gerekir.
 **Estimated Effort**: 3-4 gün
 
 ---
-

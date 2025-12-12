@@ -9,7 +9,8 @@
  * - Auto-redirect on timeout or logout
  */
 
-const INACTIVITY_TIMEOUT_MS = 30 * 1000; // 30 seconds
+// Default value, will be updated from settings
+let INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const TOKEN_KEY = 'workerToken';
 const WORKER_KEY = 'workerData';
 
@@ -210,6 +211,20 @@ export function initializeAuth() {
 
     // Check if we're on worker-portal page
     if (window.location.pathname.includes('worker-portal')) {
-        requireWorkerAuth();
+        // Load settings to get dynamic timeout
+        fetch('/api/settings/system')
+            .then(res => res.json())
+            .then(settings => {
+                if (settings && settings.workerInactivityTimeoutSeconds) {
+                    INACTIVITY_TIMEOUT_MS = settings.workerInactivityTimeoutSeconds * 1000;
+                    console.log(`⏱️ Worker inactivity timeout updated to ${settings.workerInactivityTimeoutSeconds}s`);
+                    // Restart timer with new duration if already running
+                    if (inactivityTimer) {
+                        startInactivityTimer();
+                    }
+                }
+            })
+            .catch(err => console.warn('Failed to load worker timeout settings:', err))
+            .finally(() => requireWorkerAuth());
     }
 }

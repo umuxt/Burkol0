@@ -1,6 +1,7 @@
 import express from 'express';
 import Settings from '../db/models/settings.js';
 import { getSession } from './auth.js';
+import { cleanupOldLogs } from '../domains/production/api/services/workerActivityLogService.js';
 
 const router = express.Router();
 
@@ -28,7 +29,8 @@ router.get('/system', withAuth, async (req, res) => {
     res.json(config || {
       lotTracking: true, // Default ON
       currency: 'TRY',
-      dateFormat: 'DD.MM.YYYY'
+      dateFormat: 'DD.MM.YYYY',
+      workerLogRetentionDays: 30
     });
   } catch (error) {
     console.error('Error fetching system settings:', error);
@@ -47,6 +49,14 @@ router.post('/system', withAuth, async (req, res) => {
     const merged = { ...current, ...settings };
 
     const updated = await Settings.setSetting('system_config', merged, updatedBy);
+
+    // Trigger cleanup job if retention days is set
+    if (merged.workerLogRetentionDays) {
+      // Run in background, don't await strictly for response
+      cleanupOldLogs(merged.workerLogRetentionDays).catch(err =>
+        console.error('Error running worker log cleanup:', err)
+      );
+    }
 
     res.json(updated.value);
   } catch (error) {
