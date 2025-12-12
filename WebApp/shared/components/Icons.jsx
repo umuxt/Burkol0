@@ -61,6 +61,8 @@ import {
   Info,
   Lock,
   Unlock,
+  LogIn,
+  LogOut,
 
   // Price warnings
   AlertTriangle,
@@ -153,6 +155,8 @@ export const Icons = {
   Info,
   Lock,
   Unlock,
+  LogIn,
+  LogOut,
 
   // Price warnings
   AlertTriangle,
@@ -248,6 +252,8 @@ export {
   Info,
   Lock,
   Unlock,
+  LogIn,
+  LogOut,
   // Price warnings
   AlertTriangle,
   RefreshCw,

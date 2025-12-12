@@ -2838,19 +2838,29 @@ window.loadWorkerActivityLogs = async function (workerId) {
 
 /**
  * Render activity logs as a table
+ * Uses inline Lucide SVG icons and row color coding
  */
 function renderActivityLogsTable(logs) {
+  // Lucide SVG icons (inline for vanilla JS compatibility)
+  const svgIcons = {
+    login: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>',
+    logout: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>',
+    play: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+    pause: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+  };
+
   const actionConfig = {
-    'login': { icon: '🔐', label: 'Giriş', cssClass: 'status-badge-success' },
-    'logout': { icon: '🚪', label: 'Çıkış', cssClass: 'status-badge-warning' },
-    'task_start': { icon: '▶️', label: 'Başlat', cssClass: 'status-badge-info' },
-    'task_complete': { icon: '✅', label: 'Tamamla', cssClass: 'status-badge-success' },
-    'task_pause': { icon: '⏸️', label: 'Duraklat', cssClass: 'status-badge-warning' },
-    'task_resume': { icon: '▶️', label: 'Devam', cssClass: 'status-badge-info' }
+    'login': { icon: svgIcons.login, label: 'Giriş', color: '#059669' },
+    'logout': { icon: svgIcons.logout, label: 'Çıkış', color: '#6b7280' },
+    'task_start': { icon: svgIcons.play, label: 'Başlat', color: '#2563eb' },
+    'task_complete': { icon: svgIcons.check, label: 'Tamamla', color: '#059669' },
+    'task_pause': { icon: svgIcons.pause, label: 'Duraklat', color: '#d97706' },
+    'task_resume': { icon: svgIcons.play, label: 'Devam', color: '#2563eb' }
   };
 
   const rows = logs.map(log => {
-    const config = actionConfig[log.action] || { icon: '📝', label: log.action, cssClass: '' };
+    const config = actionConfig[log.action] || { icon: '', label: log.action, color: '#6b7280' };
 
     // Format time
     const logDate = new Date(log.createdAt);
@@ -2867,23 +2877,25 @@ function renderActivityLogsTable(logs) {
       detailsStr = `#${log.entityId}`;
     }
 
-    // Production info
+    // Production info - simplified
     let productionStr = '-';
     if (log.quantityProduced > 0 || log.defectQuantity > 0) {
       const parts = [];
-      if (log.quantityProduced > 0) parts.push(`${log.quantityProduced} ✓`);
-      if (log.defectQuantity > 0) parts.push(`${log.defectQuantity} ✗`);
+      if (log.quantityProduced > 0) parts.push(`${log.quantityProduced}`);
+      if (log.defectQuantity > 0) parts.push(`<span style="color: #dc2626">${log.defectQuantity}</span>`);
       productionStr = parts.join(' / ');
     }
 
     return `
-      <tr class="mes-table-row">
-        <td class="mes-table-cell" style="width: 100px;">
-          <span class="status-badge ${config.cssClass}" style="font-size: 11px;">${config.icon} ${config.label}</span>
+      <tr class="mes-table-row" style="color: ${config.color};">
+        <td class="mes-table-cell" style="width: 110px;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500;">
+            ${config.icon} ${config.label}
+          </span>
         </td>
-        <td class="mes-table-cell" style="text-align: center;">${detailsStr}</td>
-        <td class="mes-table-cell" style="text-align: center;">${productionStr}</td>
-        <td class="mes-table-cell" style="text-align: right; color: #6b7280; font-size: 11px;">${timeStr}</td>
+        <td class="mes-table-cell" style="text-align: center; color: #374151;">${detailsStr}</td>
+        <td class="mes-table-cell" style="text-align: center; color: #374151;">${productionStr}</td>
+        <td class="mes-table-cell" style="text-align: right; color: #9ca3af; font-size: 11px;">${timeStr}</td>
       </tr>
     `;
   }).join('');
@@ -2893,7 +2905,7 @@ function renderActivityLogsTable(logs) {
       <table class="mes-table" style="width: 100%; font-size: 12px;">
         <thead>
           <tr>
-            <th class="mes-table-header" style="width: 100px;">Aksiyon</th>
+            <th class="mes-table-header" style="width: 110px;">Aksiyon</th>
             <th class="mes-table-header" style="text-align: center;">Görev</th>
             <th class="mes-table-header" style="text-align: center;">Üretim</th>
             <th class="mes-table-header" style="text-align: right; width: 90px;">Zaman</th>
