@@ -1,11 +1,11 @@
 import express from 'express';
 import { getOperations, saveOperations } from './controllers/operationController.js';
-import { 
-  getWorkers, 
-  saveWorkers, 
-  getWorkerAssignments, 
-  getWorkerStations, 
-  deleteWorker 
+import {
+  getWorkers,
+  saveWorkers,
+  getWorkerAssignments,
+  getWorkerStations,
+  deleteWorker
 } from './controllers/workerController.js';
 import {
   getStations,
@@ -49,7 +49,7 @@ async function withAuth(req, res, next) {
       const s = await getSession(token)
       if (s) req.user = s
     }
-  } catch {}
+  } catch { }
   next()
 }
 
@@ -63,6 +63,62 @@ router.post('/workers', withAuth, saveWorkers);
 router.get('/workers/:id/assignments', withAuth, getWorkerAssignments);
 router.get('/workers/:id/stations', withAuth, getWorkerStations);
 router.delete('/workers/:id', withAuth, deleteWorker);
+
+// WORKER AUTH (P1.4.02 - no withAuth for login, worker portal uses PIN)
+import * as workerAuthService from './services/workerAuthService.js';
+
+router.post('/workers/:id/login', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pin } = req.body;
+    const result = await workerAuthService.loginWorker(id, pin, req.ip);
+    if (!result.success) {
+      return res.status(401).json(result);
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Worker login error:', error);
+    res.status(500).json({ success: false, error: 'Giriş başarısız' });
+  }
+});
+
+router.post('/workers/:id/logout', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await workerAuthService.logoutWorker(id, req.ip);
+    res.json(result);
+  } catch (error) {
+    console.error('Worker logout error:', error);
+    res.status(500).json({ success: false, error: 'Çıkış başarısız' });
+  }
+});
+
+router.post('/workers/:id/set-pin', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pin } = req.body;
+    const result = await workerAuthService.setPin(id, pin);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Set PIN error:', error);
+    res.status(500).json({ success: false, error: 'PIN ayarlanamadı' });
+  }
+});
+
+router.get('/workers/:id/verify-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const token = req.headers['x-worker-token'] || req.query.token;
+    const result = await workerAuthService.verifyToken(id, token);
+    res.json(result);
+  } catch (error) {
+    console.error('Token verify error:', error);
+    res.status(500).json({ valid: false });
+  }
+});
 
 // STATIONS
 router.get('/stations', withAuth, getStations);

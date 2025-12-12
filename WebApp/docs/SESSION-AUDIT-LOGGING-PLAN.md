@@ -1926,8 +1926,11 @@ CREATE INDEX IF NOT EXISTS idx_wal_date ON mes.worker_activity_logs(createdAt DE
 **Test:** Migration'ı local ve Neon'da çalıştır
 
 **Başarı Kriterleri:**
-- [ ] mes.workers tablosuna PIN ve token kolonları eklendi
-- [ ] mes.worker_activity_logs tablosu oluşturuldu
+- [x] mes.workers tablosuna PIN ve token kolonları eklendi ✅
+- [x] mes.worker_activity_logs tablosu oluşturuldu ✅
+
+**Uygulama Notu (2025-12-12):**
+Local ve Neon DB'lere migration uygulandı. Commit: `ca40172`
 
 ---
 
