@@ -6987,3 +6987,90 @@ span i {
   height: 100%;
 }
 
+/* ============================================================================
+   WORKER AUTH - PIN NUMPAD (P1.4.05)
+   ========================================================================== */
+
+.pin-numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.pin-key {
+  aspect-ratio: 1;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+}
+
+.pin-key:hover {
+  background: var(--accent);
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+
+.pin-key:active {
+  transform: scale(0.95);
+}
+
+.pin-key.pin-key-backspace {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.pin-key.pin-key-backspace:hover {
+  background: var(--destructive);
+  color: white;
+  border-color: var(--destructive);
+}
+
+.pin-display {
+  text-align: center;
+  padding: 20px;
+  margin-bottom: 24px;
+  background: var(--muted);
+  border-radius: 12px;
+  border: 2px solid var(--border);
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.pin-dot.filled {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.pin-error {
+  color: var(--destructive);
+  font-size: 14px;
+  text-align: center;
+  margin-top: 12px;
+  min-height: 20px;
+}
+

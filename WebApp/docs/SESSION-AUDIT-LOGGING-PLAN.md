@@ -1994,9 +1994,16 @@ assignmentController.js'e logWorkerActivity çağrıları eklendi. task_start: w
 - `[MODIFY]` `worker-portal.html` (activity listener)
 
 **Başarı Kriterleri:**
-- [ ] PIN numpad dialog çalışıyor
-- [ ] 30sn inactivity → redirect
-- [ ] Token localStorage'da tutuluyor
+- [x] PIN numpad dialog çalışıyor ✅
+- [x] 30sn inactivity → redirect ✅
+- [x] Token localStorage'da tutuluyor ✅
+
+**Uygulama Notu (2025-12-13):**
+- workerAuth.js modülü oluşturuldu (login, logout, token management, inactivity timer)
+- worker-selection.html'e PIN numpad modal eklendi (4 haneli, auto-submit)
+- worker-portal.html'e auth check ve inactivity listener eklendi
+- production.css'e PIN numpad stilleri eklendi (modal-overlay, pin-key, pin-dots)
+- İşçi Değiştir butonu logout fonksiyonuna bağlandı
 
 ---
 
