@@ -120,6 +120,39 @@ router.get('/workers/:id/verify-token', async (req, res) => {
   }
 });
 
+// WORKER ACTIVITY LOGS (P1.4.03)
+import * as workerActivityLogService from './services/workerActivityLogService.js';
+
+router.get('/workers/:id/activity-logs', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit, offset, action, startDate, endDate } = req.query;
+    const result = await workerActivityLogService.getWorkerActivityHistory(id, {
+      limit: limit ? parseInt(limit) : 50,
+      offset: offset ? parseInt(offset) : 0,
+      action,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Activity logs error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch activity logs' });
+  }
+});
+
+router.get('/workers/:id/activity-summary', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { period } = req.query;
+    const result = await workerActivityLogService.getWorkerActivitySummary(id, period || 'today');
+    res.json(result);
+  } catch (error) {
+    console.error('Activity summary error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch activity summary' });
+  }
+});
+
 // STATIONS
 router.get('/stations', withAuth, getStations);
 router.post('/stations', withAuth, saveStations);
