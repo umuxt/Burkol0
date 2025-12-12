@@ -21,10 +21,10 @@ function getSkillName(skillId) {
 export async function initializeWorkersUI() {
   initWorkerFilters()
   await loadWorkersAndRender()
-  
+
   // Listen for master data changes to auto-update company settings users
   window.addEventListener('master-data:changed', handleMasterDataChanged)
-  
+
   // Listen for assignment updates to refresh worker detail panels
   window.addEventListener('assignments:updated', handleAssignmentsUpdated)
 }
@@ -32,10 +32,10 @@ export async function initializeWorkersUI() {
 // Auto-update workers using company settings when company time settings change
 function handleMasterDataChanged(event) {
   if (!event.detail || event.detail.source === 'production') return // avoid self-loops
-  
+
   // Refresh worker detail if open (to show updated company schedule)
   if (selectedWorkerId) {
-    showWorkerDetail(selectedWorkerId).catch(() => {})
+    showWorkerDetail(selectedWorkerId).catch(() => { })
   }
 }
 
@@ -44,7 +44,7 @@ export async function showWorkerDetail(id) {
   selectedWorkerId = id
   const worker = workersState.find(w => w.id === id)
   if (!worker) return
-  
+
   // Force refresh master data cache to get latest time settings
   try {
     const { getMasterData } = await import('./mesApi.js')
@@ -52,18 +52,18 @@ export async function showWorkerDetail(id) {
   } catch (e) {
     console.warn('Failed to refresh master data cache:', e)
   }
-  
+
   const detailPanel = document.getElementById('worker-detail-panel')
   const detailContent = document.getElementById('worker-detail-content')
-  
+
   if (!detailPanel || !detailContent) return
-  
+
   // Show the detail panel
   detailPanel.style.display = 'block'
-  
+
   // Hide the status column when details are open
   hideStatusColumn()
-  
+
   // Highlight selected row
   const allRows = document.querySelectorAll('#workers-table-body tr')
   allRows.forEach(row => {
@@ -73,35 +73,35 @@ export async function showWorkerDetail(id) {
   if (selectedRow) {
     selectedRow.style.backgroundColor = 'rgb(239, 246, 255)'
   }
-  
+
   // Show loading state first
   detailContent.innerHTML = `
     <div class="loading-container">
       <div class="loading-message">Yükleniyor...</div>
     </div>
   `
-  
+
   try {
     // Load worker stations (this endpoint exists)
     const workerStationsData = await getWorkerStations(id)
-    
+
     // Try to load assignments, but don't fail if endpoint doesn't exist
     let assignments = []
-    
+
     try {
       assignments = await getWorkerAssignments(id)
     } catch (err) {
       console.warn('Worker assignments endpoint not available:', err.message)
     }
-    
+
     // Populate detail content
     detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments)
-    
+
     // Update schedule status (Mesai Durumu) after content is rendered
     updateWorkerScheduleStatus(worker)
   } catch (error) {
     console.error('Error loading worker data:', error)
-    
+
     // Fallback to original view if loading fails
     detailContent.innerHTML = generateWorkerDetailContent(worker)
   }
@@ -112,16 +112,16 @@ export function closeWorkerDetail() {
   if (detailPanel) {
     detailPanel.style.display = 'none'
   }
-  
+
   // Show the status column when details are closed
   showStatusColumn()
-  
+
   // Remove highlight from all rows
   const allRows = document.querySelectorAll('#workers-table-body tr')
   allRows.forEach(row => {
     row.style.backgroundColor = 'white'
   })
-  
+
   selectedWorkerId = null
 }
 
@@ -149,7 +149,7 @@ export function openWorkerScheduleModal() {
       const blocks = cnt.querySelectorAll('[data-block-info]')
       blocks.forEach(el => el.remove())
     })
-  } catch {}
+  } catch { }
   // Determine current worker state
   const worker = workersState.find(w => w.id === selectedWorkerId) || {}
   const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
@@ -180,7 +180,7 @@ export function openWorkerScheduleModal() {
       const savedShift = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? parseInt(worker.personalSchedule.shiftNo, 10) : null
       const selectedVal = (savedShift && savedShift >= 1 && savedShift <= laneCount) ? String(savedShift) : '1'
       select.value = selectedVal
-    } catch {}
+    } catch { }
   }
   loadShiftOptions()
 
@@ -190,13 +190,13 @@ export function openWorkerScheduleModal() {
   try {
     if (savedMode === 'personal' && worker.personalSchedule && worker.personalSchedule.blocks) {
       const blocksByDay = worker.personalSchedule.blocks
-      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
       const toHour = (t) => {
         if (!t || typeof t !== 'string') return 0
         const parts = t.split(':')
         const h = parseInt(parts[0] || '0', 10) || 0
         const m = parseInt(parts[1] || '0', 10) || 0
-        return h + (m/60)
+        return h + (m / 60)
       }
       days.forEach(d => {
         const list = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
@@ -204,32 +204,32 @@ export function openWorkerScheduleModal() {
           const type = b.type || 'work'
           const startHour = typeof b.startHour === 'number' ? b.startHour : toHour(b.startTime)
           const endHour = typeof b.endHour === 'number' ? b.endHour : toHour(b.endTime)
-          const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2,'0')}:${String(Math.round((startHour-Math.floor(startHour))*60)).padStart(2,'0')}` : '00:00')
-          const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2,'0')}:${String(Math.round((endHour-Math.floor(endHour))*60)).padStart(2,'0')}` : '00:00')
+          const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2, '0')}:${String(Math.round((startHour - Math.floor(startHour)) * 60)).padStart(2, '0')}` : '00:00')
+          const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2, '0')}:${String(Math.round((endHour - Math.floor(endHour)) * 60)).padStart(2, '0')}` : '00:00')
           const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0
-          try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch {}
+          try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch { }
         })
       })
     }
-  } catch {}
+  } catch { }
   // Show modal
   modal.style.display = 'flex'
   // Initialize timeline if personal area is visible later
   setTimeout(() => {
     if (typeof initializeTimeline === 'function') {
-      try { initializeTimeline() } catch {}
+      try { initializeTimeline() } catch { }
     }
     // Prefill again after timeline init to ensure blocks render if earlier call happened before any wiring
     try {
       if (savedMode === 'personal' && worker.personalSchedule && worker.personalSchedule.blocks) {
         const blocksByDay = worker.personalSchedule.blocks
-        const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
         const toHour = (t) => {
           if (!t || typeof t !== 'string') return 0
           const parts = t.split(':')
           const h = parseInt(parts[0] || '0', 10) || 0
           const m = parseInt(parts[1] || '0', 10) || 0
-          return h + (m/60)
+          return h + (m / 60)
         }
         days.forEach(d => {
           const list = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
@@ -237,14 +237,14 @@ export function openWorkerScheduleModal() {
             const type = b.type || 'work'
             const startHour = typeof b.startHour === 'number' ? b.startHour : toHour(b.startTime)
             const endHour = typeof b.endHour === 'number' ? b.endHour : toHour(b.endTime)
-            const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2,'0')}:${String(Math.round((startHour-Math.floor(startHour))*60)).padStart(2,'0')}` : '00:00')
-            const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2,'0')}:${String(Math.round((endHour-Math.floor(endHour))*60)).padStart(2,'0')}` : '00:00')
+            const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2, '0')}:${String(Math.round((startHour - Math.floor(startHour)) * 60)).padStart(2, '0')}` : '00:00')
+            const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2, '0')}:${String(Math.round((endHour - Math.floor(endHour)) * 60)).padStart(2, '0')}` : '00:00')
             const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0
-            try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch {}
+            try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch { }
           })
         })
       }
-    } catch {}
+    } catch { }
   }, 0)
 }
 
@@ -270,10 +270,10 @@ export function handleWorkerScheduleModeChange(mode) {
         const blocks = cnt.querySelectorAll('[data-block-info]')
         blocks.forEach(el => el.remove())
       })
-    } catch {}
+    } catch { }
     // Ensure timeline is wired
     if (typeof initializeTimeline === 'function') {
-      setTimeout(() => { try { initializeTimeline() } catch {} }, 0)
+      setTimeout(() => { try { initializeTimeline() } catch { } }, 0)
     }
   } else {
     company.style.display = 'block'
@@ -300,7 +300,7 @@ export function saveWorkerSchedule() {
     // AUTO-POPULATE: Resolve and attach day-by-day blocks from company master data
     const ts = safeLoadCompanyTimeSettings()
     if (ts) {
-      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
       const blocksByDay = {}
       days.forEach(d => {
         const list = getShiftBlocksForDay(ts, d, shiftNo)
@@ -316,18 +316,18 @@ export function saveWorkerSchedule() {
     // Collect blocks from worker-prefixed timeline columns
     const cols = modal.querySelectorAll('.day-timeline-vertical')
     const blocksByDay = {}
-    const standardDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-    
+    const standardDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
     cols.forEach(col => {
       const dayId = col.dataset.day
       let blocks = Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
         try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
       }).filter(Boolean)
-      
+
       // Remove duplicates within same day based on startHour, endHour, type
       const uniqueBlocks = []
       blocks.forEach(block => {
-        const isDuplicate = uniqueBlocks.some(existing => 
+        const isDuplicate = uniqueBlocks.some(existing =>
           Math.abs(existing.startHour - block.startHour) < 0.01 &&
           Math.abs(existing.endHour - block.endHour) < 0.01 &&
           existing.type === block.type
@@ -336,7 +336,7 @@ export function saveWorkerSchedule() {
           uniqueBlocks.push(block)
         }
       })
-      
+
       // Convert worker-prefixed keys to standard day names for clean storage
       if (dayId && dayId.startsWith('worker-')) {
         const standardDay = dayId.replace('worker-', '')
@@ -347,14 +347,14 @@ export function saveWorkerSchedule() {
         blocksByDay[dayId] = uniqueBlocks
       }
     })
-    
+
     // Ensure all standard days exist (empty arrays for unused days)
     standardDays.forEach(day => {
       if (!blocksByDay[day]) {
         blocksByDay[day] = []
       }
     })
-    
+
     schedule.blocks = blocksByDay
   }
   // Store on worker object in memory and persist
@@ -366,12 +366,12 @@ export function saveWorkerSchedule() {
     try {
       await persistWorkers()
       showSuccessToast('Çalışma saatleri kaydedildi')
-      
+
       // Refresh details if open to show updated schedule
       if (selectedWorkerId) {
         await showWorkerDetail(selectedWorkerId)
       }
-      
+
       // Re-render the schedule grid immediately if the modal has it
       const modal = document.getElementById('worker-schedule-modal')
       if (modal && modal.style.display !== 'none') {
@@ -379,22 +379,22 @@ export function saveWorkerSchedule() {
         const worker = workersState.find(w => w.id === selectedWorkerId)
         if (worker && worker.personalSchedule && worker.personalSchedule.blocks) {
           const blocksByDay = worker.personalSchedule.blocks
-          const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-          
+          const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
           days.forEach((d, idx) => {
             const dayKey = `worker-${d}`
             const col = modal.querySelector(`.day-timeline-vertical[data-day="${dayKey}"]`)
             if (!col) return
-            
+
             // Clear existing blocks
             col.querySelectorAll('[data-block-info]').forEach(el => el.remove())
-            
+
             // Re-render blocks
             const blocks = blocksByDay[d] || []
             blocks.forEach((b, laneIdx) => {
-              try { 
-                createScheduleBlock(dayKey, b.type, b.startHour, b.endHour, b.start, b.end, laneIdx) 
-              } catch {}
+              try {
+                createScheduleBlock(dayKey, b.type, b.startHour, b.endHour, b.start, b.end, laneIdx)
+              } catch { }
             })
           })
         }
@@ -411,24 +411,24 @@ export function saveWorkerSchedule() {
 // Normalize schedule blocks to remove worker- prefixes and old duplicates
 function normalizeScheduleBlocks(blocks) {
   if (!blocks || typeof blocks !== 'object') return {}
-  
-  const standardDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+
+  const standardDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
   const normalized = {}
-  
+
   // Initialize all days as empty arrays
   standardDays.forEach(day => {
     normalized[day] = []
   })
-  
+
   // Process each key in blocks
   Object.keys(blocks).forEach(key => {
     let targetDay = key
-    
+
     // Convert worker-prefixed keys to standard day names
     if (key.startsWith('worker-')) {
       targetDay = key.replace('worker-', '')
     }
-    
+
     // Only accept standard day names
     if (standardDays.includes(targetDay) && Array.isArray(blocks[key])) {
       // If we already have blocks for this day, merge them (prefer worker- prefixed version)
@@ -437,7 +437,7 @@ function normalizeScheduleBlocks(blocks) {
       }
     }
   })
-  
+
   return normalized
 }
 
@@ -473,7 +473,7 @@ function safeLoadCompanyTimeSettings() {
           return md.timeSettings;
         }
       }
-    } catch {}
+    } catch { }
     // Fallback to local persisted companyTimeSettings
     const raw = localStorage.getItem('companyTimeSettings')
     if (raw) {
@@ -485,22 +485,22 @@ function safeLoadCompanyTimeSettings() {
     }
     console.warn('⚠️ No timeSettings found in cache or localStorage');
     return null
-  } catch { 
+  } catch {
     console.error('❌ Error loading company time settings');
-    return null 
+    return null
   }
 }
 
 // Backward-compat name retained; used as core builder
 function renderCompanyScheduleGrid(company, shiftNo) {
-  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
   const chipsStyle = {
     work: 'background: rgba(34,197,94,.15); color:#065f46; border:1px solid #22c55e;',
     break: 'background: rgba(251,191,36,.15); color:#92400e; border:1px solid #fbbf24;',
     rest: 'background: rgba(156,163,175,.2); color:#1f2937; border:1px solid #9ca3af;'
   }
   let buf = ''
-  
+
   // Build blocks per day and render compact static weekly timeline
   const blocksByDay = {}
   for (const d of days) {
@@ -508,7 +508,7 @@ function renderCompanyScheduleGrid(company, shiftNo) {
     const list = getShiftBlocksForDay(company, d, shiftNo) || []
     blocksByDay[d] = list
   }
-  
+
   buf += renderStaticWeeklyTimeline(blocksByDay)
   return buf
 }
@@ -521,7 +521,7 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
       return shift.blocks[day];
     }
   }
-  
+
   // 0.5) FIXED SCHEDULE: workType='fixed' should use shiftByLane (not fixedBlocks)
   // This handles the case where workType is 'fixed' but data is stored in shiftByLane
   if (ts?.workType === 'fixed' && ts?.shiftByLane) {
@@ -532,7 +532,7 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
       return blocks;
     }
   }
-  
+
   // 0.6) FIXED SCHEDULE FALLBACK: If workType is 'fixed', use fixedBlocks
   if (ts?.workType === 'fixed' && ts?.fixedBlocks) {
     const blocks = ts.fixedBlocks[day];
@@ -541,7 +541,7 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
       return blocks;
     }
   }
-  
+
   // 1) Aggregated model with laneIndex under `shift-${day}`
   const agg = ts?.shiftBlocks?.[`shift-${day}`]
   if (Array.isArray(agg)) {
@@ -581,7 +581,7 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
     for (let n = 1; n <= 7; n++) { const arr = collect(n); if (arr.length) combined = combined.concat(arr) }
     return combined
   }
-  
+
   console.warn(`⚠️ No blocks found for ${day} in time settings:`, ts);
   return []
 }
@@ -593,8 +593,8 @@ function renderCompanyScheduleTimeline(company, shiftNo) {
 
 // Render read-only compact weekly timeline (hour labels + day columns)
 function renderStaticWeeklyTimeline(blocksByDay) {
-  const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-  const dayLabels = { monday:'Pzt', tuesday:'Sal', wednesday:'Çar', thursday:'Per', friday:'Cum', saturday:'Cmt', sunday:'Paz' }
+  const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+  const dayLabels = { monday: 'Pzt', tuesday: 'Sal', wednesday: 'Çar', thursday: 'Per', friday: 'Cum', saturday: 'Cmt', sunday: 'Paz' }
   const colors = {
     work: { bg: 'rgba(34, 197, 94, 0.8)', border: '#22c55e', text: 'white' },
     break: { bg: 'rgba(251, 191, 36, 0.8)', border: '#fbbf24', text: 'black' },
@@ -615,31 +615,31 @@ function renderStaticWeeklyTimeline(blocksByDay) {
       <div class="weekly-timeline-grid">
         <div class="weekly-timeline-hour-column">${hourMarks}</div>
         ${dayOrder.map((d, i) => {
-          const blocks = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
-          const blocksHtml = blocks.map(b => {
-            if (!b) return '';
-            // Handle both start/end and startTime/endTime formats
-            const startTime = b.startTime || b.start;
-            const endTime = b.endTime || b.end;
-            if (!startTime || !endTime) return '';
-            
-            const sh = typeof b.startHour === 'number' ? b.startHour : timeToHourLocal(startTime)
-            const eh = typeof b.endHour === 'number' ? b.endHour : timeToHourLocal(endTime)
-            const top = Math.max(0, Math.min(100, (sh / 24) * 100))
-            const height = Math.max(1, Math.min(100, ((eh - sh) / 24) * 100))
-            const c = colors[b.type] || colors.work
-            const label = b.type === 'break' ? 'Mola' : (b.type === 'rest' ? 'Dinlenme' : 'Çalışma')
-            const time = `${escapeHtml(startTime)}-${escapeHtml(endTime)}`
-            return `
+    const blocks = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
+    const blocksHtml = blocks.map(b => {
+      if (!b) return '';
+      // Handle both start/end and startTime/endTime formats
+      const startTime = b.startTime || b.start;
+      const endTime = b.endTime || b.end;
+      if (!startTime || !endTime) return '';
+
+      const sh = typeof b.startHour === 'number' ? b.startHour : timeToHourLocal(startTime)
+      const eh = typeof b.endHour === 'number' ? b.endHour : timeToHourLocal(endTime)
+      const top = Math.max(0, Math.min(100, (sh / 24) * 100))
+      const height = Math.max(1, Math.min(100, ((eh - sh) / 24) * 100))
+      const c = colors[b.type] || colors.work
+      const label = b.type === 'break' ? 'Mola' : (b.type === 'rest' ? 'Dinlenme' : 'Çalışma')
+      const time = `${escapeHtml(startTime)}-${escapeHtml(endTime)}`
+      return `
               <div class="timeline-block" style="top:${top}%; height:${height}%; background:${c.bg}; border-color:${c.border}; color:${c.text};">
                 <span class="timeline-block-text">${label} ${time}</span>
               </div>`
-          }).join('')
-          return `
+    }).join('')
+    return `
             <div class="weekly-timeline-day-column">
               ${blocksHtml}
             </div>`
-        }).join('')}
+  }).join('')}
       </div>
     </div>`
   return html
@@ -666,8 +666,8 @@ function timeToHourLocal(timeString) {
 
 function generateWorkerDetailContent(worker) {
   // MAIN WORKER DETAIL FUNCTION
-  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
-  
+  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s => s.trim()).filter(Boolean) : [])
+
   return `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
@@ -680,14 +680,14 @@ function generateWorkerDetailContent(worker) {
         <div class="detail-item">
           <span class="detail-label">E-posta:</span>
           ${worker.email
-            ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
-            : '<span class="detail-value text-muted">-</span>'}
+      ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
+      : '<span class="detail-value text-muted">-</span>'}
         </div>
         <div class="detail-item">
           <span class="detail-label">Telefon:</span>
           ${worker.phone
-            ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
-            : '<span class="detail-value text-muted">-</span>'}
+      ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
+      : '<span class="detail-value text-muted">-</span>'}
         </div>
         <div class="detail-item">
           <span class="detail-label">Durum:</span>
@@ -703,12 +703,12 @@ function generateWorkerDetailContent(worker) {
         </div>
         
         ${(() => {
-          const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
-          const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
-          const company = safeLoadCompanyTimeSettings()
-          
-          if (savedMode === 'company') {
-            return `
+      const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
+      const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
+      const company = safeLoadCompanyTimeSettings()
+
+      if (savedMode === 'company') {
+        return `
               <div class="flex-center-gap mb-10">
                 <span class="schedule-badge schedule-badge-company">Genel Ayarlar</span>
                 <span class="text-muted">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
@@ -717,11 +717,11 @@ function generateWorkerDetailContent(worker) {
                 ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div class="text-muted">Genel ayarlar bulunamadı</div>'}
               </div>
             `
-          } else {
-            // Personal schedule - show saved blocks (normalize to remove duplicates)
-            const rawBlocks = worker.personalSchedule?.blocks || {}
-            const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
-            return `
+      } else {
+        // Personal schedule - show saved blocks (normalize to remove duplicates)
+        const rawBlocks = worker.personalSchedule?.blocks || {}
+        const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
+        return `
               <div class="flex-center-gap mb-10">
                 <span class="schedule-badge schedule-badge-personal">Kişisel Ayar</span>
               </div>
@@ -729,8 +729,8 @@ function generateWorkerDetailContent(worker) {
                 ${renderStaticWeeklyTimeline(normalizedBlocks)}
               </div>
             `
-          }
-        })()}
+      }
+    })()}
       </div>
 
       <!-- Yetenekler -->
@@ -769,7 +769,7 @@ function generateWorkerDetailContent(worker) {
 // Generate current task section for worker detail panel
 function generateCurrentTaskSection(worker) {
   const currentTask = worker.currentTask;
-  
+
   if (!currentTask || !currentTask.planId) {
     return `
       <div class="section-card">
@@ -780,7 +780,7 @@ function generateCurrentTaskSection(worker) {
       </div>
     `;
   }
-  
+
   const { planId, stationId, stationName, nodeId, status } = currentTask;
   const statusColors = {
     'active': { bg: '#ecfdf5', text: '#059669', label: 'Aktif' },
@@ -788,7 +788,7 @@ function generateCurrentTaskSection(worker) {
     'completed': { bg: '#f3f4f6', text: '#6b7280', label: 'Tamamlandı' }
   };
   const statusConfig = statusColors[status] || { bg: '#f3f4f6', text: '#6b7280', label: status || 'Unknown' };
-  
+
   return `
     <div class="section-card">
       <h3 class="section-title-bordered">Mevcut Görev</h3>
@@ -816,12 +816,12 @@ function generateCurrentTaskSection(worker) {
 }
 
 function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
-  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
-  
+  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s => s.trim()).filter(Boolean) : [])
+
   // Check if worker has active absence today
   const now = new Date().toISOString().split('T')[0];
   const currentAbsence = worker.absences?.find(abs => abs.startDate <= now && abs.endDate >= now);
-  
+
   // Determine current status badge
   let statusBadge = '';
   if (!worker.isActive) {
@@ -833,7 +833,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
   } else {
     statusBadge = '<span class="status-badge status-badge-success">✅ Çalışıyor</span>';
   }
-  
+
   return `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
@@ -846,14 +846,27 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <div class="detail-item">
           <span class="detail-label">E-posta:</span>
           ${worker.email
-            ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
-            : '<span class="detail-value text-muted">-</span>'}
+      ? `<a class="detail-value link-primary" href="${mailtoHref(worker.email)}">${escapeHtml(worker.email)}</a>`
+      : '<span class="detail-value text-muted">-</span>'}
         </div>
         <div class="detail-item">
           <span class="detail-label">Telefon:</span>
           ${worker.phone
-            ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
-            : '<span class="detail-value text-muted">-</span>'}
+      ? `<a class="detail-value link-primary" href="${telHref(worker.phone)}">${escapeHtml(worker.phone)}</a>`
+      : '<span class="detail-value text-muted">-</span>'}
+        </div>
+        
+        <!-- Worker Portal PIN -->
+        <div class="detail-item pt-8 border-top">
+          <span class="detail-label">Portal PIN:</span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            ${worker.pinCode
+      ? '<span class="status-badge status-badge-success">✅ Ayarlanmış</span>'
+      : '<span class="status-badge status-badge-inactive">❌ Ayarlanmamış</span>'}
+            <button type="button" onclick="openSetPinModal('${worker.id}', '${escapeHtml(worker.name)}')" class="btn-primary-sm">
+              <i class="fa-solid fa-key"></i> ${worker.pinCode ? 'PIN Değiştir' : 'PIN Belirle'}
+            </button>
+          </div>
         </div>
         
         <!-- Bugünkü Durum (Otomatik - Absences'den hesaplanan) -->
@@ -933,16 +946,16 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           ${worker.absences && worker.absences.length > 0 ? `
             <div class="absence-list-container">
               ${worker.absences.sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).map(abs => {
-                const isPast = abs.endDate < now;
-                const isCurrent = abs.startDate <= now && abs.endDate >= now;
-                const typeEmoji = abs.type === 'sick' ? '🤒' : abs.type === 'vacation' ? '🏖️' : abs.type === 'training' ? '📚' : abs.type === 'meeting' ? '📅' : '📝';
-                const statusBadge = isCurrent 
-                  ? '<span class="status-mini-badge status-mini-active">AKTİF</span>' 
-                  : isPast 
-                  ? '<span class="status-mini-badge status-mini-past">GEÇMİŞ</span>' 
-                  : '<span class="status-mini-badge status-mini-future">GELECEK</span>';
-                
-                return `
+        const isPast = abs.endDate < now;
+        const isCurrent = abs.startDate <= now && abs.endDate >= now;
+        const typeEmoji = abs.type === 'sick' ? '🤒' : abs.type === 'vacation' ? '🏖️' : abs.type === 'training' ? '📚' : abs.type === 'meeting' ? '📅' : '📝';
+        const statusBadge = isCurrent
+          ? '<span class="status-mini-badge status-mini-active">AKTİF</span>'
+          : isPast
+            ? '<span class="status-mini-badge status-mini-past">GEÇMİŞ</span>'
+            : '<span class="status-mini-badge status-mini-future">GELECEK</span>';
+
+        return `
                   <div class="absence-item ${isCurrent ? 'absence-item-active' : ''}">
                     <div class="absence-item-header">
                       <span class="absence-item-title">
@@ -960,7 +973,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                     </div>
                   </div>
                 `;
-              }).join('')}
+      }).join('')}
             </div>
           ` : `
             <div class="empty-message-sm">
@@ -978,12 +991,12 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         </div>
         
         ${(() => {
-          const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
-          const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
-          const company = safeLoadCompanyTimeSettings()
-          
-          if (savedMode === 'company') {
-            return `
+      const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
+      const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
+      const company = safeLoadCompanyTimeSettings()
+
+      if (savedMode === 'company') {
+        return `
               <div class="flex-center-gap mb-10">
                 <span class="schedule-badge schedule-badge-company">Genel Ayarlar</span>
                 <span class="text-muted">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
@@ -992,11 +1005,11 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                 ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div class="text-muted">Genel ayarlar bulunamadı</div>'}
               </div>
             `
-          } else {
-            // Personal schedule - show saved blocks (normalize to remove duplicates)
-            const rawBlocks = worker.personalSchedule?.blocks || {}
-            const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
-            return `
+      } else {
+        // Personal schedule - show saved blocks (normalize to remove duplicates)
+        const rawBlocks = worker.personalSchedule?.blocks || {}
+        const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
+        return `
               <div class="flex-center-gap mb-10">
                 <span class="schedule-badge schedule-badge-personal">Kişisel Ayar</span>
               </div>
@@ -1004,8 +1017,8 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                 ${renderStaticWeeklyTimeline(normalizedBlocks)}
               </div>
             `
-          }
-        })()}
+      }
+    })()}
       </div>
 
       <!-- Yetenekler -->
@@ -1037,9 +1050,9 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                   </div>
                 ` : ''}
                 <div class="flex-wrap-gap-sm">
-                  ${(station.requiredSkills || []).map(skill => 
-                    `<span class="skill-badge skill-badge-xs">${escapeHtml(getSkillName(skill))}</span>`
-                  ).join('')}
+                  ${(station.requiredSkills || []).map(skill =>
+      `<span class="skill-badge skill-badge-xs">${escapeHtml(getSkillName(skill))}</span>`
+    ).join('')}
                 </div>
               </div>
             `).join('')}
@@ -1047,10 +1060,10 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         ` : `
           <div class="empty-message">
             Bu çalışan için uygun istasyon bulunamadı.
-            ${workerStationsData.workerSkills.length > 0 ? 
-              `<br><span class="text-muted-sm">Mevcut yetenekleri ile tam eşleşen istasyon yok.</span>` : 
-              `<br><span class="text-muted-sm">Önce yetenek tanımlaması yapılması gerekiyor.</span>`
-            }
+            ${workerStationsData.workerSkills.length > 0 ?
+      `<br><span class="text-muted-sm">Mevcut yetenekleri ile tam eşleşen istasyon yok.</span>` :
+      `<br><span class="text-muted-sm">Önce yetenek tanımlaması yapılması gerekiyor.</span>`
+    }
           </div>
         `}
       </div>
@@ -1095,7 +1108,7 @@ function hideStatusColumn() {
   if (statusHeader) {
     statusHeader.style.display = 'none'
   }
-  
+
   // Hide status column in all rows
   const statusCells = document.querySelectorAll('#workers-table-body .worker-status-cell')
   statusCells.forEach(cell => {
@@ -1109,7 +1122,7 @@ function showStatusColumn() {
   if (statusHeader) {
     statusHeader.style.display = ''
   }
-  
+
   // Show status column in all rows
   const statusCells = document.querySelectorAll('#workers-table-body .worker-status-cell')
   statusCells.forEach(cell => {
@@ -1128,7 +1141,7 @@ function generateAssignmentsTimeline(assignments) {
   }
 
   // Sort assignments by start time
-  const sortedAssignments = assignments.sort((a, b) => 
+  const sortedAssignments = assignments.sort((a, b) =>
     new Date(a.start).getTime() - new Date(b.start).getTime()
   );
 
@@ -1138,12 +1151,12 @@ function generateAssignmentsTimeline(assignments) {
     const current = sortedAssignments[i];
     const currentStart = new Date(current.start);
     const currentEnd = new Date(current.end);
-    
+
     for (let j = i + 1; j < sortedAssignments.length; j++) {
       const next = sortedAssignments[j];
       const nextStart = new Date(next.start);
       const nextEnd = new Date(next.end);
-      
+
       // Check for overlap
       if (currentStart < nextEnd && currentEnd > nextStart) {
         conflictMap.set(current.id, true);
@@ -1155,12 +1168,12 @@ function generateAssignmentsTimeline(assignments) {
   return `
     <div class="timeline-scroll-container">
       ${sortedAssignments.map(assignment => {
-        const start = new Date(assignment.start);
-        const end = new Date(assignment.end);
-        const hasConflict = conflictMap.has(assignment.id);
-        const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // minutes
-        
-        return `
+    const start = new Date(assignment.start);
+    const end = new Date(assignment.end);
+    const hasConflict = conflictMap.has(assignment.id);
+    const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // minutes
+
+    return `
           <div class="assignment-item ${hasConflict ? 'assignment-item-conflict' : ''}">
             ${hasConflict ? '<div class="assignment-conflict-label"><i class="fa-solid fa-exclamation-triangle"></i> ÇAKIŞMA</div>' : ''}
             
@@ -1174,15 +1187,15 @@ function generateAssignmentsTimeline(assignments) {
             </div>
             
             <div class="assignment-time-row">
-              <span>🕒 ${start.toLocaleString('tr-TR', { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })} - ${end.toLocaleString('tr-TR', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}</span>
+              <span>🕒 ${start.toLocaleString('tr-TR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })} - ${end.toLocaleString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })}</span>
             </div>
             
             <div class="assignment-meta-row">
@@ -1194,7 +1207,7 @@ function generateAssignmentsTimeline(assignments) {
             </div>
           </div>
         `;
-      }).join('')}
+  }).join('')}
     </div>
   `;
 }
@@ -1223,10 +1236,10 @@ function getStatusLabel(status) {
 // Refresh worker assignments
 async function refreshWorkerAssignments(workerId) {
   if (!workerId) return;
-  
+
   try {
     const assignments = await getWorkerAssignments(workerId);
-    
+
     // Find the assignments timeline container and update it
     const timelineContainer = document.querySelector('.assignments-timeline');
     if (timelineContainer) {
@@ -1235,7 +1248,7 @@ async function refreshWorkerAssignments(workerId) {
       // If no timeline container, refresh the entire detail panel
       await showWorkerDetail(workerId);
     }
-    
+
     showSuccessToast('Görevler güncellendi');
   } catch (error) {
     console.error('Failed to refresh assignments:', error);
@@ -1256,7 +1269,7 @@ async function handleAssignmentsUpdated(event) {
       console.error('Failed to refresh assignments on update:', error);
     }
   }
-  
+
   // Refresh the workers table to update any conflict indicators
   await loadWorkersAndRender();
 }
@@ -1267,7 +1280,7 @@ async function loadWorkersAndRender() {
   try {
     // Load skills for ID to name mapping
     skillsCache = await getSkillsFromSQL()
-    
+
     const res = await fetch(`${API_BASE}/api/mes/workers`, { headers: withAuth() })
     if (!res.ok) throw new Error(`Load failed: ${res.status}`)
     const data = await res.json()
@@ -1315,14 +1328,14 @@ async function renderWorkersTable() {
   }
 
   tbody.innerHTML = filtered.map(w => {
-    const skills = Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+    const skills = Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s => s.trim()).filter(Boolean) : [])
     const status = (w.status || 'available').toLowerCase()
     const onLeave = w.onLeave === true
-    
+
     // Determine status display text and badge style
     let statusText = capitalize(status)
     let badgeClass = 'default'
-    
+
     if (onLeave && w.leaveReason) {
       statusText = w.leaveReason
       badgeClass = 'warning'
@@ -1339,7 +1352,7 @@ async function renderWorkersTable() {
       statusText = 'Meşgul'
       badgeClass = 'warning'
     }
-    
+
     const skillsMarkup = skills.length
       ? `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(getSkillName(skill))}</span>`).join('')}</div>`
       : `<span class="mes-muted-text">-</span>`
@@ -1351,12 +1364,12 @@ async function renderWorkersTable() {
   <td class="worker-status-cell text-center"><span class="badge badge-${badgeClass}">${escapeHtml(statusText)}</span></td>
       </tr>`
   }).join('')
-  
+
   // If details panel is open, hide status column
   const detailPanel = document.getElementById('worker-detail-panel')
   if (detailPanel && detailPanel.style.display === 'block') {
     hideStatusColumn()
-    
+
     // Re-highlight selected row
     if (selectedWorkerId) {
       const selectedRow = document.querySelector(`tr[data-worker-id="${selectedWorkerId}"]`)
@@ -1365,7 +1378,7 @@ async function renderWorkersTable() {
       }
     }
   }
-  
+
   // Update Clear All button visibility
   updateClearAllButton()
 }
@@ -1374,7 +1387,7 @@ async function renderWorkersTable() {
 function normalizeSkills(skills) {
   return Array.isArray(skills)
     ? skills
-    : (typeof skills === 'string' ? skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+    : (typeof skills === 'string' ? skills.split(',').map(s => s.trim()).filter(Boolean) : [])
 }
 
 // Cache for worker conflicts to avoid repeated API calls
@@ -1384,26 +1397,26 @@ const CONFLICTS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
 async function checkWorkerHasConflicts(workerId) {
   // Check cache first
-  if (workerConflictsCache.has(workerId) && 
-      (Date.now() - conflictsCacheTimestamp) < CONFLICTS_CACHE_DURATION) {
+  if (workerConflictsCache.has(workerId) &&
+    (Date.now() - conflictsCacheTimestamp) < CONFLICTS_CACHE_DURATION) {
     return workerConflictsCache.get(workerId);
   }
-  
+
   try {
     const assignments = await getWorkerAssignments(workerId, 'active');
-    
+
     // Check for overlapping assignments
     let hasConflict = false;
     for (let i = 0; i < assignments.length && !hasConflict; i++) {
       const current = assignments[i];
       const currentStart = new Date(current.start);
       const currentEnd = new Date(current.end);
-      
+
       for (let j = i + 1; j < assignments.length; j++) {
         const next = assignments[j];
         const nextStart = new Date(next.start);
         const nextEnd = new Date(next.end);
-        
+
         // Check for overlap
         if (currentStart < nextEnd && currentEnd > nextStart) {
           hasConflict = true;
@@ -1411,11 +1424,11 @@ async function checkWorkerHasConflicts(workerId) {
         }
       }
     }
-    
+
     // Cache the result
     workerConflictsCache.set(workerId, hasConflict);
     conflictsCacheTimestamp = Date.now();
-    
+
     return hasConflict;
   } catch (error) {
     console.error('Error checking worker conflicts:', error);
@@ -1437,7 +1450,7 @@ async function applyWorkersFilter(list) {
       // Worker is on leave - map to appropriate leave status
       uiStatus = (w.leaveReason === 'Hasta') ? 'leave-sick' : 'leave-vacation'
     }
-    
+
     // status filter
     if (statuses.length > 0 && !statuses.includes(uiStatus)) return false
 
@@ -1696,19 +1709,19 @@ export function closeWorkerModal(ev) {
   if (!overlay) return
   if (!ev || ev.target === overlay || ev === true) {
     overlay.style.display = 'none'
-    
+
     // Clean up modern skills interface
     const skillsInterface = document.querySelector('.modern-skills-interface');
     if (skillsInterface) {
       skillsInterface.remove();
     }
-    
+
     // Show original select
     const skillsSelect = document.getElementById('worker-skills');
     if (skillsSelect) {
       skillsSelect.style.display = 'block';
     }
-    
+
     // Clean up global function
     if (window.removeSkill) {
       delete window.removeSkill;
@@ -1721,7 +1734,7 @@ export async function saveWorker() {
   const email = document.getElementById('worker-email')?.value?.trim()
   const phone = document.getElementById('worker-phone')?.value?.trim()
   const timeSource = document.getElementById('worker-time-source')?.value || 'company'
-  
+
   // New workers default to 'available' status
   // Status and leave are managed from detail view, not at creation
   const status = 'available'
@@ -1729,11 +1742,11 @@ export async function saveWorker() {
   if (!name) { showWarningToast('İsim gerekli'); return }
   if (!email) { showWarningToast('Email gerekli'); return }
 
-    // Get skills from modern interface
+  // Get skills from modern interface
   const skills = getSelectedSkills();
-  
-  if (skills.length === 0) { 
-    showWarningToast('En az bir skill giriniz'); 
+
+  if (skills.length === 0) {
+    showWarningToast('En az bir skill giriniz');
     return;
   }
 
@@ -1743,7 +1756,7 @@ export async function saveWorker() {
     // AUTO-SET: Default to company settings with auto-populated blocks
     const company = safeLoadCompanyTimeSettings()
     if (company) {
-      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
       const shiftNo = '1' // default shift
       const blocksByDay = {}
       days.forEach(d => {
@@ -1757,8 +1770,8 @@ export async function saveWorker() {
   }
   // If personal, it will be set up later in worker schedule modal
 
-  const payload = { 
-    id: editingWorkerId || genId(), 
+  const payload = {
+    id: editingWorkerId || genId(),
     name, email, phone, skills, status,
     personalSchedule
   }
@@ -1775,7 +1788,7 @@ export async function saveWorker() {
       if (selectedWorkerId && selectedWorkerId === payload.id) {
         showWorkerDetail(payload.id)
       }
-    } catch {}
+    } catch { }
     showSuccessToast('Worker kaydedildi')
   } catch (e) {
     console.error('Worker save error:', e)
@@ -1805,7 +1818,7 @@ async function persistWorkers() {
     body: JSON.stringify({ workers: safeWorkers })
   })
   if (!res.ok) {
-    const msg = await res.text().catch(()=>'')
+    const msg = await res.text().catch(() => '')
     throw new Error(`Persist failed: ${res.status} ${msg}`)
   }
 }
@@ -1816,12 +1829,12 @@ function sanitizeWorker(w) {
     name: (w.name || '').trim(),
     email: (w.email || '').trim(),
     phone: (w.phone || '').trim(),
-    skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
+    skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
     status: (w.status || 'available').toLowerCase(),
     station: w.station || '',
     currentTask: w.currentTask || '',
     // Schedule fields
-    personalSchedule: (function(){
+    personalSchedule: (function () {
       const ps = w.personalSchedule
       if (!ps || typeof ps !== 'object') return null
       const mode = (ps.mode === 'personal' || ps.mode === 'company') ? ps.mode : 'company'
@@ -1834,12 +1847,12 @@ function sanitizeWorker(w) {
       return out
     })()
   }
-  
+
   // Leave fields (optional)
   if (w.leaveStart) sanitized.leaveStart = w.leaveStart
   if (w.leaveEnd) sanitized.leaveEnd = w.leaveEnd
   if (w.leaveReason) sanitized.leaveReason = w.leaveReason
-  
+
   return sanitized
 }
 
@@ -1859,7 +1872,7 @@ function openWorkerModal(worker = null) {
   // Status no longer set here - managed from detail view
 
   overlay.style.display = 'block'
-  
+
   // Configure delete button visibility and action
   if (deleteBtn) {
     if (worker && worker.id) {
@@ -1870,7 +1883,7 @@ function openWorkerModal(worker = null) {
       deleteBtn.onclick = null
     }
   }
-  
+
   // Initialize skills interface
   initializeSkillsInterface(worker?.skills || [])
 }
@@ -1879,16 +1892,16 @@ function openWorkerModal(worker = null) {
 async function initializeSkillsInterface(selectedSkills = []) {
   const skillsContainer = document.getElementById('worker-skills').parentNode;
   const originalSelect = document.getElementById('worker-skills');
-  
+
   // Clear any existing custom interface
   const existingInterface = skillsContainer.querySelector('.modern-skills-interface');
   if (existingInterface) {
     existingInterface.remove();
   }
-  
+
   // Hide original select
   originalSelect.style.display = 'none';
-  
+
   try {
     // Load skills from SQL database
     const skills = await getSkillsFromSQL();
@@ -1896,11 +1909,11 @@ async function initializeSkillsInterface(selectedSkills = []) {
       showErrorToast('Skills verisi yüklenemedi');
       return;
     }
-    
+
     // Create modern interface
     const skillsInterface = createModernSkillsInterface(skills, selectedSkills);
     skillsContainer.appendChild(skillsInterface);
-    
+
     console.log('✅ Modern skills interface created with', skills.length, 'skills');
   } catch (error) {
     console.error('❌ Skills interface error:', error);
@@ -1918,7 +1931,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     border-radius: 6px;
     overflow: hidden;
   `;
-  
+
   // Selected skills header
   const selectedHeader = document.createElement('div');
   selectedHeader.className = 'selected-skills-header';
@@ -1930,7 +1943,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     font-size: 13px;
     color: var(--foreground);
   `;
-  
+
   const selectedDisplay = document.createElement('div');
   selectedDisplay.className = 'selected-skills-display';
   selectedDisplay.style.cssText = `
@@ -1940,7 +1953,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     min-height: 20px;
     font-size: 12px;
   `;
-  
+
   // Search input
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
@@ -1955,7 +1968,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     font-size: 14px;
     box-sizing: border-box;
   `;
-  
+
   // Skills grid
   const skillsGrid = document.createElement('div');
   skillsGrid.className = 'skills-grid';
@@ -1967,15 +1980,15 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   `;
-  
+
   // State management
   let currentSelected = [...selectedSkills];
-  
+
   function updateSelectedDisplay() {
-    selectedHeader.textContent = currentSelected.length === 0 
-      ? 'Seçili Skill Yok' 
+    selectedHeader.textContent = currentSelected.length === 0
+      ? 'Seçili Skill Yok'
       : `${currentSelected.length} Skill Seçildi`;
-      
+
     if (currentSelected.length === 0) {
       selectedDisplay.innerHTML = '<span class="skill-selected-empty">Henüz skill seçilmedi</span>';
     } else {
@@ -1989,40 +2002,40 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
         `;
       }).join('');
     }
-    
+
     // Update original select for form submission
     updateOriginalSelect();
   }
-  
+
   function updateOriginalSelect() {
     const originalSelect = document.getElementById('worker-skills');
-    originalSelect.innerHTML = allSkills.map(skill => 
+    originalSelect.innerHTML = allSkills.map(skill =>
       `<option value="${escapeHtml(skill.id)}" ${currentSelected.includes(skill.id) ? 'selected' : ''}>
         ${escapeHtml(skill.name)}
       </option>`
     ).join('');
   }
-  
+
   function createSkillCard(skill) {
     const isSelected = currentSelected.includes(skill.id);
-    
+
     const card = document.createElement('div');
     card.className = `skill-card-selectable ${isSelected ? 'is-selected' : ''}`;
-    
+
     card.innerHTML = `
       <div class="skill-card-content">
         <span>${escapeHtml(skill.name)}</span>
         ${isSelected ? '<span class="skill-check-icon">✓</span>' : ''}
       </div>
     `;
-    
+
     card.addEventListener('click', () => {
       toggleSkill(skill.id);
     });
-    
+
     return card;
   }
-  
+
   function toggleSkill(skillId) {
     if (currentSelected.includes(skillId)) {
       currentSelected = currentSelected.filter(s => s !== skillId);
@@ -2032,7 +2045,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     renderSkills();
     updateSelectedDisplay();
   }
-  
+
   function renderSkills(filter = '') {
     // Only show NOT selected skills in the list below
     const normalized = String(filter || '').toLowerCase();
@@ -2048,29 +2061,29 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
       skillsGrid.appendChild(createSkillCard(skill));
     });
   }
-  
+
   // Search functionality
   searchInput.addEventListener('input', (e) => {
     renderSkills(e.target.value);
   });
-  
+
   // Global function for removing skills (uses skill ID)
   window.removeSkill = (skillId) => {
     currentSelected = currentSelected.filter(s => s !== skillId);
     renderSkills();
     updateSelectedDisplay();
   };
-  
+
   // Build interface
   container.appendChild(selectedHeader);
   container.appendChild(selectedDisplay);
   container.appendChild(searchInput);
   container.appendChild(skillsGrid);
-  
+
   // Initial render
   renderSkills();
   updateSelectedDisplay();
-  
+
   return container;
 }
 
@@ -2103,7 +2116,7 @@ function telHref(phone) {
   return `tel:${normalized}`
 }
 
-function capitalize(s) { s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1) }
+function capitalize(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1) }
 function genId() { return 'w-' + Math.random().toString(36).slice(2, 9) }
 
 // Clear All Filters functionality
@@ -2147,10 +2160,10 @@ function updateClearAllButton() {
   if (!clearAllBtn) return
 
   // Show button if any filter is active
-  const hasActiveFilters = workerFilters.query.trim() !== '' || 
-                          workerFilters.skills.length > 0 || 
-                          workerFilters.statuses.length > 0 ||
-                          workerFilters.hasConflict
+  const hasActiveFilters = workerFilters.query.trim() !== '' ||
+    workerFilters.skills.length > 0 ||
+    workerFilters.statuses.length > 0 ||
+    workerFilters.hasConflict
 
   clearAllBtn.style.display = hasActiveFilters ? 'block' : 'none'
 }
@@ -2183,7 +2196,7 @@ async function loadWorkerActiveTasks(workerId) {
     const { getWorkerPortalTasks } = await import('./mesApi.js');
     const result = await getWorkerPortalTasks(workerId);
     const tasks = result.tasks || [];
-    
+
     if (tasks.length === 0) {
       return `
         <div class="empty-message">
@@ -2191,17 +2204,17 @@ async function loadWorkerActiveTasks(workerId) {
         </div>
       `;
     }
-    
+
     // Group tasks by status
     const inProgress = tasks.filter(t => t.status === 'in_progress');
     const ready = tasks.filter(t => t.status === 'ready');
     const paused = tasks.filter(t => t.status === 'paused');
     const pending = tasks.filter(t => t.status === 'pending');
-    
+
     const taskRows = tasks.map(task => {
       const statusBadge = getTaskStatusBadge(task.status);
       const prerequisitesHtml = generatePrerequisitesIcons(task.prerequisites);
-      
+
       return `
         <tr class="task-table-row">
           <td class="task-table-td">${statusBadge}</td>
@@ -2212,7 +2225,7 @@ async function loadWorkerActiveTasks(workerId) {
         </tr>
       `;
     }).join('');
-    
+
     return `
       <div class="task-summary-container">
         <div class="task-summary-badge task-summary-inprogress">
@@ -2267,9 +2280,9 @@ function getTaskStatusBadge(status) {
     'paused': { label: 'Duraklatıldı', color: '#92400e', bg: '#fed7aa' },
     'completed': { label: 'Tamamlandı', color: '#065f46', bg: '#d1fae5' }
   };
-  
+
   const info = statusMap[status] || { label: status, color: '#6b7280', bg: '#f3f4f6' };
-  
+
   return `<span class="task-status-label task-status-${status || 'default'}">${info.label}</span>`;
 }
 
@@ -2278,29 +2291,29 @@ function getTaskStatusBadge(status) {
  */
 function generatePrerequisitesIcons(prerequisites) {
   if (!prerequisites) return '-';
-  
+
   const icons = [];
-  
+
   if (prerequisites.predecessorsDone === false) {
     icons.push('<i class="fa-solid fa-clock prereq-icon prereq-warning" title="Önceki görevler bitmedi"></i>');
   }
-  
+
   if (prerequisites.workerAvailable === false) {
     icons.push('<i class="fa-solid fa-hard-hat prereq-icon prereq-danger" title="İşçi meşgul"></i>');
   }
-  
+
   if (prerequisites.stationAvailable === false) {
     icons.push('<i class="fa-solid fa-industry prereq-icon prereq-danger" title="İstasyon meşgul"></i>');
   }
-  
+
   if (prerequisites.materialsReady === false) {
     icons.push('<i class="fa-solid fa-boxes-stacked prereq-icon prereq-danger" title="Malzeme eksik"></i>');
   }
-  
+
   if (icons.length === 0) {
     return '<i class="fa-solid fa-check-circle prereq-icon prereq-success" title="Hazır"></i>';
   }
-  
+
   return icons.join(' ');
 }
 
@@ -2311,37 +2324,37 @@ function generatePrerequisitesIcons(prerequisites) {
 /**
  * Handle employment status change (Active/Inactive only)
  */
-window.handleEmploymentStatusChange = async function() {
+window.handleEmploymentStatusChange = async function () {
   if (!selectedWorkerId) return;
-  
+
   const statusSelect = document.getElementById('worker-employment-status');
   if (!statusSelect) return;
-  
+
   const isActive = statusSelect.value === 'active';
-  
+
   // Find worker in state
   const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
   if (workerIndex === -1) {
     showErrorToast('İşçi bulunamadı');
     return;
   }
-  
+
   // Update worker state
   const updatedWorker = { ...workersState[workerIndex] };
   updatedWorker.isActive = isActive;
-  
+
   // If worker is being marked inactive, remove future absences (keep history)
   if (!isActive && updatedWorker.absences) {
     const now = new Date().toISOString().split('T')[0];
     updatedWorker.absences = updatedWorker.absences.filter(abs => abs.endDate < now);
   }
-  
+
   workersState[workerIndex] = updatedWorker;
-  
+
   try {
     await persistWorkers();
     showSuccessToast(isActive ? 'İşçi aktif olarak işaretlendi' : 'İşçi işten ayrılmış olarak işaretlendi');
-    
+
     // Refresh UI
     await showWorkerDetail(selectedWorkerId);
     await renderWorkersTable();
@@ -2354,7 +2367,7 @@ window.handleEmploymentStatusChange = async function() {
 /**
  * Open add absence form
  */
-window.openAddAbsenceForm = function() {
+window.openAddAbsenceForm = function () {
   const form = document.getElementById('add-absence-form');
   if (form) {
     form.style.display = 'block';
@@ -2367,7 +2380,7 @@ window.openAddAbsenceForm = function() {
 /**
  * Close add absence form
  */
-window.closeAddAbsenceForm = function() {
+window.closeAddAbsenceForm = function () {
   const form = document.getElementById('add-absence-form');
   if (form) {
     form.style.display = 'none';
@@ -2382,46 +2395,46 @@ window.closeAddAbsenceForm = function() {
 /**
  * Save new absence
  */
-window.saveNewAbsence = async function() {
+window.saveNewAbsence = async function () {
   if (!selectedWorkerId) {
     showWarningToast('İşçi seçili değil');
     return;
   }
-  
+
   const startDate = document.getElementById('new-absence-start').value;
   const endDate = document.getElementById('new-absence-end').value;
   const type = document.getElementById('new-absence-type').value;
   const reason = document.getElementById('new-absence-reason').value;
-  
+
   // Validation
   if (!startDate || !endDate) {
     showWarningToast('Başlangıç ve bitiş tarihleri gerekli');
     return;
   }
-  
+
   if (new Date(endDate) < new Date(startDate)) {
     showWarningToast('Bitiş tarihi başlangıç tarihinden önce olamaz');
     return;
   }
-  
+
   if (!reason.trim()) {
     showWarningToast('Lütfen bir sebep/açıklama girin');
     return;
   }
-  
+
   // Find worker in state
   const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
   if (workerIndex === -1) {
     showErrorToast('İşçi bulunamadı');
     return;
   }
-  
+
   // Create new absence
   const updatedWorker = { ...workersState[workerIndex] };
   if (!updatedWorker.absences) {
     updatedWorker.absences = [];
   }
-  
+
   const absenceId = `abs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const newAbsence = {
     id: absenceId,
@@ -2432,14 +2445,14 @@ window.saveNewAbsence = async function() {
     createdAt: new Date().toISOString(),
     createdBy: 'current-user' // TODO: Replace with actual user ID
   };
-  
+
   updatedWorker.absences.push(newAbsence);
   workersState[workerIndex] = updatedWorker;
-  
+
   try {
     await persistWorkers();
     showSuccessToast('İzin kaydı eklendi');
-    
+
     // Close form and refresh
     closeAddAbsenceForm();
     await showWorkerDetail(selectedWorkerId);
@@ -2453,16 +2466,16 @@ window.saveNewAbsence = async function() {
 /**
  * Delete an absence record from worker
  */
-window.deleteAbsence = async function(absenceId) {
+window.deleteAbsence = async function (absenceId) {
   if (!selectedWorkerId) {
     showWarningToast('İşçi seçili değil');
     return;
   }
-  
+
   if (!confirm('Bu izin kaydını silmek istediğinizden emin misiniz?')) {
     return;
   }
-  
+
   try {
     // Find worker in state
     const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
@@ -2470,21 +2483,21 @@ window.deleteAbsence = async function(absenceId) {
       showErrorToast('İşçi bulunamadı');
       return;
     }
-    
+
     // Update worker state - remove absence
     const updatedWorker = { ...workersState[workerIndex] };
     updatedWorker.absences = (updatedWorker.absences || []).filter(abs => abs.id !== absenceId);
-    
+
     workersState[workerIndex] = updatedWorker;
-    
+
     // Persist to backend
     await persistWorkers();
-    
+
     showSuccessToast('İzin kaydı silindi');
-    
+
     // Refresh worker detail panel
     await showWorkerDetail(selectedWorkerId);
-    
+
     // Refresh table
     await renderWorkersTable();
   } catch (error) {
@@ -2497,7 +2510,7 @@ window.deleteAbsence = async function(absenceId) {
 function updateWorkerScheduleStatus(worker) {
   const statusElement = document.getElementById('worker-schedule-status');
   if (!statusElement) return;
-  
+
   // Get worker's schedule
   const schedule = worker.personalSchedule;
   if (!schedule) {
@@ -2506,7 +2519,7 @@ function updateWorkerScheduleStatus(worker) {
     statusElement.style.color = 'rgb(146, 64, 14)';
     return;
   }
-  
+
   console.log('🔍 Worker Schedule Debug:', {
     workerId: worker.id,
     workerName: worker.name,
@@ -2514,13 +2527,13 @@ function updateWorkerScheduleStatus(worker) {
     shiftNo: schedule.shiftNo,
     hasBlocks: !!schedule.blocks
   });
-  
+
   // Determine blocks for current day
   let blocks = [];
   const now = new Date();
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const currentDay = dayNames[now.getDay()];
-  
+
   if (schedule.mode === 'company') {
     // Load from company settings
     const companySettings = safeLoadCompanyTimeSettings();
@@ -2528,7 +2541,7 @@ function updateWorkerScheduleStatus(worker) {
       hasShifts: companySettings?.shifts ? `${companySettings.shifts.length} shifts` : 'No shifts',
       workType: companySettings?.workType
     });
-    
+
     if (companySettings) {
       const shiftNo = schedule.shiftNo || '1';
       blocks = getShiftBlocksForDay(companySettings, currentDay, shiftNo) || [];
@@ -2541,10 +2554,10 @@ function updateWorkerScheduleStatus(worker) {
     blocks = schedule.blocks?.[currentDay] || [];
     console.log(`👤 Personal blocks for ${currentDay}:`, blocks);
   }
-  
+
   // Filter only work/break blocks (ignore rest)
   blocks = blocks.filter(b => b && (b.type === 'work' || b.type === 'break'));
-  
+
   if (blocks.length === 0) {
     console.log('🏠 No work blocks today');
     statusElement.innerHTML = '🏠 Bugün mesai yok';
@@ -2552,27 +2565,27 @@ function updateWorkerScheduleStatus(worker) {
     statusElement.style.color = 'rgb(107, 114, 128)';
     return;
   }
-  
+
   // Check current time against blocks
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   console.log(`🕐 Current time: ${now.getHours()}:${now.getMinutes()} (${currentMinutes} minutes)`);
-  
+
   for (const block of blocks) {
     // Handle different block formats (start/end vs startTime/endTime)
     if (!block) continue;
-    
+
     const startStr = block.start || block.startTime;
     const endStr = block.end || block.endTime;
-    
+
     if (!startStr || !endStr) continue;
-    
+
     const [startHour, startMin] = startStr.split(':').map(Number);
     const [endHour, endMin] = endStr.split(':').map(Number);
     const blockStart = startHour * 60 + startMin;
     const blockEnd = endHour * 60 + endMin;
-    
+
     console.log(`⏰ Checking block: ${startStr}-${endStr} (${blockStart}-${blockEnd} min) type=${block.type}`);
-    
+
     if (currentMinutes >= blockStart && currentMinutes < blockEnd) {
       // Currently in this block
       if (block.type === 'work') {
@@ -2589,7 +2602,7 @@ function updateWorkerScheduleStatus(worker) {
       return;
     }
   }
-  
+
   // Not currently in any block
   console.log('🌙 Outside work hours');
   statusElement.innerHTML = '🏠 Mesai dışında';

@@ -2007,6 +2007,24 @@ assignmentController.js'e logWorkerActivity çağrıları eklendi. task_start: w
 
 ---
 
+### P1.4.04.5: Personnel - PIN Management UI
+
+**Dosyalar:**
+- `[MODIFY]` `workers.js` (showWorkerDetail, generateWorkerDetailContent)
+
+**Başarı Kriterleri:**
+- [x] Worker details panelinde PIN section görünüyor ✅
+- [x] "Set PIN" butonu çalışıyor ✅
+- [x] 4 haneli PIN validation yapılıyor ✅
+
+**Uygulama Notu (2025-12-13):**
+- workerPinManagement.js modülü oluşturuldu (modal ile PIN set etme)
+- Set PIN modal'ı production/index.html'e eklendi
+- 4 haneli PIN validation (password input, tekrar girişi)
+- API endpoint: POST /api/mes/workers/:id/set-pin
+
+---
+
 ### P1.4.06: Personnel Log History Tab
 
 **Dosyalar:**
