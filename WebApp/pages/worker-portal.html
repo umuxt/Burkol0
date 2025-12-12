@@ -95,27 +95,51 @@
 
   <!-- Initialize Worker Portal -->
   <script type="module">
-    // Worker authentication and inactivity management
-    import { requireWorkerAuth, getCurrentWorker } from '/domains/workerPortal/workerAuth.js';
+    try {
+      console.log('🚀 Worker Portal HTML: Starting initialization...');
 
-    // Check authentication before loading portal
-    const isAuthenticated = await requireWorkerAuth();
+      // Worker authentication and inactivity management
+      const { requireWorkerAuth, getCurrentWorker, logoutWorker } = await import('/domains/workerPortal/workerAuth.js');
+      console.log('🔐 Worker Portal HTML: Auth module imported');
 
-    if (isAuthenticated) {
-      // Show worker info in title
-      const worker = getCurrentWorker();
-      if (worker) {
-        document.querySelector('.content-title').textContent = `👷 ${worker.name}`;
-        console.log(`✅ Worker logged in: ${worker.name} (${worker.id})`);
+      // Check authentication before loading portal
+      console.log('🔐 Worker Portal HTML: Checking authentication...');
+      const isAuthenticated = await requireWorkerAuth();
+      console.log('🔐 Worker Portal HTML: Authentication result:', isAuthenticated);
+
+      if (isAuthenticated) {
+        console.log('✅ Authenticated! Getting worker info...');
+
+        // Show worker info in title
+        const worker = getCurrentWorker();
+        console.log('👷 Worker data:', worker);
+
+        if (worker) {
+          const titleEl = document.querySelector('.content-title');
+          if (titleEl) {
+            titleEl.textContent = `👷 ${worker.name}`;
+          }
+          console.log(`✅ Worker logged in: ${worker.name} (${worker.id})`);
+        }
+
+        // Import worker portal module
+        console.log('📦 Worker Portal HTML: Importing workerPortal.js...');
+        try {
+          await import('/domains/workerPortal/workerPortal.js');
+          console.log('✅ workerPortal.js imported successfully');
+        } catch (portalError) {
+          console.error('❌ Failed to import workerPortal.js:', portalError);
+        }
+      } else {
+        console.log('❌ Worker Portal HTML: Not authenticated, should redirect');
       }
 
-      // Import worker portal module
-      import('/domains/workerPortal/workerPortal.js');
-    }
+      // Make logout function globally accessible
+      window.logoutWorker = logoutWorker;
 
-    // Make logout function globally accessible
-    import { logoutWorker as logout } from '/domains/workerPortal/workerAuth.js';
-    window.logoutWorker = logout;
+    } catch (error) {
+      console.error('❌ Worker Portal initialization error:', error);
+    }
   </script>
 </body>
 

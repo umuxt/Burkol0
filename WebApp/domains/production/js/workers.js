@@ -859,14 +859,48 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <!-- Worker Portal PIN -->
         <div class="detail-item pt-8 border-top">
           <span class="detail-label">Portal PIN:</span>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            ${worker.pinCode
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div id="pinStatus-${worker.id}">
+              ${worker.pinCode
       ? '<span class="status-badge status-badge-success">✅ Ayarlanmış</span>'
       : '<span class="status-badge status-badge-inactive">❌ Ayarlanmamış</span>'}
-            <button type="button" onclick="openSetPinModal('${worker.id}', '${escapeHtml(worker.name)}')" class="btn-primary-sm">
+            </div>
+            <div id="pinInputContainer-${worker.id}" style="display: none; gap: 8px; align-items: center;">
+              <input 
+                type="password" 
+                id="pinInput-${worker.id}" 
+                class="form-input" 
+                placeholder="4 haneli PIN" 
+                maxlength="4" 
+                style="width: 120px; padding: 6px 10px; font-size: 14px;"
+              />
+              <button 
+                type="button" 
+                id="savePinBtn-${worker.id}" 
+                class="btn-success-sm" 
+                style="display: none;"
+                onclick="saveWorkerPinInline('${worker.id}')"
+              >
+                <i class="fa-solid fa-check"></i> Kaydet
+              </button>
+              <button 
+                type="button" 
+                class="btn-secondary-sm" 
+                onclick="cancelPinEdit('${worker.id}')"
+              >
+                <i class="fa-solid fa-times"></i>
+              </button>
+            </div>
+            <button 
+              type="button" 
+              id="setPinBtn-${worker.id}" 
+              onclick="togglePinInput('${worker.id}')" 
+              class="btn-primary-sm"
+            >
               <i class="fa-solid fa-key"></i> ${worker.pinCode ? 'PIN Değiştir' : 'PIN Belirle'}
             </button>
           </div>
+          <div id="pinError-${worker.id}" style="color: var(--color-error); font-size: 13px; margin-top: 6px; display: none;"></div>
         </div>
         
         <!-- Bugünkü Durum (Otomatik - Absences'den hesaplanan) -->
@@ -2609,5 +2643,114 @@ function updateWorkerScheduleStatus(worker) {
   statusElement.style.background = 'rgb(243, 244, 246)';
   statusElement.style.color = 'rgb(107, 114, 128)';
 }
+
+// ============================================================
+// INLINE PIN MANAGEMENT FUNCTIONS
+// ============================================================
+
+window.togglePinInput = function (workerId) {
+  const inputContainer = document.getElementById(`pinInputContainer-${workerId}`);
+  const setPinBtn = document.getElementById(`setPinBtn-${workerId}`);
+  const pinInput = document.getElementById(`pinInput-${workerId}`);
+  const errorDiv = document.getElementById(`pinError-${workerId}`);
+
+  // Toggle visibility
+  inputContainer.style.display = 'flex';
+  setPinBtn.style.display = 'none';
+  errorDiv.style.display = 'none';
+  pinInput.value = '';
+  pinInput.focus();
+
+  // Add input listener to show save button when 4 digits entered
+  pinInput.oninput = function () {
+    const savePinBtn = document.getElementById(`savePinBtn-${workerId}`);
+    if (pinInput.value.length === 4 && /^\d{4}$/.test(pinInput.value)) {
+      savePinBtn.style.display = 'inline-flex';
+    } else {
+      savePinBtn.style.display = 'none';
+    }
+  };
+
+  // Allow Enter key to save
+  pinInput.onkeypress = function (e) {
+    if (e.key === 'Enter' && pinInput.value.length === 4) {
+      saveWorkerPinInline(workerId);
+    }
+  };
+};
+
+window.cancelPinEdit = function (workerId) {
+  const inputContainer = document.getElementById(`pinInputContainer-${workerId}`);
+  const setPinBtn = document.getElementById(`setPinBtn-${workerId}`);
+  const errorDiv = document.getElementById(`pinError-${workerId}`);
+  const savePinBtn = document.getElementById(`savePinBtn-${workerId}`);
+  const pinInput = document.getElementById(`pinInput-${workerId}`);
+
+  inputContainer.style.display = 'none';
+  setPinBtn.style.display = 'inline-flex';
+  errorDiv.style.display = 'none';
+
+  // Reset save button state
+  if (savePinBtn) {
+    savePinBtn.disabled = false;
+    savePinBtn.style.display = 'none';
+    savePinBtn.innerHTML = '<i class="fa-solid fa-check"></i> Kaydet';
+  }
+
+  // Clear input
+  if (pinInput) {
+    pinInput.value = '';
+  }
+};
+
+window.saveWorkerPinInline = async function (workerId) {
+  const pinInput = document.getElementById(`pinInput-${workerId}`);
+  const errorDiv = document.getElementById(`pinError-${workerId}`);
+  const pinStatus = document.getElementById(`pinStatus-${workerId}`);
+  const savePinBtn = document.getElementById(`savePinBtn-${workerId}`);
+
+  const pin = pinInput.value.trim();
+
+  // Validation
+  if (!/^\d{4}$/.test(pin)) {
+    errorDiv.textContent = '❌ PIN 4 haneli sayı olmalıdır';
+    errorDiv.style.display = 'block';
+    return;
+  }
+
+  try {
+    savePinBtn.disabled = true;
+    savePinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
+
+    const response = await fetch(`/api/mes/workers/${workerId}/set-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'PIN kaydedilemedi');
+    }
+
+    // Success
+    pinStatus.innerHTML = '<span class="status-badge status-badge-success">✅ Ayarlanmış</span>';
+    cancelPinEdit(workerId);
+
+    // Update button text
+    const setPinBtn = document.getElementById(`setPinBtn-${workerId}`);
+    setPinBtn.innerHTML = '<i class="fa-solid fa-key"></i> PIN Değiştir';
+
+    // Show success notification
+    showSuccessToast('PIN başarıyla kaydedildi');
+
+  } catch (error) {
+    console.error('Error saving PIN:', error);
+    errorDiv.textContent = '❌ ' + error.message;
+    errorDiv.style.display = 'block';
+    savePinBtn.disabled = false;
+    savePinBtn.innerHTML = '<i class="fa-solid fa-check"></i> Kaydet';
+  }
+};
 
 // No default export; named exports only

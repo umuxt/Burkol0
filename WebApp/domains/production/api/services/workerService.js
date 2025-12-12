@@ -3,13 +3,13 @@ import db from '#db/connection';
 export const getAllWorkers = async () => {
   const results = await db('mes.workers')
     .select(
-      'id', 'name', 'email', 'phone', 'skills', 'personalSchedule', 'absences', 
-      'isActive', 'currentTaskPlanId', 'currentTaskNodeId', 'currentTaskAssignmentId', 
-      'createdAt', 'updatedAt'
+      'id', 'name', 'email', 'phone', 'skills', 'personalSchedule', 'absences',
+      'isActive', 'currentTaskPlanId', 'currentTaskNodeId', 'currentTaskAssignmentId',
+      'createdAt', 'updatedAt', 'pinCode'
     )
     .where('isActive', true)
     .orderBy('name');
-  
+
   return results.map(w => ({
     id: w.id,
     name: w.name,
@@ -23,7 +23,9 @@ export const getAllWorkers = async () => {
     currentTaskNodeId: w.currentTaskNodeId,
     currentTaskAssignmentId: w.currentTaskAssignmentId,
     createdAt: w.createdAt,
-    updatedAt: w.updatedAt
+    updatedAt: w.updatedAt,
+    // Return boolean flag instead of actual PIN for security
+    pinCode: !!w.pinCode
   }));
 };
 
@@ -31,14 +33,14 @@ export const saveWorkers = async (workers) => {
   return await db.transaction(async (trx) => {
     for (const worker of workers) {
       const { id, name, skills, personalSchedule, absences, isActive, email, phone } = worker;
-      
+
       let workerId = id;
       if (!workerId) {
         const [{ maxId }] = await trx('mes.workers').max('id as maxId');
         const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
         workerId = `WK-${nextNum.toString().padStart(3, '0')}`;
       }
-      
+
       const dbWorker = {
         id: workerId,
         name,
@@ -50,9 +52,9 @@ export const saveWorkers = async (workers) => {
         isActive: isActive !== undefined ? isActive : true,
         updatedAt: trx.fn.now()
       };
-      
+
       const exists = await trx('mes.workers').where('id', workerId).first();
-      
+
       if (exists) {
         await trx('mes.workers').where('id', workerId).update(dbWorker);
       } else {
@@ -62,14 +64,14 @@ export const saveWorkers = async (workers) => {
         });
       }
     }
-    
+
     const results = await db('mes.workers')
       .select('id', 'name', 'skills', 'personalSchedule', 'absences', 'isActive', 'createdAt', 'updatedAt')
       .whereIn('id', workers.map(w => w.id).filter(Boolean))
-      .orWhere(function() {
+      .orWhere(function () {
         this.whereIn('name', workers.map(w => w.name));
       });
-      
+
     return results.map(w => ({
       id: w.id,
       name: w.name,
@@ -88,33 +90,31 @@ export const getWorkerAssignments = async (workerId, status) => {
     .select('id', 'name')
     .where('id', workerId)
     .first();
-  
+
   if (!worker) return null;
-  
+
   let query = db('mes.worker_assignments')
     .select(
-      'id', 'planId', 'workOrderCode', 'nodeId', 'operationId', 'workerId', 'workerName',
-      'stationId', 'substationId', 'status', 'materials', 'quantity', 'priority', 'isUrgent',
-      'createdAt', 'assignedAt', 'startedAt', 'completedAt', 'estimatedStartTime', 'estimatedEndTime'
+      'id', 'planId', 'workOrderCode', 'nodeId', 'operationId', 'workerId',
+      'stationId', 'substationId', 'status', 'priority', 'isUrgent',
+      'createdAt', 'startedAt', 'completedAt', 'estimatedStartTime', 'estimatedEndTime',
+      'preProductionReservedAmount', 'plannedOutput', 'actualQuantity'
     )
     .where('workerId', workerId)
     .orderBy('estimatedStartTime', 'asc');
-  
+
   if (status === 'active') {
     query = query.whereIn('status', ['pending', 'ready', 'in_progress']);
   } else if (status) {
     query = query.where('status', status);
   }
-  
+
   const assignments = await query;
-  
+
   return {
     workerId: worker.id,
     workerName: worker.name,
-    assignments: assignments.map(a => ({
-      ...a,
-      materials: typeof a.materials === 'string' ? JSON.parse(a.materials) : a.materials
-    }))
+    assignments: assignments
   };
 };
 
@@ -123,15 +123,15 @@ export const getWorkerStations = async (workerId) => {
     .select('id', 'name', 'skills')
     .where('id', workerId)
     .first();
-  
+
   if (!worker) return null;
-  
+
   const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
-  
+
   const stations = await db('mes.stations')
     .select('id', 'name', 'type', 'description', 'capabilities')
     .where('isActive', true);
-  
+
   const compatibleStations = stations.map(s => ({
     id: s.id,
     name: s.name,
@@ -139,7 +139,7 @@ export const getWorkerStations = async (workerId) => {
     description: s.description,
     capabilities: s.capabilities
   }));
-  
+
   return {
     workerId: worker.id,
     workerName: worker.name,
@@ -156,6 +156,6 @@ export const deleteWorker = async (id) => {
     })
     .where('id', id)
     .returning(['id', 'name']);
-  
+
   return result[0];
 };

@@ -1,11 +1,13 @@
 // Worker Portal Domain Module
 // Handles worker task management, status updates, and scrap reporting
 
+console.log('📦 workerPortal.js: Module file starting to load...');
+
 import { getWorkerPortalTasks, updateWorkPackage, getWorkers } from '../production/js/mesApi.js';
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/MESToast.js';
-import { 
-  getEffectiveStatus, 
-  getWorkerStatusBanner, 
+import {
+  getEffectiveStatus,
+  getWorkerStatusBanner,
   isWorkerAvailable,
   getStatusLabel,
   canWorkerStartTasks
@@ -32,39 +34,39 @@ const state = {
 
 async function init() {
   console.log('Initializing Worker Portal...');
-  
+
   // Load system settings first
   await loadSystemSettings();
-  
+
   // Get workerId from URL parameter
   const urlParams = new URLSearchParams(window.location.search);
   const workerId = urlParams.get('workerId');
-  
+
   if (!workerId) {
     // Redirect to worker selection page
     window.location.href = '/pages/worker-selection.html';
     return;
   }
-  
+
   state.currentWorker = { id: workerId };
-  
+
   // Make app globally accessible for refresh button
   window.workerPortalApp = { loadWorkerTasks };
-  
+
   // Load initial data
   await loadWorkerTasks();
-  
+
   // Initialize Lucide icons
   if (typeof lucide !== 'undefined' && lucide.createIcons) {
     lucide.createIcons();
   }
-  
+
   // Listen for assignment updates from other parts of the app
   window.addEventListener('assignments:updated', () => {
     console.log('Assignments updated, reloading tasks...');
     loadWorkerTasks();
   });
-  
+
   // Listen for BroadcastChannel messages (from launch/pause/resume/cancel)
   try {
     const assignmentsChannel = new BroadcastChannel('mes-assignments');
@@ -77,7 +79,7 @@ async function init() {
   } catch (err) {
     console.warn('BroadcastChannel not available:', err);
   }
-  
+
   // ========================================================================
   // STEP 9: Real-time SSE Connection for Worker Assignment Updates
   // ========================================================================
@@ -89,9 +91,9 @@ async function init() {
   // - Tasks are cancelled
   try {
     console.log(`📡 Connecting to SSE stream for worker ${workerId}...`);
-    
+
     const eventSource = new EventSource(`/api/mes/stream/assignments?workerId=${encodeURIComponent(workerId)}`);
-    
+
     // Connection opened
     eventSource.addEventListener('connected', (e) => {
       try {
@@ -101,20 +103,20 @@ async function init() {
         console.warn('Failed to parse SSE connected event:', err);
       }
     });
-    
+
     // Receive assignment updates
     eventSource.addEventListener('message', (e) => {
       try {
         const notification = JSON.parse(e.data);
         console.log('📬 SSE notification received:', notification);
-        
+
         // Check if this update is for current worker
         if (notification.workerId === workerId || notification.worker_id === workerId) {
           console.log(`🔄 Assignment update for worker ${workerId}, reloading tasks...`);
-          
+
           // Reload tasks to reflect changes
           loadWorkerTasks();
-          
+
           // Show toast notification for significant events
           if (notification.operation === 'INSERT') {
             showToast('🆕 Yeni görev atandı!', 'info');
@@ -126,19 +128,19 @@ async function init() {
         console.error('Failed to process SSE message:', err);
       }
     });
-    
+
     // Handle errors (EventSource will auto-reconnect)
     eventSource.onerror = (error) => {
       console.error('❌ SSE connection error:', error);
       console.log('🔄 EventSource will attempt to reconnect automatically...');
       // Browser handles reconnection automatically
     };
-    
+
     // Store for cleanup
     window._workerPortalSSE = eventSource;
-    
+
     console.log('✅ SSE stream initialized successfully');
-    
+
   } catch (err) {
     console.error('Failed to initialize SSE stream:', err);
     // Continue without SSE - app will work with manual refresh
@@ -174,28 +176,28 @@ async function loadWorkerTasks() {
   state.loading = true;
   state.error = null;
   render();
-  
+
   try {
     const result = await getWorkerPortalTasks(state.currentWorker.id);
     let tasks = result.tasks || [];
-    
+
     // ✅ Backend'den gelen canStart değerini kullan (duplicate logic kaldırıldı)
-    console.log(`📊 Loaded ${tasks.length} tasks with canStart from backend:`, 
-      tasks.map(t => ({ 
-        id: t.assignmentId, 
+    console.log(`📊 Loaded ${tasks.length} tasks with canStart from backend:`,
+      tasks.map(t => ({
+        id: t.assignmentId,
         workOrder: t.workOrderCode,
-        status: t.status, 
+        status: t.status,
         isUrgent: t.isUrgent,
         canStart: t.canStart
       }))
     );
-    
+
     state.tasks = tasks;
     state.nextTaskId = result.nextTaskId || null;
-    
+
     // Load lot preview for ready/pending tasks
     await loadLotPreviews();
-    
+
     // Debug: Log first task to check data
     if (state.tasks.length > 0) {
       console.log('📊 First task data:', {
@@ -209,7 +211,7 @@ async function loadWorkerTasks() {
         status: state.tasks[0].status,
         assignmentId: state.tasks[0].assignmentId
       });
-      
+
       // Log the first in-progress task for debugging timer
       const inProgressTask = state.tasks.find(t => t.status === 'in-progress' || t.status === 'in_progress');
       if (inProgressTask) {
@@ -222,14 +224,14 @@ async function loadWorkerTasks() {
         });
       }
     }
-    
+
     // Extract worker info from first task
     if (state.tasks.length > 0) {
       state.currentWorker = {
         id: state.tasks[0].workerId,
         name: state.tasks[0].workerName
       };
-      
+
       // Fetch full worker details (status, leave info)
       try {
         const workers = await getWorkers();
@@ -249,7 +251,7 @@ async function loadWorkerTasks() {
         console.warn('Failed to load worker details:', err);
       }
     }
-    
+
     state.loading = false;
     render();
   } catch (err) {
@@ -273,18 +275,18 @@ async function loadLotPreviews() {
     }
 
     // Only load previews for ready/pending tasks
-    const tasksNeedingPreview = state.tasks.filter(t => 
-      (t.status === 'ready' || t.status === 'pending') && 
+    const tasksNeedingPreview = state.tasks.filter(t =>
+      (t.status === 'ready' || t.status === 'pending') &&
       (t.preProductionReservedAmount || t.materialInputs)
     );
-    
+
     if (tasksNeedingPreview.length === 0) {
       console.log('📦 No tasks need lot preview');
       return;
     }
-    
+
     console.log(`📦 Loading lot previews for ${tasksNeedingPreview.length} tasks...`);
-    
+
     // Load lot previews in parallel
     await Promise.all(tasksNeedingPreview.map(async (task) => {
       try {
@@ -294,32 +296,32 @@ async function loadLotPreviews() {
           materialCode: code,
           requiredQty: parseFloat(qty) || 0
         }));
-        
+
         if (materialRequirements.length === 0) {
           return;
         }
-        
+
         // Fetch lot preview from API (silently fail if endpoint not implemented)
         const queryString = encodeURIComponent(JSON.stringify(materialRequirements));
         const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`)
           .catch(() => null); // Silently catch network errors
-        
+
         if (!response || !response.ok) {
           // Silently skip - lot preview endpoint not yet implemented
           task.lotPreview = { materials: [], error: null };
           return;
         }
-        
+
         const data = await response.json();
         task.lotPreview = data;
-        
+
         console.log(`✅ Lot preview loaded for ${task.assignmentId}:`, data.materials?.length || 0, 'materials');
       } catch (error) {
         // Silently skip errors
         task.lotPreview = { materials: [], error: null };
       }
     }));
-    
+
   } catch (error) {
     console.error('Error loading lot previews:', error);
   }
@@ -336,11 +338,11 @@ async function loadLotPreviews() {
  */
 async function startTaskWithLotPreview(assignmentId) {
   console.log(`🚀 Starting task with lot preview: ${assignmentId}`);
-  
+
   // Check if materials are insufficient - need confirmation first
   const task = state.tasks.find(t => String(t.assignmentId) === String(assignmentId));
   const materialsInsufficient = task?.prerequisites?.materialsReady === false || task?.materialStatus === 'insufficient';
-  
+
   if (materialsInsufficient) {
     // Show material confirmation modal before proceeding
     const confirmed = await showMaterialConfirmationModal(task);
@@ -350,14 +352,14 @@ async function startTaskWithLotPreview(assignmentId) {
     }
     console.log('✅ User confirmed to proceed despite material shortage');
   }
-  
+
   // If lot tracking is disabled, start directly without preview modal
   if (!state.systemSettings.lotTracking) {
     console.log('📦 Lot tracking disabled - starting task directly');
     await startTaskDirectly(assignmentId);
     return;
   }
-  
+
   // Show lot preview modal
   await showLotPreviewModal(assignmentId, async (confirmedAssignmentId) => {
     // User confirmed, proceed with starting task
@@ -372,7 +374,7 @@ function showMaterialConfirmationModal(task) {
   return new Promise((resolve) => {
     const materialStatus = task?.materialStatus || 'insufficient';
     const taskName = task?.nodeName || task?.operationName || `Görev #${task?.assignmentId}`;
-    
+
     const modalHtml = `
       <div id="material-confirm-modal" class="modal-overlay" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
         <div class="modal-content" style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
@@ -401,27 +403,27 @@ function showMaterialConfirmationModal(task) {
         </div>
       </div>
     `;
-    
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
+
     const modal = document.getElementById('material-confirm-modal');
     const cancelBtn = document.getElementById('material-confirm-cancel');
     const proceedBtn = document.getElementById('material-confirm-proceed');
-    
+
     const cleanup = () => {
       modal.remove();
     };
-    
+
     cancelBtn.onclick = () => {
       cleanup();
       resolve(false);
     };
-    
+
     proceedBtn.onclick = () => {
       cleanup();
       resolve(true);
     };
-    
+
     // Close on overlay click
     modal.onclick = (e) => {
       if (e.target === modal) {
@@ -455,7 +457,7 @@ async function startTaskDirectly(assignmentId) {
     }
 
     const result = await response.json();
-    
+
     // Check for warnings (partial material reservations)
     if (result.materialReservation?.warnings?.length > 0) {
       const warningMsg = result.materialReservation.warnings.join('<br>');
@@ -463,28 +465,28 @@ async function startTaskDirectly(assignmentId) {
     } else {
       showToast('Görev başlatıldı', 'success');
     }
-    
+
     await loadWorkerTasks();
-    
+
     // Notify other components
     window.dispatchEvent(new CustomEvent('assignments:updated'));
-    
+
   } catch (err) {
     console.error('Failed to start task:', err);
-    
+
     // Check if error has material_shortage code
     if (err.code === 'material_shortage') {
       const shortages = err.shortages || [];
-      const shortageList = shortages.map(s => 
+      const shortageList = shortages.map(s =>
         `${s.name || s.code}: ${s.shortage} ${s.unit} eksik (Var: ${s.available}, Gerek: ${s.required})`
       ).join('<br>');
-      
+
       showToast(
-        `Malzeme eksikliği nedeniyle görev başlatılamadı:<br>${shortageList}`, 
+        `Malzeme eksikliği nedeniyle görev başlatılamadı:<br>${shortageList}`,
         'error',
         10000 // Show for 10 seconds
       );
-      
+
       // Mark task as blocked
       const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
       const task = state.tasks.find(t => t.assignmentId === numericId);
@@ -492,14 +494,14 @@ async function startTaskDirectly(assignmentId) {
         task.status = 'blocked';
         task.blockReasons = ['Malzeme eksik'];
       }
-      
+
       render();
-      
+
       // Reload tasks to get fresh status
       setTimeout(() => loadWorkerTasks(), 3000);
       return;
     }
-    
+
     // Check if error has precondition_failed code
     if (err.code === 'precondition_failed') {
       // Display inline error with details
@@ -509,21 +511,21 @@ async function startTaskDirectly(assignmentId) {
         task.status = 'blocked';
         task.blockReasons = err.details || [err.message];
       }
-      
+
       // Show notification with details
       const reasons = err.details?.join(', ') || err.message;
       showToast(`Görev başlatılamadı: ${reasons}`, 'warning');
-      
+
       // Re-render to show blocked status
       render();
-      
+
       // Reload tasks after short delay to get fresh status
       setTimeout(() => loadWorkerTasks(), 2000);
     } else {
       // Generic error handling
       const errorMsg = err.message || String(err);
       showToast('Görev başlatılamadı: ' + errorMsg, 'error');
-      
+
       // Reload to refresh task status
       await loadWorkerTasks();
     }
@@ -557,16 +559,16 @@ async function pauseTask(assignmentId) {
 async function reportStationError(assignmentId) {
   const note = await showStationErrorModal();
   if (!note) return; // User cancelled
-  
+
   try {
-    await updateWorkPackage(assignmentId, { 
+    await updateWorkPackage(assignmentId, {
       action: 'station_error',
       stationNote: note
     });
     await loadWorkerTasks();
-    
+
     window.dispatchEvent(new CustomEvent('assignments:updated'));
-    
+
     showToast('İstasyon hatası bildirildi', 'warning');
   } catch (err) {
     console.error('Failed to report station error:', err);
@@ -577,25 +579,25 @@ async function reportStationError(assignmentId) {
 async function completeTask(assignmentId) {
   // Convert to number if string (from HTML onclick attributes)
   const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
-  
+
   // Find the task to get plannedOutput information
   const task = state.tasks.find(t => t.assignmentId === numericId);
-  
+
   if (!task) {
     console.error('❌ Task not found! assignmentId:', numericId);
     showToast('Görev bulunamadı', 'error');
     return;
   }
-  
+
   const completionData = await showCompletionModal(task);
   if (completionData === null) return; // User cancelled
-  
+
   try {
     // Get scrap counters for this assignment
     const counters = completionData.scrapCounters || await getScrapCounters(task.assignmentId);
-    
+
     // Backend expects: { workerId, quantityProduced, defectQuantity, inputScrapCounters, productionScrapCounters, notes }
-    const payload = { 
+    const payload = {
       workerId: task.workerId || state.currentWorker.id,
       quantityProduced: completionData.actualOutputQuantity,
       defectQuantity: completionData.defectQuantity,
@@ -603,23 +605,23 @@ async function completeTask(assignmentId) {
       productionScrapCounters: counters.productionScrapCounters || {},
       notes: completionData.notes || ''
     };
-    
+
     console.log('📤 Sending completion data with scrap counters:', payload);
-    
+
     // Use FIFO complete endpoint
     const response = await fetch(`/api/mes/assignments/${task.assignmentId}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to complete task');
     }
     const result = await response.json();
     console.log('✅ Task completed successfully:', result);
-    
+
     // Log material adjustments if any
     if (result.adjustments && result.adjustments.length > 0) {
       console.log('📊 Material consumption adjustments:');
@@ -628,11 +630,11 @@ async function completeTask(assignmentId) {
         console.log(`    → Input scrap: ${adj.breakdown.inputScrap}, Production scrap: ${adj.breakdown.productionScrap}, Production used: ${adj.breakdown.productionUsed}`);
       });
     }
-    
+
     await loadWorkerTasks();
     window.dispatchEvent(new CustomEvent('assignments:updated'));
-    
-    const message = completionData.defectQuantity > 0 
+
+    const message = completionData.defectQuantity > 0
       ? `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity}, Fire: ${completionData.defectQuantity})`
       : `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity})`;
     showToast(message, 'success');
@@ -723,14 +725,14 @@ function showStationErrorModal() {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     const noteInput = modal.querySelector('#stationErrorNote');
     const confirmBtn = modal.querySelector('#confirmErrorBtn');
-    
+
     noteInput.focus();
-    
+
     confirmBtn.onclick = () => {
       const note = noteInput.value.trim();
       if (!note) {
@@ -740,7 +742,7 @@ function showStationErrorModal() {
       modal.remove();
       resolve(note);
     };
-    
+
     modal.onclick = (e) => {
       if (e.target === modal) {
         modal.remove();
@@ -757,12 +759,12 @@ function showCompletionModal(task) {
       resolve(null);
       return;
     }
-    
+
     // Extract planned output information
     let plannedQty = 0;
     let outputUnit = 'adet';
     let outputCode = '';
-    
+
     if (task && task.plannedOutput) {
       // plannedOutput is an object like { "AK-002": 100 }
       const outputEntries = Object.entries(task.plannedOutput);
@@ -770,22 +772,22 @@ function showCompletionModal(task) {
         [outputCode, plannedQty] = outputEntries[0];
       }
     }
-    
+
     // Fallback to hasOutputs and outputQty if plannedOutput not available
     if (plannedQty === 0 && task) {
       plannedQty = task.outputQty || 0;
       outputCode = task.outputCode || '';
     }
-    
+
     // Fetch scrap counters
     const counters = await getScrapCounters(task.assignmentId);
     const inputScrapCounters = counters?.inputScrapCounters || {};
     const productionScrapCounters = counters?.productionScrapCounters || {};
     const outputDefectQty = counters?.defectQuantity || 0;
-    const hasScrapData = (Object.keys(inputScrapCounters).length > 0 || 
-                          Object.keys(productionScrapCounters).length > 0 || 
-                          outputDefectQty > 0);
-    
+    const hasScrapData = (Object.keys(inputScrapCounters).length > 0 ||
+      Object.keys(productionScrapCounters).length > 0 ||
+      outputDefectQty > 0);
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -870,19 +872,19 @@ function showCompletionModal(task) {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     const actualOutputInput = modal.querySelector('#actualOutputQty');
     const defectInput = modal.querySelector('#defectQty');
     const confirmBtn = modal.querySelector('#confirmCompleteBtn');
-    
+
     actualOutputInput.focus();
     actualOutputInput.select();
-    
+
     // Store current defect value for delta calculation
     let currentDefectValue = outputDefectQty;
-    
+
     // Update output defect counter when defectQty changes
     let updateTimeout;
     defectInput.addEventListener('input', () => {
@@ -903,24 +905,24 @@ function showCompletionModal(task) {
         }
       }, 500); // Debounce 500ms
     });
-    
+
     confirmBtn.onclick = () => {
       const actualOutputQuantity = parseFloat(actualOutputInput.value);
       const defectQuantity = parseFloat(defectInput.value) || 0;
-      
+
       // Validation
       if (isNaN(actualOutputQuantity) || actualOutputQuantity < 0) {
         showToast('Lütfen geçerli bir üretim miktarı girin', 'warning');
         actualOutputInput.focus();
         return;
       }
-      
+
       if (defectQuantity < 0) {
         showToast('Fire miktarı negatif olamaz', 'warning');
         defectInput.focus();
         return;
       }
-      
+
       modal.remove();
       resolve({
         actualOutputQuantity,
@@ -928,21 +930,21 @@ function showCompletionModal(task) {
         scrapCounters: hasScrapData ? counters : null // Include scrap counter data
       });
     };
-    
+
     modal.onclick = (e) => {
       if (e.target === modal) {
         modal.remove();
         resolve(null);
       }
     };
-    
+
     // Allow Enter key to submit
     const handleEnter = (e) => {
       if (e.key === 'Enter') {
         confirmBtn.click();
       }
     };
-    
+
     actualOutputInput.addEventListener('keypress', handleEnter);
     defectInput.addEventListener('keypress', handleEnter);
   });
@@ -955,24 +957,24 @@ function showCompletionModal(task) {
 function showTaskDetailModal(assignmentId) {
   const task = state.tasks.find(t => t.assignmentId === assignmentId);
   if (!task) return;
-  
+
   // Extract material information
-  const inputMaterials = task.plannedInputs ? 
+  const inputMaterials = task.plannedInputs ?
     Object.entries(task.plannedInputs).map(([code, qty]) => ({ code, qty })) : [];
-  const outputMaterials = task.plannedOutput ? 
+  const outputMaterials = task.plannedOutput ?
     Object.entries(task.plannedOutput).map(([code, qty]) => ({ code, qty })) : [];
-  
+
   // Status and priority info
   const statusInfo = getStatusInfo(task.status);
-  const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
+  const priorityLabels = { 1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK' };
   const priority = task.priority || 2;
-  
+
   // Format times
   const estimatedStart = formatTime(task.estimatedStartTime);
   const estimatedEnd = formatTime(task.estimatedEndTime);
   const actualStartTime = task.startedAt ? formatTime(task.startedAt) : '—';
   const actualEndTime = task.completedAt ? formatTime(task.completedAt) : '—';
-  
+
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
@@ -1120,9 +1122,9 @@ function showTaskDetailModal(assignmentId) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   // Close on overlay click
   modal.onclick = (e) => {
     if (e.target === modal) {
@@ -1163,28 +1165,28 @@ function showScrapModal() {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     const scrapInput = modal.querySelector('#scrapQtyInput');
     const confirmBtn = modal.querySelector('#confirmCompleteBtn');
-    
+
     scrapInput.focus();
     scrapInput.select();
-    
+
     confirmBtn.onclick = () => {
       const scrapQty = parseFloat(scrapInput.value) || 0;
       modal.remove();
       resolve(scrapQty);
     };
-    
+
     modal.onclick = (e) => {
       if (e.target === modal) {
         modal.remove();
         resolve(null);
       }
     };
-    
+
     // Allow Enter key to submit
     scrapInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
@@ -1232,48 +1234,48 @@ async function getScrapCounters(assignmentId) {
 // Calculate total scrap from counters
 function calculateTotalScrap(counters) {
   let total = 0;
-  
+
   // Input damaged materials
   if (counters.inputScrapCounters) {
     total += Object.values(counters.inputScrapCounters).reduce((sum, val) => sum + val, 0);
   }
-  
+
   // Production scraps
   if (counters.productionScrapCounters) {
     total += Object.values(counters.productionScrapCounters).reduce((sum, val) => sum + val, 0);
   }
-  
+
   // Output defects
   if (counters.defectQuantity) {
     total += counters.defectQuantity;
   }
-  
+
   return total;
 }
 
 // Open fire modal for an assignment
 async function openFireModal(assignmentId) {
   const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
-  
+
   // Find assignment from current tasks
   const task = state.tasks.find(t => t.assignmentId === numericId);
   if (!task) {
     showToast('Görev bulunamadı', 'error');
     return;
   }
-  
+
   console.log('Opening fire modal for assignment:', assignmentId);
   console.log('Task data:', task);
   console.log('preProductionReservedAmount:', task.preProductionReservedAmount);
   console.log('materialInputs:', task.materialInputs);
   console.log('outputCode:', task.outputCode);
-  
+
   currentFireAssignment = task;
-  
+
   // Load current scrap counters from backend
   try {
     const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
-    
+
     if (!response.ok) {
       // If 404, assignment might not have counters yet - initialize empty
       if (response.status === 404) {
@@ -1305,7 +1307,7 @@ async function openFireModal(assignmentId) {
       defectQuantity: 0
     };
   }
-  
+
   // Create modal
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -1341,9 +1343,9 @@ async function openFireModal(assignmentId) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   // Populate material buttons
   populateMaterialButtons();
   updateCounterDisplay();
@@ -1358,7 +1360,7 @@ function closeFireModal() {
 // Show scrap type selector for input materials
 function showScrapTypeSelector(materialCode) {
   pendingMaterialCode = materialCode;
-  
+
   // Check if modal already exists
   let modal = document.getElementById('scrapTypeModal');
   if (!modal) {
@@ -1395,7 +1397,7 @@ function showScrapTypeSelector(materialCode) {
     `;
     document.body.appendChild(modal);
   }
-  
+
   document.getElementById('selectedMaterialCode').textContent = materialCode;
   modal.style.display = 'flex';
 }
@@ -1409,7 +1411,7 @@ function closeScrapTypeModal() {
 // Increment scrap with selected type (for input materials)
 async function incrementScrapWithType(scrapType) {
   if (!pendingMaterialCode) return;
-  
+
   await incrementScrap(pendingMaterialCode, scrapType, 1);
   closeScrapTypeModal();
 }
@@ -1417,21 +1419,21 @@ async function incrementScrapWithType(scrapType) {
 // Real-time counter increment (syncs to backend immediately)
 async function incrementScrap(materialCode, scrapType, quantity) {
   if (!currentFireAssignment) return;
-  
+
   try {
     // Optimistic UI update
     if (scrapType === 'input_damaged') {
-      scrapCounters.inputScrapCounters[materialCode] = 
+      scrapCounters.inputScrapCounters[materialCode] =
         (scrapCounters.inputScrapCounters[materialCode] || 0) + quantity;
     } else if (scrapType === 'production_scrap') {
-      scrapCounters.productionScrapCounters[materialCode] = 
+      scrapCounters.productionScrapCounters[materialCode] =
         (scrapCounters.productionScrapCounters[materialCode] || 0) + quantity;
     } else if (scrapType === 'output_scrap') {
       scrapCounters.defectQuantity += quantity;
     }
-    
+
     updateCounterDisplay();
-    
+
     // Sync to backend (atomic increment)
     const response = await fetch(`/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap`, {
       method: 'POST',
@@ -1444,14 +1446,14 @@ async function incrementScrap(materialCode, scrapType, quantity) {
         }
       })
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to sync counter');
     }
-    
+
     // Show success feedback (brief toast)
     showToast(`✅ ${materialCode}: +${quantity}`, 'success');
-    
+
   } catch (error) {
     console.error('Failed to increment scrap:', error);
     // Revert optimistic update
@@ -1470,30 +1472,30 @@ async function incrementScrap(materialCode, scrapType, quantity) {
 // Populate material buttons from assignment data
 function populateMaterialButtons() {
   if (!currentFireAssignment) return;
-  
+
   const inputGrid = document.getElementById('inputMaterialsGrid');
   const outputGrid = document.getElementById('outputMaterialGrid');
-  
+
   if (!inputGrid || !outputGrid) return;
-  
+
   // Try multiple field names for input materials
-  const inputMaterials = currentFireAssignment.preProductionReservedAmount 
+  const inputMaterials = currentFireAssignment.preProductionReservedAmount
     || currentFireAssignment.materialInputs
     || currentFireAssignment.inputs
     || {};
-  
+
   console.log('Input materials found:', inputMaterials);
-  
+
   const materialCodes = Object.keys(inputMaterials);
-  
+
   if (materialCodes.length === 0) {
     inputGrid.innerHTML = '<p style="color: #9ca3af; font-size: 13px;">Giriş malzemesi bulunamadı</p>';
   } else {
     inputGrid.innerHTML = materialCodes.map(materialCode => {
-      const totalCount = 
-        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+      const totalCount =
+        (scrapCounters.inputScrapCounters[materialCode] || 0) +
         (scrapCounters.productionScrapCounters[materialCode] || 0);
-      
+
       return `
         <div class="material-button-wrapper">
           <button class="material-btn" 
@@ -1509,7 +1511,7 @@ function populateMaterialButtons() {
       `;
     }).join('');
   }
-  
+
   // Output material (from outputCode)
   const outputCode = currentFireAssignment.outputCode;
   if (outputCode) {
@@ -1535,25 +1537,25 @@ function updateCounterDisplay() {
   Object.keys(scrapCounters.inputScrapCounters).forEach(materialCode => {
     const badgeEl = document.getElementById(`counter-input-${materialCode}`);
     if (badgeEl) {
-      const totalCount = 
-        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+      const totalCount =
+        (scrapCounters.inputScrapCounters[materialCode] || 0) +
         (scrapCounters.productionScrapCounters[materialCode] || 0);
       badgeEl.textContent = totalCount;
       badgeEl.classList.toggle('has-count', totalCount > 0);
     }
   });
-  
+
   Object.keys(scrapCounters.productionScrapCounters).forEach(materialCode => {
     const badgeEl = document.getElementById(`counter-input-${materialCode}`);
     if (badgeEl) {
-      const totalCount = 
-        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+      const totalCount =
+        (scrapCounters.inputScrapCounters[materialCode] || 0) +
         (scrapCounters.productionScrapCounters[materialCode] || 0);
       badgeEl.textContent = totalCount;
       badgeEl.classList.toggle('has-count', totalCount > 0);
     }
   });
-  
+
   // Update output badge
   const outputCode = currentFireAssignment?.outputCode;
   if (outputCode) {
@@ -1563,7 +1565,7 @@ function updateCounterDisplay() {
       outputBadgeEl.classList.toggle('has-count', scrapCounters.defectQuantity > 0);
     }
   }
-  
+
   // Update totals summary
   updateTotalsSummary();
 }
@@ -1572,9 +1574,9 @@ function updateCounterDisplay() {
 function updateTotalsSummary() {
   const summaryEl = document.getElementById('totalsSummary');
   if (!summaryEl) return;
-  
+
   const entries = [];
-  
+
   // Input damaged
   Object.entries(scrapCounters.inputScrapCounters).forEach(([code, qty]) => {
     if (qty > 0) {
@@ -1588,7 +1590,7 @@ function updateTotalsSummary() {
       `);
     }
   });
-  
+
   // Production scrap
   Object.entries(scrapCounters.productionScrapCounters).forEach(([code, qty]) => {
     if (qty > 0) {
@@ -1602,7 +1604,7 @@ function updateTotalsSummary() {
       `);
     }
   });
-  
+
   // Output defects
   if (scrapCounters.defectQuantity > 0) {
     entries.push(`
@@ -1614,16 +1616,16 @@ function updateTotalsSummary() {
       </div>
     `);
   }
-  
-  summaryEl.innerHTML = entries.length > 0 
-    ? entries.join('') 
+
+  summaryEl.innerHTML = entries.length > 0
+    ? entries.join('')
     : '<p class="no-data">Henüz fire kaydı yok</p>';
 }
 
 // Decrement scrap counter (undo)
 async function decrementScrap(materialCode, scrapType, quantity) {
   if (!currentFireAssignment) return;
-  
+
   // Check if counter has value to decrement
   let currentValue = 0;
   if (scrapType === 'input_damaged') {
@@ -1633,12 +1635,12 @@ async function decrementScrap(materialCode, scrapType, quantity) {
   } else if (scrapType === 'output_scrap') {
     currentValue = scrapCounters.defectQuantity || 0;
   }
-  
+
   if (currentValue <= 0) {
     showToast('⚠️ Sayaç zaten 0', 'warning');
     return;
   }
-  
+
   try {
     // Optimistic UI update
     if (scrapType === 'input_damaged') {
@@ -1648,22 +1650,22 @@ async function decrementScrap(materialCode, scrapType, quantity) {
     } else if (scrapType === 'output_scrap') {
       scrapCounters.defectQuantity = Math.max(0, currentValue - quantity);
     }
-    
+
     updateCounterDisplay();
-    
+
     // Sync to backend (atomic decrement)
     const response = await fetch(
       `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${encodeURIComponent(materialCode)}/${quantity}`,
       { method: 'DELETE' }
     );
-    
+
     if (!response.ok) {
       throw new Error('Failed to decrement counter');
     }
-    
+
     // Show success feedback
     showToast(`✅ ${materialCode}: −${quantity}`, 'success');
-    
+
   } catch (error) {
     console.error('Failed to decrement scrap:', error);
     // Revert optimistic update
@@ -1695,31 +1697,31 @@ window.decrementScrap = decrementScrap;
 function render() {
   const container = document.getElementById('workerPortalContent');
   if (!container) return;
-  
+
   if (state.loading) {
     container.innerHTML = renderLoading();
     return;
   }
-  
+
   if (state.error) {
     container.innerHTML = renderError(state.error);
     return;
   }
-  
+
   container.innerHTML = `
     ${renderStatusBanner()}
     ${renderWorkerSummary()}
     ${renderTaskList()}
   `;
-  
+
   // Initialize Lucide icons
   if (typeof lucide !== 'undefined' && lucide.createIcons) {
     lucide.createIcons();
   }
-  
+
   // Attach event listeners
   attachEventListeners();
-  
+
   // Start live duration updates
   startDurationUpdates();
 }
@@ -1764,10 +1766,10 @@ function renderError(error) {
 function renderStatusBanner() {
   // Only show banner if we have worker details
   if (!state.currentWorkerDetails) return '';
-  
+
   // Check if worker can start tasks (includes schedule check)
   const workCheck = canWorkerStartTasks(state.currentWorkerDetails);
-  
+
   if (!workCheck.canWork) {
     const icons = {
       'İşten ayrıldı': '❌',
@@ -1783,21 +1785,21 @@ function renderStatusBanner() {
       'Mola': 'info',
       'Mesai programına göre mola saatinde': 'info'
     };
-    
+
     const icon = icons[workCheck.reason] || '⚠️';
     const type = types[workCheck.reason] || 'info';
-    const message = workCheck.reason === 'Mesai programına göre mola saatinde' 
+    const message = workCheck.reason === 'Mesai programına göre mola saatinde'
       ? 'Şu an çalışma programınıza göre mola saatindesiniz. Görev başlatılamaz.'
       : getWorkerStatusBanner(state.currentWorkerDetails)?.message || `Durum: ${workCheck.reason}`;
-    
+
     const typeClasses = {
       error: 'bg-red-50 border-red-500 text-red-900',
       warning: 'bg-yellow-50 border-yellow-500 text-yellow-900',
       info: 'bg-blue-50 border-blue-500 text-blue-900'
     };
-    
+
     const bgClass = typeClasses[type] || typeClasses.info;
-    
+
     return `
       <div class="worker-status-banner" style="margin-bottom: 16px; padding: 16px; ${bgClass} border-l-4; border-radius: 8px;">
         <div style="display: flex; align-items: start; gap: 12px;">
@@ -1814,7 +1816,7 @@ function renderStatusBanner() {
       </div>
     `;
   }
-  
+
   return '';
 }
 
@@ -1834,11 +1836,11 @@ function renderWorkerSummary() {
       </div>
     `;
   }
-  
+
   const activeTasks = state.tasks.filter(t => t.status === 'in_progress').length;
   const readyTasks = state.tasks.filter(t => t.status === 'ready').length;
   const pendingTasks = state.tasks.filter(t => t.status === 'pending').length;
-  
+
   // Get worker status badge if we have details
   let statusBadgeHtml = '';
   if (state.currentWorkerDetails) {
@@ -1859,7 +1861,7 @@ function renderWorkerSummary() {
       </div>
     `;
   }
-  
+
   return `
     <div class="worker-card">
       <div class="worker-card-header">
@@ -1923,7 +1925,7 @@ function renderTaskList() {
       </div>
     `;
   }
-  
+
   // ========================================================================
   // MODERN CARD-BASED LAYOUT
   // ========================================================================
@@ -1933,42 +1935,42 @@ function renderTaskList() {
     if (a.isUrgent !== b.isUrgent) {
       return a.isUrgent ? -1 : 1;
     }
-    
+
     // Then sort by expected start time (FIFO)
     const aStart = new Date(a.optimizedStart || a.estimatedStartTime || a.estimatedStartTime).getTime();
     const bStart = new Date(b.optimizedStart || b.estimatedStartTime || b.estimatedStartTime).getTime();
     return aStart - bStart;
   });
-  
+
   // Check if there's already an in-progress or paused task (active work exists)
-  const hasActiveTask = sortedTasks.some(t => 
+  const hasActiveTask = sortedTasks.some(t =>
     t.status === 'in_progress' || t.status === 'in-progress' || t.status === 'paused'
   );
-  
+
   // Identify next task (FIFO Position #1) - only if no active task exists
-  const nextTask = hasActiveTask 
-    ? null 
+  const nextTask = hasActiveTask
+    ? null
     : sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
-  
+
   // Separate current/active tasks from upcoming tasks
   const currentTasks = [];
   const upcomingTasks = [];
-  
+
   let fifoPosition = 1;
   sortedTasks.forEach(task => {
     const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
     const currentFifoPosition = (task.status === 'ready' || task.status === 'pending') ? fifoPosition++ : null;
-    
+
     // Current tasks: in-progress, paused, or the next task (only when no in-progress exists)
     if (task.status === 'in_progress' || task.status === 'in-progress' || task.status === 'paused' || isNextTask) {
       currentTasks.push(renderModernTaskCard(task, isNextTask, currentFifoPosition));
-    } 
+    }
     // Upcoming tasks: other ready/pending tasks
     else if (task.status === 'ready' || task.status === 'pending') {
       upcomingTasks.push(renderCompactTaskCard(task, currentFifoPosition));
     }
   });
-  
+
   return `
     <div class="task-list-container">
       <div class="task-list-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -2014,14 +2016,14 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
   if (!isNextTask && (task.status === 'ready' || task.status === 'pending')) {
     return renderCompactTaskCard(task, fifoPosition);
   }
-  
+
   // Otherwise render full card (for next task, in-progress, paused, etc.)
   const statusInfo = getStatusInfo(task.status);
-  
+
   // Extract material information
   const inputMaterials = [];
   const outputMaterials = [];
-  
+
   // materialInputs comes as object from backend in two possible formats:
   // Format 1: { "M-001": { qty: 100, name: "...", unit: "..." } } (new format with details)
   // Format 2: { "M-001": 100 } (legacy simple format)
@@ -2029,8 +2031,8 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
     Object.entries(task.materialInputs).forEach(([code, data]) => {
       // Check if data is an object with qty property or just a number
       if (typeof data === 'object' && data !== null && 'qty' in data) {
-        inputMaterials.push({ 
-          code, 
+        inputMaterials.push({
+          code,
           qty: parseFloat(data.qty),
           name: data.name,
           unit: data.unit
@@ -2046,13 +2048,13 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
       inputMaterials.push({ code, qty: parseFloat(qty) });
     });
   }
-  
+
   if (task.plannedOutput) {
     Object.entries(task.plannedOutput).forEach(([code, data]) => {
       // Check if data is an object with qty property or just a number
       if (typeof data === 'object' && data !== null && 'qty' in data) {
-        outputMaterials.push({ 
-          code, 
+        outputMaterials.push({
+          code,
           qty: parseFloat(data.qty),
           name: data.name,
           unit: data.unit
@@ -2063,21 +2065,21 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
       }
     });
   }
-  
+
   // Card styling based on status
   let cardClass = 'task-card-modern';
   if (isNextTask) cardClass += ' task-card-next';
   if (task.status === 'in_progress' || task.status === 'in-progress') cardClass += ' task-card-active';
   if (task.isUrgent) cardClass += ' task-card-urgent';
-  
+
   // FIFO Position Badge
-  const fifoBadgeHtml = fifoPosition 
+  const fifoBadgeHtml = fifoPosition
     ? `<div class="fifo-badge ${fifoPosition === 1 ? 'fifo-badge-next' : 'fifo-badge-waiting'}">
         <i data-lucide="hash" style="width: 14px; height: 14px;"></i>
         <span>${fifoPosition}</span>
       </div>`
     : '';
-  
+
   return `
     <div class="${cardClass}" data-assignment-id="${task.assignmentId}">
       <!-- Card Header -->
@@ -2211,15 +2213,15 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
 
 function renderCompactTaskCard(task, fifoPosition) {
   const statusInfo = getStatusInfo(task.status);
-  
+
   // FIFO Position Badge
-  const fifoBadgeHtml = fifoPosition 
+  const fifoBadgeHtml = fifoPosition
     ? `<div class="fifo-badge fifo-badge-waiting">
         <i data-lucide="hash" style="width: 14px; height: 14px;"></i>
         <span>${fifoPosition}</span>
       </div>`
     : '';
-  
+
   return `
     <div class="task-card-compact" data-assignment-id="${task.assignmentId}">
       <div class="task-card-header">
@@ -2253,7 +2255,7 @@ function renderCompactTaskCard(task, fifoPosition) {
 
 function renderModernTaskActions(task, isNextTask, fifoPosition) {
   const canStart = task.canStart || (isNextTask && (task.status === 'ready' || task.status === 'pending'));
-  
+
   if (task.status === 'in_progress' || task.status === 'in-progress') {
     return `
       <div class="action-buttons-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
@@ -2272,7 +2274,7 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
       </div>
     `;
   }
-  
+
   if (task.status === 'paused') {
     return `
       <div class="action-buttons-row">
@@ -2283,7 +2285,7 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
       </div>
     `;
   }
-  
+
   if (canStart) {
     return `
       <div class="action-buttons-row">
@@ -2298,7 +2300,7 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
       </div>
     `;
   }
-  
+
   return `
     <div class="action-buttons-row">
       <button class="btn-outline action-btn" onclick="viewTaskDetails('${task.assignmentId}')">
@@ -2315,21 +2317,21 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
 
 function renderTaskRow(task, isNextTask, fifoPosition) {
   const statusInfo = getStatusInfo(task.status);
-  
+
   // ========================================================================
   // STEP 9: FIFO Position Badge (#1, #2, #3...)
   // ========================================================================
   // Show queue position for ready/pending tasks
   // Position #1 is highlighted in green and has "ŞİMDİ BAŞLAT" button
-  const fifoBadge = fifoPosition 
-    ? `<span class="fifo-position-badge ${fifoPosition === 1 ? 'fifo-next' : 'fifo-waiting'}">#${fifoPosition}</span>` 
+  const fifoBadge = fifoPosition
+    ? `<span class="fifo-position-badge ${fifoPosition === 1 ? 'fifo-next' : 'fifo-waiting'}">#${fifoPosition}</span>`
     : '';
-  
+
   // Priority badge (for urgent tasks)
-  const priorityBadge = task.isUrgent 
-    ? '<span class="priority-badge urgent-badge">⭐ ÖNCELİKLİ</span>' 
+  const priorityBadge = task.isUrgent
+    ? '<span class="priority-badge urgent-badge">⭐ ÖNCELİKLİ</span>'
     : (isNextTask ? '<span class="priority-badge">Sırada</span>' : '');
-  
+
   // Show paused banner based on pause context
   let pausedBannerHtml = '';
   if (task.status === 'paused') {
@@ -2365,42 +2367,42 @@ function renderTaskRow(task, isNextTask, fifoPosition) {
        </div>`;
     }
   }
-  
+
   // Render inline block reasons if task failed to start
-  const blockReasonsHtml = task.blockReasons && task.blockReasons.length > 0 
+  const blockReasonsHtml = task.blockReasons && task.blockReasons.length > 0
     ? `<div style="margin-top: 8px; padding: 8px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
          <div style="font-size: 11px; color: #92400e; font-weight: 600; margin-bottom: 4px;">⚠️ Başlatma engellendi:</div>
          <div style="font-size: 11px; color: #78350f;">${task.blockReasons.join('<br>')}</div>
        </div>`
     : '';
-  
+
   // Material status badge
   const materialStatusBadge = renderMaterialStatus(task.prerequisites);
-  
+
   // Material preview (inputs → outputs)
   const materialPreviewHtml = renderMaterialPreview(task);
-  
+
   // Lot consumption preview (for ready/pending tasks with lot tracking)
   const lotPreviewHtml = renderLotPreview(task);
-  
+
   // Priority badge based on priority field (1=Low, 2=Normal, 3=High)
-  const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
-  const priorityColors = {1: 'priority-low', 2: 'priority-normal', 3: 'priority-high'};
+  const priorityLabels = { 1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK' };
+  const priorityColors = { 1: 'priority-low', 2: 'priority-normal', 3: 'priority-high' };
   const priority = task.priority || 2; // Default to normal
   const priorityBadgeHtml = `<span class="priority-level-badge ${priorityColors[priority]}">${priorityLabels[priority]}</span>`;
-  
+
   // ========================================================================
   // STEP 9: Urgent Task Highlighting
   // ========================================================================
   // Urgent tasks get special styling (red border, star icon)
   const urgentClass = task.isUrgent ? 'urgent-card' : '';
-  
+
   // ========================================================================
   // STEP 9: Next Task Highlighting (#1 in FIFO queue)
   // ========================================================================
   // First task in queue gets green border and "ŞİMDİ BAŞLAT" button
   const nextTaskClass = isNextTask ? 'next-task-card' : '';
-  
+
   return `
     <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''} ${urgentClass} ${nextTaskClass}" data-assignment-id="${task.assignmentId}">
       <td>
@@ -2451,59 +2453,59 @@ function renderMaterialStatus(prerequisites) {
   if (!prerequisites) {
     return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
   }
-  
+
   if (prerequisites.materialsReady === true) {
     return '<span style="font-size: 14px; color: #10b981;" title="Malzemeler hazır">✓</span>';
   } else if (prerequisites.materialsReady === false) {
     return '<span style="font-size: 14px; color: #ef4444;" title="Malzeme eksikliği">⚠️</span>';
   }
-  
+
   return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
 }
 
 function renderOperationalDetails(task) {
   // Build operational details with station, substation, and time estimates
   const details = [];
-  
+
   // Station info
   if ((task.substationCode || task.stationName) && task.stationName !== 'Belirsiz') {
     details.push(`🏭 İstasyon: <strong>${task.stationName}</strong>`);
   }
-  
+
   // Substation info (if available)
   if (task.substationCode) {
     details.push(`🔧 Alt İstasyon: <strong>${task.substationCode}</strong>`);
   }
-  
+
   // Operation type (if available)
   if (task.operationId || task.operationName) {
     const opName = task.operationName || task.operationId;
     details.push(`⚙️ Operasyon: <strong>${opName}</strong>`);
   }
-  
+
   // Time estimates - always show if available
   const timeDetails = [];
   if (task.estimatedNominalTime && task.estimatedNominalTime > 0) {
     const nominalStr = formatDuration(task.estimatedNominalTime);
     timeDetails.push(`⏱️ Nominal: <strong>${nominalStr}</strong>`);
   }
-  
+
   if (task.estimatedEffectiveTime && task.estimatedEffectiveTime > 0) {
     const effectiveStr = formatDuration(task.estimatedEffectiveTime);
     timeDetails.push(`⚡ Efektif: <strong>${effectiveStr}</strong>`);
   }
-  
+
   if (timeDetails.length > 0) {
     details.push(timeDetails.join(' <span style="color: #cbd5e1;">•</span> '));
   }
-  
+
   if (details.length === 0) {
     return ''; // No operational details to show
   }
-  
+
   // Build timing section separately for better visibility
   const timingDetails = [];
-  
+
   // If task has started, show expected times in gray (muted)
   if (task.startedAt) {
     // Show expected start/end in muted style
@@ -2517,33 +2519,33 @@ function renderOperationalDetails(task) {
       }
       timingDetails.push(`<span style="color: #9ca3af; font-size: 10px;">${plannedParts.join(' → ')}</span>`);
     }
-    
+
     // Show actual start time prominently
     const actualStartTime = formatTime(task.startedAt);
     timingDetails.push(`<span style="color: #059669;">▶️ Başladı: <strong>${actualStartTime}</strong></span>`);
-    
+
     // Calculate expected end based on actual start + effective time
     // Always calculate from startedAt, not estimatedEndTime
     try {
       let startDate;
-      
+
       // Handle Firestore Timestamp objects
       if (typeof task.startedAt === 'object' && task.startedAt._seconds !== undefined) {
         startDate = new Date(task.startedAt._seconds * 1000);
       } else {
         startDate = new Date(task.startedAt);
       }
-      
+
       // Use effective time if available, otherwise use nominal time, otherwise calculate from estimatedEndTime
       let durationMinutes = task.estimatedEffectiveTime || task.estimatedNominalTime;
-      
+
       if (!durationMinutes && task.estimatedEndTime && task.estimatedStartTime) {
         // Calculate duration from planned times as fallback
         const estimatedEndTimeDate = new Date(task.estimatedEndTime);
         const estimatedStartTimeDate = new Date(task.estimatedStartTime);
         durationMinutes = Math.round((estimatedEndTimeDate - estimatedStartTimeDate) / 60000);
       }
-      
+
       if (durationMinutes > 0) {
         const expectedEndDate = new Date(startDate.getTime() + (durationMinutes * 60000));
         const expectedEndTime = formatTime(expectedEndDate.toISOString());
@@ -2567,13 +2569,13 @@ function renderOperationalDetails(task) {
       const estimatedStartTimeTime = formatTime(task.estimatedStartTime);
       timingDetails.push(`📅 Beklenen Başlangıç: <strong>${estimatedStartTimeTime}</strong>`);
     }
-    
+
     if (task.estimatedEndTime) {
       const expectedEndTime = formatTime(task.estimatedEndTime);
       timingDetails.push(`🎯 Beklenen Bitiş: <strong>${expectedEndTime}</strong>`);
     }
   }
-  
+
   let timingHtml = '';
   if (timingDetails.length > 0) {
     timingHtml = `
@@ -2582,7 +2584,7 @@ function renderOperationalDetails(task) {
       </div>
     `;
   }
-  
+
   return `
     <div class="operational-details" style="margin-top: 8px; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3b82f6;">
       <div style="font-size: 11px; color: #1e40af; line-height: 1.6;">
@@ -2596,7 +2598,7 @@ function renderOperationalDetails(task) {
 function renderMaterialPreview(task) {
   const inputMaterials = task.preProductionReservedAmount || task.materialInputs || {};
   const outputMaterials = task.plannedOutput || {};
-  
+
   // Get output code if plannedOutput is empty
   let outputCode = '';
   let outputQty = 0;
@@ -2604,18 +2606,18 @@ function renderMaterialPreview(task) {
     outputCode = task.outputCode;
     outputQty = task.outputQty || 0;
   }
-  
+
   // Build compact material preview
   const inputEntries = Object.entries(inputMaterials);
   const outputEntries = Object.entries(outputMaterials);
-  
+
   if (inputEntries.length === 0 && outputEntries.length === 0 && !outputCode) {
     return ''; // No materials to show
   }
-  
+
   let materialsHtml = '<div class="material-preview" style="margin-top: 6px; padding: 6px 8px; background: #f9fafb; border-radius: 4px; font-size: 11px; color: #6b7280; border-left: 3px solid #d1d5db;">';
   materialsHtml += '<span style="font-weight: 600; color: #374151;">📦 Malzemeler:</span> ';
-  
+
   // Input materials (compact format)
   if (inputEntries.length > 0) {
     const inputStrs = inputEntries.slice(0, 3).map(([code, qty]) => `${code} (${qty})`);
@@ -2624,12 +2626,12 @@ function renderMaterialPreview(task) {
     }
     materialsHtml += `<span style="color: #3b82f6;">${inputStrs.join(', ')}</span>`;
   }
-  
+
   // Arrow separator
   if ((inputEntries.length > 0 || outputCode) && (outputEntries.length > 0 || outputCode)) {
     materialsHtml += ' <span style="color: #9ca3af;">→</span> ';
   }
-  
+
   // Output materials (compact format)
   if (outputEntries.length > 0) {
     const outputStrs = outputEntries.slice(0, 2).map(([code, qty]) => `${code} (${qty})`);
@@ -2640,9 +2642,9 @@ function renderMaterialPreview(task) {
   } else if (outputCode) {
     materialsHtml += `<span style="color: #10b981;">${outputCode}${outputQty > 0 ? ` (${outputQty})` : ''}</span>`;
   }
-  
+
   materialsHtml += '</div>';
-  
+
   return materialsHtml;
 }
 
@@ -2656,14 +2658,14 @@ function renderLotPreview(task) {
   if (task.status !== 'ready' && task.status !== 'pending') {
     return '';
   }
-  
+
   // Check if lot preview data is loaded
   if (!task.lotPreview) {
     return '';
   }
-  
+
   const { materials, error } = task.lotPreview;
-  
+
   if (error) {
     return `
       <div class="lot-preview" style="margin-top: 6px; padding: 6px 8px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b;">
@@ -2673,46 +2675,46 @@ function renderLotPreview(task) {
       </div>
     `;
   }
-  
+
   if (!materials || materials.length === 0) {
     return '';
   }
-  
+
   // Check if any material has lot tracking
   const hasLots = materials.some(m => m.lotsToConsume && m.lotsToConsume.length > 0);
-  
+
   if (!hasLots) {
     return ''; // No lot tracking data available
   }
-  
+
   let lotHtml = '<div class="lot-preview" style="margin-top: 6px; padding: 8px 10px; background: #f0f9ff; border-radius: 4px; border-left: 3px solid #0ea5e9;">';
   lotHtml += '<div style="font-size: 11px; font-weight: 600; color: #0c4a6e; margin-bottom: 6px;">📦 Tüketilecek Lotlar (FIFO):</div>';
-  
+
   for (const material of materials) {
     if (!material.lotsToConsume || material.lotsToConsume.length === 0) continue;
-    
+
     lotHtml += `<div style="margin-bottom: 6px;">`;
     lotHtml += `<div style="font-size: 10px; color: #075985; font-weight: 600;">${material.materialName || material.materialCode}:</div>`;
-    
+
     for (const lot of material.lotsToConsume) {
       const lotDate = lot.lotDate ? new Date(lot.lotDate).toLocaleDateString('tr-TR') : '-';
       lotHtml += `<div style="font-size: 10px; color: #0369a1; margin-left: 8px;">
         • ${lot.lotNumber} (${lotDate}) → ${lot.consumeQty} ${material.unit || 'adet'}
       </div>`;
     }
-    
+
     // Show warning if insufficient
     if (!material.sufficient) {
       lotHtml += `<div style="font-size: 10px; color: #c2410c; margin-left: 8px; margin-top: 2px;">
         ⚠️ Yetersiz stok (Var: ${material.totalAvailable}, Gerek: ${material.requiredQty})
       </div>`;
     }
-    
+
     lotHtml += `</div>`;
   }
-  
+
   lotHtml += '</div>';
-  
+
   return lotHtml;
 }
 
@@ -2726,7 +2728,7 @@ function renderTimeInfo(task) {
           <span>⏰</span>
           <span><strong>Başlangıç:</strong> ${formatTime(task.startedAt)}</span>
     `;
-    
+
     // Show planned start time for comparison if different
     if (task.estimatedStartTime) {
       const actualDate = new Date(task.startedAt);
@@ -2737,7 +2739,7 @@ function renderTimeInfo(task) {
       }
     }
     timeHtml += `</div>`;
-    
+
     // Show end time if completed
     if (task.completedAt) {
       timeHtml += `
@@ -2755,7 +2757,7 @@ function renderTimeInfo(task) {
         </div>
       `;
     }
-    
+
     timeHtml += `</div>`;
     return timeHtml;
   } else if (task.estimatedStartTime) {
@@ -2770,17 +2772,17 @@ function renderTimeInfo(task) {
       </div>
     `;
   }
-  
+
   return ''; // No time info available
 }
 
 function renderPrerequisites(prerequisites, task) {
   if (!prerequisites) return '';
-  
+
   const items = [];
   if (!prerequisites.predecessorsDone) items.push('⏳ Önceki görevler');
   if (!prerequisites.workerAvailable) items.push('👷 İşçi meşgul');
-  
+
   // Enhanced substation/station busy message
   if (!prerequisites.stationAvailable || !prerequisites.substationAvailable) {
     // Check if we have substation workload details
@@ -2788,42 +2790,42 @@ function renderPrerequisites(prerequisites, task) {
       const expectedEnd = new Date(task.substationCurrentExpectedEnd);
       const now = new Date();
       const minutesRemaining = Math.max(0, Math.round((expectedEnd - now) / 60000));
-      
-      const timeStr = minutesRemaining > 60 
+
+      const timeStr = minutesRemaining > 60
         ? `${Math.floor(minutesRemaining / 60)}s ${minutesRemaining % 60}dk`
         : `${minutesRemaining}dk`;
-      
+
       items.push(`🏭 Makine meşgul (${task.substationCurrentWorkPackageId}, ~${timeStr})`);
     } else {
       items.push('🏭 Makine meşgul');
     }
   }
-  
+
   if (!prerequisites.materialsReady) items.push('📦 Malzeme eksik');
-  
+
   if (items.length === 0) return '';
-  
+
   return `<div class="task-blockers">${items.join(' • ')}</div>`;
 }
 
 function renderTaskActions(task, isNextTask, fifoPosition) {
   const actions = [];
-  
+
   // Urgent badge
   if (task.isUrgent) {
     actions.push(`<span class="urgent-badge">🚨 Acil</span>`);
   }
-  
+
   // Check if worker can start tasks (includes general status + schedule check)
   const workCheck = state.currentWorkerDetails ? canWorkerStartTasks(state.currentWorkerDetails) : { canWork: true, reason: null };
   const workerUnavailable = !workCheck.canWork;
-  
+
   // Check if task is paused by admin plan
   const isPlanPaused = task.status === 'paused' && task.pauseContext === 'plan';
-  
+
   // Check if task is paused by worker (can be resumed)
   const isWorkerPaused = task.status === 'paused' && task.pauseContext !== 'plan';
-  
+
   // Check if task is blocked by prerequisites
   const isBlocked = task.prerequisites && (
     !task.prerequisites.predecessorsDone ||
@@ -2831,7 +2833,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
     !task.prerequisites.substationAvailable ||
     !task.prerequisites.materialsReady
   );
-  
+
   // ========================================================================
   // STEP 9: FIFO Enforcement - Only position #1 can start
   // ========================================================================
@@ -2839,7 +2841,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
   // canStart = false → task must wait in queue
   // isNextTask = true → this is FIFO position #1 (can start if no other blocks)
   const cannotStartYet = (task.canStart === false) && (task.status === 'pending' || task.status === 'ready');
-  
+
   // Build tooltip for blocked reasons
   let blockTooltip = '';
   if (workerUnavailable) {
@@ -2856,7 +2858,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
     if (!task.prerequisites.materialsReady) reasons.push('Malzeme eksik');
     blockTooltip = `title="${reasons.join(', ')}"`;
   }
-  
+
   // Resume button - only if paused by worker/station (not admin)
   if (isWorkerPaused) {
     const disabled = (isBlocked || workerUnavailable || cannotStartYet) ? 'disabled' : '';
@@ -2866,7 +2868,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   // ========================================================================
   // STEP 9: Start Button with FIFO Position #1 Highlighting
   // ========================================================================
@@ -2876,7 +2878,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
     // Check if this task can be started (next in FIFO or urgent)
     const canStartThis = isNextTask || task.isUrgent;
     const disabled = !canStartThis || isBlocked || isPlanPaused || workerUnavailable;
-    
+
     if (task.isUrgent && !disabled) {
       // Urgent task - always active (red button)
       actions.push(`
@@ -2904,7 +2906,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       `);
     }
   }
-  
+
   // Pause button - only if in progress (and worker available)
   if (task.status === 'in_progress') {
     const disabled = workerUnavailable ? 'disabled' : '';
@@ -2914,7 +2916,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   // Complete button - only if in progress (and worker available)
   if (task.status === 'in_progress') {
     const disabled = workerUnavailable ? 'disabled' : '';
@@ -2924,7 +2926,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   // Report scrap for cancelled tasks - show complete button to allow scrap reporting
   if (task.status === 'cancelled_pending_report') {
     const disabled = workerUnavailable ? 'disabled' : '';
@@ -2934,7 +2936,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   // Station error - always available (except completed and cancelled_pending_report)
   if (task.status !== 'completed' && task.status !== 'cancelled_pending_report') {
     actions.push(`
@@ -2943,7 +2945,7 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   // Fire button - only if in progress (and worker available)
   if (task.status === 'in_progress') {
     const disabled = workerUnavailable ? 'disabled' : '';
@@ -2953,11 +2955,11 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
       </button>
     `);
   }
-  
+
   if (actions.length === 0) {
     return '<span class="text-muted">-</span>';
   }
-  
+
   return `<div class="action-buttons">${actions.join('')}</div>`;
 }
 
@@ -2971,9 +2973,9 @@ function attachEventListeners() {
     btn.addEventListener('click', async (e) => {
       const action = e.target.dataset.action;
       const assignmentId = e.target.dataset.id;
-      
+
       if (!assignmentId) return;
-      
+
       switch (action) {
         case 'start':
           // STEP 11: Show lot preview modal before starting
@@ -2994,13 +2996,13 @@ function attachEventListeners() {
       }
     });
   });
-  
+
   // Task row click - show detail modal
   document.querySelectorAll('.task-row').forEach(row => {
     row.addEventListener('click', (e) => {
       // Ignore clicks on buttons
       if (e.target.closest('.action-btn')) return;
-      
+
       const assignmentId = row.dataset.assignmentId;
       if (assignmentId) {
         showTaskDetailModal(assignmentId);
@@ -3020,17 +3022,17 @@ function startDurationUpdates() {
   if (durationUpdateInterval) {
     clearInterval(durationUpdateInterval);
   }
-  
+
   // Update all in-progress task durations every second
   durationUpdateInterval = setInterval(() => {
     // Update old table-based durations (backward compatibility)
     document.querySelectorAll('.duration-info[data-status="in-progress"], .duration-info[data-status="in_progress"]').forEach(el => {
       const startedAt = el.dataset.startedAt;
       if (!startedAt) return;
-      
+
       try {
         let startTime;
-        
+
         // Try to parse as Firestore Timestamp JSON
         try {
           const parsed = JSON.parse(startedAt);
@@ -3043,10 +3045,10 @@ function startDurationUpdates() {
           // Not JSON, treat as ISO string
           startTime = new Date(startedAt);
         }
-        
+
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
         el.textContent = `⏱️ ${formatDuration(elapsed)}`;
-        
+
         // Color code based on estimated time
         const estimatedTime = parseInt(el.dataset.estimatedTime) || 0;
         if (estimatedTime > 0) {
@@ -3063,12 +3065,12 @@ function startDurationUpdates() {
         console.error('Error updating duration:', err);
       }
     });
-    
+
     // Update new card-based live durations
     document.querySelectorAll('.duration-live').forEach(el => {
       const startedAt = el.dataset.startedAt;
       if (!startedAt) return;
-      
+
       try {
         const startTime = new Date(startedAt);
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
@@ -3104,16 +3106,16 @@ function getStatusInfo(status) {
     'completed': { label: 'Tamamlandı', icon: '<i data-lucide="check" style="width: 14px; height: 14px;"></i>', color: 'success' },
     'cancelled_pending_report': { label: 'İptal - Rapor Gerekli', icon: '<i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>', color: 'red' }
   };
-  
+
   return statusMap[status] || { label: status, icon: '<i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>', color: 'gray' };
 }
 
 function formatDuration(minutes) {
   if (!minutes) return '-';
-  
+
   const mins = Math.round(minutes);
   if (mins < 60) return `${mins}dk`;
-  
+
   const hours = Math.floor(mins / 60);
   const remainingMins = mins % 60;
   return `${hours}s ${remainingMins}dk`;
@@ -3123,11 +3125,11 @@ function formatTime(isoString) {
   if (!isoString) return '—';
   try {
     let date;
-    
+
     // Handle Firestore Timestamp objects (from JSON serialization)
     if (typeof isoString === 'object' && isoString._seconds !== undefined) {
       date = new Date(isoString._seconds * 1000);
-    } 
+    }
     // Handle ISO string
     else if (typeof isoString === 'string') {
       date = new Date(isoString);
@@ -3144,18 +3146,18 @@ function formatTime(isoString) {
       console.warn('Unknown date format:', isoString);
       return '—';
     }
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       console.warn('Invalid date:', isoString);
       return '—';
     }
-    
-    return date.toLocaleString('tr-TR', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+
+    return date.toLocaleString('tr-TR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   } catch (err) {
     console.error('Error formatting time:', err, isoString);
@@ -3175,7 +3177,7 @@ function showToast(message, type = 'info') {
     'warning': showWarningToast,
     'error': showErrorToast
   };
-  
+
   const toastFn = toastTypeMap[type] || showInfoToast;
   toastFn(message);
 }

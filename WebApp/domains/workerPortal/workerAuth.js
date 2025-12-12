@@ -113,7 +113,7 @@ export async function verifyToken() {
 
     try {
         const response = await fetch(`/api/mes/workers/${worker.id}/verify-token`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'x-worker-token': token }
         });
 
         const data = await response.json();
