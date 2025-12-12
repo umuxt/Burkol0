@@ -1859,77 +1859,158 @@ P1.3a başarıyla tamamlandı. Ek olarak aşağıdaki geliştirmeler yapıldı:
 
 ---
 
-### P1.4: MES Assignment Audit Logging
+### P1.4.x: Worker Authentication & Activity Logging System
 
+> **Durum:** PLANNING → Onaylandı, implementasyona hazır  
+> **Tarih:** 12 Aralık 2025
 
-**Bağımlılık:** P1.1 tamamlanmış olmalı
+**Amaç:** İşçi portalında PIN kimlik doğrulama ve işçi aktivitelerini ayrı tabloda loglama.
 
-**Amaç:** İşçi görev başlatma ve tamamlama işlemlerini logla.
+#### Onaylanan Tasarım Kararları
 
-**Prompt:**
+| Karar | Değer |
+|-------|-------|
+| PIN Uzunluğu | 4 digit |
+| PIN Yönetimi | Worker Details panelinden (Admin) |
+| Token Süresi | 24 saat (günlük token) |
+| Inactivity Timeout | 30 saniye → Selection'a redirect |
+| Log Saklama | Dinamik → Settings'den ayarlanır |
+| Log Tablosu | Ayrı `mes.worker_activity_logs` |
+
+#### Token Akışı
+
 ```
-MES Assignment controller'ına audit logging ekle.
-
-## HEDEF DOSYA
-/WebApp/domains/production/api/controllers/assignmentController.js
-
-## EKLENECEK AUDIT LOGLAR
-
-### 1. İmport ekle
-```javascript
-import { logAuditEvent } from '../../../../server/auditTrail.js';
+┌─────────────────────────────────────────────────────────────────┐
+│  TOKEN = 24 saat geçerli (günlük)                               │
+│  30sn inactivity = sadece redirect (token hala valid)           │
+│  Selection'a dönüş = localStorage temizlenir                    │
+│  Aynı gün tekrar giriş = aynı token döner                       │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### 2. startAssignment
-```javascript
-// result.success true ise:
-logAuditEvent({
-  entityType: 'assignment',
-  entityId: assignmentId,
-  action: 'start',
-  changes: {
-    workerId,
-    startedAt: new Date().toISOString()
-  },
-  performer: { email: workerId }, // İşçi portalından geldiği için
-  ipAddress: req.ip
-}).catch(() => {});
-```
-
-### 3. completeAssignment (ÖNEMLİ - üretim miktarı kaydı)
-```javascript
-logAuditEvent({
-  entityType: 'assignment',
-  entityId: assignmentId,
-  action: 'complete',
-  changes: {
-    workerId,
-    quantityProduced,
-    defectQuantity: defectQuantity || 0,
-    completedAt: new Date().toISOString()
-  },
-  performer: { email: workerId },
-  ipAddress: req.ip
-}).catch(() => {});
-```
-
-## NOT
-- pause/resume loglanmayacak (çok sık)
-- getNextTask, getTaskStats gibi okuma işlemleri loglanmayacak
-
-## TEST
-- İşçi portalından görev başlat → assignment.start logu
-- Görev tamamla → assignment.complete logu (miktar dahil)
-```
-
-**Düzenlenecek Dosya:**
-- `/WebApp/domains/production/api/controllers/assignmentController.js`
-
-**Başarı Kriterleri:**
-- [ ] assignment.start loglanıyor
-- [ ] assignment.complete üretim miktarı ile loglanıyor
 
 ---
+
+### P1.4.01: Veritabanı Migration
+
+**Dosya:** `[NEW]` `/WebApp/db/migrations/045_worker_auth_logs.sql`
+
+```sql
+-- Worker PIN & Token columns
+ALTER TABLE mes.workers ADD COLUMN IF NOT EXISTS pinCode VARCHAR(4);
+ALTER TABLE mes.workers ADD COLUMN IF NOT EXISTS pinUpdatedAt TIMESTAMP;
+ALTER TABLE mes.workers ADD COLUMN IF NOT EXISTS lastLoginAt TIMESTAMP;
+ALTER TABLE mes.workers ADD COLUMN IF NOT EXISTS dailyToken VARCHAR(64);
+ALTER TABLE mes.workers ADD COLUMN IF NOT EXISTS tokenGeneratedAt TIMESTAMP;
+
+-- Worker activity logs table
+CREATE TABLE IF NOT EXISTS mes.worker_activity_logs (
+  id SERIAL PRIMARY KEY,
+  workerId VARCHAR(100) NOT NULL,
+  workerName VARCHAR(255),
+  action VARCHAR(50) NOT NULL,
+  entityType VARCHAR(50),
+  entityId VARCHAR(100),
+  quantityProduced INTEGER,
+  defectQuantity INTEGER,
+  scrapData JSONB,
+  details JSONB,
+  ipAddress VARCHAR(45),
+  userAgent TEXT,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_wal_worker ON mes.worker_activity_logs(workerId);
+CREATE INDEX IF NOT EXISTS idx_wal_date ON mes.worker_activity_logs(createdAt DESC);
+```
+
+**Test:** Migration'ı local ve Neon'da çalıştır
+
+**Başarı Kriterleri:**
+- [ ] mes.workers tablosuna PIN ve token kolonları eklendi
+- [ ] mes.worker_activity_logs tablosu oluşturuldu
+
+---
+
+### P1.4.02: Worker Auth Service & API
+
+**Dosyalar:**
+- `[NEW]` `workerAuthService.js`
+- `[MODIFY]` `routes.js`, `workerController.js`
+
+**API Endpoints:**
+```
+POST /api/mes/workers/:id/login      { pin } → { token, worker }
+POST /api/mes/workers/:id/logout     { } → { success }
+POST /api/mes/workers/:id/set-pin    { pin } → { success }
+GET  /api/mes/workers/:id/verify-token → { valid, worker }
+```
+
+**Başarı Kriterleri:**
+- [ ] PIN doğrulama çalışıyor
+- [ ] Günlük token üretiliyor
+- [ ] Aynı gün aynı token dönüyor
+
+---
+
+### P1.4.03: Worker Activity Log Service
+
+**Dosya:** `[NEW]` `workerActivityLogService.js`
+
+**Başarı Kriterleri:**
+- [ ] logWorkerActivity() kayıt oluşturuyor
+- [ ] getWorkerActivityHistory() sonuç dönüyor
+
+---
+
+### P1.4.04: Assignment Controller Loglama
+
+**Dosya:** `[MODIFY]` `assignmentController.js`
+
+**Başarı Kriterleri:**
+- [ ] task_start loglanıyor
+- [ ] task_complete (quantity dahil) loglanıyor
+
+---
+
+### P1.4.05: Worker Portal Login UI
+
+**Dosyalar:**
+- `[MODIFY]` `worker-selection.html` (PIN numpad)
+- `[NEW]` `workerAuth.js` (token, 30sn timer)
+- `[MODIFY]` `worker-portal.html` (activity listener)
+
+**Başarı Kriterleri:**
+- [ ] PIN numpad dialog çalışıyor
+- [ ] 30sn inactivity → redirect
+- [ ] Token localStorage'da tutuluyor
+
+---
+
+### P1.4.06: Personnel Log History Tab
+
+**Dosyalar:**
+- `[MODIFY]` `views.js` (Workers paneli)
+- `[MODIFY]` `routes.js`
+
+**Başarı Kriterleri:**
+- [ ] Workers panelinde "Aktivite Logları" tab görünüyor
+- [ ] Loglar doğru sırayla listeleniyor
+
+---
+
+### P1.4.07: Settings - Log Retention
+
+**Dosyalar:**
+- `[MODIFY]` Settings UI (Üretim Ayarları)
+- `[MODIFY]` `settingsService.js`
+
+**Başarı Kriterleri:**
+- [ ] "Worker Log Saklama Süresi" input'u var
+- [ ] Cleanup job eski logları siliyor
+
+---
+
+
 
 ### P1.5: MES Scrap (Fire) Audit Logging
 
