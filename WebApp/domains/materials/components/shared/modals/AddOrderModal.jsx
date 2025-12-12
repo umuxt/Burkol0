@@ -6,7 +6,7 @@ import { useOrderActions } from '../../../hooks/useOrders.js'
 import { showToast } from '../../../../../shared/components/MESToast.js'
 
 export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null, anchorPosition = null }) {
-  
+
   const [currentStep, setCurrentStep] = useState(1) // 1: Tedarikçi Seçimi, 2: Malzeme Ekleme, 3: Özet
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false)
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
@@ -25,7 +25,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
   // Keep initial material ID in a ref to preserve it
   const initialMaterialIdRef = useRef(null)
-  
+
   // Update ref when prop changes
   useEffect(() => {
     initialMaterialIdRef.current = initialMaterialId
@@ -52,25 +52,25 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   useEffect(() => {
     if (isOpen) {
       console.log('🔄 Modal açıldı');
-      
+
       // Simple: only fetch if we have no suppliers data
       if (suppliers.length === 0) {
         console.log('🔄 Suppliers boş, yükleniyor...');
         fetchSuppliers(false); // Change to false to avoid force refresh
       }
-      
+
       // Only load materials if not initialized
       if (!materialsInitialized) {
         console.log('🔄 Materials initialization...');
         loadMaterials();
       }
-      
+
       setCurrentStep(1)
-      
+
       // If initialSupplierId is provided, find the supplier and set it
       let initialSupplierId_value = ''
       let initialSupplierName_value = ''
-      
+
       if (initialSupplierId && suppliers && suppliers.length > 0) {
         const supplier = suppliers.find(s => s.id === initialSupplierId)
         if (supplier) {
@@ -78,7 +78,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           initialSupplierName_value = supplier.name || supplier.companyName || ''
         }
       }
-      
+
       setFormData({
         supplierId: initialSupplierId_value,
         supplierName: initialSupplierName_value,
@@ -116,7 +116,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   // Listen for global supplier updates (simplified)
   useEffect(() => {
     if (!isOpen) return; // Only listen when modal is open
-    
+
     const handleSuppliersUpdated = (event) => {
       console.log('🔔 Global suppliers update detected - will refresh on next modal open');
       // Don't refresh immediately, just mark for next time
@@ -185,13 +185,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       suppliers: suppliers ? 'var' : 'yok',
       materials: materials ? 'var' : 'yok'
     });
-    
+
     if (formData.supplierId && suppliers && materials) {
       // ✅ supplierId string olabilir, number'a çevir
-      const supplierIdNum = typeof formData.supplierId === 'string' 
-        ? parseInt(formData.supplierId, 10) 
+      const supplierIdNum = typeof formData.supplierId === 'string'
+        ? parseInt(formData.supplierId, 10)
         : formData.supplierId;
-        
+
       const selectedSupplier = suppliers.find(s => s.id === supplierIdNum)
       console.log('🔍 AddOrderModal: Seçilen tedarikçi:', {
         supplier: selectedSupplier,
@@ -233,10 +233,10 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         const activeMaterialCodes = supplierMaterialSource
           .map(sm => sm.materialCode || sm.code)
           .filter(Boolean);
-          
+
         console.log('🔍 AddOrderModal: Aktif malzeme ID\'leri:', activeMaterialIds);
         console.log('🔍 AddOrderModal: Aktif malzeme kodları:', activeMaterialCodes);
-        
+
         // Materials collection'ından bu ID'lere sahip malzemeleri bul
         const available = materials.filter(m => {
           const isIncludedById = activeMaterialIds.includes(m.id);
@@ -249,7 +249,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           }
           return isIncluded;
         });
-        
+
         console.log('🔍 AddOrderModal: Final eşleşen malzemeler:', {
           availableCount: available.length,
           available: available.map(m => ({ id: m.id, code: m.code, name: m.name })),
@@ -257,7 +257,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           supplierMaterialCount: selectedSupplier.suppliedMaterials.length,
           activeMaterialCount: activeMaterialIds.length
         });
-        
+
         setAvailableMaterials(available)
       } else {
         console.log('🔍 AddOrderModal: Tedarikçi suppliedMaterials yok');
@@ -293,13 +293,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       const materialToAdd = materials.find(m => m.id === initialMaterialIdRef.current || m.code === initialMaterialIdRef.current);
       if (materialToAdd) {
         console.log('🛒 Auto-adding initial material:', materialToAdd.name);
-        
+
         // Add material to selected materials
         const supplier = suppliers.find(s => s.id === formData.supplierId)
         const supplierMaterial = supplier?.suppliedMaterials?.find(sm => sm.materialCode === materialToAdd.code)
-        
+
         const lineId = `${materialToAdd.code}-01`
-        
+
         const newMaterial = {
           lineId,
           lineIndex: 1,
@@ -311,7 +311,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           actualDeliveryDate: deliveredRecordMode ? new Date() : null,
           itemStatus: deliveredRecordMode ? 'Teslim Edildi' : 'Onay Bekliyor'
         }
-        
+
         setSelectedMaterials([newMaterial]);
         // Don't auto-advance to step 2 - let user fill in order details first
       }
@@ -327,12 +327,12 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       hasSuppliers: !!suppliers,
       suppliersCount: suppliers?.length || 0
     });
-    
+
     if (!initialMaterialId || !materials || !suppliers || suppliers.length === 0) {
       console.log('🔍 Temel koşul başarısız, tüm tedarikçiler döndürülüyor');
       return suppliers;
     }
-    
+
     // Find the material by ID or code
     const material = materials.find(m => m.id === initialMaterialId || m.code === initialMaterialId);
     if (!material) {
@@ -340,14 +340,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       console.log('🔍 Available materials:', materials.map(m => ({ id: m.id, code: m.code, name: m.name })));
       return suppliers;
     }
-    
+
     const materialCode = material.code;
     console.log('🔍 Filtering suppliers for material:', {
       materialId: material.id,
       materialCode: materialCode,
       materialName: material.name
     });
-    
+
     // Filter suppliers that supply this material
     const filtered = suppliers.filter(supplier => {
       const suppliedMaterials = supplier.suppliedMaterials || [];
@@ -361,7 +361,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           status: sm.status
         }))
       });
-      
+
       const suppliesMaterial = suppliedMaterials.some(sm => {
         const smCode = sm.materialCode || sm.code;
         const smId = sm.materialId || sm.id;
@@ -374,7 +374,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         }
         return matches;
       });
-      
+
       if (suppliesMaterial) {
         console.log('✅ Supplier supplies material:', supplier.name || supplier.companyName);
       } else {
@@ -382,17 +382,17 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       }
       return suppliesMaterial;
     });
-    
+
     console.log('🔍 Filtered suppliers result:', {
       totalSuppliers: suppliers.length,
       filteredCount: filtered.length,
-      filteredSuppliers: filtered.map(s => ({ 
-        id: s.id, 
+      filteredSuppliers: filtered.map(s => ({
+        id: s.id,
         name: s.name || s.companyName,
         suppliedMaterialsCount: s.suppliedMaterials?.length || 0
       }))
     });
-    
+
     return filtered;
   };
 
@@ -434,8 +434,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   const addMaterial = (material) => {
     // Get supplier-specific pricing if available
     // ✅ supplierId number'a çevir
-    const supplierIdNum = typeof formData.supplierId === 'string' 
-      ? parseInt(formData.supplierId, 10) 
+    const supplierIdNum = typeof formData.supplierId === 'string'
+      ? parseInt(formData.supplierId, 10)
       : formData.supplierId;
     const supplier = suppliers.find(s => s.id === supplierIdNum)
     const supplierMaterial = supplier?.suppliedMaterials?.find(sm => sm.materialCode === material.code)
@@ -483,9 +483,9 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
   // Update material quantity or price
   const updateMaterial = (lineId, field, value) => {
-    setSelectedMaterials(prev => 
-      prev.map(m => 
-        m.lineId === lineId 
+    setSelectedMaterials(prev =>
+      prev.map(m =>
+        m.lineId === lineId
           ? { ...m, [field]: field === 'quantity' || field === 'unitPrice' ? Number(value) : value }
           : m
       )
@@ -493,14 +493,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   }
 
   // Calculate total amount
-  const totalAmount = selectedMaterials.reduce((sum, material) => 
+  const totalAmount = selectedMaterials.reduce((sum, material) =>
     sum + (material.quantity * material.unitPrice), 0
   )
 
   // Handle form submission
   const handleSubmit = async () => {
     try {
-      
+
       if (selectedMaterials.length === 0) {
         showToast('En az bir malzeme eklemelisiniz', 'warning')
         return
@@ -524,15 +524,15 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       console.log('📦 AddOrderModal: Selected materials:', selectedMaterials);
 
       const result = await createOrderWithItems(orderData, selectedMaterials, { deliveredRecordMode })
-      
+
       console.log('✅ AddOrderModal: Order oluşturuldu:', result);
-      
+
       if (onSave) {
         onSave(result)
       }
-      
+
       onClose()
-      
+
     } catch (error) {
       console.error('❌ AddOrderModal: Error creating order:', error)
       showToast('Sipariş oluşturulurken hata oluştu: ' + error.message, 'error')
@@ -555,28 +555,28 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   // Calculate popover position
   const getPopoverStyle = () => {
     if (!anchorPosition) return {}
-    
+
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
     const popoverWidth = 520
     const popoverHeight = Math.min(600, viewportHeight - 100)
-    
+
     let top = anchorPosition.top + 8
     let left = anchorPosition.left
-    
+
     // Adjust if goes below viewport
     if (top + popoverHeight > viewportHeight - 20) {
       top = anchorPosition.top - popoverHeight - 8
     }
-    
+
     // Adjust if goes right of viewport
     if (left + popoverWidth > viewportWidth - 20) {
       left = viewportWidth - popoverWidth - 20
     }
-    
+
     // Ensure minimum left position
     if (left < 20) left = 20
-    
+
     return {
       position: 'fixed',
       top: `${Math.max(20, top)}px`,
@@ -588,7 +588,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   }
 
   return (
-    <div 
+    <div
       style={{
         position: 'fixed',
         top: 0,
@@ -603,7 +603,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       }}
       onClick={onClose}
     >
-      <div 
+      <div
         style={{
           background: 'white',
           borderRadius: '8px',
@@ -614,8 +614,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           display: 'flex',
           flexDirection: 'column',
           color: '#1f2937',
-          boxShadow: isPopover 
-            ? '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)' 
+          boxShadow: isPopover
+            ? '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)'
             : '0 20px 50px rgba(0,0,0,0.2)',
           ...(isPopover ? getPopoverStyle() : {})
         }}
@@ -677,7 +677,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         </div>
 
         {/* Content */}
-        <div 
+        <div
           className="modal-content-scroll"
           onClick={() => { setSupplierDropdownOpen(false); setStatusDropdownOpen(false); }}
         >
@@ -685,7 +685,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {currentStep === 1 && (
             <div>
               <h3 className="mt-0-mb-12">Tedarikçi Seçimi</h3>
-              
+
               {suppliersLoading ? (
                 <p>Tedarikçiler yükleniyor...</p>
               ) : filteredSuppliers && filteredSuppliers.length === 0 ? (
@@ -738,52 +738,52 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
 
                   <div className="grid-2-gap-12 mt-16">
                     {!deliveredRecordMode && (
-                    <div className="pos-relative-z20">
-                      <label className="order-form-label">
-                        Sipariş Durumu
-                      </label>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setStatusDropdownOpen(!statusDropdownOpen); setSupplierDropdownOpen(false); }}
-                        className="dropdown-trigger"
-                      >
-                        <span>{formData.orderStatus}</span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {statusDropdownOpen && (
-                        <div className="dropdown-menu">
-                          {['Taslak', 'Onay Bekliyor', 'Onaylandı'].map(status => (
-                            <div
-                              key={status}
-                              onClick={() => { setFormData(prev => ({ ...prev, orderStatus: status })); setStatusDropdownOpen(false); }}
-                              className={formData.orderStatus === status ? 'dropdown-item dropdown-item-selected' : 'dropdown-item'}
-                            >
-                              {status}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                      <div className="pos-relative-z20">
+                        <label className="order-form-label">
+                          Sipariş Durumu
+                        </label>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setStatusDropdownOpen(!statusDropdownOpen); setSupplierDropdownOpen(false); }}
+                          className="dropdown-trigger"
+                        >
+                          <span>{formData.orderStatus}</span>
+                          <ChevronDown size={14} />
+                        </button>
+                        {statusDropdownOpen && (
+                          <div className="dropdown-menu">
+                            {['Taslak', 'Onay Bekliyor', 'Onaylandı'].map(status => (
+                              <div
+                                key={status}
+                                onClick={() => { setFormData(prev => ({ ...prev, orderStatus: status })); setStatusDropdownOpen(false); }}
+                                className={formData.orderStatus === status ? 'dropdown-item dropdown-item-selected' : 'dropdown-item'}
+                              >
+                                {status}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {!deliveredRecordMode && (
-                    <div className="z-10">
-                      <label className="order-form-label">
-                        Beklenen Teslimat Tarihi
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.expectedDeliveryDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          fontSize: '13px'
-                        }}
-                      />
-                    </div>
+                      <div className="z-10">
+                        <label className="order-form-label">
+                          Beklenen Teslimat Tarihi
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.expectedDeliveryDate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '13px'
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -815,7 +815,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {currentStep === 2 && (
             <div>
               <h3 className="mt-0-mb-12">Sipariş Detayları</h3>
-              
+
               {/* Selected Materials */}
               <div>
                 <h4 className="mb-8">Seçilen Malzemeler</h4>
@@ -835,41 +835,41 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                             <div className="mes-badge info">
                               {material.lineId}
                             </div>
-                          <div className="font-medium text-md">
-                            {material.materialName}
+                            <div className="font-medium text-md">
+                              {material.materialName}
+                            </div>
+                            <div className="text-muted-xs">
+                              {material.materialCode}
+                            </div>
+                            <div className="text-muted-xs">
+                              Durum: {material.itemStatus}
+                            </div>
                           </div>
-                          <div className="text-muted-xs">
-                            {material.materialCode}
-                          </div>
-                          <div className="text-muted-xs">
-                            Durum: {material.itemStatus}
-                          </div>
-                        </div>
                           <div>
                             <label className="text-muted-sm">Miktar *</label>
                             <input
-                            type="number"
-                            min="1"
-                            value={material.quantity}
-                            onChange={(e) => updateMaterial(material.lineId, 'quantity', e.target.value)}
-                            autoFocus={index === 0} // First material gets auto focus
+                              type="number"
+                              min="1"
+                              value={material.quantity}
+                              onChange={(e) => updateMaterial(material.lineId, 'quantity', e.target.value)}
+                              autoFocus={index === 0} // First material gets auto focus
                               className="order-item-input"
                             />
                           </div>
                           <div>
                             <label className="text-muted-sm">Birim Fiyat</label>
                             <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={material.unitPrice}
-                            onChange={(e) => updateMaterial(material.lineId, 'unitPrice', e.target.value)}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={material.unitPrice}
+                              onChange={(e) => updateMaterial(material.lineId, 'unitPrice', e.target.value)}
                               className="order-item-input"
                             />
                           </div>
                           <button
-                          onClick={() => removeMaterial(material.lineId)}
-                          className="btn-remove-item"
+                            onClick={() => removeMaterial(material.lineId)}
+                            className="btn-remove-item"
                           >
                             ×
                           </button>
@@ -951,7 +951,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
           {currentStep === 3 && (
             <div>
               <h3 className="mt-0-mb-12">Sipariş Özeti</h3>
-              
+
               <div className="order-summary-card">
                 <div className="mb-16">
                   <h4 className="mb-8">Sipariş Bilgileri</h4>
@@ -984,7 +984,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       className="summary-item"
                     >
                       <div>
-                        <div className="mes-badge info" style="font-size: 11px">{material.lineId}</div>
+                        <div className="mes-badge info" style={{ fontSize: '11px' }}>{material.lineId}</div>
                         <div className="font-medium-13">{material.materialName}</div>
                         <div className="text-muted-sm">
                           {material.materialCode} • {(() => { const qty = parseFloat(material.quantity) || 0; return Number.isInteger(qty) ? qty : qty.toFixed(2).replace(/\.?0+$/, ''); })()} {material.unit || 'adet'} × {formatCurrency(material.unitPrice)}
@@ -1038,7 +1038,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             >
               İptal
             </button>
-            
+
             {currentStep < 3 ? (
               <button
                 onClick={() => setCurrentStep(prev => prev + 1)}
@@ -1048,16 +1048,16 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                 }
                 style={{
                   padding: '6px 16px',
-                  background: (currentStep === 1 && !formData.supplierId) || 
-                             (currentStep === 2 && selectedMaterials.length === 0)
+                  background: (currentStep === 1 && !formData.supplierId) ||
+                    (currentStep === 2 && selectedMaterials.length === 0)
                     ? '#e5e7eb' : '#3b82f6',
-                  color: (currentStep === 1 && !formData.supplierId) || 
-                         (currentStep === 2 && selectedMaterials.length === 0)
+                  color: (currentStep === 1 && !formData.supplierId) ||
+                    (currentStep === 2 && selectedMaterials.length === 0)
                     ? '#6b7280' : 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: (currentStep === 1 && !formData.supplierId) || 
-                           (currentStep === 2 && selectedMaterials.length === 0)
+                  cursor: (currentStep === 1 && !formData.supplierId) ||
+                    (currentStep === 2 && selectedMaterials.length === 0)
                     ? 'not-allowed' : 'pointer',
                   fontSize: '14px'
                 }}

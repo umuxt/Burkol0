@@ -202,15 +202,15 @@ export async function completeAssignment(assignmentId, workerId, data = {}) {
     ? Object.entries(inputScrapCounters)
       .filter(([_, v]) => parseInt(v) > 0)
       .map(([code, qty]) => `${code} × ${qty}`)
-      .join(', ') || '-'
-    : '-';
+      .join(', ') || '0'
+    : '0';
 
   const prodScrapStr = productionScrapCounters && Object.keys(productionScrapCounters).length > 0
     ? Object.entries(productionScrapCounters)
       .filter(([_, v]) => parseInt(v) > 0)
       .map(([code, qty]) => `${code} × ${qty}`)
-      .join(', ') || '-'
-    : '-';
+      .join(', ') || '0'
+    : '0';
 
   // Get pre-reserved amounts
   const preReserved = assignment.preProductionReservedAmount || {};
