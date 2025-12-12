@@ -4,6 +4,7 @@
  */
 
 import * as assignmentService from '../services/assignmentService.js';
+import { logWorkerActivity } from '../services/workerActivityLogService.js';
 
 /**
  * GET /api/mes/worker-assignments
@@ -15,9 +16,9 @@ export async function getWorkerAssignments(req, res) {
     res.json({ assignments });
   } catch (error) {
     console.error('❌ Error fetching assignments:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch assignments',
-      details: error.message 
+      details: error.message
     });
   }
 }
@@ -32,9 +33,9 @@ export async function getAssignmentsByWorkerId(req, res) {
     res.json({ assignments });
   } catch (error) {
     console.error('❌ Error fetching worker assignments:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch worker assignments',
-      details: error.message 
+      details: error.message
     });
   }
 }
@@ -46,11 +47,11 @@ export async function getLotPreview(req, res) {
   try {
     const { assignmentId } = req.params;
     const result = await assignmentService.getLotPreview(assignmentId);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('❌ [LOT-PREVIEW] Error:', error);
@@ -69,13 +70,23 @@ export async function startAssignment(req, res) {
   try {
     const { assignmentId } = req.params;
     const { workerId } = req.body;
-    
+
     const result = await assignmentService.startAssignment(assignmentId, workerId);
-    
+
     if (!result.success) {
       return res.status(400).json(result);
     }
-    
+
+    // Log task_start activity (P1.4.04)
+    logWorkerActivity({
+      workerId,
+      workerName: result.assignment?.workerName || null,
+      action: 'task_start',
+      entityType: 'assignment',
+      entityId: assignmentId,
+      ipAddress: req.ip
+    }).catch(() => { });
+
     res.json(result);
   } catch (error) {
     console.error('❌ [FIFO] Error starting task:', error);
@@ -94,7 +105,7 @@ export async function completeAssignment(req, res) {
   try {
     const { assignmentId } = req.params;
     const { workerId, quantityProduced, defectQuantity, inputScrapCounters, productionScrapCounters, notes } = req.body;
-    
+
     const result = await assignmentService.completeAssignment(assignmentId, workerId, {
       quantityProduced,
       defectQuantity,
@@ -102,11 +113,25 @@ export async function completeAssignment(req, res) {
       productionScrapCounters,
       notes
     });
-    
+
     if (!result.success) {
       return res.status(400).json(result);
     }
-    
+
+    // Log task_complete activity with production data (P1.4.04)
+    logWorkerActivity({
+      workerId,
+      workerName: result.assignment?.workerName || null,
+      action: 'task_complete',
+      entityType: 'assignment',
+      entityId: assignmentId,
+      quantityProduced: quantityProduced || 0,
+      defectQuantity: defectQuantity || 0,
+      scrapData: { inputScrapCounters, productionScrapCounters },
+      details: { notes },
+      ipAddress: req.ip
+    }).catch(() => { });
+
     res.json(result);
   } catch (error) {
     console.error('❌ [FIFO] Error completing task:', error);
@@ -125,14 +150,14 @@ export async function pauseAssignment(req, res) {
   try {
     const { assignmentId } = req.params;
     const { workerId } = req.body;
-    
+
     const result = await assignmentService.pauseAssignment(assignmentId, workerId);
-    
+
     if (!result.success) {
       const statusCode = result.error.includes('not found') ? 404 : 400;
       return res.status(statusCode).json(result);
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('❌ Error pausing task:', error);
@@ -151,14 +176,14 @@ export async function resumeAssignment(req, res) {
   try {
     const { assignmentId } = req.params;
     const { workerId } = req.body;
-    
+
     const result = await assignmentService.resumeAssignment(assignmentId, workerId);
-    
+
     if (!result.success) {
       const statusCode = result.error.includes('not found') ? 404 : 400;
       return res.status(statusCode).json(result);
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('❌ Error resuming task:', error);

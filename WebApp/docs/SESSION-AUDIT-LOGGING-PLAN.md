@@ -1976,8 +1976,13 @@ Service oluşturuldu: logWorkerActivity, getWorkerActivityHistory, getWorkerActi
 **Dosya:** `[MODIFY]` `assignmentController.js`
 
 **Başarı Kriterleri:**
-- [ ] task_start loglanıyor
-- [ ] task_complete (quantity dahil) loglanıyor
+- [x] task_start loglanıyor ✅
+- [x] task_complete (quantity dahil) loglanıyor ✅
+
+**Uygulama Notu (2025-12-12):**
+assignmentController.js'e logWorkerActivity çağrıları eklendi. task_start: workerId, assignmentId. task_complete: quantityProduced, defectQuantity, scrapData, notes dahil.
+
+**Ek:** assignmentService.js'de task_start ve task_complete console.log'ları `logOperation` tablo formatına dönüştürüldü.
 
 ---
 
