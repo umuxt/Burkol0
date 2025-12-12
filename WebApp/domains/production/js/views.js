@@ -610,7 +610,7 @@ export function generateWorkers() {
             </div>
           </div>
           
-          <div class="worker-detail-panel" id="worker-detail-panel" class="view-panel-side">
+          <div class="worker-detail-panel" id="worker-detail-panel" class="view-panel-side" style="display: none;">
             <div class="view-card-full">
               <div class="view-card-header">
                 <div class="view-flex-center-gap-12">
