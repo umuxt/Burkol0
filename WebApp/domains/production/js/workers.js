@@ -668,7 +668,7 @@ function generateWorkerDetailContent(worker) {
   // MAIN WORKER DETAIL FUNCTION
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s => s.trim()).filter(Boolean) : [])
 
-  return `
+  const html = `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
       <div class="section-card">
@@ -762,8 +762,16 @@ function generateWorkerDetailContent(worker) {
           <span class="detail-value">-</span>
         </div>
       </div>
+
+      <!-- Aktivite Logları -->
+      ${generateActivityLogsSection(worker.id)}
     </form>
-  `
+  `;
+
+  // Auto-load activity logs after render
+  setTimeout(() => initializeActivityLogs(worker.id), 100);
+
+  return html;
 }
 
 // Generate current task section for worker detail panel
@@ -834,7 +842,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
     statusBadge = '<span class="status-badge status-badge-success">✅ Çalışıyor</span>';
   }
 
-  return `
+  const html = `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
       <div class="section-card">
@@ -1132,8 +1140,16 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           <span class="detail-value">-</span>
         </div>
       </div>
+
+      <!-- Aktivite Logları -->
+      ${generateActivityLogsSection(worker.id)}
     </form>
-  `
+  `;
+
+  // Auto-load activity logs after render
+  setTimeout(() => initializeActivityLogs(worker.id), 100);
+
+  return html;
 }
 
 function hideStatusColumn() {
@@ -2752,5 +2768,149 @@ window.saveWorkerPinInline = async function (workerId) {
     savePinBtn.innerHTML = '<i class="fa-solid fa-check"></i> Kaydet';
   }
 };
+
+// =====================================================
+// ACTIVITY LOGS (P1.4.06)
+// =====================================================
+
+/**
+ * Generate Activity Logs section HTML
+ * Shows a button to load logs on demand (not auto-load)
+ */
+function generateActivityLogsSection(workerId) {
+  return `
+    <div class="section-card">
+      <div class="section-header-row">
+        <h3 class="section-title-plain">📋 Aktivite Logları</h3>
+        <button type="button" id="activity-refresh-btn-${workerId}" onclick="loadWorkerActivityLogs('${workerId}')" class="btn-outline-sm" style="display: none;">🔄 Yenile</button>
+      </div>
+      <div id="activity-logs-container-${workerId}" class="activity-log-button-container">
+        <button type="button" onclick="loadWorkerActivityLogs('${workerId}')" class="btn-outline-sm">
+          <i class="fa-solid fa-list"></i> Aktivite Loglarını Yükle
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Load activity logs for a worker
+ * Shows table format with mes-table styling
+ */
+window.loadWorkerActivityLogs = async function (workerId) {
+  const container = document.getElementById(`activity-logs-container-${workerId}`);
+  const refreshBtn = document.getElementById(`activity-refresh-btn-${workerId}`);
+  if (!container) return;
+
+  container.innerHTML = '<div class="activity-log-loading"><i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...</div>';
+
+  try {
+    const response = await fetch(`/api/mes/workers/${workerId}/activity-logs?limit=20`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error('Loglar yüklenemedi');
+    }
+
+    const data = await response.json();
+    const logs = data.logs || [];
+
+    // Show refresh button after first load
+    if (refreshBtn) {
+      refreshBtn.style.display = 'inline-flex';
+    }
+
+    if (logs.length === 0) {
+      container.innerHTML = '<div class="activity-log-empty"><i class="fa-solid fa-inbox"></i> Henüz aktivite kaydı yok</div>';
+      return;
+    }
+
+    // Render as table
+    container.innerHTML = renderActivityLogsTable(logs);
+
+  } catch (error) {
+    console.error('Error loading activity logs:', error);
+    container.innerHTML = '<div class="activity-log-empty" style="color: #dc2626;">❌ Loglar yüklenemedi</div>';
+    if (refreshBtn) refreshBtn.style.display = 'inline-flex';
+  }
+};
+
+/**
+ * Render activity logs as a table
+ */
+function renderActivityLogsTable(logs) {
+  const actionConfig = {
+    'login': { icon: '🔐', label: 'Giriş', cssClass: 'status-badge-success' },
+    'logout': { icon: '🚪', label: 'Çıkış', cssClass: 'status-badge-warning' },
+    'task_start': { icon: '▶️', label: 'Başlat', cssClass: 'status-badge-info' },
+    'task_complete': { icon: '✅', label: 'Tamamla', cssClass: 'status-badge-success' },
+    'task_pause': { icon: '⏸️', label: 'Duraklat', cssClass: 'status-badge-warning' },
+    'task_resume': { icon: '▶️', label: 'Devam', cssClass: 'status-badge-info' }
+  };
+
+  const rows = logs.map(log => {
+    const config = actionConfig[log.action] || { icon: '📝', label: log.action, cssClass: '' };
+
+    // Format time
+    const logDate = new Date(log.createdAt);
+    const timeStr = logDate.toLocaleString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Build details string
+    let detailsStr = '-';
+    if (log.entityType === 'assignment' && log.entityId) {
+      detailsStr = `#${log.entityId}`;
+    }
+
+    // Production info
+    let productionStr = '-';
+    if (log.quantityProduced > 0 || log.defectQuantity > 0) {
+      const parts = [];
+      if (log.quantityProduced > 0) parts.push(`${log.quantityProduced} ✓`);
+      if (log.defectQuantity > 0) parts.push(`${log.defectQuantity} ✗`);
+      productionStr = parts.join(' / ');
+    }
+
+    return `
+      <tr class="mes-table-row">
+        <td class="mes-table-cell" style="width: 100px;">
+          <span class="status-badge ${config.cssClass}" style="font-size: 11px;">${config.icon} ${config.label}</span>
+        </td>
+        <td class="mes-table-cell" style="text-align: center;">${detailsStr}</td>
+        <td class="mes-table-cell" style="text-align: center;">${productionStr}</td>
+        <td class="mes-table-cell" style="text-align: right; color: #6b7280; font-size: 11px;">${timeStr}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="max-height: 250px; overflow-y: auto;">
+      <table class="mes-table" style="width: 100%; font-size: 12px;">
+        <thead>
+          <tr>
+            <th class="mes-table-header" style="width: 100px;">Aksiyon</th>
+            <th class="mes-table-header" style="text-align: center;">Görev</th>
+            <th class="mes-table-header" style="text-align: center;">Üretim</th>
+            <th class="mes-table-header" style="text-align: right; width: 90px;">Zaman</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+/**
+ * Initialize activity logs section (no auto-load, just registers workerId)
+ */
+function initializeActivityLogs(workerId) {
+  // No auto-load - user clicks button to load
+  console.log(`📋 Activity logs section ready for worker ${workerId}`);
+}
 
 // No default export; named exports only
