@@ -4,6 +4,8 @@
  */
 
 import * as orderService from '../services/orderService.js';
+import { logAuditEvent } from '../../../../server/auditTrail.js';
+import { logOperation } from '../../../../server/utils/logger.js';
 
 export async function createOrder(req, res) {
   try {
@@ -15,6 +17,37 @@ export async function createOrder(req, res) {
 
     const createdBy = req.user?.email || 'system';
     const order = await orderService.createOrder(orderData, createdBy);
+
+    // P1.7: Audit log
+    const itemsSummary = (order.items || orderData.items || []).slice(0, 3).map(i =>
+      `${i.materialCode}: ${i.quantity} ${i.unit || 'adet'}`
+    ).join(', ');
+
+    logOperation({
+      type: 'success',
+      action: 'ORDER CREATE',
+      details: {
+        orderId: order.id,
+        orderCode: order.orderCode,
+        supplier: order.supplierName || order.supplierId,
+        itemsCount: order.items?.length || orderData.items?.length || 0,
+        items: itemsSummary || '-',
+        deliveryDate: orderData.estimatedDelivery || orderData.expectedDeliveryDate || '-'
+      },
+      audit: {
+        entityType: 'order',
+        entityId: order.id,
+        action: 'create',
+        changes: {
+          orderCode: order.orderCode,
+          totalAmount: order.totalAmount,
+          items: order.items || orderData.items
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
 
     res.status(201).json({
       message: 'Order created successfully',
@@ -148,6 +181,32 @@ export async function updateOrderItem(req, res) {
 
     const result = await orderService.updateOrderItem(orderId, itemId, updates);
 
+    // P1.7: Audit log (status değişikliği)
+    if (updates.status) {
+      logOperation({
+        type: 'success',
+        action: 'ORDER ITEM UPDATE',
+        details: {
+          orderId,
+          itemId,
+          newStatus: updates.status,
+          materialCode: result.item?.materialCode || '-'
+        },
+        audit: {
+          entityType: 'order',
+          entityId: orderId,
+          action: 'item_update',
+          changes: {
+            itemId,
+            status: updates.status
+          },
+          performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+          ipAddress: req.ip
+        },
+        auditFn: logAuditEvent
+      });
+    }
+
     res.json({
       message: 'Order item updated successfully',
       item: result.item,
@@ -173,6 +232,40 @@ export async function deliverItem(req, res) {
     const deliveredBy = req.user?.email || 'system';
 
     const result = await orderService.deliverItem(orderId, itemId, deliveryData, deliveredBy);
+
+    // P1.7: Audit log
+    const qty = deliveryData?.quantity || result.item?.quantity || result.stockUpdate?.quantity || '-';
+    const oldStock = result.stockUpdate?.oldStock ?? result.stockUpdate?.previousStock ?? '-';
+    const newStock = result.stockUpdate?.newStock ?? '-';
+    const stockChange = oldStock !== '-' && newStock !== '-' ? `${oldStock} → ${newStock}` : '-';
+
+    logOperation({
+      type: 'success',
+      action: 'ORDER DELIVER',
+      details: {
+        orderId,
+        itemId,
+        materialCode: result.item?.materialCode || '-',
+        quantity: qty,
+        stockChange,
+        lotNumber: result.lotNumber || 'N/A'
+      },
+      audit: {
+        entityType: 'order',
+        entityId: orderId,
+        action: 'deliver',
+        changes: {
+          itemId,
+          materialCode: result.item?.materialCode,
+          quantityDelivered: qty,
+          stockBefore: oldStock,
+          stockAfter: newStock
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
 
     res.json({
       message: 'Item delivered successfully',

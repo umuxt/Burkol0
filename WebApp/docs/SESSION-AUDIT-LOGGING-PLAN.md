@@ -2676,9 +2676,10 @@ logAuditEvent({
 - `/WebApp/domains/materials/api/controllers/stockController.js`
 
 **Başarı Kriterleri:**
-- [ ] order.create loglanıyor
-- [ ] order.deliver loglanıyor (stok girişi)
-- [ ] stock.update loglanıyor (manuel düzeltme)
+- [x] order.create loglanıyor (+ items özeti, tedarikçi, teslimat tarihi)
+- [x] order.deliver loglanıyor (stok girişi + stok değişimi oldStock → newStock)
+- [x] order.item_update loglanıyor (status değişikliği)
+- [x] stock.update loglanıyor (manuel düzeltme)
 
 ---
 
@@ -3043,5 +3044,25 @@ gerekir.
 - Material accounting hassas olmalı
 
 **Estimated Effort**: 3-4 gün
+
+---
+
+### F4: Order "Doğrudan Ekle" Teslim Edildi Bug
+
+**Problem:**
+Order'a "Doğrudan Ekle" ile eklenen ve "Onay Bekliyor" statüsünde olan bir siparişi doğrudan "Teslim Edildi" olarak işaretlemek istediğimizde hata alıyoruz:
+
+```
+Error: Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.
+```
+
+**Sebep:**
+`db/models/orders.js` line 181'de order-level teslim engellenmiş. Lot tracking için item-level gerekiyor.
+
+**Çözüm Önerisi:**
+1. "Doğrudan Ekle" akışında lot tracking disable ise order-level teslimi de izin ver
+2. Veya "Doğrudan Ekle" yaptığında otomatik item-level teslimat yapılsın
+
+**Estimated Effort**: 1-2 saat
 
 ---
