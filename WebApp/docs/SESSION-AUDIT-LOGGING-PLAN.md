@@ -2109,8 +2109,15 @@ logAuditEvent({
 - `/WebApp/domains/production/api/controllers/scrapController.js`
 
 **Başarı Kriterleri:**
-- [ ] scrap.record loglanıyor
-- [ ] scrap.remove loglanıyor
+- [x] scrap.record loglanıyor ✅ (13 Aralık 2025)
+- [x] scrap.remove loglanıyor ✅ (13 Aralık 2025)
+
+**İmplementasyon Notları (13 Aralık 2025):**
+- 3 tip hurda destekleniyor: `input` (hasarlı gelen), `production` (üretimde hasar), `output` (kusurlu çıktı)
+- `logOperation` ile console tablo formatında log + `logAuditEvent` ile DB'ye kayıt
+- `logWorkerActivity` ile işçi aktivite loglarına da ekleniyor (personel ekranında görünür)
+- Frontend-Backend senkronize: `scrapType` değerleri ve request formatı tutarlı
+- DB: `mes.worker_assignments` tablosuna `updatedAt` kolonu eklendi
 
 ---
 

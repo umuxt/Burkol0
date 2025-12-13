@@ -7,40 +7,50 @@ import db from '#db/connection';
 
 /**
  * Record scrap for a work package
+ * @param {string} workPackageId - Work package/assignment ID
+ * @param {object} scrapData - { scrapType, materialCode, quantity, reason? }
+ * @param {'input'|'production'|'output'} scrapData.scrapType - Scrap type:
+ *   - 'input': Material arrived defective (hasarlı gelen)
+ *   - 'production': Input material damaged during production (üretimde hasar)
+ *   - 'output': Output product defective (kusurlu çıktı)
  */
 export async function recordScrap(workPackageId, scrapData) {
   const { scrapType, materialCode, quantity, reason } = scrapData;
-  
+
   if (!scrapType || !materialCode || !quantity) {
     return { error: 'scrapType, materialCode, and quantity are required' };
   }
-  
+
+  // Field mapping:
+  // 'input' → inputScrapCount (hasarlı gelen malzeme)
+  // 'production'/'output' → productionScrapCount (üretimde hasar veya kusurlu çıktı)
+  const field = scrapType === 'input' ? 'inputScrapCount' : 'productionScrapCount';
+
   // Get assignment to verify it exists
   const assignment = await db('mes.worker_assignments')
     .where('id', workPackageId)
     .first();
-  
+
   if (!assignment) {
     return { error: 'Work package not found' };
   }
-  
+
   // Update scrap counters in assignment
-  const field = scrapType === 'input' ? 'inputScrapCount' : 'productionScrapCount';
-  const currentScrap = assignment[field] ? 
-    (typeof assignment[field] === 'string' ? JSON.parse(assignment[field]) : assignment[field]) 
+  const currentScrap = assignment[field] ?
+    (typeof assignment[field] === 'string' ? JSON.parse(assignment[field]) : assignment[field])
     : {};
-  
+
   currentScrap[materialCode] = (currentScrap[materialCode] || 0) + parseFloat(quantity);
-  
+
   await db('mes.worker_assignments')
     .where('id', workPackageId)
     .update({
       [field]: JSON.stringify(currentScrap),
       updatedAt: db.fn.now()
     });
-  
+
   console.log(`📊 Recorded ${scrapType} scrap: ${quantity} ${materialCode} for WP ${workPackageId}`);
-  
+
   return {
     success: true,
     workPackageId,
@@ -59,61 +69,65 @@ export async function getScrapRecords(workPackageId) {
     .where('id', workPackageId)
     .select('id', 'inputScrapCount', 'productionScrapCount')
     .first();
-  
+
   if (!assignment) {
     return { error: 'Work package not found' };
   }
-  
+
   const parseScrap = (val) => {
     if (!val) return {};
     return typeof val === 'string' ? JSON.parse(val) : val;
   };
-  
+
+  // Return with consistent naming (matches assignmentService, fifoScheduler, frontend)
   return {
     workPackageId,
-    inputScrap: parseScrap(assignment.inputScrapCount),
-    productionScrap: parseScrap(assignment.productionScrapCount)
+    inputScrapCounters: parseScrap(assignment.inputScrapCount),
+    productionScrapCounters: parseScrap(assignment.productionScrapCount)
   };
 }
 
 /**
  * Remove/adjust scrap record
+ * @param {string} scrapType - 'input' or 'output'
  */
 export async function removeScrap(workPackageId, scrapType, materialCode, quantity) {
   const assignment = await db('mes.worker_assignments')
     .where('id', workPackageId)
     .first();
-  
+
   if (!assignment) {
     return { error: 'Work package not found' };
   }
-  
+
+  // scrapType: 'input' -> inputScrapCount, 'output' -> productionScrapCount
   const field = scrapType === 'input' ? 'inputScrapCount' : 'productionScrapCount';
-  const currentScrap = assignment[field] ? 
-    (typeof assignment[field] === 'string' ? JSON.parse(assignment[field]) : assignment[field]) 
+
+  const currentScrap = assignment[field] ?
+    (typeof assignment[field] === 'string' ? JSON.parse(assignment[field]) : assignment[field])
     : {};
-  
+
   if (!currentScrap[materialCode]) {
     return { error: 'No scrap record found for this material' };
   }
-  
+
   const newQty = Math.max(0, currentScrap[materialCode] - parseFloat(quantity));
-  
+
   if (newQty === 0) {
     delete currentScrap[materialCode];
   } else {
     currentScrap[materialCode] = newQty;
   }
-  
+
   await db('mes.worker_assignments')
     .where('id', workPackageId)
     .update({
       [field]: Object.keys(currentScrap).length > 0 ? JSON.stringify(currentScrap) : null,
       updatedAt: db.fn.now()
     });
-  
+
   console.log(`🗑️ Removed ${scrapType} scrap: ${quantity} ${materialCode} from WP ${workPackageId}`);
-  
+
   return {
     success: true,
     workPackageId,
@@ -134,7 +148,7 @@ export async function validateOutputCode(code, excludePlanId = null) {
       error: 'Output code is required'
     };
   }
-  
+
   // Check format (alphanumeric with optional dashes)
   const formatValid = /^[A-Za-z0-9-]+$/.test(code);
   if (!formatValid) {
@@ -143,17 +157,17 @@ export async function validateOutputCode(code, excludePlanId = null) {
       error: 'Output code can only contain letters, numbers, and dashes'
     };
   }
-  
+
   // Check uniqueness in nodes (excluding specified plan)
   let query = db('mes.production_plan_nodes')
     .where('outputCode', code);
-  
+
   if (excludePlanId) {
     query = query.whereNot('planId', excludePlanId);
   }
-  
+
   const existing = await query.first();
-  
+
   if (existing) {
     return {
       valid: false,
@@ -161,12 +175,12 @@ export async function validateOutputCode(code, excludePlanId = null) {
       conflictingPlanId: existing.planId
     };
   }
-  
+
   // Check if it matches a material code
   const material = await db('materials.materials')
     .where('code', code)
     .first();
-  
+
   return {
     valid: true,
     code,
@@ -185,35 +199,35 @@ export async function getExistingOutputCodes(planId = null, prefix = null) {
     .whereNotNull('outputCode')
     .select('outputCode', 'planId', 'name as nodeName')
     .distinct('outputCode');
-  
+
   if (planId) {
     query = query.where('planId', planId);
   }
-  
+
   // Filter by prefix if provided (e.g., "Cu" shows only codes starting with "Cu")
   if (prefix) {
     query = query.where('outputCode', 'like', `${prefix}%`);
   }
-  
+
   const nodes = await query;
-  
+
   // Get material info for each code (include id and unit)
   const codes = nodes.map(n => n.outputCode);
-  
+
   // If no codes found, return empty array
   if (codes.length === 0) {
     return { outputCodes: [] };
   }
-  
+
   const materials = await db('materials.materials')
     .whereIn('code', codes)
     .select('id', 'code', 'name', 'unit');
-  
+
   const materialMap = materials.reduce((acc, m) => {
     acc[m.code] = { id: m.id, name: m.name, unit: m.unit };
     return acc;
   }, {});
-  
+
   return {
     outputCodes: nodes.map(n => ({
       code: n.outputCode,

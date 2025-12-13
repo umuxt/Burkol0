@@ -1389,14 +1389,14 @@ function showScrapTypeSelector(materialCode) {
           <p style="margin-bottom: 16px;">Malzeme: <strong id="selectedMaterialCode"></strong></p>
           <div class="scrap-type-buttons">
             <button class="scrap-type-btn" 
-                    data-type="input_damaged"
-                    onclick="incrementScrapWithType('input_damaged')">
+                    data-type="input"
+                    onclick="incrementScrapWithType('input')">
               <span style="font-size: 16px; font-weight: 600;">📦 Hasarlı Gelen</span>
               <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Malzeme hasarlı geldi</small>
             </button>
             <button class="scrap-type-btn" 
-                    data-type="production_scrap"
-                    onclick="incrementScrapWithType('production_scrap')">
+                    data-type="production"
+                    onclick="incrementScrapWithType('production')">
               <span style="font-size: 16px; font-weight: 600;">🔧 Üretimde Hurda</span>
               <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Üretim sırasında hasar gördü</small>
             </button>
@@ -1434,14 +1434,13 @@ async function incrementScrap(materialCode, scrapType, quantity) {
 
   try {
     // Optimistic UI update
-    if (scrapType === 'input_damaged') {
+    if (scrapType === 'input') {
       scrapCounters.inputScrapCounters[materialCode] =
         (scrapCounters.inputScrapCounters[materialCode] || 0) + quantity;
-    } else if (scrapType === 'production_scrap') {
+    } else {
+      // 'output' type goes to productionScrapCounters
       scrapCounters.productionScrapCounters[materialCode] =
         (scrapCounters.productionScrapCounters[materialCode] || 0) + quantity;
-    } else if (scrapType === 'output_scrap') {
-      scrapCounters.defectQuantity += quantity;
     }
 
     updateCounterDisplay();
@@ -1452,10 +1451,9 @@ async function incrementScrap(materialCode, scrapType, quantity) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         scrapType,
-        entry: {
-          materialCode,
-          quantity
-        }
+        materialCode,
+        quantity,
+        workerId: state.currentWorker?.id
       })
     });
 
@@ -1469,12 +1467,10 @@ async function incrementScrap(materialCode, scrapType, quantity) {
   } catch (error) {
     console.error('Failed to increment scrap:', error);
     // Revert optimistic update
-    if (scrapType === 'input_damaged') {
+    if (scrapType === 'input') {
       scrapCounters.inputScrapCounters[materialCode] -= quantity;
-    } else if (scrapType === 'production_scrap') {
+    } else {
       scrapCounters.productionScrapCounters[materialCode] -= quantity;
-    } else if (scrapType === 'output_scrap') {
-      scrapCounters.defectQuantity -= quantity;
     }
     updateCounterDisplay();
     showToast('Fire sayacı güncellenemedi: ' + error.message, 'error');
@@ -1530,12 +1526,12 @@ function populateMaterialButtons() {
     outputGrid.innerHTML = `
       <button class="material-btn material-btn-output" 
               data-material-code="${outputCode}" 
-              onclick="incrementScrap('${outputCode}', 'output_scrap', 1)">
+              onclick="incrementScrap('${outputCode}', 'output', 1)">
         <div class="material-info">
           <span class="material-code">${outputCode}</span>
         </div>
-        <div class="counter-badge counter-badge-output ${scrapCounters.defectQuantity > 0 ? 'has-count' : ''}" 
-             id="counter-output-${outputCode}">${scrapCounters.defectQuantity}</div>
+        <div class="counter-badge counter-badge-output ${(scrapCounters.productionScrapCounters[outputCode] || 0) > 0 ? 'has-count' : ''}" 
+             id="counter-output-${outputCode}">${scrapCounters.productionScrapCounters[outputCode] || 0}</div>
       </button>
     `;
   } else {
@@ -1573,8 +1569,9 @@ function updateCounterDisplay() {
   if (outputCode) {
     const outputBadgeEl = document.getElementById(`counter-output-${outputCode}`);
     if (outputBadgeEl) {
-      outputBadgeEl.textContent = scrapCounters.defectQuantity;
-      outputBadgeEl.classList.toggle('has-count', scrapCounters.defectQuantity > 0);
+      const outputCount = scrapCounters.productionScrapCounters[outputCode] || 0;
+      outputBadgeEl.textContent = outputCount;
+      outputBadgeEl.classList.toggle('has-count', outputCount > 0);
     }
   }
 
@@ -1595,7 +1592,7 @@ function updateTotalsSummary() {
       entries.push(`
         <div class="total-item">
           <span class="badge badge-red">Hasarlı Gelen</span> ${code}: ${qty}
-          <button class="decrement-btn" onclick="decrementScrap('${code}', 'input_damaged', 1)" title="1 azalt">
+          <button class="decrement-btn" onclick="decrementScrap('${code}', 'input', 1)" title="1 azalt">
             −
           </button>
         </div>
@@ -1603,31 +1600,27 @@ function updateTotalsSummary() {
     }
   });
 
-  // Production scrap
+  // Production scrap - distinguish between input materials damaged and output defects
+  const outputCode = currentFireAssignment?.outputCode;
   Object.entries(scrapCounters.productionScrapCounters).forEach(([code, qty]) => {
     if (qty > 0) {
+      // Check if this is the output material or an input material
+      const isOutputDefect = code === outputCode;
+      const badge = isOutputDefect
+        ? '<span class="badge badge-yellow">Kusurlu Çıktı</span>'
+        : '<span class="badge badge-orange">Üretimde Hurda</span>';
+      const scrapType = isOutputDefect ? 'output' : 'production';
+
       entries.push(`
         <div class="total-item">
-          <span class="badge badge-orange">Üretimde Hurda</span> ${code}: ${qty}
-          <button class="decrement-btn" onclick="decrementScrap('${code}', 'production_scrap', 1)" title="1 azalt">
+          ${badge} ${code}: ${qty}
+          <button class="decrement-btn" onclick="decrementScrap('${code}', '${scrapType}', 1)" title="1 azalt">
             −
           </button>
         </div>
       `);
     }
   });
-
-  // Output defects
-  if (scrapCounters.defectQuantity > 0) {
-    entries.push(`
-      <div class="total-item">
-        <span class="badge badge-yellow">Çıktı Fire</span> ${currentFireAssignment.outputCode}: ${scrapCounters.defectQuantity}
-        <button class="decrement-btn" onclick="decrementScrap('${currentFireAssignment.outputCode}', 'output_scrap', 1)" title="1 azalt">
-          −
-        </button>
-      </div>
-    `);
-  }
 
   summaryEl.innerHTML = entries.length > 0
     ? entries.join('')
@@ -1640,12 +1633,10 @@ async function decrementScrap(materialCode, scrapType, quantity) {
 
   // Check if counter has value to decrement
   let currentValue = 0;
-  if (scrapType === 'input_damaged') {
+  if (scrapType === 'input') {
     currentValue = scrapCounters.inputScrapCounters[materialCode] || 0;
-  } else if (scrapType === 'production_scrap') {
+  } else {
     currentValue = scrapCounters.productionScrapCounters[materialCode] || 0;
-  } else if (scrapType === 'output_scrap') {
-    currentValue = scrapCounters.defectQuantity || 0;
   }
 
   if (currentValue <= 0) {
@@ -1655,21 +1646,18 @@ async function decrementScrap(materialCode, scrapType, quantity) {
 
   try {
     // Optimistic UI update
-    if (scrapType === 'input_damaged') {
+    if (scrapType === 'input') {
       scrapCounters.inputScrapCounters[materialCode] = Math.max(0, currentValue - quantity);
-    } else if (scrapType === 'production_scrap') {
+    } else {
       scrapCounters.productionScrapCounters[materialCode] = Math.max(0, currentValue - quantity);
-    } else if (scrapType === 'output_scrap') {
-      scrapCounters.defectQuantity = Math.max(0, currentValue - quantity);
     }
 
     updateCounterDisplay();
 
-    // Sync to backend (atomic decrement)
-    const response = await fetch(
-      `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${encodeURIComponent(materialCode)}/${quantity}`,
-      { method: 'DELETE' }
-    );
+    // Sync to backend (atomic decrement) - include workerId for activity logging
+    const workerId = state.currentWorker?.id;
+    const url = `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${encodeURIComponent(materialCode)}/${quantity}${workerId ? `?workerId=${workerId}` : ''}`;
+    const response = await fetch(url, { method: 'DELETE' });
 
     if (!response.ok) {
       throw new Error('Failed to decrement counter');
@@ -1681,12 +1669,10 @@ async function decrementScrap(materialCode, scrapType, quantity) {
   } catch (error) {
     console.error('Failed to decrement scrap:', error);
     // Revert optimistic update
-    if (scrapType === 'input_damaged') {
+    if (scrapType === 'input') {
       scrapCounters.inputScrapCounters[materialCode] = currentValue;
-    } else if (scrapType === 'production_scrap') {
+    } else {
       scrapCounters.productionScrapCounters[materialCode] = currentValue;
-    } else if (scrapType === 'output_scrap') {
-      scrapCounters.defectQuantity = currentValue;
     }
     updateCounterDisplay();
     showToast('Fire sayacı azaltılamadı: ' + error.message, 'error');

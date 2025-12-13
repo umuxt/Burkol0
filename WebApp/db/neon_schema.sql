@@ -2533,7 +2533,8 @@ CREATE TABLE mes.worker_assignments (
     "actualQuantity" numeric,
     "defectQuantity" numeric DEFAULT 0,
     "plannedOutput" jsonb,
-    notes text
+    notes text,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 
