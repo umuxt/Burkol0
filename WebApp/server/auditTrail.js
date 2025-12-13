@@ -38,6 +38,7 @@ export async function logAuditEvent(options) {
       changes: JSON.stringify(changes),
       userId: performer.userName || performer.email || 'system',
       userEmail: performer.email || null,
+      sessionId: performer.sessionId || null, // P1.7: Link to session
       createdAt: new Date(),
       ipAddress
     });
@@ -102,6 +103,7 @@ export async function auditSessionActivity(req, activity = {}) {
         }),
         userId: performer.userName || performer.email,
         userEmail: performer.email,
+        sessionId: sessionId, // P1.7: Link to session
         createdAt: new Date(),
         ipAddress: req?.ip || null
       }

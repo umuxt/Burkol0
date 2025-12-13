@@ -301,6 +301,108 @@ export function setupAuthRoutes(app) {
     }
   })
 
+  // Admin: Get audit logs (optionally filtered by sessionId)
+  app.get('/api/admin/audit-logs', async (req, res) => {
+    const authHeader = req.headers.authorization
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+    if (!token && process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'No token provided' })
+    }
+
+    try {
+      // Import db connection
+      const { default: db } = await import('../db/connection.js')
+
+      // P1.7: Support sessionId filtering for lazy loading
+      const { sessionId } = req.query
+
+      let query = db('settings.audit_logs')
+        .select('*')
+        .orderBy('createdAt', 'desc')
+
+      if (sessionId) {
+        // Fetch only logs for specific session
+        query = query.where('sessionId', sessionId)
+        console.log(`📋 Fetching audit logs for session: ${sessionId}`)
+      } else {
+        // Limit when fetching all logs
+        query = query.limit(500)
+      }
+
+      const logs = await query
+
+      // Transform for frontend display
+      const formattedLogs = logs.map(log => ({
+        id: log.id,
+        entityType: log.entityType,
+        action: log.action,
+        entityId: log.entityId,
+        changes: log.changes,
+        userId: log.userId,
+        userEmail: log.userEmail,
+        sessionId: log.sessionId,
+        ipAddress: log.ipAddress,
+        createdAt: log.createdAt,
+        // Create display title
+        title: formatAuditTitle(log.entityType, log.action, log.changes),
+        description: formatAuditDescription(log.entityType, log.action, log.changes)
+      }))
+
+      res.json({ logs: formattedLogs, count: formattedLogs.length })
+    } catch (error) {
+      console.error('❌ Error loading audit logs:', error)
+      res.status(500).json({ error: 'Failed to load audit logs', details: error.message })
+    }
+  })
+
+  // Helper function to format audit title
+  function formatAuditTitle(entityType, action, changes) {
+    const entityLabels = {
+      order: 'Sipariş',
+      stock: 'Stok',
+      shipment: 'Sevkiyat',
+      session: 'Oturum',
+      user: 'Kullanıcı',
+      quote: 'Teklif',
+      customer: 'Müşteri'
+    }
+    const actionLabels = {
+      create: 'oluşturuldu',
+      update: 'güncellendi',
+      delete: 'silindi',
+      deliver: 'teslimat yapıldı',
+      item_update: 'kalem güncellendi',
+      export: 'dışa aktarıldı',
+      import: 'içe aktarıldı',
+      reverse: 'ters çevrildi',
+      login: 'giriş yapıldı',
+      logout: 'çıkış yapıldı'
+    }
+
+    const entity = entityLabels[entityType] || entityType
+    const act = actionLabels[action] || action
+    const code = changes?.orderCode || changes?.shipmentCode || changes?.materialCode || ''
+
+    return `${entity} ${act}${code ? ` (${code})` : ''}`
+  }
+
+  // Helper function to format audit description
+  function formatAuditDescription(entityType, action, changes) {
+    if (!changes) return ''
+
+    const parts = []
+    if (changes.orderCode) parts.push(`Sipariş: ${changes.orderCode}`)
+    if (changes.shipmentCode) parts.push(`Sevkiyat: ${changes.shipmentCode}`)
+    if (changes.materialCode) parts.push(`Malzeme: ${changes.materialCode}`)
+    if (changes.quantity) parts.push(`Miktar: ${changes.quantity}`)
+    if (changes.stockBefore !== undefined && changes.stockAfter !== undefined) {
+      parts.push(`Stok: ${changes.stockBefore} → ${changes.stockAfter}`)
+    }
+    if (changes.totalAmount) parts.push(`Tutar: ${changes.totalAmount}`)
+
+    return parts.join(' • ')
+  }
   // Admin: Delete session by ID
   app.delete('/api/admin/sessions/:sessionId', async (req, res) => {
     const authHeader = req.headers.authorization

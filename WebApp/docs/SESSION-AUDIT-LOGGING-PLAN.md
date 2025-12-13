@@ -2683,6 +2683,53 @@ logAuditEvent({
 
 ---
 
+## 📋 AUDIT LOGGING COVERAGE ANALİZİ
+
+### ✅ Audit Logging OLAN Dosyalar (8):
+
+| Dosya | Loglanan Aksiyonlar |
+|-------|---------------------|
+| `orderController.js` | create, deliver, item_update |
+| `shipmentController.js` | export, import, reverse |
+| `stockController.js` | update (manuel düzeltme) |
+| `quoteController.js` | create, update, approve |
+| `productionPlanController.js` | launch, cancel |
+| `scrapController.js` | create (fire kaydı) |
+| `authRoutes.js` | login, logout, user-management |
+| `assignmentService.js` | assignment updates |
+
+### 🔴 EKLENMESİ GEREKLİ (Kritik):
+
+| Controller | Eksik Aksiyonlar | Öncelik |
+|------------|------------------|---------|
+| `customerController.js` | create, update, delete | 🔴 Yüksek |
+| `quoteInvoiceController.js` | create, update, approve | 🔴 Yüksek |
+| `materialController.js` | create, update, delete | 🔴 Yüksek |
+| `supplierController.js` | create, update, delete | 🟡 Orta |
+| `serviceCardsController.js` | create, update, complete | 🟡 Orta |
+| `priceController.js` | update (fiyat değişikliği) | 🟡 Orta |
+
+### 🟢 EKLENMESİ GEREKSİZ (Master Data/Lookup):
+
+`categoryController`, `lookupController`, `alertController`, `analyticsController`, 
+`holidayController`, `masterDataController`, `nodeController`, `operationController`, 
+`skillController`, `streamController`, `substationController`, `templateController`, 
+`entityRelationController`, `approvedQuoteController`, `formController`
+
+### Öncelik Sırası:
+
+**Faz 1 - Kritik (~1 saat):**
+- P1.8: `customerController.js` - Müşteri CRUD
+- P1.9: `quoteInvoiceController.js` - e-Fatura işlemleri
+- P1.10: `materialController.js` - Malzeme CRUD
+
+**Faz 2 - Orta (~45 dk):**
+- P1.11: `supplierController.js` - Tedarikçi CRUD
+- P1.12: `serviceCardsController.js` - Servis kartları
+- P1.13: `priceController.js` - Fiyat değişiklikleri
+
+---
+
 ## 📊 FİNAL ÖZET (GÜNCELLENDİ v2.2)
 
 | FAZ | Konu | Prompt Sayısı | Tahmini Süre |

@@ -16,6 +16,7 @@ export default function UsersTab({ t, isEmbedded = false }) {
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [selectedSession, setSelectedSession] = useState(null)
+  const [auditLogs, setAuditLogs] = useState([]) // P1.7: All audit logs
 
   // Admin erişim kontrolü için
   const [showAccessModal, setShowAccessModal] = useState(false)
@@ -113,6 +114,9 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
       console.log('Processed sessions:', latestSessions)
       setSessions(latestSessions)
+
+      // P1.7: Removed - audit logs now loaded lazily when session details opened
+
       return latestSessions
     } catch (e) {
       console.error('Sessions load error:', e)
@@ -121,6 +125,38 @@ export default function UsersTab({ t, isEmbedded = false }) {
       return []
     } finally {
       if (!silent) setSessionsLoading(false)
+    }
+  }
+
+  // P1.7: Load audit logs from DB (optionally filtered by sessionId)
+  async function loadAuditLogs(sessionId = null) {
+    try {
+      const token = localStorage.getItem('token')
+      const url = sessionId
+        ? `/api/admin/audit-logs?sessionId=${encodeURIComponent(sessionId)}`
+        : '/api/admin/audit-logs'
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        console.warn('Failed to load audit logs:', response.status)
+        return []
+      }
+
+      const data = await response.json()
+      if (data.logs && Array.isArray(data.logs)) {
+        console.log(`📋 Loaded ${data.count || data.logs.length} audit logs${sessionId ? ' for session ' + sessionId : ''}`)
+        setAuditLogs(data.logs)
+        return data.logs
+      }
+      return []
+    } catch (e) {
+      console.error('Audit logs load error:', e)
+      return []
     }
   }
 
@@ -308,6 +344,14 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
   function openSessionDetails(session) {
     setSelectedSession(session)
+    setAuditLogs([]) // Clear previous logs
+
+    // P1.7: Load audit logs for this specific session (lazy loading)
+    if (session.sessionId) {
+      loadAuditLogs(session.sessionId)
+    }
+
+    // Also refresh session data
     loadSessions({ silent: true }).then(latestSessions => {
       const freshSession = Array.isArray(latestSessions)
         ? latestSessions.find(s => s.sessionId === session.sessionId)
@@ -322,6 +366,7 @@ export default function UsersTab({ t, isEmbedded = false }) {
 
   function closeSessionDetails() {
     setSelectedSession(null)
+    setAuditLogs([]) // Clear logs when closing
   }
 
   const isLogView = activeView === 'sessions'
@@ -696,47 +741,103 @@ export default function UsersTab({ t, isEmbedded = false }) {
               React.createElement('div', { style: { fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' } }, selectedSession.token)
             )
           ),
+          // P1.7: Sistem Aktiviteleri - Merge session activities with audit logs
           React.createElement('div', {
             style: {
               backgroundColor: '#f8f9fa',
               borderRadius: '6px',
               padding: '16px',
-              border: '1px solid #e0e0e0'
+              border: '1px solid #e0e0e0',
+              maxHeight: '400px',
+              overflowY: 'auto'
             }
           },
-            React.createElement('div', { style: { marginBottom: '12px', fontWeight: 'bold' } }, t.sessions_activity_title || 'Sistem Aktiviteleri'),
-            sessionActivities && sessionActivities.length > 0
-              ? React.createElement('ul', { style: { paddingLeft: '18px', margin: 0 } },
-                sessionActivities.map((activity, idx) => {
-                  const performerLabel = activity?.performedBy?.email || activity?.performedBy?.userName || null
-                  const metadataSummary = formatActivityMetadata(activity?.metadata || {}).slice(0, 3)
-                  return React.createElement('li', { key: idx, style: { marginBottom: '8px' } },
-                    React.createElement('div', { style: { fontWeight: 'bold' } }, activity.title || activity.type || t.sessions_activity_unknown || 'Aktivite'),
-                    activity.timestamp && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, formatDateTime(activity.timestamp)),
-                    performerLabel && React.createElement('div', { style: { fontSize: '12px', color: '#666' } }, performerLabel),
-                    activity.description && React.createElement('div', { style: { marginTop: '4px', color: '#444' } }, activity.description),
-                    metadataSummary.length > 0 && React.createElement('div', { style: { marginTop: '4px', color: '#555', fontSize: '12px' } }, metadataSummary.join(' • '))
+            React.createElement('div', { style: { marginBottom: '12px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+              React.createElement('span', null, t.sessions_activity_title || 'Sistem Aktiviteleri'),
+              React.createElement('span', { style: { fontSize: '11px', color: '#888', fontWeight: 'normal' } },
+                `${(sessionActivities?.length || 0) + auditLogs.length} kayıt`
+              )
+            ),
+            // Combined list: session activities + audit logs (already filtered by sessionId from backend)
+            (() => {
+              // P1.7: auditLogs already filtered by sessionId from backend
+              const sessionAuditLogs = auditLogs.map(log => ({
+                ...log,
+                timestamp: log.createdAt,
+                _source: 'audit'
+              }))
+
+              // Merge with session activities
+              const allActivities = [
+                ...(sessionActivities || []).map(a => ({ ...a, _source: 'session' })),
+                ...sessionAuditLogs
+              ].sort((a, b) => {
+                const aTime = new Date(a.timestamp || a.createdAt || 0).getTime()
+                const bTime = new Date(b.timestamp || b.createdAt || 0).getTime()
+                return bTime - aTime
+              })
+
+              if (allActivities.length === 0) {
+                return React.createElement('div', {
+                  style: {
+                    color: '#666',
+                    fontSize: '14px',
+                    textAlign: 'center',
+                    padding: '20px',
+                    backgroundColor: '#f9f9f9',
+                    borderRadius: '6px'
+                  }
+                },
+                  React.createElement('p', { style: { marginBottom: '8px', margin: '0 0 8px 0' } },
+                    '📋 Bu oturum için henüz aktivite kaydı yok.'
+                  ),
+                  React.createElement('p', { style: { fontSize: '12px', color: '#888', margin: 0 } },
+                    `Giriş: ${formatDateTime(selectedSession.loginTime)}`,
+                    selectedSession.logoutTime ? ` | Çıkış: ${formatDateTime(selectedSession.logoutTime)}` : ' | 🟢 Aktif oturum'
+                  )
+                )
+              }
+
+              return React.createElement('ul', { style: { paddingLeft: '18px', margin: 0 } },
+                allActivities.slice(0, 50).map((activity, idx) => {
+                  const isAuditLog = activity._source === 'audit'
+                  const performerLabel = activity?.performedBy?.email || activity?.performedBy?.userName || activity?.userEmail || null
+                  const metadataSummary = isAuditLog
+                    ? activity.description
+                    : formatActivityMetadata(activity?.metadata || {}).slice(0, 3).join(' • ')
+
+                  // Color coding by entity type
+                  const entityColors = {
+                    order: '#3b82f6',
+                    shipment: '#10b981',
+                    stock: '#f59e0b',
+                    session: '#8b5cf6',
+                    customer: '#ec4899',
+                    quote: '#06b6d4'
+                  }
+                  const borderColor = isAuditLog ? (entityColors[activity.entityType] || '#9ca3af') : '#e0e0e0'
+
+                  return React.createElement('li', {
+                    key: `${activity._source}-${idx}`,
+                    style: {
+                      marginBottom: '10px',
+                      borderLeft: `3px solid ${borderColor}`,
+                      paddingLeft: '10px',
+                      listStyle: 'none'
+                    }
+                  },
+                    React.createElement('div', { style: { fontWeight: 'bold', fontSize: '13px' } },
+                      activity.title || activity.type || t.sessions_activity_unknown || 'Aktivite'
+                    ),
+                    React.createElement('div', { style: { fontSize: '11px', color: '#666' } },
+                      formatDateTime(activity.timestamp || activity.createdAt)
+                    ),
+                    performerLabel && React.createElement('div', { style: { fontSize: '11px', color: '#888' } }, performerLabel),
+                    metadataSummary && React.createElement('div', { style: { marginTop: '2px', color: '#555', fontSize: '11px' } }, metadataSummary)
                   )
                 })
               )
-              : React.createElement('div', {
-                style: {
-                  color: '#666',
-                  fontSize: '14px',
-                  textAlign: 'center',
-                  padding: '20px',
-                  backgroundColor: '#f9f9f9',
-                  borderRadius: '6px'
-                }
-              },
-                React.createElement('p', { style: { marginBottom: '8px', margin: '0 0 8px 0' } },
-                  '📋 Bu oturum için henüz aktivite kaydı yok.'
-                ),
-                React.createElement('p', { style: { fontSize: '12px', color: '#888', margin: 0 } },
-                  `Giriş: ${formatDateTime(selectedSession.loginTime)}`,
-                  selectedSession.logoutTime ? ` | Çıkış: ${formatDateTime(selectedSession.logoutTime)}` : ' | 🟢 Aktif oturum'
-                )
-              )
+            })()
           )
         )
       ),
