@@ -8,6 +8,7 @@ import db from '../../../../db/connection.js';
 import QuoteItems from '../../../../db/models/quoteItems.js';
 import QuoteDocuments from '../../../../db/models/quoteDocuments.js';
 import PDFDocument from 'pdfkit';
+import { uploadFileToStorage } from '../../../../server/storage.js';
 
 const QuoteInvoiceService = {
 
@@ -252,9 +253,31 @@ const QuoteInvoiceService = {
             };
 
             // Add file if provided
+            let invoiceImportedFileUrl = null;
             if (file && fileName) {
-                updateData.invoiceImportedFile = file;
-                updateData.invoiceImportedFileName = fileName;
+                try {
+                    // Upload to R2/Local
+                    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+                    const mimeTypes = {
+                        'pdf': 'application/pdf',
+                        'xml': 'application/xml',
+                        'csv': 'text/csv'
+                    };
+                    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+                    const safeFileName = `INVOICE_${quote.id}_${invoiceEttn}_${Date.now()}.${ext}`;
+
+                    const uploadResult = await uploadFileToStorage(file, safeFileName, mimeType);
+                    invoiceImportedFileUrl = uploadResult.url;
+
+                    updateData.invoiceImportedFileUrl = invoiceImportedFileUrl;
+                    updateData.invoiceImportedFileName = fileName;
+                    // updateData.invoiceImportedFile = file; // Deprecated: Don't store blob
+                } catch (uploadError) {
+                    console.error('File upload failed during ETTN import:', uploadError);
+                    // Fail safely or throw? Let's throw to ensure file is saved
+                    throw new Error('Dosya yükleme başarısız: ' + uploadError.message);
+                }
             }
 
             // Update quote
@@ -265,7 +288,7 @@ const QuoteInvoiceService = {
 
             await trx.commit();
 
-            // Create document record in quote_documents table (with file)
+            // Create document record in quote_documents table (with file URL)
             const documentData = {
                 documentNumber: invoiceNumber,
                 ettn: invoiceEttn,
@@ -275,12 +298,15 @@ const QuoteInvoiceService = {
                 notes: `Import: Fatura No: ${invoiceNumber}, ETTN: ${invoiceEttn}`
             };
 
-            if (file && fileName) {
-                documentData.fileData = file;
+            if (invoiceImportedFileUrl) {
+                documentData.fileUrl = invoiceImportedFileUrl;
                 documentData.fileName = fileName;
                 documentData.mimeType = 'application/xml';
             }
 
+            // const document = await QuoteDocuments.createDocument(quoteId, 'import', documentData);
+            // Use specialized method if needed, or update createDocument to handle fileUrl
+            // Assuming createDocument handles flexible data object:
             const document = await QuoteDocuments.createDocument(quoteId, 'import', documentData);
 
             return {

@@ -363,6 +363,10 @@ export async function downloadDocumentFile(req, res) {
         const { docId } = req.params;
         const fileData = await quoteInvoiceService.default.getDocumentFile(parseInt(docId, 10));
 
+        if (fileData.url) {
+            return res.redirect(fileData.url);
+        }
+
         res.setHeader('Content-Type', fileData.mimeType);
         res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
         res.send(fileData.data);

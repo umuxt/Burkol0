@@ -48,7 +48,9 @@ const QuoteDocuments = {
             invoiceType: data.invoiceType || null,
             exportFormat: data.exportFormat || null,
             exportTarget: data.exportTarget || null,
+            exportTarget: data.exportTarget || null,
             fileData: data.fileData || null,
+            fileUrl: data.fileUrl || null,
             fileName: data.fileName || null,
             mimeType: data.mimeType || null,
             createdBy: data.createdBy || null,
@@ -90,7 +92,7 @@ const QuoteDocuments = {
             return documents.map(doc => ({
                 ...doc,
                 fileData: doc.fileData ? '[BINARY DATA]' : null,
-                hasFile: !!doc.fileData
+                hasFile: !!doc.fileData || !!doc.fileUrl
             }));
         } catch (error) {
             console.error('Error getting documents by quoteId:', error);
@@ -111,7 +113,7 @@ const QuoteDocuments = {
                 : [
                     'id', 'quoteId', 'documentType', 'documentNumber', 'ettn',
                     'invoiceScenario', 'invoiceType', 'exportFormat', 'exportTarget',
-                    'fileName', 'mimeType', 'createdAt', 'createdBy', 'notes'
+                    'fileName', 'fileUrl', 'mimeType', 'createdAt', 'createdBy', 'notes'
                 ];
 
             const document = await db('quotes.quote_documents')
@@ -126,7 +128,7 @@ const QuoteDocuments = {
             // Add hasFile indicator if fileData not included
             if (!includeFileData) {
                 const [fileCheck] = await db('quotes.quote_documents')
-                    .select(db.raw('"fileData" IS NOT NULL as "hasFile"'))
+                    .select(db.raw('"fileData" IS NOT NULL OR "fileUrl" IS NOT NULL as "hasFile"'))
                     .where({ id });
                 document.hasFile = fileCheck?.hasFile || false;
             }
@@ -248,7 +250,7 @@ const QuoteDocuments = {
     async getFileData(id) {
         try {
             const document = await db('quotes.quote_documents')
-                .select('fileData', 'fileName', 'mimeType')
+                .select('fileData', 'fileUrl', 'fileName', 'mimeType')
                 .where({ id })
                 .first();
 
@@ -258,7 +260,7 @@ const QuoteDocuments = {
                 throw error;
             }
 
-            if (!document.fileData) {
+            if (!document.fileData && !document.fileUrl) {
                 const error = new Error('No file data available');
                 error.code = 'NO_FILE';
                 throw error;
@@ -266,6 +268,7 @@ const QuoteDocuments = {
 
             return {
                 data: document.fileData,
+                url: document.fileUrl,
                 fileName: document.fileName || `document-${id}`,
                 mimeType: document.mimeType || 'application/octet-stream'
             };

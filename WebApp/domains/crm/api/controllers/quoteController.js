@@ -809,14 +809,14 @@ export function setupQuotesRoutes(app) {
 
           // Upload directly to Cloudflare R2
           try {
-            await uploadFileToStorage(buffer, safeFileName, mimeType);
+            const uploadResult = await uploadFileToStorage(buffer, safeFileName, mimeType);
 
-            // For R2, we store the filename/key. The view layer will construct the full URL
-            savedFilePath = `/uploads/quotes/${safeFileName}`; // Keeping this format for compatibility if needed, or just safeFileName
+            // Use the returned URL (works for both R2 and Local)
+            savedFilePath = uploadResult.url;
 
-            logger.info(`File uploaded to R2: ${safeFileName}`);
+            logger.info(`File uploaded to storage: ${safeFileName}`);
           } catch (storageError) {
-            logger.error(`Failed to upload to R2: ${storageError.message}`);
+            logger.error(`Failed to upload to storage: ${storageError.message}`);
             throw storageError;
           }
         }

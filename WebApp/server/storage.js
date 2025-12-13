@@ -45,6 +45,24 @@ async function ensureUploadsDir() {
 }
 
 export async function uploadFileToStorage(fileBuffer, fileName, mimeType) {
+    // Development: use local file system (PRIORITY)
+    // User requirement: "localhostta çalışırken bunların da localde kalması lazım"
+    if (!isProduction) {
+        try {
+            await ensureUploadsDir();
+            const filePath = path.join(UPLOADS_DIR, fileName);
+            await writeFile(filePath, fileBuffer);
+
+            return {
+                key: fileName,
+                url: `/uploads/files/${fileName}`
+            };
+        } catch (error) {
+            console.error("Error saving to local storage:", error);
+            throw error;
+        }
+    }
+
     // Production: use R2
     if (isR2Configured) {
         try {
@@ -67,28 +85,26 @@ export async function uploadFileToStorage(fileBuffer, fileName, mimeType) {
         }
     }
 
-    // Development: use local file system
-    if (!isProduction) {
-        try {
-            await ensureUploadsDir();
-            const filePath = path.join(UPLOADS_DIR, fileName);
-            await writeFile(filePath, fileBuffer);
-
-            return {
-                key: fileName,
-                url: `/uploads/files/${fileName}`
-            };
-        } catch (error) {
-            console.error("Error saving to local storage:", error);
-            throw error;
-        }
-    }
-
     // Production without R2 - error
     throw new Error("Cloudflare R2 storage is not configured.");
 }
 
 export async function deleteFileFromStorage(fileName) {
+    // Development: delete from local file system
+    if (!isProduction) {
+        try {
+            const filePath = path.join(UPLOADS_DIR, fileName);
+            if (existsSync(filePath)) {
+                await unlink(filePath);
+            }
+        } catch (error) {
+            console.error("Error deleting from local storage:", error);
+            // Don't throw - file might not exist
+        }
+        return;
+    }
+
+    // Production: delete from R2
     if (isR2Configured) {
         try {
             const command = new DeleteObjectCommand({
@@ -102,18 +118,5 @@ export async function deleteFileFromStorage(fileName) {
             throw error;
         }
         return;
-    }
-
-    // Development: delete from local file system
-    if (!isProduction) {
-        try {
-            const filePath = path.join(UPLOADS_DIR, fileName);
-            if (existsSync(filePath)) {
-                await unlink(filePath);
-            }
-        } catch (error) {
-            console.error("Error deleting from local storage:", error);
-            // Don't throw - file might not exist
-        }
     }
 }

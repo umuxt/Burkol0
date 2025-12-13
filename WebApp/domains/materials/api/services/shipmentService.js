@@ -11,7 +11,9 @@
 
 import db from '#db/connection';
 import Shipments from '#db/models/shipments';
+
 import ShipmentItems from '#db/models/shipmentItems';
+import { uploadFileToStorage } from '../../../../server/storage.js';
 
 const SHIPMENT_STATUSES = {
   PENDING: 'pending',
@@ -808,6 +810,40 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
   const stockUpdates = [];
 
   try {
+    // 3.5. Upload file if provided (R2 or Local)
+    let importedFileUrl = null;
+    if (file && fileName) {
+      try {
+        // Determine MIME type based on extension (simple fallback)
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes = {
+          'pdf': 'application/pdf',
+          'xml': 'application/xml',
+          'csv': 'text/csv',
+          'json': 'application/json',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png'
+        };
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+        // Generate safe unique filename
+        // Original filename + unique suffix to prevent overwrites
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const safeFileName = `${shipment.shipmentCode}_${uniqueSuffix}.${ext}`;
+
+        // Use shared storage helper
+        const uploadResult = await uploadFileToStorage(file, safeFileName, mimeType);
+        importedFileUrl = uploadResult.url;
+
+      } catch (uploadError) {
+        console.error('File upload failed during import:', uploadError);
+        // We continue without file if upload fails? Or fail entire op?
+        // Let's fail safe - user expects file to be there
+        throw new Error('Dosya yükleme başarısız: ' + uploadError.message);
+      }
+    }
+
     // Use transaction for atomicity
     await db.transaction(async (trx) => {
       // 4. Decrease stock for each item
@@ -886,10 +922,11 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
         updatedAt: trx.fn.now()
       };
 
-      // Store file if provided
-      if (file && fileName) {
-        updateData.importedFile = file;
+      // Store file URL
+      if (importedFileUrl) {
+        updateData.importedFileUrl = importedFileUrl;
         updateData.importedFileName = fileName;
+        // Legacy support: We do NOT store importedFile (bytea) anymore to save space
       }
 
       await trx('materials.shipments')
@@ -908,7 +945,8 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
         status: updatedShipment.status,
         externalDocNumber: updatedShipment.externalDocNumber,
         importedAt: updatedShipment.importedAt,
-        importedFileName: updatedShipment.importedFileName
+        importedFileName: updatedShipment.importedFileName,
+        importedFileUrl: updatedShipment.importedFileUrl
       },
       stockUpdates
     };

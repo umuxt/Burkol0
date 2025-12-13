@@ -748,7 +748,7 @@ export async function downloadImportedFile(req, res) {
     const { default: db } = await import('#db/connection');
 
     const shipment = await db('materials.shipments')
-      .select('importedFile', 'importedFileName', 'shipmentCode')
+      .select('importedFile', 'importedFileUrl', 'importedFileName', 'shipmentCode')
       .where('id', id)
       .first();
 
@@ -756,6 +756,17 @@ export async function downloadImportedFile(req, res) {
       return res.status(404).json({ error: 'Sevkiyat bulunamadı' });
     }
 
+    // 1. R2/URL Storage (New)
+    if (shipment.importedFileUrl) {
+      // If it's a full URL (R2), redirect
+      if (shipment.importedFileUrl.startsWith('http')) {
+        return res.redirect(shipment.importedFileUrl);
+      }
+      // If it's a local path (e.g. /uploads/...), redirect
+      return res.redirect(shipment.importedFileUrl);
+    }
+
+    // 2. DB BLOB Storage (Legacy)
     if (!shipment.importedFile) {
       return res.status(404).json({ error: 'Bu sevkiyat için yüklenmiş dosya bulunamadı' });
     }
