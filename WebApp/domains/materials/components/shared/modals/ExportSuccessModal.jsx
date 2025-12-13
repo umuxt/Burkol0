@@ -119,8 +119,10 @@ export default function ExportSuccessModal({
       formData.append('file', importFile)
       formData.append('externalDocNumber', externalDocNumber.trim())
 
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch(`/api/materials/shipments/${shipment.id}/import`, {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData
       })
 

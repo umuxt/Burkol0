@@ -17,7 +17,7 @@ export async function initTimezoneUI() {
 // Load timezone from API
 async function loadTimezone() {
   try {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('bp_admin_token');
     const response = await fetch('/api/mes/timezone', {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });

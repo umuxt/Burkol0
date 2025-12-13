@@ -239,8 +239,10 @@ export default function AddShipmentModal({
 
       try {
         const url = `/api/quotes?customerId=${headerData.customerId}&status=approved`
-
-        const response = await fetch(url)
+        const token = localStorage.getItem('bp_admin_token');
+        const response = await fetch(url, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
         const data = await response.json()
 
         const quotes = Array.isArray(data) ? data : (data.quotes || [])
@@ -1407,9 +1409,13 @@ export default function AddShipmentModal({
 
                           setExportStatus({ loading: true, success: false, fileName: null, error: null })
                           try {
+                            const token = localStorage.getItem('bp_admin_token');
                             const response = await fetch(`/api/materials/shipments/${createdShipmentId}/export`, {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: { 
+                                'Content-Type': 'application/json',
+                                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                              },
                               body: JSON.stringify({
                                 target: headerData.exportTarget,
                                 formats: headerData.exportFormats
@@ -1638,8 +1644,10 @@ export default function AddShipmentModal({
                       }
 
                       try {
+                        const token = localStorage.getItem('bp_admin_token');
                         const response = await fetch(`/api/materials/shipments/${createdShipmentId}/import`, {
                           method: 'POST',
+                          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                           body: formData
                         })
 

@@ -50,7 +50,10 @@ export default function TurkeyAddressDropdown({
   // API helper
   const fetchData = useCallback(async (endpoint) => {
     try {
-      const response = await fetch(`/api/address${endpoint}`);
+      const token = localStorage.getItem('bp_admin_token');
+      const response = await fetch(`/api/address${endpoint}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (!response.ok) throw new Error('API error');
       return await response.json();
     } catch (err) {

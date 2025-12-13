@@ -42,7 +42,7 @@ export async function fetchEntityRelations({ sourceType, sourceId, relationType,
 
     const response = await fetch(`${API_BASE}/api/mes/entity-relations?${params}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}`
       }
     });
 
@@ -75,7 +75,7 @@ export async function createEntityRelation(relation) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}`
       },
       body: JSON.stringify(relation)
     });
@@ -107,7 +107,7 @@ export async function updateEntityRelation(id, updates) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}`
       },
       body: JSON.stringify(updates)
     });
@@ -135,7 +135,7 @@ export async function deleteEntityRelation(id) {
     const response = await fetch(`${API_BASE}/api/mes/entity-relations/${id}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}`
       }
     });
 
@@ -162,7 +162,7 @@ export async function batchUpdateRelations(relations) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}`
       },
       body: JSON.stringify({ relations })
     });

@@ -76,7 +76,9 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
   const deleteCategory = useCallback(async (id) => {
     try {
       // Adım 1: Kullanım Kontrolü (Tek API Çağrısı)
-      const usageResponse = await fetch(`${API_BASE_URL}/${id}/usage`);
+      const token = localStorage.getItem('bp_admin_token');
+      const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const usageResponse = await fetch(`${API_BASE_URL}/${id}/usage`, { headers: authHeaders });
       if (!usageResponse.ok) {
         throw new Error('Kategori kullanım durumu kontrol edilemedi.');
       }
@@ -97,6 +99,7 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
           // "Evet, Sil" denildi
           const deleteResponse = await fetch(`${API_BASE_URL}/${id}?updateRemoved=true`, {
             method: 'DELETE',
+            headers: authHeaders
           });
           if (!deleteResponse.ok) {
             const errorText = await deleteResponse.text();
@@ -111,6 +114,7 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
         // Onay istemeden doğrudan sil
         const deleteResponse = await fetch(`${API_BASE_URL}/${id}`, {
             method: 'DELETE',
+            headers: authHeaders
         });
         if (!deleteResponse.ok) {
             const errorText = await deleteResponse.text();

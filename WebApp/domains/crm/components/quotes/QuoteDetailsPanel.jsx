@@ -274,7 +274,7 @@ export default function QuoteDetailsPanel({
     try {
       setItemsLoading(true)
       const response = await fetch(`${API_BASE}/api/quotes/${quote.id}/items`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
       })
       console.log('📦 Items API response status:', response.status)
       if (response.ok) {
@@ -306,7 +306,7 @@ export default function QuoteDetailsPanel({
     try {
       const response = await fetch(`${API_BASE}/api/quotes/items/${itemId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
       })
       if (response.ok) {
         showToast('Kalem silindi', 'success')
@@ -345,7 +345,7 @@ export default function QuoteDetailsPanel({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}`
+          'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}`
         },
         body: JSON.stringify({
           format: format,
@@ -391,7 +391,7 @@ export default function QuoteDetailsPanel({
 
       // First get document list to find import document
       const docsResponse = await fetch(`${API_BASE}/api/quotes/${quote.id}/documents?type=import`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
       })
 
       if (!docsResponse.ok) {
@@ -408,7 +408,7 @@ export default function QuoteDetailsPanel({
 
       // Download the file
       const downloadResponse = await fetch(`${API_BASE}/api/quotes/${quote.id}/documents/${importDoc.id}/download`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
       })
 
       if (!downloadResponse.ok) {

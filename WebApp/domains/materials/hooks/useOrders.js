@@ -66,7 +66,10 @@ export function useOrders(filters = {}, options = {}) {
       console.log('🔍 Base URL:', baseUrl)
       console.log('🔍 Full URL:', fullUrl)
       
-      const response = await fetch(fullUrl);
+      const token = localStorage.getItem('bp_admin_token');
+      const response = await fetch(fullUrl, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       
       if (!response.ok) {
         console.log('❌ Response not OK:', response.status, response.statusText)

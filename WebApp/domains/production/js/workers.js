@@ -2738,7 +2738,7 @@ window.saveWorkerPinInline = async function (workerId) {
     savePinBtn.disabled = true;
     savePinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
 
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('bp_admin_token');
     const response = await fetch(`/api/mes/workers/${workerId}/set-pin`, {
       method: 'POST',
       headers: { 
@@ -2809,8 +2809,12 @@ window.loadWorkerActivityLogs = async function (workerId) {
   container.innerHTML = '<div class="activity-log-loading"><i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...</div>';
 
   try {
+    const token = localStorage.getItem('bp_admin_token');
     const response = await fetch(`/api/mes/workers/${workerId}/activity-logs?limit=20`, {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (!response.ok) {

@@ -173,7 +173,7 @@ export default function MaterialDetailsPanel({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem('bp_admin_token');
         const res = await fetch('/api/settings/system', {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         })

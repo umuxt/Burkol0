@@ -56,7 +56,7 @@ window.saveWorkerPin = async function () {
     }
 
     try {
-        const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem('bp_admin_token');
         const response = await fetch(`/api/mes/workers/${workerId}/set-pin`, {
             method: 'POST',
             headers: { 

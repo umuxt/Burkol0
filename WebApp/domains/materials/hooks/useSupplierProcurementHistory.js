@@ -41,7 +41,7 @@ export function useSupplierProcurementHistory(supplier) {
       setLoading(true)
       setError(null)
 
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const res = await fetch('/api/orders', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })

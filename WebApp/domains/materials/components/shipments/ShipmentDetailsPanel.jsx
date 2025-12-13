@@ -93,7 +93,7 @@ export default function ShipmentDetailsPanel({
     if (materials.length > 0) return;
     setMaterialsLoading(true);
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch('/api/materials', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
@@ -280,7 +280,7 @@ export default function ShipmentDetailsPanel({
   const handleExport = async (format = 'csv') => {
     setIsExporting(true);
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch(`/api/materials/shipments/${currentShipment.id}/export/${format}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
@@ -1021,8 +1021,10 @@ export default function ShipmentDetailsPanel({
                         <button
                           onClick={async () => {
                             try {
+                              const token = localStorage.getItem('bp_admin_token');
                               const response = await fetch(`/api/materials/shipments/${currentShipment.id}/imported-file`, {
-                                credentials: 'include'
+                                credentials: 'include',
+                                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                               });
                               if (!response.ok) throw new Error('Dosya indirilemedi');
                               const blob = await response.blob();

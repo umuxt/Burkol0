@@ -26,7 +26,7 @@ export default function SystemTab({ t }) {
   async function loadSettings() {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const res = await fetch('/api/settings/system', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -46,7 +46,7 @@ export default function SystemTab({ t }) {
 
   async function saveSettings(newSettings) {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const res = await fetch('/api/settings/system', {
         method: 'POST',
         headers: {

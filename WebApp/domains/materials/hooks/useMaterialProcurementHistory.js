@@ -42,7 +42,7 @@ export function useMaterialProcurementHistory(material) {
       setError(null)
 
       // Fetch all orders via backend API; filter client-side by item.materialCode/Name
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const res = await fetch('/api/orders', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })

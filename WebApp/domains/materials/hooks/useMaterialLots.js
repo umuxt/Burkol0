@@ -38,7 +38,7 @@ export function useMaterialLots(material) {
       console.log('🔄 Loading lots for material:', materialCode)
 
       // Fetch lots from backend API
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const res = await fetch(`/api/materials/${materialCode}/lots`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })

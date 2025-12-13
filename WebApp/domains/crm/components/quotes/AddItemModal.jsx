@@ -59,7 +59,7 @@ export default function AddItemModal({ isOpen, onClose, quoteId, onItemAdded }) 
     const loadMaterials = async () => {
         try {
             const response = await fetch(`${API_BASE}/api/materials`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
             })
             if (response.ok) {
                 const data = await response.json()
@@ -73,7 +73,7 @@ export default function AddItemModal({ isOpen, onClose, quoteId, onItemAdded }) 
     const loadServiceCards = async () => {
         try {
             const response = await fetch(`${API_BASE}/api/service-cards`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}` }
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}` }
             })
             if (response.ok) {
                 const data = await response.json()
@@ -191,7 +191,7 @@ export default function AddItemModal({ isOpen, onClose, quoteId, onItemAdded }) 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'dev-token'}`
+                    'Authorization': `Bearer ${localStorage.getItem('bp_admin_token') || ''}`
                 },
                 body: JSON.stringify(itemData)
             })

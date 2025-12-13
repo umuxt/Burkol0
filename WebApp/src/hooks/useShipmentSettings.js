@@ -31,7 +31,7 @@ export function ShipmentSettingsProvider({ children }) {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch('/api/settings/shipment_module_config', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
@@ -54,7 +54,7 @@ export function ShipmentSettingsProvider({ children }) {
 
   const updateSettings = async (newSettings) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch('/api/settings/shipment_module_config', {
         method: 'PUT',
         headers: {
@@ -170,7 +170,7 @@ function useLocalShipmentSettings() {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch('/api/settings/shipment_module_config', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
@@ -192,7 +192,7 @@ function useLocalShipmentSettings() {
 
   const updateSettings = async (newSettings) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('bp_admin_token');
       const response = await fetch('/api/settings/shipment_module_config', {
         method: 'PUT',
         headers: {

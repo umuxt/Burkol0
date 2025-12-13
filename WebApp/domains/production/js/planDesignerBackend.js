@@ -789,7 +789,7 @@ export async function saveNodeEditBackend() {
     // ✅ VALIDATE CODE UNIQUENESS BEFORE SAVE
     try {
       const response = await fetch(`/api/mes/output-codes/validate?code=${encodeURIComponent(finalCode)}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}` }
       });
       
       const result = await response.json();
@@ -1847,7 +1847,7 @@ window.openOutputTemplateDropdown = async function() {
     
     // Fetch available output codes for this operation
     const response = await fetch(`/api/mes/output-codes/list?operationId=${encodeURIComponent(node.operationId)}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}` }
     });
     
     if (!response.ok) {
@@ -2349,7 +2349,7 @@ window.openOutputSelectionDropdown = async function() {
     // Fetch existing outputs with this prefix
     const url = prefix ? `${API_BASE}/api/mes/output-codes/existing?prefix=${encodeURIComponent(prefix)}` : `${API_BASE}/api/mes/output-codes/existing`;
     const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}` }
     });
     
     if (!response.ok) {
@@ -2462,7 +2462,7 @@ window.validateOutputCodeUniqueness = async function() {
   
   try {
     const response = await fetch(`${API_BASE}/api/mes/output-codes/validate?code=${encodeURIComponent(node.outputCode)}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('bp_admin_token')}` }
     });
     
     const result = await response.json();
