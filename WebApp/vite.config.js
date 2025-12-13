@@ -124,7 +124,9 @@ export default defineConfig({
         adminDashboard: resolve(__dirname, 'pages/admin-dashboard.html'),
         materials: resolve(__dirname, 'pages/materials.html'),
         production: resolve(__dirname, 'pages/production.html'),
-        settings: resolve(__dirname, 'pages/settings.html')
+        settings: resolve(__dirname, 'pages/settings.html'),
+        workerPortal: resolve(__dirname, 'pages/worker-portal.html'),
+        workerSelection: resolve(__dirname, 'pages/worker-selection.html')
       }
     }
   }
