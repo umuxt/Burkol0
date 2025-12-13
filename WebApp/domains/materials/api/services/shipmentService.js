@@ -491,6 +491,14 @@ export async function updateFullShipment(id, data, user) {
   // 8. Update via Shipments model
   try {
     const result = await Shipments.updateFullShipment(id, preparedHeaderData, preparedItems, user);
+
+    // P1.6.3: Check if modified after export (for warning)
+    if (result.lastExportedAt && result.lastModifiedAt) {
+      const exportTime = new Date(result.lastExportedAt).getTime();
+      const modifyTime = new Date(result.lastModifiedAt).getTime();
+      result.modifiedAfterExport = modifyTime > exportTime;
+    }
+
     return result;
   } catch (error) {
     if (!error.code) {
@@ -581,7 +589,12 @@ export async function addItemToShipment(shipmentId, itemData, user) {
     throw error;
   }
 
-  return ShipmentItems.addItemToShipment(shipmentId, itemData, user);
+  const result = await ShipmentItems.addItemToShipment(shipmentId, itemData, user);
+
+  // P1.6.3: Update shipment lastModifiedAt to trigger warning if exported
+  await Shipments.updateShipment(shipmentId, { lastModifiedAt: new Date() });
+
+  return result;
 }
 
 /**
@@ -591,7 +604,21 @@ export async function addItemToShipment(shipmentId, itemData, user) {
  * @returns {boolean} Success
  */
 export async function removeItemFromShipment(itemId, user) {
-  return ShipmentItems.removeItemFromShipment(itemId, user);
+  // Get item first to know shipmentId
+  const item = await ShipmentItems.getItemById(itemId);
+  const shipmentId = item.shipmentId;
+
+  const result = await ShipmentItems.removeItemFromShipment(itemId, user);
+
+  // P1.6.3: Update shipment lastModifiedAt
+  // Note: If shipment was deleted (last item removed), this will fail silently/or check result
+  if (result.shipmentDeleted) {
+    return result;
+  }
+
+  await Shipments.updateShipment(shipmentId, { lastModifiedAt: new Date() });
+
+  return result;
 }
 
 /**
@@ -608,7 +635,16 @@ export async function updateItemQuantity(itemId, newQuantity, user) {
     throw error;
   }
 
-  return ShipmentItems.updateItemQuantity(itemId, newQuantity, user);
+  // Get item first to know shipmentId
+  const item = await ShipmentItems.getItemById(itemId);
+  const shipmentId = item.shipmentId;
+
+  const result = await ShipmentItems.updateItemQuantity(itemId, newQuantity, user);
+
+  // P1.6.3: Update shipment lastModifiedAt
+  await Shipments.updateShipment(shipmentId, { lastModifiedAt: new Date() });
+
+  return result;
 }
 
 /**
@@ -618,7 +654,16 @@ export async function updateItemQuantity(itemId, newQuantity, user) {
  * @returns {Object} Updated item
  */
 export async function updateItemNotes(itemId, notes) {
-  return ShipmentItems.updateItemNotes(itemId, notes);
+  // Get item first to know shipmentId
+  const item = await ShipmentItems.getItemById(itemId);
+  const shipmentId = item.shipmentId;
+
+  const result = await ShipmentItems.updateItemNotes(itemId, notes);
+
+  // P1.6.3: Update shipment lastModifiedAt
+  await Shipments.updateShipment(shipmentId, { lastModifiedAt: new Date() });
+
+  return result;
 }
 
 /**

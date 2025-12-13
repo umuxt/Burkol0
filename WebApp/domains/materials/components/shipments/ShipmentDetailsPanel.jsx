@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus, Upload, Download } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus, Upload, Download, AlertCircle, FileCode, Paperclip } from '../../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../../services/shipments-service.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 import ImportModal from '../shared/modals/ImportModal.jsx'
@@ -123,6 +123,9 @@ export default function ShipmentDetailsPanel({
 
       // Refresh items from API (force refresh)
       await loadShipmentItems(currentShipment.id, true);
+      // P1.6.3: Refresh header data (lastModifiedAt)
+      await refreshShipmentData();
+
       setShowAddItem(false);
       setNewItem({ materialCode: '', quantity: '', notes: '' });
 
@@ -156,6 +159,8 @@ export default function ShipmentDetailsPanel({
 
       // Refresh items from API
       await loadShipmentItems(currentShipment.id, true);
+      // P1.6.3: Refresh header data (lastModifiedAt)
+      await refreshShipmentData();
 
       // Refresh parent list if available
       if (onRefresh) onRefresh();
@@ -438,162 +443,233 @@ export default function ShipmentDetailsPanel({
   const renderExportImportActions = () => {
     const { status } = currentShipment;
 
-    // Completed or cancelled - no actions
+    // Completed or cancelled - no actions (unless we want to show history? kept as is for now)
     if (status === 'completed' || status === 'cancelled') {
-      return null;
+      // If completed/cancelled, we still might want to show export info if it exists?
+      // Current logic returned null. I'll stick to that but if user wants to see history it should be changed.
+      // Waiting for user request on that. For now, preserving existing behavior but merging logic.
+      if (!currentShipment.lastExportedAt && !currentShipment.importedAt) return null;
     }
+
+    const modifiedAfterExport = currentShipment.lastExportedAt && currentShipment.lastModifiedAt &&
+      new Date(currentShipment.lastModifiedAt) > new Date(currentShipment.lastExportedAt);
 
     return (
       <div className="section-card-mb">
+        {/* Warning if modified after export */}
+        {modifiedAfterExport && (
+          <div style={{
+            padding: '12px',
+            backgroundColor: '#fef3c7',
+            border: '1px solid #fbbf24',
+            borderRadius: '6px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px'
+          }}>
+            <AlertCircle size={16} style={{ color: '#f59e0b', marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: '#92400e', marginBottom: '4px' }}>
+                Export Sonrası Değişiklik Yapıldı
+              </div>
+              <div style={{ fontSize: '12px', color: '#78350f' }}>
+                Son export: {new Date(currentShipment.lastExportedAt).toLocaleString('tr-TR')}<br />
+                Son değişiklik: {new Date(currentShipment.lastModifiedAt).toLocaleString('tr-TR')}<br />
+                <strong>Yeni export almanız önerilir.</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
         <h3 className="section-header">
           Export / Import
         </h3>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {/* Export Buttons */}
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={isExporting}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: '1px solid #3b82f6',
-              background: 'white',
-              color: '#3b82f6',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.7 : 1
-            }}
-          >
-            <Download size={14} />
-            CSV
-          </button>
-
-          <button
-            onClick={() => handleExport('xml')}
-            disabled={isExporting}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: '1px solid #8b5cf6',
-              background: 'white',
-              color: '#8b5cf6',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.7 : 1
-            }}
-          >
-            <Download size={14} />
-            XML
-          </button>
-
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={isExporting}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: '1px solid #ef4444',
-              background: 'white',
-              color: '#ef4444',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.7 : 1
-            }}
-          >
-            <Download size={14} />
-            PDF
-          </button>
-
-          {/* Import Button - only if exported */}
-          {(status === 'exported' || currentShipment.lastExportedAt) && (
+        {/* Action Buttons */}
+        {(status !== 'completed' && status !== 'cancelled') && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            {/* Export Buttons */}
             <button
-              onClick={() => setShowImportModal(true)}
+              onClick={() => handleExport('csv')}
+              disabled={isExporting}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '8px 12px',
                 borderRadius: '4px',
-                border: 'none',
-                background: '#22c55e',
-                color: 'white',
+                border: '1px solid #3b82f6',
+                background: 'white',
+                color: '#3b82f6',
                 fontSize: '12px',
                 fontWeight: '500',
-                cursor: 'pointer',
-                marginLeft: 'auto'
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                opacity: isExporting ? 0.7 : 1
               }}
             >
-              <Upload size={14} />
-              Import
+              <FileText size={14} />
+              CSV
             </button>
+
+            <button
+              onClick={() => handleExport('xml')}
+              disabled={isExporting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                borderRadius: '4px',
+                border: '1px solid #8b5cf6',
+                background: 'white',
+                color: '#8b5cf6',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                opacity: isExporting ? 0.7 : 1
+              }}
+            >
+              <FileCode size={14} />
+              XML
+            </button>
+
+            <button
+              onClick={() => handleExport('pdf')}
+              disabled={isExporting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                borderRadius: '4px',
+                border: '1px solid #ef4444',
+                background: 'white',
+                color: '#ef4444',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                opacity: isExporting ? 0.7 : 1
+              }}
+            >
+              <FileText size={14} />
+              PDF
+            </button>
+
+            {/* Import Button - only if exported */}
+            {(status === 'exported' || currentShipment.lastExportedAt) && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: '#22c55e',
+                  color: 'white',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                <Upload size={14} />
+                Import
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Info Grid */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {currentShipment.lastExportedAt && (
+            <div className="detail-row">
+              <span className="detail-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Upload size={14} /> Son Export:
+              </span>
+              <span className="detail-value">
+                {new Date(currentShipment.lastExportedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
+              </span>
+            </div>
+          )}
+
+          {currentShipment.importedAt && (
+            <>
+              <div className="detail-row">
+                <span className="detail-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Download size={14} /> Import Tarihi:
+                </span>
+                <span className="detail-value" style={{ color: '#059669' }}>
+                  {new Date(currentShipment.importedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
+                </span>
+              </div>
+
+              {currentShipment.externalDocNumber && (
+                <div className="detail-row">
+                  <span className="detail-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <FileText size={14} /> Resmi Belge No:
+                  </span>
+                  <span className="detail-value" style={{ fontWeight: 600 }}>
+                    {currentShipment.externalDocNumber}
+                  </span>
+                </div>
+              )}
+
+              {currentShipment.importedFileName && (
+                <div className="detail-row">
+                  <span className="detail-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Paperclip size={14} /> Yüklenen Dosya:
+                  </span>
+                  <span className="detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {currentShipment.importedFileName}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem('bp_admin_token');
+                          const response = await fetch(`/api/materials/shipments/${currentShipment.id}/imported-file`, {
+                            credentials: 'include',
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                          });
+                          if (!response.ok) throw new Error('Dosya indirilemedi');
+                          const blob = await response.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = currentShipment.importedFileName;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        } catch (error) {
+                          console.error('Download error:', error);
+                          alert('Dosya indirilemedi: ' + error.message);
+                        }
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 8px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                      }}
+                      title="Dosyayı indir"
+                    >
+                      <Download size={12} />
+                      İndir
+                    </button>
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
-
-        {/* Export info */}
-        {currentShipment.lastExportedAt && (
-          <div style={{
-            marginTop: '10px',
-            fontSize: '11px',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            📤 Son export: {new Date(currentShipment.lastExportedAt).toLocaleString('tr-TR')}
-          </div>
-        )}
-
-        {currentShipment.externalDocNumber && (
-          <div style={{
-            marginTop: '4px',
-            fontSize: '11px',
-            color: '#059669',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            📥 Resmi Belge No: {currentShipment.externalDocNumber}
-          </div>
-        )}
-
-        {currentShipment.importedFileName && (
-          <div style={{
-            marginTop: '4px',
-            fontSize: '11px',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            📎 Yüklenen Dosya: {currentShipment.importedFileName}
-          </div>
-        )}
-
-        {currentShipment.importedAt && (
-          <div style={{
-            marginTop: '4px',
-            fontSize: '11px',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            ✅ Import tarihi: {new Date(currentShipment.importedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-          </div>
-        )}
       </div>
     );
   };
@@ -625,7 +701,7 @@ export default function ShipmentDetailsPanel({
 
           {/* Header Actions */}
           <div className="header-actions">
-            {!isEditing && currentShipment.status !== 'delivered' ? (
+            {!isEditing && currentShipment.status !== 'delivered' && currentShipment.status !== 'completed' && currentShipment.status !== 'cancelled' ? (
               <button
                 onClick={handleEditToggle}
                 className="btn-icon-sm"
@@ -743,7 +819,7 @@ export default function ShipmentDetailsPanel({
                 Sevkiyat Kalemleri
                 {itemsLoading && <Loader2 size={14} className="animate-spin" style={{ marginLeft: '8px' }} />}
               </h3>
-              {currentShipment.status === 'pending' && (
+              {currentShipment.status !== 'completed' && currentShipment.status !== 'delivered' && currentShipment.status !== 'cancelled' && (
                 <button
                   onClick={() => { setShowAddItem(true); loadMaterials(); }}
                   className="section-button"
@@ -911,7 +987,7 @@ export default function ShipmentDetailsPanel({
                             {item.unit || 'adet'}
                           </span>
                         </div>
-                        {currentShipment.status === 'pending' && (
+                        {currentShipment.status !== 'completed' && currentShipment.status !== 'delivered' && currentShipment.status !== 'cancelled' && (
                           <button
                             onClick={() => handleRemoveItem(item.id, item.materialCode, item.quantity)}
                             disabled={removingItemId === item.id}
@@ -980,91 +1056,7 @@ export default function ShipmentDetailsPanel({
           </div>
 
           {/* Export / Import Bilgileri */}
-          {(currentShipment.lastExportedAt || currentShipment.importedAt) && (
-            <div className="section-card-mb">
-              <h3 className="section-header">
-                Export / Import Bilgileri
-              </h3>
 
-              {currentShipment.lastExportedAt && (
-                <div className="detail-row">
-                  <span className="detail-label">📤 Son Export:</span>
-                  <span className="detail-value">
-                    {new Date(currentShipment.lastExportedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-                  </span>
-                </div>
-              )}
-
-              {currentShipment.importedAt && (
-                <>
-                  <div className="detail-row">
-                    <span className="detail-label">📥 Import Tarihi:</span>
-                    <span className="detail-value" style={{ color: '#059669' }}>
-                      {new Date(currentShipment.importedAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}
-                    </span>
-                  </div>
-
-                  {currentShipment.externalDocNumber && (
-                    <div className="detail-row">
-                      <span className="detail-label">📋 Resmi Belge No:</span>
-                      <span className="detail-value" style={{ fontWeight: 600 }}>
-                        {currentShipment.externalDocNumber}
-                      </span>
-                    </div>
-                  )}
-
-                  {currentShipment.importedFileName && (
-                    <div className="detail-row">
-                      <span className="detail-label">📎 Yüklenen Dosya:</span>
-                      <span className="detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {currentShipment.importedFileName}
-                        <button
-                          onClick={async () => {
-                            try {
-                              const token = localStorage.getItem('bp_admin_token');
-                              const response = await fetch(`/api/materials/shipments/${currentShipment.id}/imported-file`, {
-                                credentials: 'include',
-                                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                              });
-                              if (!response.ok) throw new Error('Dosya indirilemedi');
-                              const blob = await response.blob();
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = currentShipment.importedFileName;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(url);
-                            } catch (error) {
-                              console.error('Download error:', error);
-                              alert('Dosya indirilemedi: ' + error.message);
-                            }
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '4px 8px',
-                            backgroundColor: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            cursor: 'pointer'
-                          }}
-                          title="Dosyayı indir"
-                        >
-                          <Download size={12} />
-                          İndir
-                        </button>
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
 
           {/* Açıklama / Not */}
           <div className="section-card-mb">

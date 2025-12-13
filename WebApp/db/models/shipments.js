@@ -429,6 +429,7 @@ const Shipments = {
     }
 
     filteredUpdates.updatedAt = new Date();
+    filteredUpdates.lastModifiedAt = new Date(); // P1.6.3: Track modification time
 
     const [updated] = await db('materials.shipments')
       .where({ id: shipmentId })
@@ -460,7 +461,8 @@ const Shipments = {
           alternateDeliveryAddress: headerData.alternateDeliveryAddress ? JSON.stringify(headerData.alternateDeliveryAddress) : null,
           transport: headerData.transport ? JSON.stringify(headerData.transport) : '{}',
           updatedBy: user?.email || 'system',
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          lastModifiedAt: new Date() // P1.6.3: Track modification time for export warnings
         });
 
       // 2. Delete existing items

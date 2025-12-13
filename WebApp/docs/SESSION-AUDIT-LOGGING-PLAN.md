@@ -2397,9 +2397,21 @@ updateFullShipment:
 - `/WebApp/public/components/materials/ShipmentDetailsModal.jsx`
 
 **Başarı Kriterleri:**
-- [ ] lastModifiedAt kolonu eklendi
-- [ ] Güncelleme sonrası lastModifiedAt set ediliyor
-- [ ] Export sonrası değişiklik yapılınca uyarı gösteriliyor
+- [x] lastModifiedAt kolonu eklendi ✅ (13 Aralık 2025)
+- [x] Güncelleme sonrası lastModifiedAt set ediliyor ✅ (13 Aralık 2025)
+- [x] Export sonrası değişiklik yapılınca uyarı gösteriliyor ✅ (13 Aralık 2025)
+
+**İmplementasyon Notları (13 Aralık 2025):**
+- **Database:**
+  - `lastModifiedAt TIMESTAMPTZ` kolonu eklendi
+  - Migrations: Local + Neon başarıyla çalıştırıldı
+- **Backend:**
+  - `updateFullShipment`: lastModifiedAt güncelleniyor
+  - Response'da `modifiedAfterExport` flag eklendi
+- **Frontend:**
+  - `ShipmentDetailsPanel`: Warning banner (sarı, AlertCircle icon)
+  - Son export ve son değişiklik tarihleri gösteriliyor
+  - "Yeni export almanız önerilir" mesajı
 
 ---
 
