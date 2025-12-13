@@ -114,8 +114,8 @@ const Shipments = {
       // Insert items and process stock
       let shipmentItems = [];
       if (items.length > 0) {
-        const StockMovements = (await import('./stockMovements.js')).default;
-        const Materials = (await import('./materials.js')).default;
+        // NOTE: StockMovements and Materials imports removed (P1.6.1)
+        // Stock operations now only happen in importShipmentConfirmation
 
         for (let index = 0; index < items.length; index++) {
           const item = items[index];
@@ -130,7 +130,7 @@ const Shipments = {
             throw new Error(`Malzeme bulunamadı: ${item.materialCode}`);
           }
 
-          // Check stock availability
+          // Check stock availability (but DON'T decrease stock yet - that happens on import/completion)
           const quantity = parseFloat(item.quantity);
           const availableStock = material.stock - (material.reserved || 0) - (material.wipReserved || 0);
 
@@ -138,43 +138,8 @@ const Shipments = {
             throw new Error(`Yetersiz stok: ${material.name}. Mevcut: ${availableStock}, İstenen: ${quantity}`);
           }
 
-          const previousStock = parseFloat(material.stock);
-          const newStock = previousStock - quantity;
-
-          // Create stock movement (out - shipment)
-          const [stockMovement] = await trx('materials.stock_movements')
-            .insert({
-              materialId: material.id,
-              materialCode: material.code,
-              materialName: material.name,
-              type: 'out',
-              subType: 'shipment',
-              status: 'completed',
-              quantity,
-              unit: item.unit || material.unit || 'adet',
-              stockBefore: previousStock,
-              stockAfter: newStock,
-              warehouse: 'Warehouse',
-              location: material.storage || 'Main',
-              notes: `Sevkiyat: ${shipmentCode} - ${item.quantity} ${item.unit || material.unit}`,
-              reason: workOrderCode ? `Work Order: ${workOrderCode}` : 'Shipment',
-              reference: shipmentCode,
-              referenceType: 'shipment',
-              movementDate: new Date(),
-              approved: true,
-              userId: user?.uid || 'system',
-              userName: user?.email || 'system',
-              lotNumber: item.lotNumber || null
-            })
-            .returning('*');
-
-          // Update material stock
-          await trx('materials.materials')
-            .where({ id: material.id })
-            .update({
-              stock: newStock,
-              updatedAt: new Date()
-            });
+          // NOTE: Stock is NOT decreased here anymore (P1.6.1 fix)
+          // Stock will be decreased when shipment is imported/completed via importShipmentConfirmation
 
           // Insert shipment item
           // Calculate price fields if includePrice is true
@@ -199,7 +164,7 @@ const Shipments = {
               materialName: material.name,
               quantity,
               unit: item.unit || material.unit || 'adet',
-              stockMovementId: stockMovement.id,
+              stockMovementId: null, // Will be set on import/completion
               // Pricing (if includePrice)
               unitPrice: unitPrice,
               taxRate: taxRate,
@@ -224,10 +189,7 @@ const Shipments = {
             .returning('*');
 
           shipmentItems.push({
-            ...shipmentItem,
-            stockMovement,
-            previousStock,
-            newStock
+            ...shipmentItem
           });
         }
       }
@@ -576,47 +538,53 @@ const Shipments = {
       const items = await trx('materials.shipment_items')
         .where({ shipmentId });
 
-      // Restore stock for each item
-      for (const item of items) {
-        const material = await trx('materials.materials')
-          .where({ code: item.materialCode })
-          .first();
+      // Only restore stock if shipment was completed (stock was already decreased on import)
+      // For pending/exported shipments, stock was never decreased so nothing to restore (P1.6.1 fix)
+      const shouldRestoreStock = shipment.status === 'completed';
 
-        if (material) {
-          const newStock = parseFloat(material.stock) + parseFloat(item.quantity);
+      if (shouldRestoreStock) {
+        // Restore stock for each item
+        for (const item of items) {
+          const material = await trx('materials.materials')
+            .where({ code: item.materialCode })
+            .first();
 
-          // Update material stock
-          await trx('materials.materials')
-            .where({ id: material.id })
-            .update({
-              stock: newStock,
-              updatedAt: new Date()
-            });
+          if (material) {
+            const newStock = parseFloat(material.stock) + parseFloat(item.quantity);
 
-          // Create reversal stock movement
-          await trx('materials.stock_movements')
-            .insert({
-              materialId: material.id,
-              materialCode: material.code,
-              materialName: material.name,
-              type: 'in',
-              subType: 'shipment_cancellation',
-              status: 'completed',
-              quantity: item.quantity,
-              unit: item.unit,
-              stockBefore: material.stock,
-              stockAfter: newStock,
-              warehouse: 'Warehouse',
-              location: material.storage || 'Main',
-              notes: `Sevkiyat iptali: ${shipment.shipmentCode} - ${reason || 'No reason provided'}`,
-              reason: 'Shipment cancellation',
-              reference: shipment.shipmentCode,
-              referenceType: 'shipment_cancellation',
-              movementDate: new Date(),
-              approved: true,
-              userId: 'system',
-              userName: cancelledBy || 'system'
-            });
+            // Update material stock
+            await trx('materials.materials')
+              .where({ id: material.id })
+              .update({
+                stock: newStock,
+                updatedAt: new Date()
+              });
+
+            // Create reversal stock movement
+            await trx('materials.stock_movements')
+              .insert({
+                materialId: material.id,
+                materialCode: material.code,
+                materialName: material.name,
+                type: 'in',
+                subType: 'shipment_cancellation',
+                status: 'completed',
+                quantity: item.quantity,
+                unit: item.unit,
+                stockBefore: material.stock,
+                stockAfter: newStock,
+                warehouse: 'Warehouse',
+                location: material.storage || 'Main',
+                notes: `Sevkiyat iptali: ${shipment.shipmentCode} - ${reason || 'No reason provided'}`,
+                reason: 'Shipment cancellation',
+                reference: shipment.shipmentCode,
+                referenceType: 'shipment_cancellation',
+                movementDate: new Date(),
+                approved: true,
+                userId: 'system',
+                userName: cancelledBy || 'system'
+              });
+          }
         }
       }
 

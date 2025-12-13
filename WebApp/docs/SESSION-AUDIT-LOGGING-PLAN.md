@@ -2215,6 +2215,356 @@ logAuditEvent({
 
 ---
 
+### P1.6.1: Shipment Stok Akışı Düzeltmesi (Kritik Bug)
+
+**Bağımlılık:** P1.6 tamamlanmış olmalı
+
+**Amaç:** Stok azaltma işlemini sevkiyat oluşturma'dan kaldırıp sadece import (tamamlama) anında yapılmasını sağla.
+
+**Mevcut Hatalı Durum:**
+- Sevkiyat oluşturulunca stok azaltılıyor (`shipments.js:171-177`)
+- Import yapılınca tekrar stok azaltılıyor (`shipmentService.js:666-671`)
+- **Sonuç:** Stok 2 kere azaltılıyor!
+
+**Prompt:**
+```
+Shipment stok akışını düzelt.
+
+## SORUN
+Şu an stok iki yerde azaltılıyor:
+1. createShipment (shipments.js) - YANLIŞ
+2. importShipmentConfirmation (shipmentService.js) - DOĞRU
+
+## ÇÖZÜM
+
+### 1. shipments.js - createShipment fonksiyonu
+Satır 140-177 arasındaki stok azaltma ve stock_movement oluşturma kodlarını KALDIR.
+Sadece:
+- Stok kontrolü yap (yetersiz stok hatası ver)
+- Shipment ve items'ı oluştur
+- Stok DEĞİŞTİRME
+
+### 2. shipments.js - cancelShipment fonksiyonu
+Stok geri iade mantığını güncelle:
+- Eğer sevkiyat status='completed' ise stok geri iade et
+- Eğer status='pending'/'exported' ise stok iade YAPMA (zaten azaltılmadı)
+
+### 3. Test senaryoları:
+a) Sevkiyat oluştur → Stok değişmemeli
+b) Import yap → Stok azalmalı
+c) Import edilmiş sevkiyatı iptal et → Stok geri gelmeli
+d) Pending sevkiyatı iptal et → Stok değişmemeli
+
+## DOSYALAR
+- /WebApp/db/models/shipments.js
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/db/models/shipments.js`
+
+**Başarı Kriterleri:**
+- [x] createShipment stok azaltmıyor ✅ (13 Aralık 2025)
+- [x] importShipmentConfirmation stok azaltıyor ✅ (13 Aralık 2025)
+- [x] cancelShipment sadece completed sevkiyatlar için stok geri iade ediyor ✅ (13 Aralık 2025)
+- [x] Test senaryoları geçiyor ✅ (13 Aralık 2025)
+
+**İmplementasyon Notları (13 Aralık 2025):**
+- `createShipment`: Stok azaltma ve stock_movement oluşturma kaldırıldı
+- `cancelShipment`: `shouldRestoreStock = status === 'completed'` koşulu eklendi
+- Stok sadece import (tamamlama) anında azaltılıyor
+
+---
+
+### P1.6.2: AddShipment Modal - Güncelleme Modu
+
+**Bağımlılık:** P1.6.1 tamamlanmış olmalı
+
+**Amaç:** Sevkiyat oluşturulduktan sonra modal'da değişiklik yapılırsa update moduna geçsin.
+
+**Kurallar:**
+- Müşteri DEĞİŞTİRİLEMEZ (disabled)
+- Teklif değiştirilebilir (dikkatli: trigger'lar kontrol edilmeli)
+- Kalemler, miktarlar, transport bilgileri değiştirilebilir
+- Import edilmiş sevkiyat GÜNCELLENEMEZ
+
+**Prompt:**
+```
+AddShipment modal'ına güncelleme modu ekle.
+
+## FRONTEND DEĞİŞİKLİKLER
+
+### 1. State yönetimi
+- `createdShipmentId` state'i ekle
+- Sevkiyat oluşturulduktan sonra ID'yi kaydet
+- Form değişikliklerini track et
+
+### 2. UI değişiklikleri
+- Sevkiyat oluşturulduktan sonra:
+  - Müşteri seçimi disabled olsun
+  - "Sevkiyat Oluştur" butonu → "Sevkiyatı Güncelle" olsun
+  - Değişiklik yapılmadan basılırsa "Değişiklik yok" uyarısı
+
+### 3. API çağrıları
+- Create modunda: POST /api/materials/shipments
+- Update modunda: PUT /api/materials/shipments/:id
+
+## BACKEND DEĞİŞİKLİKLER
+
+### 1. updateFullShipment endpoint'i
+PUT /api/materials/shipments/:id/full
+- Header bilgileri güncelle
+- Items güncelle (add/remove/update)
+- Status kontrolü: completed olanlar güncellenemez
+
+## DOSYALAR
+Frontend:
+- /WebApp/public/components/materials/AddShipmentModal.jsx
+
+Backend:
+- /WebApp/domains/materials/api/controllers/shipmentController.js
+- /WebApp/domains/materials/api/services/shipmentService.js
+- /WebApp/domains/materials/api/routes.js
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/public/components/materials/AddShipmentModal.jsx`
+- `/WebApp/domains/materials/api/controllers/shipmentController.js`
+- `/WebApp/domains/materials/api/services/shipmentService.js`
+- `/WebApp/domains/materials/api/routes.js`
+
+**Başarı Kriterleri:**
+- [ ] Sevkiyat oluşturulduktan sonra buton "Güncelle" oluyor
+- [ ] Müşteri alanı disabled oluyor
+- [ ] Kalem/miktar/transport güncellenebiliyor
+- [ ] Completed sevkiyat güncellenemiyor
+- [ ] Update işlemi loglanıyor (shipment.update)
+
+---
+
+### P1.6.3: Export Sonrası Değişiklik Uyarısı
+
+**Bağımlılık:** P1.6.2 tamamlanmış olmalı
+
+**Amaç:** Export yapıldıktan sonra değişiklik yapılırsa kullanıcıyı uyar.
+
+**Prompt:**
+```
+Export sonrası değişiklik uyarı sistemi ekle.
+
+## VERİTABANI
+materials.shipments tablosuna:
+- lastModifiedAt TIMESTAMP (her güncelleme sonrası set edilir)
+
+## BACKEND
+updateFullShipment:
+- lastModifiedAt güncelle
+- Eğer lastExportedAt < lastModifiedAt → response'da flag döndür
+
+## FRONTEND
+1. Shipment detaylarında:
+   - lastExportedAt varsa ve lastModifiedAt > lastExportedAt:
+   - Sarı banner: "⚠️ Export'tan sonra değişiklik yapıldı. Yeni export almanız önerilir."
+
+2. Export butonunda:
+   - lastModifiedAt > lastExportedAt ise badge göster
+
+## DOSYALAR
+- /WebApp/db/neon_schema.sql
+- /WebApp/domains/materials/api/services/shipmentService.js
+- /WebApp/public/components/materials/ShipmentDetailsModal.jsx
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/db/neon_schema.sql`
+- `/WebApp/domains/materials/api/services/shipmentService.js`
+- `/WebApp/public/components/materials/ShipmentDetailsModal.jsx`
+
+**Başarı Kriterleri:**
+- [ ] lastModifiedAt kolonu eklendi
+- [ ] Güncelleme sonrası lastModifiedAt set ediliyor
+- [ ] Export sonrası değişiklik yapılınca uyarı gösteriliyor
+
+---
+
+### P1.6.4: Teklif Değişikliği Güvenlik Kontrolü
+
+**Bağımlılık:** P1.6.2 tamamlanmış olmalı
+
+**Amaç:** Sevkiyatta teklif değişikliği yapılırken yan etkileri kontrol et.
+
+**Prompt:**
+```
+Teklif değişikliği güvenlik kontrolü yap.
+
+## ANALİZ
+1. quoteId field'ının kullanıldığı yerleri bul
+2. Trigger veya cascade etkilerini tespit et
+3. Eğer tehlikeli etkiler varsa teklif değişikliğini engelle
+
+## OLASI SENARYOLAR
+a) Teklif değişikliği güvenli → İzin ver
+b) Teklif değişikliği tehlikeli → Disable et + açıklama göster
+c) Teklif değişikliği kısmen tehlikeli → Uyarı göster + onay iste
+
+## DOSYALAR
+- Analiz: grep ve kod incelemesi
+- Sonuca göre: Frontend/Backend değişikliği
+```
+
+**Başarı Kriterleri:**
+- [ ] quoteId kullanım analizi tamamlandı
+- [ ] Güvenlik kontrolü uygulandı
+- [ ] Kullanıcıya uygun feedback veriliyor
+
+---
+
+### P1.6.5: Ters Sevkiyat (Reverse Shipment)
+
+**Bağımlılık:** P1.6.1, P1.6.2 tamamlanmış olmalı
+
+**Amaç:** Import (tamamlanmış) edilmiş sevkiyatı ters çevirip düzenleme moduna alabilme.
+
+**Akış:**
+```
+COMPLETED (stok düşmüş)
+    ↓
+"Ters Sevkiyat" butonuna tıkla
+    ↓
+Onay dialogu: "Sevkiyatı geri almak istediğinizden emin misiniz?"
+    ↓ [Evet]
+AddShipment Modal açılır (düzenleme modu)
+    ↓
+Kullanıcı değişiklik yapar (kalemler, miktarlar, transport)
+    ↓
+"Ters Sevkiyatı Kaydet" butonuna tıklar
+    ↓
+AKSİYONLAR:
+  a) Stok geri yüklenir (reverse_shipment stock movement)
+  b) Sevkiyat güncellenir
+  c) Status: "completed" → "reversed"
+  d) Import/export alanları sıfırlanır
+    ↓
+REVERSED (stok geri yüklenmiş)
+    ↓
+Yeni export → Yeni import yapılabilir
+    ↓
+COMPLETED (tekrar)
+```
+
+**Kurallar:**
+- Aynı shipment ID ve kodu ile devam edilir (yeni sevkiyat oluşturulmaz)
+- Müşteri DEĞİŞTİRİLEMEZ
+- Kalemler, miktarlar, transport DEĞİŞTİRİLEBİLİR
+- Ters çevrilmiş sevkiyat tekrar ters çevrilebilir
+
+**Sıfırlanacak Alanlar:**
+- `externalDocNumber`
+- `importedAt`
+- `importedBy`
+- `importedFile`
+- `importedFileName`
+- `exportHistory`
+- `lastExportedAt`
+- `shipmentCompletedAt`
+
+**Stok Kontrolü (Sanal Stok):**
+Modal'da stok kontrolü yapılırken, ters çevirme modunda mevcut stok + original miktar hesaplanır:
+```javascript
+if (isReverseMode) {
+  const originalQty = originalItems.find(i => i.materialCode === code)?.quantity || 0;
+  availableStock = currentStock + originalQty;
+}
+```
+
+**Prompt:**
+```
+Ters Sevkiyat (Reverse Shipment) özelliğini ekle.
+
+## VERİTABANI
+materials.shipments tablosuna:
+- status: 'reversed' değeri ekle (check constraint güncelle)
+
+## BACKEND
+
+### 1. reverseShipment endpoint
+POST /api/materials/shipments/:id/reverse
+
+```javascript
+// 1. Status kontrolü (sadece completed)
+// 2. Stok geri yükle (reverse_shipment stock movement)
+// 3. Alanları sıfırla
+// 4. Status'u 'reversed' yap
+// 5. Audit log
+```
+
+### 2. updateReversedShipment endpoint
+PUT /api/materials/shipments/:id/reversed
+
+```javascript
+// 1. Status kontrolü (sadece reversed)
+// 2. Sevkiyat verilerini güncelle (items dahil)
+// 3. Sanal stok kontrolü yap
+// 4. Audit log
+```
+
+### 3. Stok validation güncelle
+validateStockAvailability fonksiyonuna `excludeShipmentId` parametresi ekle.
+Ters çevirme modunda original miktarları hesaba kat.
+
+## FRONTEND
+
+### 1. ShipmentDetailsModal
+"Export / Import Bilgileri" bölümüne "Ters Sevkiyat" butonu ekle:
+- Sadece status='completed' ise görünür
+- Tıklanınca onay dialogu
+- Onay sonrası AddShipmentModal açılır (shipmentId ile)
+
+### 2. AddShipmentModal
+- `reversedShipmentId` prop'u ekle
+- Bu prop varsa:
+  - Sevkiyat verilerini yükle
+  - Müşteri disabled
+  - Buton: "Ters Sevkiyatı Kaydet"
+  - Kaydetme: PUT /api/materials/shipments/:id/reversed
+
+### 3. Stok gösterimi
+Modal'da stok gösterilirken:
+- Ters çevirme modunda sanal stok hesapla
+- "Mevcut: X + (Ters Sevkiyat: Y) = Z" şeklinde göster
+
+## DOSYALAR
+Backend:
+- /WebApp/db/neon_schema.sql (status constraint)
+- /WebApp/domains/materials/api/controllers/shipmentController.js
+- /WebApp/domains/materials/api/services/shipmentService.js
+- /WebApp/domains/materials/api/routes.js
+
+Frontend:
+- /WebApp/public/components/materials/ShipmentDetailsModal.jsx
+- /WebApp/public/components/materials/AddShipmentModal.jsx
+```
+
+**Düzenlenecek Dosyalar:**
+- `/WebApp/db/neon_schema.sql`
+- `/WebApp/domains/materials/api/controllers/shipmentController.js`
+- `/WebApp/domains/materials/api/services/shipmentService.js`
+- `/WebApp/domains/materials/api/routes.js`
+- `/WebApp/public/components/materials/ShipmentDetailsModal.jsx`
+- `/WebApp/public/components/materials/AddShipmentModal.jsx`
+
+**Başarı Kriterleri:**
+- [ ] "Ters Sevkiyat" butonu completed sevkiyatlarda görünüyor
+- [ ] Onay dialogu çalışıyor
+- [ ] Modal ters çevirme modunda açılıyor
+- [ ] Sanal stok hesaplama doğru çalışıyor
+- [ ] Kaydetme sonrası stok geri yükleniyor
+- [ ] Status "reversed" oluyor
+- [ ] Import/export alanları sıfırlanıyor
+- [ ] Tekrar import yapılabilir
+- [ ] Audit logging çalışıyor (shipment.reverse, shipment.update_reversed)
+
+---
+
 ### P1.7: Materials Order & Stock Audit Logging
 
 **Bağımlılık:** P1.1 tamamlanmış olmalı
