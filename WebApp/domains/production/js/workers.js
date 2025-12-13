@@ -2738,9 +2738,13 @@ window.saveWorkerPinInline = async function (workerId) {
     savePinBtn.disabled = true;
     savePinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
 
+    const token = localStorage.getItem('authToken');
     const response = await fetch(`/api/mes/workers/${workerId}/set-pin`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ pin })
     });
 

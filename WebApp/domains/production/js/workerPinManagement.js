@@ -56,9 +56,13 @@ window.saveWorkerPin = async function () {
     }
 
     try {
+        const token = localStorage.getItem('authToken');
         const response = await fetch(`/api/mes/workers/${workerId}/set-pin`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ pin })
         });
 
