@@ -1322,6 +1322,9 @@ CREATE TABLE materials.shipments (
     "hidePrice" boolean DEFAULT true,
     "relatedQuoteId" character varying(50),
     transport jsonb DEFAULT '{}'::jsonb,
+    "cancellationReason" text,
+    "cancelledAt" timestamp with time zone,
+    "cancelledBy" character varying(255),
     CONSTRAINT chk_document_status CHECK ((("documentStatus")::text = ANY ((ARRAY['draft'::character varying, 'finalized'::character varying, 'exported'::character varying, 'archived'::character varying])::text[]))),
     CONSTRAINT chk_transport_type CHECK ((("transportType")::text = ANY ((ARRAY['OWN_VEHICLE'::character varying, 'LOGISTICS_COMPANY'::character varying])::text[])))
 );

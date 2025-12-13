@@ -5,6 +5,8 @@
 
 import * as shipmentService from '../services/shipmentService.js';
 import * as exportService from '../services/exportService.js';
+import { logAuditEvent } from '../../../../server/auditTrail.js';
+import { logOperation } from '../../../../server/utils/logger.js';
 
 // ============================================
 // SHIPMENT CRUD (Header)
@@ -13,6 +15,33 @@ import * as exportService from '../services/exportService.js';
 export async function createShipment(req, res) {
   try {
     const result = await shipmentService.createShipment(req.body, req.user);
+
+    // Audit logging - shipment.create (result is the shipment object directly)
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT CREATE',
+      details: {
+        shipmentId: result.id,
+        shipmentCode: result.shipmentCode,
+        customerId: result.customerId,
+        itemsCount: result.items?.length || 0
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: result.id,
+        action: 'create',
+        changes: {
+          shipmentCode: result.shipmentCode,
+          customerId: result.customerId,
+          customerName: result.customerName,
+          itemsCount: result.items?.length || 0
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
     res.status(201).json(result);
   } catch (error) {
     if (error.code === 'VALIDATION_ERROR') {
@@ -147,6 +176,32 @@ export async function cancelShipment(req, res) {
     const cancelledBy = req.user?.email || 'system';
 
     const shipment = await shipmentService.cancelShipment(id, reason, cancelledBy);
+
+    // Audit logging - shipment.cancel
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT CANCEL',
+      details: {
+        shipmentId: id,
+        shipmentCode: shipment?.shipmentCode,
+        reason: reason || null
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'cancel',
+        changes: {
+          shipmentCode: shipment?.shipmentCode,
+          reason: reason || null,
+          cancelledAt: new Date().toISOString(),
+          stockRestored: true
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
     res.json(shipment);
   } catch (error) {
     if (error.code === 'NOT_FOUND') {
@@ -394,6 +449,33 @@ export async function importShipmentConfirmation(req, res) {
       req.user
     );
 
+    // Audit logging - shipment.import
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT IMPORT',
+      details: {
+        shipmentId: id,
+        shipmentCode: result.shipment?.shipmentCode,
+        externalDocNumber,
+        itemsCount: result.stockUpdates?.length || 0
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'import',
+        changes: {
+          shipmentCode: result.shipment?.shipmentCode,
+          externalDocNumber,
+          stockDecreased: true,
+          importedAt: new Date().toISOString(),
+          hasFile: !!file
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
     res.json(result);
   } catch (error) {
     if (error.code === 'NOT_FOUND') {
@@ -449,6 +531,33 @@ export async function exportShipment(req, res) {
     // Update export history in DB
     await updateExportHistory(id, format);
 
+    // Audit logging - shipment.export
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT EXPORT',
+      details: {
+        shipmentId: id,
+        shipmentCode: shipment?.shipmentCode,
+        format,
+        target
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'export',
+        changes: {
+          shipmentCode: shipment?.shipmentCode,
+          format,
+          target,
+          filename: result.filename,
+          exportedAt: new Date().toISOString()
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
     // Set response headers for file download
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
@@ -498,6 +607,34 @@ export async function exportShipmentPackage(req, res) {
 
     // Update export history
     await updateExportHistory(id, format);
+
+    // Audit logging - shipment.export (from modal/package export)
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT EXPORT',
+      details: {
+        shipmentId: id,
+        shipmentCode: shipment?.shipmentCode,
+        format,
+        target,
+        source: 'modal'
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'export',
+        changes: {
+          shipmentCode: shipment?.shipmentCode,
+          format,
+          target,
+          filename: result.filename,
+          exportedAt: new Date().toISOString()
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
 
     // Set response headers
     res.setHeader('Content-Type', result.mimeType);

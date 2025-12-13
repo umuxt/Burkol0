@@ -2202,10 +2202,16 @@ logAuditEvent({
 - `/WebApp/domains/materials/api/controllers/shipmentController.js`
 
 **Başarı Kriterleri:**
-- [ ] shipment.create loglanıyor
-- [ ] shipment.cancel loglanıyor
-- [ ] shipment.export loglanıyor
-- [ ] shipment.import loglanıyor
+- [x] shipment.create loglanıyor ✅ (13 Aralık 2025)
+- [x] shipment.cancel loglanıyor ✅ (13 Aralık 2025)
+- [x] shipment.export loglanıyor ✅ (13 Aralık 2025)
+- [x] shipment.import loglanıyor ✅ (13 Aralık 2025)
+
+**İmplementasyon Notları (13 Aralık 2025):**
+- `logOperation` pattern kullanıldı (console tablo + DB audit)
+- 4 aksiyon: create, cancel, export, import
+- Export format ve target bilgisi loglanıyor
+- Import'ta externalDocNumber ve dosya bilgisi loglanıyor
 
 ---
 
