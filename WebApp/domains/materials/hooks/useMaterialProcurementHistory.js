@@ -42,7 +42,10 @@ export function useMaterialProcurementHistory(material) {
       setError(null)
 
       // Fetch all orders via backend API; filter client-side by item.materialCode/Name
-      const res = await fetch('/api/orders')
+      const token = localStorage.getItem('authToken');
+      const res = await fetch('/api/orders', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Orders API error: ${res.status}`)

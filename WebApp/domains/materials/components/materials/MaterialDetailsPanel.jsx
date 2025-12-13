@@ -173,7 +173,10 @@ export default function MaterialDetailsPanel({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings/system')
+        const token = localStorage.getItem('authToken');
+        const res = await fetch('/api/settings/system', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
         if (res.ok) {
           const data = await res.json()
           setSystemSettings(data || { lotTracking: true })

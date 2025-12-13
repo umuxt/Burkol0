@@ -31,7 +31,10 @@ export function ShipmentSettingsProvider({ children }) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/settings/shipment_module_config');
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/settings/shipment_module_config', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       const data = await response.json();
 
       if (data.success && data.value) {
@@ -51,10 +54,12 @@ export function ShipmentSettingsProvider({ children }) {
 
   const updateSettings = async (newSettings) => {
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/settings/shipment_module_config', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ value: newSettings }),
       });
@@ -165,7 +170,10 @@ function useLocalShipmentSettings() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/settings/shipment_module_config');
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/settings/shipment_module_config', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       const data = await response.json();
 
       if (data.success && data.value) {
@@ -184,10 +192,12 @@ function useLocalShipmentSettings() {
 
   const updateSettings = async (newSettings) => {
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/settings/shipment_module_config', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ value: newSettings }),
       });

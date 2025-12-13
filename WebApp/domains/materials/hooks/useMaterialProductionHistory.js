@@ -26,7 +26,10 @@ export default function useMaterialProductionHistory(material) {
       console.log(`📊 Loading production history for material: ${material.code}`)
       
       // Fetch stock movements with production-related subtypes
-      const response = await fetch(`/api/stockMovements?materialCode=${material.code}`)
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/stockMovements?materialCode=${material.code}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)

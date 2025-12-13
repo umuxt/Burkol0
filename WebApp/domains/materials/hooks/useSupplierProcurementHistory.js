@@ -41,7 +41,10 @@ export function useSupplierProcurementHistory(supplier) {
       setLoading(true)
       setError(null)
 
-      const res = await fetch('/api/orders')
+      const token = localStorage.getItem('authToken');
+      const res = await fetch('/api/orders', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Orders API error: ${res.status}`)

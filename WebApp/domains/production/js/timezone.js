@@ -17,7 +17,10 @@ export async function initTimezoneUI() {
 // Load timezone from API
 async function loadTimezone() {
   try {
-    const response = await fetch('/api/mes/timezone');
+    const token = localStorage.getItem('authToken');
+    const response = await fetch('/api/mes/timezone', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     if (!response.ok) throw new Error('Failed to fetch timezone');
     
     const data = await response.json();

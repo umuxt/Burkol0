@@ -93,7 +93,10 @@ export default function ShipmentDetailsPanel({
     if (materials.length > 0) return;
     setMaterialsLoading(true);
     try {
-      const response = await fetch('/api/materials');
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/materials', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       const data = await response.json();
       setMaterials(data.materials || data || []);
     } catch (error) {
@@ -277,7 +280,10 @@ export default function ShipmentDetailsPanel({
   const handleExport = async (format = 'csv') => {
     setIsExporting(true);
     try {
-      const response = await fetch(`/api/materials/shipments/${currentShipment.id}/export/${format}`);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/materials/shipments/${currentShipment.id}/export/${format}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
 
       if (!response.ok) {
         const error = await response.json();

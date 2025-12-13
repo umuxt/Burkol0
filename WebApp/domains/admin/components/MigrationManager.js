@@ -15,7 +15,10 @@ const MigrationManager = () => {
   const loadMigrationStatus = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/migration/status')
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/migration/status', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       const data = await response.json()
       
       if (data.success) {
@@ -35,7 +38,10 @@ const MigrationManager = () => {
   const loadMigrationReport = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/migration/report')
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/migration/report', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       const data = await response.json()
       
       if (data.success) {
@@ -58,7 +64,11 @@ const MigrationManager = () => {
 
     try {
       setIsLoading(true)
-      const response = await fetch('/api/migration/migrate', { method: 'POST' })
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/migration/migrate', { 
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       const data = await response.json()
       
       if (data.success) {
@@ -80,7 +90,10 @@ const MigrationManager = () => {
   const validateMigration = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/migration/validate')
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/migration/validate', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       const data = await response.json()
       
       if (data.success) {

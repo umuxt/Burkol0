@@ -156,7 +156,10 @@ async function init() {
  */
 async function loadSystemSettings() {
   try {
-    const response = await fetch('/api/settings/system');
+    const token = localStorage.getItem('authToken');
+    const response = await fetch('/api/settings/system', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     if (response.ok) {
       const settings = await response.json();
       state.systemSettings = settings || { lotTracking: true };
@@ -303,7 +306,10 @@ async function loadLotPreviews() {
 
         // Fetch lot preview from API (silently fail if endpoint not implemented)
         const queryString = encodeURIComponent(JSON.stringify(materialRequirements));
-        const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`)
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
           .catch(() => null); // Silently catch network errors
 
         if (!response || !response.ok) {
@@ -1211,7 +1217,10 @@ let pendingMaterialCode = null; // For scrap type selection
 // Get total scrap count for an assignment
 async function getScrapCounters(assignmentId) {
   try {
-    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     if (!response.ok) {
       // No counters yet
       return {
@@ -1274,7 +1283,10 @@ async function openFireModal(assignmentId) {
 
   // Load current scrap counters from backend
   try {
-    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
 
     if (!response.ok) {
       // If 404, assignment might not have counters yet - initialize empty

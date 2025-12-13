@@ -22,7 +22,10 @@ export async function showLotPreviewModal(assignmentId, onConfirm) {
   console.log(`📦 Fetching lot preview for assignment ${assignmentId}...`);
   
   try {
-    const response = await fetch(`/api/mes/assignments/${assignmentId}/lot-preview`);
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`/api/mes/assignments/${assignmentId}/lot-preview`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

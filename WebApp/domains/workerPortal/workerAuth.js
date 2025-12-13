@@ -212,7 +212,10 @@ export function initializeAuth() {
     // Check if we're on worker-portal page
     if (window.location.pathname.includes('worker-portal')) {
         // Load settings to get dynamic timeout
-        fetch('/api/settings/system')
+        const token = localStorage.getItem('authToken');
+        fetch('/api/settings/system', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
             .then(res => res.json())
             .then(settings => {
                 if (settings && settings.workerInactivityTimeoutSeconds) {

@@ -26,7 +26,10 @@ export async function initHolidaysUI() {
 // Load holidays from API
 async function loadHolidays() {
   try {
-    const response = await fetch('/api/mes/holidays');
+    const token = localStorage.getItem('authToken');
+    const response = await fetch('/api/mes/holidays', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     if (!response.ok) throw new Error('Failed to fetch holidays');
     
     const data = await response.json();
