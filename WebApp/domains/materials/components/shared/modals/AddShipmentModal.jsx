@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { shipmentsService } from '../../../services/shipments-service.js'
 import { customersService } from '../../../../crm/services/customers-service.js'
-import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, ChevronLeft, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, Settings, FileText, Upload } from 'lucide-react'
+import { Truck, X, Package, Plus, Trash2, ChevronDown, ChevronRight, ChevronLeft, Search, Loader2, AlertCircle, ArrowLeft, ArrowRight, Check, UserPlus, Settings, FileText, Upload, Lock } from 'lucide-react'
 import TransportAccordion from '../accordions/TransportAccordion.jsx'
 
 /**
@@ -257,6 +257,16 @@ export default function AddShipmentModal({
 
     fetchCustomerQuotes()
   }, [headerData.customerId])
+
+  // Document type helper
+  const getDocumentTypeLabel = (type) => {
+    switch (type) {
+      case 'waybill': return 'İrsaliye';
+      case 'invoice': return 'Fatura';
+      case 'both': return 'İrsaliye + Fatura';
+      default: return 'Bilinmiyor';
+    }
+  }
 
   if (!isOpen) return null
 
@@ -873,7 +883,7 @@ export default function AddShipmentModal({
 
                   {/* NOTLAR */}
                   <div className="mb-16">
-                    <label className="supplier-label-block">Sevkiyat Notu (Opsiyonel)</label>
+                    <label className="shipment-form-label">Sevkiyat Notu (Opsiyonel)</label>
                     <input
                       type="text"
                       className="mes-filter-input is-compact w-full"
@@ -900,15 +910,19 @@ export default function AddShipmentModal({
                   {/* BAĞLI TEKLİF (P3.3) - 7 Day Rule Linking */}
                   {headerData.customerId && (
                     <div className="mb-16">
-                      <label className="supplier-label-block">
+                      <label className="shipment-form-label">
                         Bağlı Teklif (Opsiyonel)
-                        <span className="text-xs text-gray-500 ml-8">- 7 gün kuralı için</span>
+                        <span className="shipment-form-label-hint ml-2">- 7 gün kuralı için</span>
                       </label>
                       <div className="pos-z15">
                         <button
                           type="button"
                           className="mes-filter-select full-justify-between"
+                          disabled={!!createdShipmentId}
+                          title={createdShipmentId ? "Güvenlik nedeniyle teklif kaynağı değiştirilemez." : "Teklif Seçin"}
+                          style={createdShipmentId ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
                           onClick={(e) => {
+                            if (createdShipmentId) return;
                             e.stopPropagation();
                             setRelatedQuoteDropdownOpen(!relatedQuoteDropdownOpen);
                             setWorkOrderDropdownOpen(false);
@@ -957,7 +971,7 @@ export default function AddShipmentModal({
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 mt-4">
+                      <p className="shipment-form-label-hint mt-1">
                         İrsaliyeyi bir teklife bağlayarak 7 gün kuralı takibi yapılır
                       </p>
                     </div>
@@ -1050,7 +1064,7 @@ export default function AddShipmentModal({
               {currentStep === 2 && (
                 <div>
                   <div className="section-header-with-action">
-                    <p className="text-xs-gray">
+                    <p className="shipment-form-label-hint">
                       Sevk edilecek malzemeleri ekleyin
                     </p>
                     <button
@@ -1066,7 +1080,7 @@ export default function AddShipmentModal({
                   {items.length === 0 ? (
                     <div className="empty-items-box">
                       <Package size={28} className="mb-8 opacity-50" />
-                      <p className="text-xs-gray">Henüz kalem eklenmedi</p>
+                      <p className="shipment-form-label-hint mb-4">Sevk edilecek malzemeleri ekleyin (maksimum 50 kalem)</p>
                     </div>
                   ) : (
                     <div className="flex-col-gap-8">
@@ -1155,8 +1169,8 @@ export default function AddShipmentModal({
                                 placeholder="Miktar"
                                 pattern="[0-9]*\.?[0-9]*"
                               />
-                              <span className="text-muted-xs">
-                                {item.unit}
+                              <span className="text-muted text-xs ml-1">
+                                {item.unit || 'adet'}
                               </span>
                             </div>
 
@@ -1293,56 +1307,43 @@ export default function AddShipmentModal({
               {/* ===== STEP 3: Özet ===== */}
               {currentStep === 3 && (
                 <div>
-                  <p className="text-xs-light-mb">
-                    Sevkiyat bilgilerini kontrol edin ve onaylayın
-                  </p>
+                  <p className="shipment-form-label-hint mb-4">Sevkiyat bilgilerini kontrol edin ve onaylayın</p>
 
                   {/* Header Info */}
-                  <div className="summary-info-box">
-                    <h3 className="section-header">
-                      Sevkiyat Bilgileri
-                    </h3>
-                    <div className="grid-2-gap-6">
-                      {/* Belge Tipi */}
-                      <div>
-                        <span className="text-muted">Belge Tipi:</span>{' '}
-                        {headerData.documentType === 'waybill' ? 'İrsaliye' :
-                          headerData.documentType === 'invoice' ? 'Fatura' : 'İrsaliye + Fatura'}
-                      </div>
+                  <div className="customer-info-box mb-4">
+                    <h3 className="shipment-section-header">Sevkiyat Bilgileri</h3>
+                    <div className="customer-info-grid">
+                      <div><span className="customer-info-label">Belge Tipi:</span> <span className="customer-info-value">{getDocumentTypeLabel(headerData.documentType)}</span></div>
+                      <div><span className="customer-info-label">Tarih:</span> <span className="customer-info-value">{new Date().toLocaleDateString('tr-TR')}</span></div>
                       {headerData.workOrderCode && (
-                        <div><span className="text-muted">İş Emri:</span> {headerData.workOrderCode}</div>
+                        <div><span className="customer-info-label">İş Emri:</span> <span className="customer-info-value">{headerData.workOrderCode}</span></div>
                       )}
                       {headerData.quoteId && (
-                        <div><span className="text-muted">Teklif:</span> #{headerData.quoteId}</div>
+                        <div><span className="customer-info-label">Teklif:</span> <span className="customer-info-value">#{headerData.quoteId}</span></div>
                       )}
                     </div>
 
-                    {/* Customer Snapshot Info */}
-                    {headerData.customerSnapshot && (
-                      <div className="summary-customer-section">
-                        <div className="summary-section-title">Müşteri Bilgileri</div>
-                        <div className="grid-2-gap-6">
-                          <div><span className="text-muted">Firma:</span> {headerData.customerSnapshot.company || '-'}</div>
-                          <div><span className="text-muted">Yetkili:</span> {headerData.customerSnapshot.name || '-'}</div>
-                          <div><span className="text-muted">VKN:</span> {headerData.customerSnapshot.taxNumber || '-'}</div>
-                          <div><span className="text-muted">Vergi Dairesi:</span> {headerData.customerSnapshot.taxOffice || '-'}</div>
-                          <div><span className="text-muted">Telefon:</span> {headerData.customerSnapshot.phone || '-'}</div>
-                          <div><span className="text-muted">E-posta:</span> {headerData.customerSnapshot.email || '-'}</div>
-                        </div>
-                        {headerData.customerSnapshot.address && (
-                          <div className="summary-address">
-                            <span className="text-muted">Adres:</span> {headerData.customerSnapshot.address}
-                          </div>
-                        )}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h3 className="shipment-section-header">Müşteri Bilgileri</h3>
+                      <div className="customer-info-grid">
+                        <div><span className="customer-info-label">Firma:</span> <span className="customer-info-value">{headerData.customerSnapshot?.company || '-'}</span></div>
+                        <div><span className="customer-info-label">Yetkili:</span> <span className="customer-info-value">{headerData.customerSnapshot?.name || '-'}</span></div>
+                        <div><span className="customer-info-label">VKN:</span> <span className="customer-info-value">{headerData.customerSnapshot?.taxNumber || '-'}</span></div>
+                        <div><span className="customer-info-label">Vergi Dairesi:</span> <span className="customer-info-value">{headerData.customerSnapshot?.taxOffice || '-'}</span></div>
+                        <div><span className="customer-info-label">Telefon:</span> <span className="customer-info-value">{headerData.customerSnapshot?.phone || '-'}</span></div>
+                        <div><span className="customer-info-label">E-posta:</span> <span className="customer-info-value">{headerData.customerSnapshot?.email || '-'}</span></div>
                       </div>
-                    )}
-
-                    {headerData.notes && (
-                      <div className="mt-6 text-muted-italic">
-                        Not: {headerData.notes}
+                      <div className="customer-info-address mt-2">
+                        <span className="customer-info-label">Adres:</span> <span className="customer-info-value">{headerData.useAlternateDelivery && headerData.alternateDeliveryAddress ? headerData.alternateDeliveryAddress : (headerData.customerSnapshot?.address || '-')}</span>
                       </div>
-                    )}
+                    </div>
                   </div>
+                  {headerData.notes && (
+                    <div className="mt-6 text-muted-italic">
+                      Not: {headerData.notes}
+                    </div>
+                  )}
+
 
                   {/* Items Summary */}
                   <div className="bordered-container-rounded">
@@ -1350,27 +1351,17 @@ export default function AddShipmentModal({
                       Kalemler ({totalItems})
                     </div>
                     {items.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="summary-item-row"
-                      >
-                        <div>
-                          <div className="font-medium">{item.materialCode}</div>
-                          <div className="text-muted-sm">{item.materialName}</div>
+                      <div key={item.id} className="summary-item-row">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div className="font-medium text-sm text-dark">{item.materialCode}</div>
+                          <div className="text-xs text-medium">{item.materialName}</div>
                         </div>
-                        <div className="summary-item-qty">
-                          {formatQty(item.quantity)} {item.unit}
-                          {headerData.includePrice && item.unitPrice && (
-                            <span className="text-muted-sm ml-8">
-                              @ ₺{parseFloat(item.unitPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </div>
+                        <div className="summary-item-qty text-dark">{item.quantity} {item.unit}</div>
                       </div>
                     ))}
-                    <div className="summary-total-row">
+                    <div className="summary-total-row text-dark font-bold">
                       <span>Toplam</span>
-                      <span>{formatQty(totalQuantity)}</span>
+                      <span>{totalQuantity} {items[0]?.unit || 'adet'}</span>
                     </div>
                   </div>
                 </div>
@@ -1379,9 +1370,7 @@ export default function AddShipmentModal({
               {/* ===== STEP 4: Export ===== */}
               {currentStep === 4 && (
                 <div>
-                  <p className="text-xs-light-mb">
-                    İrsaliye belgesini dışa aktarın
-                  </p>
+                  <p className="shipment-form-label-hint mb-4">İrsaliye belgesini dışa aktarın</p>
 
                   <div className="summary-info-box">
                     <h3 className="section-header">Export Ayarları</h3>
@@ -1490,8 +1479,8 @@ export default function AddShipmentModal({
                       </button>
 
                       {exportStatus.success && (
-                        <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                          ✓ Dosya indirildi: {exportStatus.fileName}
+                        <div className="customer-info-box mb-4" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+                          <span className="text-success font-medium">✓ Dosya indirildi: {exportStatus.fileName}</span>
                         </div>
                       )}
 
@@ -1504,9 +1493,7 @@ export default function AddShipmentModal({
 
                     {exportStatus.success && (
                       <div className="mt-16 pt-16 border-t border-gray-200">
-                        <p className="text-sm text-gray-600 mb-12">
-                          Export tamamlandı. Şimdi harici belge numarasını girerek sevkiyatı tamamlayabilirsiniz.
-                        </p>
+                        <p className="shipment-form-label-hint mb-4">Export tamamlandı. Şimdi harici belge numarasını girerek sevkiyatı tamamlayabilirsiniz.</p>
                         <button
                           type="button"
                           onClick={() => setCurrentStep(5)}
@@ -1711,21 +1698,23 @@ export default function AddShipmentModal({
 
                   {/* Status Messages */}
                   {importStatus.loading && (
-                    <div className="mt-8 p-8 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                      <Loader2 size={14} className="spin-animation inline mr-4" />
-                      Yükleniyor...
+                    <div className="customer-info-box mt-4 mb-4" style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}>
+                      <span className="text-primary font-medium flex items-center gap-2">
+                        <Loader2 size={14} className="spin-animation" />
+                        Yükleniyor...
+                      </span>
                     </div>
                   )}
 
                   {importStatus.success && (
-                    <div className="mt-8 p-8 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                      ✓ Belge başarıyla içe aktarıldı
+                    <div className="customer-info-box mt-4 mb-4" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+                      <span className="text-success font-medium">✓ Belge başarıyla içe aktarıldı</span>
                     </div>
                   )}
 
                   {importStatus.error && (
-                    <div className="mt-8 p-8 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                      ✗ Hata: {importStatus.error}
+                    <div className="customer-info-box mt-4 mb-4" style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}>
+                      <span className="text-error font-medium">✗ Hata: {importStatus.error}</span>
                     </div>
                   )}
                 </div>

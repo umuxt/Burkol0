@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus, Upload, Download, AlertCircle, FileCode, Paperclip } from '../../../../shared/components/Icons.jsx'
+import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus, Upload, Download, AlertCircle, FileCode, Paperclip, Lock } from '../../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../../services/shipments-service.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
 import ImportModal from '../shared/modals/ImportModal.jsx'
@@ -1045,12 +1044,36 @@ export default function ShipmentDetailsPanel({
             </div>
 
             {/* Related Quote ID - 7 Day Rule */}
+            {/* Related Quote ID - 7 Day Rule */}
             <div className="detail-row">
               <span className="detail-label detail-label">
                 Bağlı Teklif:
               </span>
-              <span className="detail-value">
-                {currentShipment.relatedQuoteId ? currentShipment.relatedQuoteId : <span className="text-muted-italic">-</span>}
+              <span className="detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {isEditing ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 8px',
+                    backgroundColor: '#f3f4f6',
+                    borderRadius: '4px',
+                    border: '1px solid #e5e7eb',
+                    fontSize: '13px',
+                    color: '#6b7280',
+                    cursor: 'not-allowed'
+                  }} title="Güvenlik nedeniyle teklif kaynağı değiştirilemez.">
+                    <Lock size={12} />
+                    {currentShipment.relatedQuoteId || currentShipment.quoteId || 'Belirtilmemiş'}
+                    <span style={{ fontSize: '10px', marginLeft: '4px', color: '#9ca3af' }}>(Değiştirilemez)</span>
+                  </div>
+                ) : (
+                  currentShipment.relatedQuoteId || currentShipment.quoteId ? (
+                    <span>{currentShipment.relatedQuoteId || currentShipment.quoteId}</span>
+                  ) : (
+                    <span className="text-muted-italic">-</span>
+                  )
+                )}
               </span>
             </div>
           </div>

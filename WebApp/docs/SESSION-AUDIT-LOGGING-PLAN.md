@@ -2441,9 +2441,9 @@ c) Teklif değişikliği kısmen tehlikeli → Uyarı göster + onay iste
 ```
 
 **Başarı Kriterleri:**
-- [ ] quoteId kullanım analizi tamamlandı
-- [ ] Güvenlik kontrolü uygulandı
-- [ ] Kullanıcıya uygun feedback veriliyor
+- [x] quoteId kullanım analizi tamamlandı
+- [x] Güvenlik kontrolü uygulandı
+- [x] Kullanıcıya uygun feedback veriliyor
 
 ---
 

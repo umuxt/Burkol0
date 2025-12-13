@@ -105,19 +105,19 @@ export default function TransportAccordion({
                 <div className="shipment-accordion-content">
                     {/* Taşıma Bilgileri Grubu */}
                     <div className="space-y-12">
-                        <h4 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-6">
+                        <h4 className="shipment-section-header border-b border-gray-200 pb-2">
                             Taşıyıcı Bilgileri
                         </h4>
 
                         {/* Şoför Adı */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <User size={14} className="text-gray-400" />
                                 Şoför Adı <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
-                                className="mes-filter-input w-full"
+                                className="mes-filter-input is-compact w-full"
                                 placeholder="Ad Soyad"
                                 value={driverName}
                                 onChange={(e) => handleChange('driverName', e.target.value)}
@@ -128,13 +128,13 @@ export default function TransportAccordion({
 
                         {/* Şoför TC */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <User size={14} className="text-gray-400" />
                                 Şoför TC Kimlik No <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
-                                className={`mes-filter-input w-full ${errors.driverTc ? 'border-red-500' : ''}`}
+                                className={`mes-filter-input is-compact w-full ${errors.driverTc ? 'border-red-500' : ''}`}
                                 placeholder="12345678901"
                                 value={driverTc}
                                 onChange={(e) => handleChange('driverTc', e.target.value)}
@@ -143,22 +143,22 @@ export default function TransportAccordion({
                                 required
                             />
                             {errors.driverTc && (
-                                <p className="text-xs text-red-500 mt-4">{errors.driverTc}</p>
+                                <p className="text-xs text-red-500 mt-1">{errors.driverTc}</p>
                             )}
-                            <p className="text-xs text-gray-500 mt-4">
+                            <p className="shipment-form-label-hint">
                                 11 haneli TC kimlik numarası
                             </p>
                         </div>
 
                         {/* Plaka */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Truck size={14} className="text-gray-400" />
                                 Araç Plakası <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
-                                className={`mes-filter-input w-full ${errors.plateNumber ? 'border-red-500' : ''}`}
+                                className={`mes-filter-input is-compact w-full ${errors.plateNumber ? 'border-red-500' : ''}`}
                                 placeholder="34ABC123"
                                 value={plateNumber}
                                 onChange={(e) => handleChange('plateNumber', e.target.value)}
@@ -166,29 +166,29 @@ export default function TransportAccordion({
                                 required
                             />
                             {errors.plateNumber && (
-                                <p className="text-xs text-red-500 mt-4">{errors.plateNumber}</p>
+                                <p className="text-xs text-red-500 mt-1">{errors.plateNumber}</p>
                             )}
-                            <p className="text-xs text-gray-500 mt-4">
+                            <p className="shipment-form-label-hint">
                                 Örnek format: 34ABC123 veya 06DEF4567
                             </p>
                         </div>
                     </div>
 
                     {/* Teslimat Bilgileri Grubu */}
-                    <div className="space-y-12 pt-16 border-t border-gray-200">
-                        <h4 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-6">
+                    <div className="space-y-12 pt-4 border-t border-gray-200 mt-4">
+                        <h4 className="shipment-section-header border-b border-gray-200 pb-2">
                             Teslimat Bilgileri (Opsiyonel)
                         </h4>
 
                         {/* Teslim Eden Kişi */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <User size={14} className="text-gray-400" />
                                 Teslim Eden Kişi
                             </label>
                             <input
                                 type="text"
-                                className="mes-filter-input w-full"
+                                className="mes-filter-input is-compact w-full"
                                 placeholder="Teslim eden personel adı"
                                 value={deliveryPerson}
                                 onChange={(e) => handleChange('deliveryPerson', e.target.value)}
@@ -198,13 +198,13 @@ export default function TransportAccordion({
 
                         {/* Teslim Alan Kişi */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <User size={14} className="text-gray-400" />
                                 Teslim Alan Kişi
                             </label>
                             <input
                                 type="text"
-                                className="mes-filter-input w-full"
+                                className="mes-filter-input is-compact w-full"
                                 placeholder="Teslim alan kişi adı"
                                 value={receiverPerson}
                                 onChange={(e) => handleChange('receiverPerson', e.target.value)}
@@ -214,23 +214,23 @@ export default function TransportAccordion({
 
                         {/* Teslimat Notu */}
                         <div>
-                            <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                            <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <ClipboardList size={14} className="text-gray-400" />
                                 Teslimat Notu
                             </label>
                             <textarea
-                                className="mes-filter-input w-full"
+                                className="mes-filter-input is-compact w-full"
                                 rows={3}
                                 placeholder="Teslimat ile ilgili özel notlar..."
                                 value={deliveryNote}
                                 onChange={(e) => handleChange('deliveryNote', e.target.value)}
                                 maxLength={500}
                             />
-                            <div className="flex justify-between mt-4">
-                                <p className="text-xs text-gray-500">
+                            <div className="flex justify-between mt-2">
+                                <p className="shipment-form-label-hint">
                                     Teslimat sırasında önemli notlar
                                 </p>
-                                <span className="text-xs text-gray-400">
+                                <span className="shipment-form-label-hint">
                                     {deliveryNote.length}/500
                                 </span>
                             </div>
@@ -238,19 +238,19 @@ export default function TransportAccordion({
                     </div>
 
                     {/* Günlük Tarihi */}
-                    <div className="pt-16 border-t border-gray-200">
-                        <label className="flex items-center gap-6 text-sm font-medium text-gray-700 mb-6">
+                    <div className="pt-4 border-t border-gray-200 mt-4">
+                        <label className="shipment-form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Calendar size={14} className="text-gray-400" />
                             Günlük Tarihi
                         </label>
                         <input
                             type="date"
-                            className="mes-filter-input w-full"
+                            className="mes-filter-input is-compact w-full"
                             value={waybillDate}
                             onChange={(e) => handleChange('waybillDate', e.target.value)}
                             max={new Date().toISOString().split('T')[0]}
                         />
-                        <p className="text-xs text-gray-500 mt-4">
+                        <p className="shipment-form-label-hint">
                             İrsaliye için günlük kayıt tarihi (varsayılan: bugün)
                         </p>
                     </div>
