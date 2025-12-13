@@ -21,8 +21,8 @@ async function withAuth(req, res, next) {
   next();
 }
 
-// GET /api/settings/system
-router.get('/system', withAuth, async (req, res) => {
+// GET /api/settings/system - Public read (settings are not sensitive)
+router.get('/system', async (req, res) => {
   try {
     const config = await Settings.getSetting('system_config');
     // Return default values if not set
@@ -38,7 +38,7 @@ router.get('/system', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/settings/system
+// POST /api/settings/system - Protected (only admins can change)
 router.post('/system', withAuth, async (req, res) => {
   try {
     const settings = req.body;
