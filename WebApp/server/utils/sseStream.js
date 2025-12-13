@@ -24,14 +24,21 @@
 import pg from 'pg';
 const { Client } = pg;
 
-// Database configuration
-const DB_CONFIG = {
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'beeplan_dev',
-  user: process.env.DB_USER || 'umutyalcin',
-  password: process.env.DB_PASSWORD || ''
-};
+// Database configuration - supports both DATABASE_URL (Vercel/Neon) and individual vars (local)
+const isProduction = !!process.env.DATABASE_URL;
+
+const DB_CONFIG = isProduction
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'beeplan_dev',
+      user: process.env.DB_USER || 'umutyalcin',
+      password: process.env.DB_PASSWORD || ''
+    };
 
 /**
  * Create an SSE stream for PostgreSQL notifications
