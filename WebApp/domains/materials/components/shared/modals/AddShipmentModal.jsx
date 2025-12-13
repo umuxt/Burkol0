@@ -81,6 +81,7 @@ export default function AddShipmentModal({
 
   // Step 4 & 5 states (Export/Import)
   const [createdShipmentId, setCreatedShipmentId] = useState(null)
+  const [hasChanges, setHasChanges] = useState(false) // P1.6.2: Track changes after creation
   const [exportStatus, setExportStatus] = useState({ loading: false, success: false, fileName: null, error: null })
   const [importStatus, setImportStatus] = useState({ loading: false, success: false, error: null })
   // Step 5 - External Doc Number
@@ -351,6 +352,11 @@ export default function AddShipmentModal({
 
   // Add new item row
   const addItem = () => {
+    // P1.6.2: Mark changes after creation
+    if (createdShipmentId) {
+      setHasChanges(true)
+    }
+
     setItems(prev => [...prev, {
       id: Date.now(),
       materialCode: '',
@@ -374,11 +380,21 @@ export default function AddShipmentModal({
 
   // Remove item
   const removeItem = (itemId) => {
+    // P1.6.2: Mark changes after creation
+    if (createdShipmentId) {
+      setHasChanges(true)
+    }
+
     setItems(prev => prev.filter(item => item.id !== itemId))
   }
 
   // Update item field
   const updateItem = (itemId, field, value) => {
+    // P1.6.2: Mark changes after creation
+    if (createdShipmentId) {
+      setHasChanges(true)
+    }
+
     setItems(prev => prev.map(item => {
       if (item.id !== itemId) return item
 
@@ -472,7 +488,7 @@ export default function AddShipmentModal({
     }
   }
 
-  // Submit form
+  // Submit form (P1.6.2: supports both create and update)
   const handleSubmit = async () => {
     setError(null)
     setLoading(true)
@@ -548,17 +564,27 @@ export default function AddShipmentModal({
         }
       })
 
-      const result = await shipmentsService.createShipment(shipmentData)
+      // P1.6.2: Check if we're creating or updating
+      let result;
+      if (createdShipmentId) {
+        // UPDATE mode
+        result = await shipmentsService.updateFullShipment(createdShipmentId, shipmentData)
+        // Reset change tracking after successful update
+        setHasChanges(false)
+      } else {
+        // CREATE mode
+        result = await shipmentsService.createShipment(shipmentData)
+        // Save shipment ID for subsequent updates
+        setCreatedShipmentId(result.id || result.shipmentId)
+      }
 
-      // Save shipment ID for Steps 4 & 5
-      setCreatedShipmentId(result.id || result.shipmentId)
       setLoading(false)
 
       // Don't close modal - show Step 3 with export/close options
       // User can choose to export (Step 4) or close
     } catch (err) {
-      console.error('Shipment creation error:', err)
-      setError(err.message || 'Sevkiyat oluşturulurken hata oluştu')
+      console.error('Shipment save error:', err)
+      setError(err.message || (createdShipmentId ? 'Sevkiyat güncellenirken hata oluştu' : 'Sevkiyat oluşturulurken hata oluştu'))
       setLoading(false)
     }
   }
@@ -672,7 +698,9 @@ export default function AddShipmentModal({
                           <button
                             type="button"
                             className="mes-filter-select full-justify-between"
+                            disabled={!!createdShipmentId}
                             onClick={(e) => { e.stopPropagation(); setCustomerDropdownOpen(!customerDropdownOpen); setWorkOrderDropdownOpen(false); setQuoteDropdownOpen(false); }}
+                            style={createdShipmentId ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
                           >
                             <span className={`text-conditional ${!headerData.customerSnapshot ? 'placeholder' : ''}`}>
                               {headerData.customerSnapshot
@@ -1412,7 +1440,7 @@ export default function AddShipmentModal({
                             const token = localStorage.getItem('bp_admin_token');
                             const response = await fetch(`/api/materials/shipments/${createdShipmentId}/export`, {
                               method: 'POST',
-                              headers: { 
+                              headers: {
                                 'Content-Type': 'application/json',
                                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                               },
@@ -1782,19 +1810,29 @@ export default function AddShipmentModal({
                 <ArrowRight size={14} />
               </button>
             ) : currentStep === 3 && createdShipmentId ? (
-              // After creation - show export/close options
-              <div className="flex-center-gap-8">
+              // P1.6.2: After creation - show update button if changes, otherwise export button
+              hasChanges ? (
+                // Has unsaved changes -> Show update button
                 <button
                   type="button"
-                  onClick={() => {
-                    if (onSuccess) onSuccess({ id: createdShipmentId })
-                    onClose()
-                  }}
-                  className="btn-secondary"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className={`btn-submit ${loading ? 'disabled' : 'enabled'}`}
                 >
-                  <Check size={14} />
-                  Tamam
+                  {loading ? (
+                    <>
+                      <Loader2 size={14} className="spin-animation" />
+                      Güncelleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      Sevkiyatı Güncelle
+                    </>
+                  )}
                 </button>
+              ) : (
+                // No changes -> Show export button
                 <button
                   type="button"
                   onClick={() => setCurrentStep(4)}
@@ -1803,9 +1841,9 @@ export default function AddShipmentModal({
                   <ArrowRight size={14} />
                   Belge Çıkart
                 </button>
-              </div>
+              )
             ) : currentStep === 3 ? (
-              // Before creation - show create button
+              // P1.6.2: Before creation - show create button, after creation - show update button
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -1815,12 +1853,12 @@ export default function AddShipmentModal({
                 {loading ? (
                   <>
                     <Loader2 size={14} className="spin-animation" />
-                    Oluşturuluyor...
+                    {createdShipmentId ? 'Güncelleniyor...' : 'Oluşturuluyor...'}
                   </>
                 ) : (
                   <>
                     <Check size={14} />
-                    Sevkiyat Oluştur
+                    {createdShipmentId ? 'Sevkiyatı Güncelle' : 'Sevkiyat Oluştur'}
                   </>
                 )}
               </button>

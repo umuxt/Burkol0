@@ -439,6 +439,141 @@ const Shipments = {
   },
 
   /**
+   * Update full shipment (header + items) - P1.6.2
+   * @param {number} shipmentId - Shipment ID
+   * @param {Object} headerData - Updated header data
+   * @param {Array} items - New items array
+   * @param {Object} user - Current user
+   * @returns {Object} Updated shipment with items
+   */
+  async updateFullShipment(shipmentId, headerData, items = [], user = {}) {
+    const trx = await db.transaction();
+
+    try {
+      // 1. Update shipment header
+      await trx('materials.shipments')
+        .where({ id: shipmentId })
+        .update({
+          ...headerData,
+          // Handle JSONB fields
+          customerSnapshot: headerData.customerSnapshot ? JSON.stringify(headerData.customerSnapshot) : null,
+          alternateDeliveryAddress: headerData.alternateDeliveryAddress ? JSON.stringify(headerData.alternateDeliveryAddress) : null,
+          transport: headerData.transport ? JSON.stringify(headerData.transport) : '{}',
+          updatedBy: user?.email || 'system',
+          updatedAt: new Date()
+        });
+
+      // 2. Delete existing items
+      await trx('materials.shipment_items')
+        .where({ shipmentId })
+        .delete();
+
+      // 3. Get shipment code for item codes
+      const shipment = await trx('materials.shipments')
+        .where({ id: shipmentId })
+        .first();
+
+      const shipmentCode = shipment.shipmentCode;
+
+      // 4. Insert new items
+      let shipmentItems = [];
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        const itemCode = `${shipmentCode}-item-${String(index + 1).padStart(2, '0')}`;
+
+        // Get material details
+        const material = await trx('materials.materials')
+          .where({ code: item.materialCode })
+          .first();
+
+        if (!material) {
+          throw new Error(`Malzeme bulunamadı: ${item.materialCode}`);
+        }
+
+        const quantity = parseFloat(item.quantity);
+
+        // Calculate price fields if needed
+        const unitPrice = parseFloat(item.unitPrice || 0);
+        const taxRate = parseFloat(item.taxRate || 20);
+        const discountPercent = parseFloat(item.discountPercent || 0);
+
+        const discountAmount = discountPercent > 0 ? (unitPrice * quantity * discountPercent / 100) : 0;
+        const subtotal = (unitPrice * quantity) - discountAmount;
+        const taxAmount = subtotal * (taxRate / 100);
+        const withholdingAmount = parseFloat(item.withholdingAmount || 0);
+        const totalAmount = subtotal + taxAmount - withholdingAmount;
+
+        const [shipmentItem] = await trx('materials.shipment_items')
+          .insert({
+            itemCode,
+            itemSequence: index + 1,
+            shipmentId: shipmentId,
+            shipmentCode,
+            materialId: material.id,
+            materialCode: material.code,
+            materialName: material.name,
+            quantity,
+            unit: item.unit || material.unit || 'adet',
+            stockMovementId: null, // Will be set on import
+            // Pricing
+            unitPrice: unitPrice,
+            taxRate: taxRate,
+            discountPercent: discountPercent,
+            discountAmount: discountAmount,
+            subtotal: subtotal,
+            taxAmount: taxAmount,
+            withholdingAmount: withholdingAmount,
+            totalAmount: totalAmount,
+            // Tax exemptions
+            vatExemptionId: item.vatExemptionId || null,
+            withholdingRateId: item.withholdingRateId || null,
+            // Lot/Serial
+            lotNumber: item.lotNumber || null,
+            serialNumber: item.serialNumber || null,
+            // Status & notes
+            itemStatus: shipment.status || 'pending',
+            notes: item.itemNotes || null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning('*');
+
+        shipmentItems.push(shipmentItem);
+      }
+
+      // 5. Update shipment totals if includePrice
+      if (headerData.includePrice && shipmentItems.length > 0) {
+        const calculatedSubtotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+        const calculatedTaxTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0);
+        const calculatedWithholdingTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.withholdingAmount || 0), 0);
+        const calculatedDiscountTotal = shipmentItems.reduce((sum, item) => sum + parseFloat(item.discountAmount || 0), 0);
+        const calculatedGrandTotal = calculatedSubtotal + calculatedTaxTotal - calculatedWithholdingTotal;
+
+        await trx('materials.shipments')
+          .where({ id: shipmentId })
+          .update({
+            subtotal: calculatedSubtotal,
+            taxTotal: calculatedTaxTotal,
+            withholdingTotal: calculatedWithholdingTotal,
+            discountTotal: calculatedDiscountTotal,
+            grandTotal: calculatedGrandTotal,
+            updatedAt: new Date()
+          });
+      }
+
+      await trx.commit();
+
+      // 6. Return updated shipment with items
+      return this.getShipmentById(shipmentId);
+
+    } catch (error) {
+      await trx.rollback();
+      console.error('Error updating full shipment:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Update shipment status
    * @param {number} shipmentId - Shipment ID
    * @param {string} newStatus - New status

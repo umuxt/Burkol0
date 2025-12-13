@@ -385,6 +385,122 @@ export async function updateShipment(id, updates) {
 }
 
 /**
+ * Update full shipment (header + items) - P1.6.2
+ * @param {number} id - Shipment ID
+ * @param {Object} data - Updated data (header + items array)
+ * @param {Object} user - Current user
+ * @returns {Object} Updated shipment
+ */
+export async function updateFullShipment(id, data, user) {
+  const { items: newItems = [], ...headerUpdates } = data;
+
+  // 1. Get current shipment
+  const currentShipment = await Shipments.getShipmentById(id);
+
+  if (!currentShipment) {
+    const error = new Error('Sevkiyat bulunamadı');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  // 2. Status check - completed shipments cannot be updated (use reverse shipment instead)
+  if (currentShipment.status === 'completed') {
+    const error = new Error('Tamamlanmış sevkiyat güncellenemez. Ters sevkiyat kullanın.');
+    error.code = 'INVALID_STATUS';
+    throw error;
+  }
+
+  // 3. Validate - items required
+  if (!newItems || newItems.length === 0) {
+    const error = new Error('En az bir kalem gerekli');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  // 4. Validate each item
+  for (const item of newItems) {
+    if (!item.materialCode) {
+      const error = new Error('Her kalem için malzeme kodu gerekli');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+    if (!item.quantity || parseFloat(item.quantity) <= 0) {
+      const error = new Error('Her kalem için pozitif miktar gerekli');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+  }
+
+  // 5. Stock validation (since stock is not affected until import, just check availability)
+  const stockValidation = await validateStockAvailability(newItems);
+  if (!stockValidation.valid) {
+    const error = new Error('Yetersiz stok:\n' + stockValidation.errors.join('\n'));
+    error.code = 'INSUFFICIENT_STOCK';
+    error.details = stockValidation.errors;
+    throw error;
+  }
+
+  // 6. Prepare header updates (similar to createShipment)
+  const preparedHeaderData = {
+    workOrderCode: headerUpdates.workOrderCode,
+    quoteId: headerUpdates.quoteId,
+    notes: headerUpdates.notes,
+    customerId: headerUpdates.customerId,
+    customerSnapshot: headerUpdates.customerSnapshot,
+    customerName: headerUpdates.customerSnapshot?.name || headerUpdates.customerName,
+    customerCompany: headerUpdates.customerSnapshot?.company || headerUpdates.customerCompany,
+    deliveryAddress: headerUpdates.customerSnapshot?.address || headerUpdates.deliveryAddress,
+    useAlternateDelivery: headerUpdates.useAlternateDelivery || false,
+    alternateDeliveryAddress: headerUpdates.alternateDeliveryAddress || null,
+    documentType: headerUpdates.documentType || 'waybill',
+    includePrice: headerUpdates.includePrice || false,
+    currency: headerUpdates.currency || 'TRY',
+    exchangeRate: headerUpdates.exchangeRate || 1.0,
+    discountType: headerUpdates.discountType || null,
+    discountValue: headerUpdates.discountValue || 0,
+    exportTarget: headerUpdates.exportTarget || null,
+    specialCode: headerUpdates.specialCode || null,
+    costCenter: headerUpdates.costCenter || null,
+    documentNotes: headerUpdates.documentNotes || null,
+    dispatchDate: headerUpdates.dispatchDate || null,
+    dispatchTime: headerUpdates.dispatchTime || null,
+    hidePrice: headerUpdates.hidePrice !== undefined ? headerUpdates.hidePrice : true,
+    relatedQuoteId: headerUpdates.relatedQuoteId || null,
+    transport: headerUpdates.transport || null,
+    waybillDate: headerUpdates.waybillDate || null,
+    updatedAt: new Date()
+  };
+
+  // 7. Prepare items
+  const preparedItems = newItems.map(item => ({
+    materialCode: item.materialCode,
+    materialId: item.materialId,
+    materialName: item.materialName,
+    quantity: item.quantity,
+    unit: item.unit,
+    unitPrice: item.unitPrice || null,
+    taxRate: item.taxRate ?? 20,
+    discountPercent: item.discountPercent || 0,
+    vatExemptionId: item.vatExemptionId || null,
+    withholdingRateId: item.withholdingRateId || null,
+    serialNumber: item.serialNumber || null,
+    itemNotes: item.itemNotes || null,
+    lotNumber: item.lotNumber || null
+  }));
+
+  // 8. Update via Shipments model
+  try {
+    const result = await Shipments.updateFullShipment(id, preparedHeaderData, preparedItems, user);
+    return result;
+  } catch (error) {
+    if (!error.code) {
+      error.code = 'UPDATE_ERROR';
+    }
+    throw error;
+  }
+}
+
+/**
  * Update shipment status
  * @param {number} id - Shipment ID
  * @param {string} newStatus - New status

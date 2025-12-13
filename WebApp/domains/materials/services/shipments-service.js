@@ -21,7 +21,7 @@ function withAuth(headers = {}) {
 // Shipment status flow for invoice export
 export const SHIPMENT_STATUSES = {
   PENDING: 'pending',
-  SHIPPED: 'shipped', 
+  SHIPPED: 'shipped',
   DELIVERED: 'delivered',
   CANCELLED: 'cancelled',
   EXPORTED: 'exported',
@@ -88,12 +88,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify(shipmentData)
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Shipment created:', result.shipmentCode || result.id)
       return result
@@ -122,12 +122,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify(shipmentData)
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Quick shipment created:', result.shipmentCode || result.id)
       return result
@@ -154,22 +154,22 @@ export const shipmentsService = {
   getShipments: async (filters = {}) => {
     try {
       const url = new URL('/api/materials/shipments', window.location.origin)
-      
+
       // Add filters as query params
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           url.searchParams.set(key, value)
         }
       })
-      
+
       const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const shipments = await response.json()
       return shipments
     } catch (error) {
@@ -189,14 +189,14 @@ export const shipmentsService = {
       const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}`, {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           return null
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const shipment = await response.json()
       return shipment
     } catch (error) {
@@ -216,14 +216,14 @@ export const shipmentsService = {
       const response = await fetchWithTimeout(`/api/materials/shipments/code/${encodeURIComponent(shipmentCode)}`, {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           return null
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const shipment = await response.json()
       return shipment
     } catch (error) {
@@ -246,17 +246,46 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify(data)
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Shipment updated:', result)
       return result
     } catch (error) {
       console.error('❌ Shipment update error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Sevkiyatın tamamını güncelle (header + items) - P1.6.2
+   * 
+   * @param {number} shipmentId - Shipment ID
+   * @param {Object} data - Güncellenecek data (header fields + items array)
+   * @returns {Promise<Object>} Güncellenmiş shipment
+   */
+  updateFullShipment: async (shipmentId, data) => {
+    try {
+      const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}/full`, {
+        method: 'PUT',
+        headers: withAuth(),
+        body: JSON.stringify(data)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Full shipment updated:', result)
+      return result
+    } catch (error) {
+      console.error('❌ Full shipment update error:', error)
       throw error
     }
   },
@@ -277,12 +306,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify({ status: newStatus })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Shipment status updated:', result)
       return result
@@ -308,12 +337,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify({ reason })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Shipment cancelled:', result)
       return result
@@ -335,12 +364,12 @@ export const shipmentsService = {
         method: 'DELETE',
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Shipment deleted')
       return result
@@ -359,11 +388,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout('/api/materials/shipments/stats', {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Shipment stats fetch error:', error?.message || error)
@@ -386,11 +415,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}/items`, {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Shipment items fetch error:', error?.message || error)
@@ -416,15 +445,15 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify(itemData)
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Item added to shipment')
-      
+
       // Emit stock update event for materials list refresh
       if (typeof window !== 'undefined' && result.materialCode) {
         window.dispatchEvent(new CustomEvent('materialStockUpdated', {
@@ -437,7 +466,7 @@ export const shipmentsService = {
           }
         }));
       }
-      
+
       return result
     } catch (error) {
       console.error('❌ Add item error:', error)
@@ -457,15 +486,15 @@ export const shipmentsService = {
         method: 'DELETE',
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Item removed from shipment, result:', result)
-      
+
       // Emit stock update event for materials list refresh
       if (typeof window !== 'undefined' && result.materialCode) {
         console.log('📢 Emitting materialStockUpdated event:', {
@@ -484,7 +513,7 @@ export const shipmentsService = {
       } else {
         console.warn('⚠️ No materialCode in result, event not emitted:', result);
       }
-      
+
       return result
     } catch (error) {
       console.error('❌ Remove item error:', error)
@@ -506,12 +535,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify({ quantity: newQuantity })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log('✅ Item quantity updated')
       return result
@@ -535,12 +564,12 @@ export const shipmentsService = {
         headers: withAuth(),
         body: JSON.stringify({ notes })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.error('❌ Update item notes error:', error)
@@ -558,21 +587,21 @@ export const shipmentsService = {
   getItemsByMaterial: async (materialCode, filters = {}) => {
     try {
       const url = new URL(`/api/materials/${encodeURIComponent(materialCode)}/shipments`, window.location.origin)
-      
+
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           url.searchParams.set(key, value)
         }
       })
-      
+
       const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Material shipments fetch error:', error?.message || error)
@@ -593,11 +622,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout('/api/materials/shipments/approved-quotes', {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Approved quotes fetch error:', error?.message || error)
@@ -614,11 +643,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout('/api/materials/shipments/completed-work-orders', {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Completed work orders fetch error:', error?.message || error)
@@ -635,11 +664,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout('/api/materials/shipments/available-materials', {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       console.warn('❌ Available materials fetch error:', error?.message || error)
@@ -656,11 +685,11 @@ export const shipmentsService = {
       const response = await fetchWithTimeout('/api/mes/production-plans', {
         headers: withAuth()
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       return result.plans || (Array.isArray(result) ? result : [])
     } catch (error) {

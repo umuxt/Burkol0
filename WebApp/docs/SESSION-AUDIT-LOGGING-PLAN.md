@@ -2333,11 +2333,28 @@ Backend:
 - `/WebApp/domains/materials/api/routes.js`
 
 **Başarı Kriterleri:**
-- [ ] Sevkiyat oluşturulduktan sonra buton "Güncelle" oluyor
-- [ ] Müşteri alanı disabled oluyor
-- [ ] Kalem/miktar/transport güncellenebiliyor
-- [ ] Completed sevkiyat güncellenemiyor
-- [ ] Update işlemi loglanıyor (shipment.update)
+- [x] Sevkiyat oluşturulduktan sonra buton "Güncelle" oluyor ✅ (13 Aralık 2025)
+- [x] Müşteri alanı disabled oluyor ✅ (13 Aralık 2025)
+- [x] Kalem/miktar/transport güncellenebiliyor ✅ (13 Aralık 2025)
+- [x] Completed sevkiyat güncellenemiyor ✅ (13 Aralık 2025)
+- [x] Update işlemi loglanıyor (shipment.update) ✅ (13 Aralık 2025)
+
+**İmplementasyon Notları (13 Aralık 2025):**
+- **Backend:**
+  - Route: `PUT /materials/shipments/:id/full` eklendi
+  - Controller: `updateFullShipment` (audit logging ile)
+  - Service: `updateFullShipment` (validation + stok kontrolü)
+  - Model: `updateFullShipment` (transaction ile header + items güncelleme)
+- **Frontend:**
+  - Change tracking: `hasChanges` state ile değişiklik takibi
+  - `addItem`, `removeItem`, `updateItem` → hasChanges = true
+  - handleSubmit: create/update mode detection
+  - Button conditional: hasChanges ? "Sevkiyatı Güncelle" : "Belge Çıkart"
+  - Customer dropdown disabled after creation
+- **Akış:**
+  - Create → hasChanges = false → "Belge Çıkart" göster
+  - Değişiklik yap → hasChanges = true → "Sevkiyatı Güncelle" göster
+  - Update → hasChanges = false → "Belge Çıkart" göster
 
 ---
 

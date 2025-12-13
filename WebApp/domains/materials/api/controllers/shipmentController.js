@@ -149,6 +149,58 @@ export async function updateShipment(req, res) {
   }
 }
 
+/**
+ * PUT /api/materials/shipments/:id/full
+ * Update shipment header and items (P1.6.2)
+ */
+export async function updateFullShipment(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await shipmentService.updateFullShipment(id, req.body, req.user);
+
+    // Audit logging - shipment.update
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT UPDATE',
+      details: {
+        shipmentId: id,
+        shipmentCode: result.shipmentCode,
+        itemsUpdated: result.items?.length || 0
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'update',
+        changes: {
+          shipmentCode: result.shipmentCode,
+          itemsCount: result.items?.length || 0,
+          updatedAt: new Date().toISOString()
+        },
+        performer: { email: req.user?.email, sessionId: req.user?.sessionId },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
+    res.json(result);
+  } catch (error) {
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+    if (error.code === 'INVALID_STATUS') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'INSUFFICIENT_STOCK') {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Error updating full shipment:', error);
+    res.status(500).json({ error: 'Failed to update shipment' });
+  }
+}
+
 export async function updateShipmentStatus(req, res) {
   try {
     const { id } = req.params;
