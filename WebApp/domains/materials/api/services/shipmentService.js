@@ -21,7 +21,8 @@ const SHIPMENT_STATUSES = {
   DELIVERED: 'delivered',
   CANCELLED: 'cancelled',
   EXPORTED: 'exported',
-  COMPLETED: 'completed'
+  COMPLETED: 'completed',
+  REVERSED: 'reversed'
 };
 
 const DOCUMENT_TYPES = {
@@ -35,8 +36,9 @@ const VALID_TRANSITIONS = {
   shipped: ['delivered', 'cancelled'],
   exported: ['completed', 'cancelled'],
   delivered: [],
-  completed: [],
-  cancelled: []
+  completed: ['reversed'],
+  cancelled: [],
+  reversed: ['exported', 'completed', 'cancelled']
 };
 
 /**
@@ -59,6 +61,59 @@ async function validateStockAvailability(items) {
     }
 
     const availableStock = parseFloat(material.stock || 0)
+      - parseFloat(material.reserved || 0)
+      - parseFloat(material.wipReserved || 0);
+
+    const requestedQty = parseFloat(item.quantity);
+
+    if (requestedQty > availableStock) {
+      errors.push(
+        `Yetersiz stok: ${material.name} (${material.code}) - ` +
+        `İstenen: ${requestedQty}, Mevcut: ${availableStock.toFixed(2)} ${material.unit || 'adet'}`
+      );
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Validate stock availability with exclusion of original shipment items
+ * Used for reverse shipment mode - shows virtual stock as if original was reversed
+ * @param {Array} items - New items to check
+ * @param {Array} originalItems - Original shipment items (will be added back virtually)
+ * @returns {Object} { valid: boolean, errors: Array }
+ */
+async function validateStockWithExclusion(items, originalItems = []) {
+  const errors = [];
+
+  // Build a map of original quantities by material code
+  const originalQtyMap = {};
+  for (const orig of originalItems) {
+    const code = orig.materialCode;
+    originalQtyMap[code] = (originalQtyMap[code] || 0) + parseFloat(orig.quantity || 0);
+  }
+
+  for (const item of items) {
+    const material = await db('materials.materials')
+      .select('id', 'code', 'name', 'stock', 'reserved', 'wipReserved', 'unit')
+      .where('code', item.materialCode)
+      .first();
+
+    if (!material) {
+      errors.push(`Malzeme bulunamadı: ${item.materialCode}`);
+      continue;
+    }
+
+    // Virtual stock: current + original (as if reversed)
+    const currentStock = parseFloat(material.stock || 0);
+    const originalQty = originalQtyMap[item.materialCode] || 0;
+    const virtualStock = currentStock + originalQty;
+
+    const availableStock = virtualStock
       - parseFloat(material.reserved || 0)
       - parseFloat(material.wipReserved || 0);
 
@@ -961,6 +1016,192 @@ export async function importShipmentConfirmation(shipmentId, importData, user) {
 }
 
 // ============================================
+// REVERSE SHIPMENT (P1.6.5)
+// ============================================
+
+/**
+ * Reverse a completed shipment - restore stock and reset import fields
+ * This action is performed when user clicks "Save" in reverse mode, not on modal open
+ * 
+ * @param {number} shipmentId - Shipment ID
+ * @param {Object} updatedData - New shipment data (items, transport, etc.)
+ * @param {Object} user - Current user
+ * @returns {Object} { success, shipment, stockRestorations, stockDeductions }
+ */
+export async function reverseShipment(shipmentId, updatedData, user) {
+  const { items: newItems = [], ...headerUpdates } = updatedData;
+
+  // 1. Get current shipment with items
+  const shipment = await Shipments.getShipmentById(shipmentId);
+  if (!shipment) {
+    const error = new Error('Sevkiyat bulunamadı');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  // 2. Status check - only completed can be reversed
+  if (shipment.status !== 'completed') {
+    const error = new Error('Sadece tamamlanmış sevkiyatlar ters çevrilebilir');
+    error.code = 'INVALID_STATUS';
+    throw error;
+  }
+
+  // 3. Validate new items
+  if (!newItems || newItems.length === 0) {
+    const error = new Error('En az bir kalem gerekli');
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  // 4. Validate stock with virtual calculation
+  const originalItems = shipment.items || [];
+  const stockValidation = await validateStockWithExclusion(newItems, originalItems);
+  if (!stockValidation.valid) {
+    const error = new Error('Yetersiz stok:\n' + stockValidation.errors.join('\n'));
+    error.code = 'INSUFFICIENT_STOCK';
+    error.details = stockValidation.errors;
+    throw error;
+  }
+
+  const stockRestorations = [];
+
+  try {
+    await db.transaction(async (trx) => {
+      // 5. RESTORE STOCK from original items
+      for (const item of originalItems) {
+        const materialCode = item.materialCode;
+        const quantity = parseFloat(item.quantity);
+
+        const material = await trx('materials.materials')
+          .where('code', materialCode)
+          .first();
+
+        if (material) {
+          const currentStock = parseFloat(material.stock || 0);
+          const restoredStock = currentStock + quantity;
+
+          // Update stock (add back)
+          await trx('materials.materials')
+            .where('code', materialCode)
+            .update({
+              stock: restoredStock,
+              updatedAt: trx.fn.now()
+            });
+
+          // Create stock movement record (reverseShipment)
+          await trx('materials.stock_movements').insert({
+            materialId: material.id,
+            materialCode: material.code,
+            materialName: material.name,
+            type: 'in',
+            subType: 'reverseShipment',
+            status: 'completed',
+            quantity: quantity,
+            unit: material.unit || 'adet',
+            stockBefore: currentStock,
+            stockAfter: restoredStock,
+            warehouse: 'Warehouse',
+            location: material.storage || 'Main',
+            notes: `Ters sevkiyat - stok geri yüklendi: ${shipment.shipmentCode}`,
+            reason: 'Reverse shipment',
+            reference: shipment.shipmentCode,
+            referenceType: 'reverseShipment',
+            movementDate: new Date(),
+            approved: true,
+            userId: user?.id || 'system',
+            userName: user?.email || 'system'
+          });
+
+          stockRestorations.push({
+            materialCode,
+            materialName: material.name,
+            change: +quantity,
+            previousStock: currentStock,
+            newStock: restoredStock
+          });
+        }
+      }
+
+      // 6. NOTE: Stock deduction does NOT happen here!
+      // Stock will be deducted when user does Import (completes the shipment)
+      // This is the same flow as a normal shipment: pending -> export -> import (stock deducted)
+
+      // 7. Delete old items
+      await trx('materials.shipment_items')
+        .where('shipmentId', shipmentId)
+        .delete();
+
+      // 8. Insert new items (with pending status - stock not reserved yet)
+      for (const item of newItems) {
+        await trx('materials.shipment_items').insert({
+          shipmentId: shipmentId,
+          materialCode: item.materialCode,
+          materialId: item.materialId,
+          materialName: item.materialName,
+          quantity: item.quantity,
+          unit: item.unit || 'adet',
+          unitPrice: item.unitPrice || null,
+          taxRate: item.taxRate ?? 20,
+          discountPercent: item.discountPercent || 0,
+          lotNumber: item.lotNumber || null,
+          notes: item.notes || null,
+          itemStatus: 'pending', // Not completed yet - will complete on import
+          createdAt: trx.fn.now(),
+          updatedAt: trx.fn.now()
+        });
+      }
+
+      // 9. Update shipment header - reset to pending, clear import fields
+      const updateData = {
+        // Status goes back to pending - user needs to export and import again
+        status: 'pending',
+        // Clear old import/export data
+        externalDocNumber: null,
+        importedAt: null,
+        importedBy: null,
+        importedFile: null,
+        importedFileName: null,
+        importedFileUrl: null,
+        exportHistory: null,
+        lastExportedAt: null,
+        shipmentCompletedAt: null,
+        // Update timestamps
+        lastModifiedAt: trx.fn.now(),
+        updatedBy: user?.email || 'system',
+        updatedAt: trx.fn.now()
+      };
+
+      // Apply header updates if any
+      if (headerUpdates.transport) updateData.transport = headerUpdates.transport;
+      if (headerUpdates.waybillDate) updateData.waybillDate = headerUpdates.waybillDate;
+      if (headerUpdates.notes) updateData.notes = headerUpdates.notes;
+      if (headerUpdates.documentNotes) updateData.documentNotes = headerUpdates.documentNotes;
+
+      await trx('materials.shipments')
+        .where('id', shipmentId)
+        .update(updateData);
+    });
+
+    // 10. Return updated shipment
+    const updatedShipment = await Shipments.getShipmentById(shipmentId);
+
+    return {
+      success: true,
+      shipment: updatedShipment,
+      stockRestorations,
+      message: 'Ters sevkiyat başarıyla tamamlandı. Sevkiyat beklemede durumuna alındı.'
+    };
+
+  } catch (error) {
+    console.error('Reverse shipment error:', error);
+    if (!error.code) {
+      error.code = 'REVERSE_ERROR';
+    }
+    throw error;
+  }
+}
+
+// ============================================
 // QUERY HELPERS
 // ============================================
 
@@ -980,4 +1221,5 @@ export async function getShipmentsByQuoteId(quoteId) {
 export { SHIPMENT_STATUSES, VALID_TRANSITIONS, DOCUMENT_TYPES };
 
 // Export validation helpers for use in controllers
-export { validateStockAvailability, validateInvoiceExportData };
+export { validateStockAvailability, validateInvoiceExportData, validateStockWithExclusion };
+

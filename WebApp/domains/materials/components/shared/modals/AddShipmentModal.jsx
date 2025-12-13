@@ -13,8 +13,11 @@ import TransportAccordion from '../accordions/TransportAccordion.jsx'
 export default function AddShipmentModal({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  reverseShipmentData = null // P1.6.5: Data for reverse shipment mode
 }) {
+  // P1.6.5: Reverse mode flag
+  const isReverseMode = !!reverseShipmentData;
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1)
 
@@ -217,7 +220,61 @@ export default function AddShipmentModal({
     setSelectedFile(null)
 
     setCustomerSearchTerm('')
-  }, [isOpen])
+
+    // P1.6.5: Load reverse shipment data if provided
+    if (reverseShipmentData) {
+      console.log('↩️ Loading reverse shipment data:', reverseShipmentData.shipmentCode);
+
+      // Load header data from existing shipment
+      setHeaderData(prev => ({
+        ...prev,
+        workOrderCode: reverseShipmentData.workOrderCode || '',
+        quoteId: reverseShipmentData.quoteId || '',
+        relatedQuoteId: reverseShipmentData.relatedQuoteId || '',
+        customerId: reverseShipmentData.customerId || null,
+        customerSnapshot: reverseShipmentData.customerSnapshot || null,
+        documentType: reverseShipmentData.documentType || 'waybill',
+        includePrice: reverseShipmentData.includePrice || false,
+        currency: reverseShipmentData.currency || 'TRY',
+        exchangeRate: reverseShipmentData.exchangeRate || 1.0,
+        notes: reverseShipmentData.notes || '',
+        transport: reverseShipmentData.transport || {
+          driverName: '',
+          driverTc: '',
+          plateNumber: '',
+          deliveryPerson: '',
+          receiverPerson: '',
+          deliveryNote: ''
+        },
+        waybillDate: reverseShipmentData.waybillDate || new Date().toISOString().split('T')[0]
+      }));
+
+      // Load items from existing shipment
+      if (reverseShipmentData.items && reverseShipmentData.items.length > 0) {
+        const loadedItems = reverseShipmentData.items.map((item, idx) => ({
+          id: `reverse-${idx}`,
+          materialCode: item.materialCode || '',
+          materialId: item.materialId || null,
+          materialName: item.materialName || '',
+          quantity: item.quantity || 0,
+          unit: item.unit || 'adet',
+          unitPrice: item.unitPrice || null,
+          taxRate: item.taxRate || 20,
+          discountPercent: item.discountPercent || 0,
+          lotNumber: item.lotNumber || '',
+          serialNumber: item.serialNumber || '',
+          notes: item.notes || item.itemNotes || ''
+        }));
+        setItems(loadedItems);
+      }
+
+      // Set createdShipmentId for update mode
+      setCreatedShipmentId(reverseShipmentData.id);
+
+      // Start from Step 2 (items) since customer is locked
+      setCurrentStep(2);
+    }
+  }, [isOpen, reverseShipmentData])
 
   // ESC to close
   useEffect(() => {
@@ -574,9 +631,16 @@ export default function AddShipmentModal({
         }
       })
 
-      // P1.6.2: Check if we're creating or updating
+      // P1.6.2 / P1.6.5: Check if we're creating, updating, or reversing
       let result;
-      if (createdShipmentId) {
+      if (isReverseMode) {
+        // P1.6.5: REVERSE mode - call reverse endpoint
+        result = await shipmentsService.reverseShipment(reverseShipmentData.id, shipmentData)
+        // Close modal and notify parent on success
+        setLoading(false)
+        if (onSuccess) onSuccess(result.shipment || result)
+        return
+      } else if (createdShipmentId) {
         // UPDATE mode
         result = await shipmentsService.updateFullShipment(createdShipmentId, shipmentData)
         // Reset change tracking after successful update
@@ -594,7 +658,7 @@ export default function AddShipmentModal({
       // User can choose to export (Step 4) or close
     } catch (err) {
       console.error('Shipment save error:', err)
-      setError(err.message || (createdShipmentId ? 'Sevkiyat güncellenirken hata oluştu' : 'Sevkiyat oluşturulurken hata oluştu'))
+      setError(err.message || (isReverseMode ? 'Ters sevkiyat işlemi başarısız' : createdShipmentId ? 'Sevkiyat güncellenirken hata oluştu' : 'Sevkiyat oluşturulurken hata oluştu'))
       setLoading(false)
     }
   }
@@ -608,6 +672,20 @@ export default function AddShipmentModal({
     if (!qty && qty !== 0) return '-'
     const num = parseFloat(qty)
     return Number.isInteger(num) ? num : num.toFixed(2).replace(/\.?0+$/, '')
+  }
+
+  // P1.6.5: Calculate virtual stock in reverse mode
+  // Virtual stock = current stock + original shipment quantity (as if it were restored)
+  const getVirtualStock = (materialCode, currentStock) => {
+    if (!isReverseMode || !reverseShipmentData?.items) {
+      return parseFloat(currentStock || 0)
+    }
+
+    // Find original quantity for this material in the reversed shipment
+    const originalItem = reverseShipmentData.items.find(i => i.materialCode === materialCode)
+    const originalQty = originalItem ? parseFloat(originalItem.quantity || 0) : 0
+
+    return parseFloat(currentStock || 0) + originalQty
   }
 
   // Step labels
@@ -634,7 +712,7 @@ export default function AddShipmentModal({
               <Truck size={18} className="text-primary-var" />
             </div>
             <h2 className="shipment-modal-title">
-              Yeni Sevkiyat
+              {isReverseMode ? 'Ters Sevkiyat' : 'Yeni Sevkiyat'}
             </h2>
           </div>
           <button
@@ -1139,7 +1217,18 @@ export default function AddShipmentModal({
                                       <div className="dropdown-option-code">{m.code}</div>
                                       <div className="dropdown-option-meta">
                                         <span>{m.name}</span>
-                                        <span className="dropdown-option-stock">Stok: {formatQty(m.availableStock)} {m.unit}</span>
+                                        {isReverseMode ? (
+                                          <span className="dropdown-option-stock" style={{ color: '#059669' }}>
+                                            Stok: {formatQty(getVirtualStock(m.code, m.availableStock))} {m.unit}
+                                            {reverseShipmentData?.items?.find(i => i.materialCode === m.code) && (
+                                              <span style={{ fontSize: '10px', marginLeft: '4px', opacity: 0.7 }}>
+                                                (+{formatQty(reverseShipmentData.items.find(i => i.materialCode === m.code)?.quantity || 0)})
+                                              </span>
+                                            )}
+                                          </span>
+                                        ) : (
+                                          <span className="dropdown-option-stock">Stok: {formatQty(m.availableStock)} {m.unit}</span>
+                                        )}
                                       </div>
                                     </div>
                                   ))
@@ -1842,12 +1931,12 @@ export default function AddShipmentModal({
                 {loading ? (
                   <>
                     <Loader2 size={14} className="spin-animation" />
-                    {createdShipmentId ? 'Güncelleniyor...' : 'Oluşturuluyor...'}
+                    {isReverseMode ? 'İşleniyor...' : createdShipmentId ? 'Güncelleniyor...' : 'Oluşturuluyor...'}
                   </>
                 ) : (
                   <>
                     <Check size={14} />
-                    {createdShipmentId ? 'Sevkiyatı Güncelle' : 'Sevkiyat Oluştur'}
+                    {isReverseMode ? 'Ters Sevkiyatı Kaydet' : createdShipmentId ? 'Sevkiyatı Güncelle' : 'Sevkiyat Oluştur'}
                   </>
                 )}
               </button>

@@ -79,6 +79,7 @@ router.put('/materials/shipments/:id', requireAuth, shipmentController.updateShi
 router.put('/materials/shipments/:id/full', requireAuth, shipmentController.updateFullShipment); // P1.6.2: Full update (header + items)
 router.put('/materials/shipments/:id/status', requireAuth, shipmentController.updateShipmentStatus);
 router.put('/materials/shipments/:id/cancel', requireAuth, shipmentController.cancelShipment);
+router.post('/materials/shipments/:id/reverse', requireAuth, shipmentController.reverseShipment); // P1.6.5: Ters Sevkiyat
 router.post('/materials/shipments/:id/import', requireAuth, importUpload.single('file'), shipmentController.importShipmentConfirmation);
 router.get('/materials/shipments/:id/export/:format', requireAuth, shipmentController.exportShipment);
 router.post('/materials/shipments/:id/export', requireAuth, shipmentController.exportShipmentPackage);

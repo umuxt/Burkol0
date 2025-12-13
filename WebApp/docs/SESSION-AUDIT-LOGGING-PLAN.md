@@ -2582,15 +2582,15 @@ Frontend:
 - `/WebApp/public/components/materials/AddShipmentModal.jsx`
 
 **Başarı Kriterleri:**
-- [ ] "Ters Sevkiyat" butonu completed sevkiyatlarda görünüyor
-- [ ] Onay dialogu çalışıyor
-- [ ] Modal ters çevirme modunda açılıyor
-- [ ] Sanal stok hesaplama doğru çalışıyor
-- [ ] Kaydetme sonrası stok geri yükleniyor
-- [ ] Status "reversed" oluyor
-- [ ] Import/export alanları sıfırlanıyor
-- [ ] Tekrar import yapılabilir
-- [ ] Audit logging çalışıyor (shipment.reverse, shipment.update_reversed)
+- [x] "Ters Sevkiyat" butonu completed sevkiyatlarda görünüyor
+- [x] Onay dialogu çalışıyor
+- [x] Modal ters çevirme modunda açılıyor
+- [x] Sanal stok hesaplama doğru çalışıyor (yeşil renk + (+X) gösterimi)
+- [x] Kaydetme sonrası stok geri yükleniyor (reverseShipment movement)
+- [x] Status "pending" oluyor (düzeltildi: reversed değil, pending - normal akışa devam)
+- [x] Import/export alanları sıfırlanıyor
+- [x] Tekrar export/import yapılabilir
+- [x] Audit logging çalışıyor (shipment.reverse)
 
 ---
 

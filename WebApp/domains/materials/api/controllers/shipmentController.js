@@ -463,6 +463,74 @@ export async function getMaterialsForShipment(req, res) {
 }
 
 // ============================================
+// REVERSE SHIPMENT (P1.6.5)
+// ============================================
+
+/**
+ * Reverse a completed shipment
+ * POST /api/materials/shipments/:id/reverse
+ * 
+ * Body: { items: [...], transport: {...}, notes: '...' }
+ * 
+ * Actions:
+ * 1. Restore original stock (reverseShipment movement)
+ * 2. Deduct new stock (shipment_completion movement)
+ * 3. Replace items with new items
+ * 4. Reset import fields
+ * 5. Audit log
+ */
+export async function reverseShipment(req, res) {
+  try {
+    const { id } = req.params;
+    const updatedData = req.body;
+    const user = req.user || { email: 'system' };
+
+    const result = await shipmentService.reverseShipment(
+      parseInt(id, 10),
+      updatedData,
+      user
+    );
+
+    // Audit log
+    logOperation({
+      type: 'success',
+      action: 'SHIPMENT REVERSE',
+      details: {
+        shipmentId: id,
+        shipmentCode: result.shipment?.shipmentCode,
+        stockRestored: result.stockRestorations?.length || 0,
+        newStatus: 'pending'
+      },
+      audit: {
+        entityType: 'shipment',
+        entityId: id,
+        action: 'reverse',
+        changes: {
+          stockRestorations: result.stockRestorations
+        },
+        performer: { email: user.email, userName: user.userName },
+        ipAddress: req.ip
+      },
+      auditFn: logAuditEvent
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error reversing shipment:', error);
+    const statusCode = error.code === 'NOT_FOUND' ? 404 :
+      error.code === 'INVALID_STATUS' ? 400 :
+        error.code === 'INSUFFICIENT_STOCK' ? 400 :
+          error.code === 'VALIDATION_ERROR' ? 400 : 500;
+
+    res.status(statusCode).json({
+      error: error.message,
+      code: error.code,
+      details: error.details
+    });
+  }
+}
+
+// ============================================
 // IMPORT (Complete shipment with external document)
 // ============================================
 

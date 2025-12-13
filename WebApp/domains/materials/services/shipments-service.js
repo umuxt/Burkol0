@@ -25,7 +25,8 @@ export const SHIPMENT_STATUSES = {
   DELIVERED: 'delivered',
   CANCELLED: 'cancelled',
   EXPORTED: 'exported',
-  COMPLETED: 'completed'
+  COMPLETED: 'completed',
+  REVERSED: 'reversed'
 }
 
 // Document types for invoice export
@@ -42,7 +43,8 @@ export const SHIPMENT_STATUS_LABELS = {
   delivered: 'Teslim Edildi',
   cancelled: 'İptal Edildi',
   exported: 'Export Edildi',
-  completed: 'Tamamlandı'
+  completed: 'Tamamlandı',
+  reversed: 'Ters Çevrildi'
 }
 
 // Status colors for UI
@@ -52,7 +54,8 @@ export const SHIPMENT_STATUS_COLORS = {
   delivered: '#22c55e',  // green
   cancelled: '#ef4444',  // red
   exported: '#8b5cf6',   // purple
-  completed: '#10b981'   // emerald
+  completed: '#10b981',  // emerald
+  reversed: '#f97316'    // orange
 }
 
 // Shipments CRUD Operations
@@ -606,6 +609,48 @@ export const shipmentsService = {
     } catch (error) {
       console.warn('❌ Material shipments fetch error:', error?.message || error)
       return []
+    }
+  },
+
+  /**
+   * Ters sevkiyat - tamamlanmış sevkiyatı geri alıp beklemede durumuna al (P1.6.5)
+   * Stok iadesi yapılır, status pending olur. Yeni stoklar import aşamasında düşer.
+   * 
+   * @param {number} shipmentId - Shipment ID
+   * @param {Object} data - Yeni sevkiyat verisi (items, transport, notes vb.)
+   * @returns {Promise<Object>} Sonuç { success, shipment, stockRestorations }
+   */
+  reverseShipment: async (shipmentId, data) => {
+    try {
+      const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}/reverse`, {
+        method: 'POST',
+        headers: withAuth(),
+        body: JSON.stringify(data)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Shipment reversed:', result)
+
+      // Emit stock update event for materials list refresh
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('shipmentReversed', {
+          detail: {
+            shipmentId,
+            stockRestorations: result.stockRestorations,
+            newStatus: 'pending'
+          }
+        }))
+      }
+
+      return result
+    } catch (error) {
+      console.error('❌ Reverse shipment error:', error)
+      throw error
     }
   },
 

@@ -16,6 +16,9 @@ export default function ShipmentsTabContent() {
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  // P1.6.5: Ters Sevkiyat state
+  const [reverseShipmentData, setReverseShipmentData] = useState(null);
+
   useEffect(() => {
     loadShipments();
   }, []);
@@ -108,7 +111,7 @@ export default function ShipmentsTabContent() {
       const customer = (shipment.customerCompany || shipment.customerName || '').toLowerCase();
       const note = (shipment.description || shipment.notes || '').toLowerCase();
       const id = (shipment.id || '').toString();
-      
+
       return shipmentCode.includes(term) || code.includes(term) || workOrder.includes(term) || customer.includes(term) || note.includes(term) || id.includes(term);
     }
 
@@ -120,6 +123,15 @@ export default function ShipmentsTabContent() {
     console.log('✅ New shipment created:', newShipment);
     loadShipments();
     setCreateModalOpen(false);
+    setReverseShipmentData(null); // Clear reverse mode
+  };
+
+  // P1.6.5: Handle Ters Sevkiyat
+  const handleTersSevkiyat = (shipment) => {
+    console.log('↩️ Starting reverse shipment:', shipment.shipmentCode);
+    setReverseShipmentData(shipment);
+    setCreateModalOpen(true);
+    setSelectedShipment(null); // Close details panel
   };
 
   // Loading state
@@ -193,6 +205,7 @@ export default function ShipmentsTabContent() {
             onUpdateStatus={handleUpdateStatus}
             onCancel={handleCancel}
             onRefresh={loadShipments}
+            onTersSevkiyat={handleTersSevkiyat}
             loading={loading}
           />
         )}
@@ -201,8 +214,19 @@ export default function ShipmentsTabContent() {
       {/* Create Shipment Modal */}
       <AddShipmentModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          // P1.6.5: Ters sevkiyat modunda kapatma onayı
+          if (reverseShipmentData) {
+            if (confirm('Ters Sevkiyat işlemi gerçekleştirilmeyecek, onaylıyor musunuz?')) {
+              setReverseShipmentData(null);
+              setCreateModalOpen(false);
+            }
+          } else {
+            setCreateModalOpen(false);
+          }
+        }}
         onSuccess={handleShipmentCreated}
+        reverseShipmentData={reverseShipmentData}
       />
     </div>
   );

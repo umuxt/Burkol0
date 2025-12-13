@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText, Package, Trash2, Plus, Upload, Download, AlertCircle, FileCode, Paperclip, Lock } from '../../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../../services/shipments-service.js'
 import { showToast } from '../../../../shared/components/MESToast.js'
@@ -9,6 +10,7 @@ export default function ShipmentDetailsPanel({
   onUpdateStatus,
   onCancel,
   onRefresh, // New prop to refresh parent list
+  onTersSevkiyat, // P1.6.5: Callback to open AddShipmentModal in reverse mode
   loading = false
 }) {
   const [currentShipment, setCurrentShipment] = useState(shipment);
@@ -667,6 +669,40 @@ export default function ShipmentDetailsPanel({
                 </div>
               )}
             </>
+          )}
+
+          {/* P1.6.5: Ters Sevkiyat Button - only for completed shipments */}
+          {currentShipment.status === 'completed' && onTersSevkiyat && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+              <button
+                onClick={() => {
+                  if (confirm('Sevkiyatı geri almak istediğinizden emin misiniz?\n\nStok geri yüklenecek ve sevkiyat düzenleme moduna alınacaktır.')) {
+                    onTersSevkiyat(currentShipment);
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #f97316',
+                  background: '#fff7ed',
+                  color: '#c2410c',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  width: '100%',
+                  justifyContent: 'center'
+                }}
+              >
+                <ArrowLeft size={14} />
+                Ters Sevkiyat
+              </button>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', textAlign: 'center' }}>
+                Sevkiyatı geri alın ve düzenleyin
+              </div>
+            </div>
           )}
         </div>
       </div>
